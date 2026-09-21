@@ -1,0 +1,5 @@
+.lenv/
+__pycache__/
+.pytest_cache/
+.claude/settings.local.json
+slicer-src/

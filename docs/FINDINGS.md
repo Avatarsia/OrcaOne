@@ -1,0 +1,459 @@
+# Befunde: Spezifikation gegen Wirklichkeit
+
+Stand 21.09.2026. Geprüft wurde Abschnitt 4 der [Spezifikation](../ORFIX_SPEC.md), und zwar nur lesend.
+
+**Quellen**
+
+- **Snapmaker Orca v2.4.0:** Quellcode (Commit `b1831e5`) und die laufende AppImage mit ihren Programmressourcen.
+- **Echtes Datenverzeichnis:** `~/.config/Snapmaker_Orca` (SnOrca 2.4.0, Linux, U1 installiert, noch keine eigenen Profile).
+- **OrcaSlicer main:** Quellcode, Commit `45940a5` vom 21.09.2026, 2.5.0-dev.
+- **OrcaSlicer Nightly:** die AppImage, entpackt, nicht ausgeführt.
+- **OrcaSlicer-Releases v2.4.0 bis v2.4.2:** nur einzelne Dateien per raw.githubusercontent.com.
+- **Nicht vorhanden:** Während der Prüfung war OrcaSlicer auf diesem Rechner noch nie gestartet, es gab kein `~/.config/OrcaSlicer`. Der Erststart kam danach, siehe „Beobachtung: Erststart der OrcaSlicer-Nightly“. Einen Windows-Rechner gab es für die Prüfung nicht.
+- **Ablage:** Der Quellcode liegt als Sparse-Clone in `slicer-src/` und steht nicht im Git. Neu anlegen:
+
+  ```bash
+  git clone --depth 1 --branch v2.4.0 --filter=blob:none --sparse https://github.com/Snapmaker/OrcaSlicer.git slicer-src/snorca-v2.4.0
+  ```
+
+  ```bash
+  git clone --depth 1 --branch main --filter=blob:none --sparse https://github.com/OrcaSlicer/OrcaSlicer.git slicer-src/orcaslicer-main
+  ```
+
+  Danach in beiden Ordnern die benötigten Teile holen:
+
+  ```bash
+  git sparse-checkout set --no-cone '/version.inc' '/CMakeLists.txt' '/src/*.cpp' '/src/*.hpp' '/src/CMakeLists.txt' '/src/libslic3r/*' '/src/slic3r/GUI/*' '/src/slic3r/Utils/*' '/scripts/*' '/resources/web/guide/*' '/resources/profiles/OrcaFilamentLibrary*' '/resources/profiles/Snapmaker*'
+  ```
+
+**Vorgehen:** Sechs Agenten haben je einen Teil von Abschnitt 4 gegen Code und Installation geprüft. Zwei Gegenprüfer haben versucht, die Befunde zu widerlegen. Ein weiterer Agent hat nach Lücken gesucht. Dazu kam ein Prototyp für das neue `.opc`-Format ([prototypes/opc](../prototypes/opc/README.md)). Belege mit Datei und Zeile liegen in den Agentenprotokollen. Hier stehen nur die Ergebnisse und ihre Folgen für Orfix.
+
+Schreibweise: **SnOrca** = Snapmaker Orca 2.4.0, **Orca** = OrcaSlicer. Wo Orca-Release (2.4.x) und Orca main unterschiedlich sind, steht es dabei.
+
+---
+
+## Das Wichtigste in Kürze
+
+1. **Die OrcaSlicer-Nightly speichert Systemprofile binär.** Orca main (2.5.0-dev) liefert und installiert Hersteller als `system/<Vendor>.opc` statt als JSON. Ohne `.opc`-Leser sieht Orfix dort keine Systemprofile. Das Format lässt sich mit reinem Python lesen, der Prototyp liest alle 65 Dateien der Nightly (Abschnitt „Das .opc-Format“). Alle Releases bis v2.4.2 nutzen noch JSON.
+2. **Regel 6 stimmt nur für SnOrca.** Orca schreibt `.conf` und Profil-JSONs seit Release v2.4.0 mit **Tab**-Einrückung, SnOrca und Orca bis v2.3.2 mit 4 Leerzeichen. Beide sortieren alle Schlüssel alphabetisch und enden mit `\n`. Orfix muss das Format der vorgefundenen Datei übernehmen.
+3. **Orca nimmt den Dateinamen als Profilnamen.** Das gilt für Benutzerprofile ab v2.4.x. SnOrca nimmt das Feld `name`. Stimmen beide nicht überein, heißt dasselbe Profil in den beiden Slicern verschieden.
+4. **Benutzerprofile werden nicht rekursiv geladen**, sondern nur `user/<ordner>/<typ>/*.json` und `<typ>/base/**`. Orca main kennt zusätzlich Bundle-Ordner `_local/<id>/` und `_subscribed/<id>/`. Alles andere ignoriert der Slicer.
+5. **Der Slicer löscht fehlerhafte Benutzerprofile.** Bei ungültigem JSON, nicht umwandelbaren Werten oder Nicht-String-Metadaten verschwinden `.json` **und** `.info` beim nächsten Start. Orfix muss alles, was es nach `user/` schreibt, vorher selbst prüfen.
+6. **Abstrakte Profile taugen nicht als Elternprofil für eigene Profile.** Gemeint sind Profile mit `instantiation: "false"`, etwa `@base` oder `fdm_*`. Der Slicer lädt sie gar nicht als Profil. Bei „An Zielprofil hängen“ sind deshalb nur wählbare Profile erlaubt.
+7. **„Bibliothek freischalten“ trägt laut Code.** Ein Name aus der OrcaFilamentLibrary in `"filaments"` macht das Profil in SnOrca sichtbar. Kein SUNLU-Profil wird beim U1 ausgeschlossen. Es gibt dazu eine robustere Alternative, siehe 4.7. Ein Praxistest steht noch aus.
+8. **Leeres oder fehlendes `"filaments"` heißt: alles sichtbar**, nicht „nichts sichtbar“.
+9. **Ob der Slicer läuft, zeigen Prozessliste und Sperrdatei zusammen.** Unter Linux und macOS hält er eine Sperre auf `<data_dir>/cache/<hash>.lock`, rein lesend prüfbar per `F_GETLK`. Am echten System getestet: gesperrt von PID 44867. Die Sperre allein reicht aber nicht, weil der Slicer die `.conf` vor dem Sperren liest und nach dem Entsperren noch schreibt. Windows nutzt einen benannten Mutex, dort hilft nur die Prozessliste.
+10. **Die `.conf` enthält Zugangsdaten**, nämlich SnOrca `devices[].api_key/password/…` und Orca `local_machines[].access_code`. Eigene Druckerprofile können `printhost_*` enthalten. Orfix muss solche Werte in Diffs maskieren und Backups als vertraulich behandeln.
+11. **`preset_folder` gehört dem Slicer.** Er setzt ihn bei jedem Start neu: `""` ohne Anmeldung, sonst die `user_id`. Orfix ändert ihn nie.
+12. **SnOrca schaltet beim Start alle Düsenvarianten eines Modells wieder ein**, sobald eine aktiv ist. Einzelne Varianten abzuschalten hält also nicht, nur ganze Modelle.
+13. **U1-Filamentnamen unterscheiden sich zwischen SnOrca und Orca.** Die Druckernamen sind gleich. Von 129 wählbaren U1-Filamenten in SnOrca und 107 in Orca main heißen nur 43 gleich, zum Beispiel heißt `Snapmaker ABS @U1 0.4 nozzle` in Orca `Snapmaker ABS @U1`. Das ist wichtig für das Übertragen.
+
+---
+
+## 4.1 Datenverzeichnisse und Prozesse
+
+| Spezifikation | Befund | Folge für Orfix |
+|---|---|---|
+| Linux `~/.config/<Key>` | Teilweise. Reihenfolge: `--datadir <pfad>` → Ordner `data_dir` neben der Programmdatei (portabel) → `$XDG_CONFIG_HOME/<Key>` → `~/.config/<Key>`. | `$XDG_CONFIG_HOME` beachten. Einen `data_dir`-Ordner neben gefundenen Programmdateien prüfen. |
+| SnOrca-Flatpak: ID unbekannt, per Glob | **Abweichend:** Die ID ist `io.github.Snapmaker.Snapmaker_Orca` (Flatpak-Manifest, metainfo, CI). Pfad: `~/.var/app/io.github.Snapmaker.Snapmaker_Orca/config/Snapmaker_Orca`. Auf Flathub offenbar nicht, die CI baut nur ein `*_Beta.flatpak`. | Feste ID verwenden, Glob nur zusätzlich. |
+| Orca-Flatpak `com.orcaslicer.OrcaSlicer` | Stimmt seit v2.3.2. Bis v2.3.1 hieß die ID `io.github.softfever.OrcaSlicer`. Orca main kopiert den Altordner beim ersten Start, der alte bleibt liegen. | Beide IDs suchen. Den Altordner als „veraltete Kopie“ zeigen, nicht als aktive Instanz. |
+| Windows `%APPDATA%\<Key>`, macOS `~/Library/Application Support/<Key>` | Bestätigt. | – |
+| Pfade manuell ergänzen | Bestätigt: `--datadir` gibt es in beiden Slicern. | – |
+| AppImage-Portabelmodus | Neu: Ein Ordner `<datei>.AppImage.config` neben der AppImage setzt `XDG_CONFIG_HOME`, `<datei>.AppImage.home` setzt `HOME`. | Bei gefundenen AppImages zusätzlich `<datei>.config/<Key>` und `<datei>.home/.config/<Key>` prüfen. |
+| Prozessnamen | Bestätigt: `snapmaker-orca` und `orca-slicer`. Die AppImage läuft zusätzlich als eigener Prozess. `comm` wird auf 15 Zeichen gekürzt. Windows: `snapmaker-orca.exe`, `orca-slicer.exe`. macOS: `Snapmaker Orca.app/Contents/MacOS/Snapmaker_Orca`, `OrcaSlicer.app/Contents/MacOS/OrcaSlicer`. | Prozesse nach dem exe-Pfad erkennen, nicht nach `comm`. |
+
+### Laufprüfung (neu)
+
+- **Linux und macOS:** Der Slicer hält eine POSIX-Schreibsperre auf `<data_dir>/cache/<hash>.lock`, auf Byte 0 mit Länge 1.
+  - Der `hash` ist `std::hash` über den kanonischen Pfad der Programmdatei. Bei einer AppImage ist das `$APPIMAGE`, also die `.appimage`-Datei selbst, nicht der Mount-Pfad. Jede Programmdatei hat deshalb ihre eigene Lock-Datei, und Orfix muss **alle** `*.lock` in `cache/` prüfen.
+  - Prüfen geht rein lesend: `os.open(O_RDONLY)` und `fcntl(F_GETLK)` liefern die PID des Halters. Orfix darf die Sperre **nie selbst setzen**. Ein startender Slicer würde sich sonst für eine Zweitinstanz halten.
+  - Nach einem Absturz bleibt die Datei ohne Sperre liegen. Nur die Sperre zählt, nicht die Datei.
+  - Nur die erste Instanz einer Programmdatei hält die Sperre. `single_instance` ist standardmäßig `false`, eine zweite Instanz läuft also ohne Sperre.
+- **Die Sperre allein reicht nicht.** Beim Start liest der Slicer die `.conf` im Konstruktor von `GUI_App`, bevor er die Sperre setzt. Beim Beenden löscht er erst die Lock-Datei und schreibt danach die `.conf`, beobachtet am 21.09.: Lock weg um 13:12:00.384, `.conf` geschrieben um 13:12:00.387. Die Sperre dient nur dazu, einen Prozess einem Datenordner zuzuordnen.
+- **Die AppImage-Runtime zählt mit.** Die Runtime läuft als eigener Prozess vor und nach dem Slicer. Ihr `exe` ist die `.appimage`-Datei, ihr `comm` der gekürzte Dateiname. Beim Start wechselt die PID des Slicers per `exec` von `AppRun` über das Env-Skript zu `snapmaker-orca`.
+- **Prozessnamen exakt vergleichen.** `/usr/bin/orca` ist der GNOME-Screenreader.
+- **Datenordner eines Prozesses (Linux):** Ohne `--datadir` wechselt der Slicer nach `<data_dir>/log`, dann zeigt `/proc/<pid>/cwd` den Datenordner. Mit `--datadir` steht der Pfad in `/proc/<pid>/cmdline`, relativ zum Startverzeichnis, weil dann kein `chdir` erfolgt. SnOrca hält außerdem eine `flock`-Sperre auf `log_upload_spool/.lock`.
+- **macOS:** Dieselbe Lock-Datei. Beendet sich die erste Instanz, übernimmt eine zweite die Sperre per Nachricht.
+- **Windows:** Der Slicer nutzt einen benannten Mutex (`wxSingleInstanceChecker`), keine Datei. Der Mutex hängt am Programmpfad, nicht am Datenordner. Es bleibt nur die Prozessliste samt Kommandozeile, also `psutil`.
+- **Flatpak:** Das D-Bus-Signal `…InstanceCheck.*` ist im SnOrca-Manifest nicht freigegeben und fehlt dort vermutlich.
+- **Umsetzung in `orfix/guard.py`:**
+  - Ein Slicer läuft, solange es einen Prozess `snapmaker-orca` bzw. `orca-slicer` (auch `.exe` und macOS-Bundle) oder eine AppImage-Runtime dieses Slicers gibt.
+  - Die Zuordnung zum Datenordner erfolgt über `--datadir`, das Arbeitsverzeichnis oder die Sperre.
+  - Kann Orfix einen Prozess keinem Ordner zuordnen, zeigt es alle Instanzen dieses Slicers schreibgeschützt.
+  - Direkt vor und nach dem Schreiben prüft Orfix erneut.
+  - Das `struct flock` ist unter macOS anders aufgebaut als unter Linux.
+
+## 4.2 Ordnerstruktur
+
+| Spezifikation | Befund | Folge für Orfix |
+|---|---|---|
+| `system/<Vendor>.json` plus `<Vendor>/{machine,process,filament}/` | Stimmt für SnOrca und Orca bis v2.4.2. **Orca main** lädt `<Vendor>.json` **oder** `<Vendor>.opc` und löscht bei einer Cache-Installation das JSON. | `.opc` lesen (siehe unten). Systemprofile über das Manifest bestimmen, nicht über einen Ordner-Scan. |
+| Manifest-Aufbau | Bestätigt. `system/Snapmaker/` enthält aber 5 JSONs, die nicht im Manifest stehen: 4 Regeldateien (`filament_allow_list.json`, `filament_compatibility.json`, `filament_hot_bed_nozzles.json`, `filaments_colours.json`) und ein verwaistes Prozessprofil. | Nur Manifesteinträge sind Systemprofile. Einzige Ausnahme ist die SnOrca-Bibliothek mit leerem Manifest (4.7). |
+| `system/` wird beim Start erneuert | **SnOrca:** OrcaFilamentLibrary jedes Mal. Snapmaker immer geprüft, andere Hersteller nur, wenn sie in `"models"` stehen. Neu kopiert wird bei abweichendem Major/Minor oder älterer Version. Hersteller, die nicht in `"models"` stehen, **löscht** SnOrca. **Orca bis v2.4.2** verhält sich genauso, weil `enabled_config_update` dort an eine fest eingetragene URL gebunden und damit immer wahr ist. **Erst Orca main** (Nightly) verlangt zusätzlich `app.enable_ota = true`. Der Standard ist `false` und in der Oberfläche nicht einstellbar. Dann werden installierte Hersteller weder erneuert noch entfernt, nur fehlende installiert. Die Bibliothek wird immer kopiert. | Versionen von `system/` und Programmressourcen anzeigen. Ändert Orfix `"models"`, installiert bzw. löscht SnOrca beim nächsten Start ganze Herstellerpakete. Das gehört in den Änderungsplan. |
+| `user/<preset_folder>/`, `""` = `default` | Bestätigt. SnOrca und Orca setzen `preset_folder` bei **jedem Start** neu: angemeldet auf die `user_id`, sonst auf `""`. | `""` und fehlender Schlüssel bedeuten `default`. Orfix ändert `preset_folder` nie. |
+| Eigene Profile als `<Name>.json` plus `<Name>.info` | Ja. Profile ohne `inherits` (Wurzelprofile) legt der Slicer in `<typ>/base/<Name>.json` ab. | Der Scanner kennt `base/`. |
+| Rekursiv scannen | **Abweichend:** Der Slicer lädt nur `<typ>/*.json` und `<typ>/base/`. **Orca main** lädt zusätzlich `user/<ordner>/_local/<id>/<typ>/` und `_subscribed/<id>/<typ>/`, wenn dort eine `bundle_metadata.json` liegt. Diese Profile tragen `"from": "Bundle"`, haben keine `.info` und heißen intern `_local/<id>/<Name>`. | Rekursiv scannen, aber je Datei markieren, ob der Slicer sie lädt. Bundle-Profile von Orca main als eigene Herkunft „Bundle“ zeigen. |
+
+**Weitere Einträge im Datenverzeichnis:** Alle gelten als „nicht verwaltet“ und stehen nicht in Orfix-Diffs als Profile.
+
+| Eintrag | Bedeutung | Backup |
+|---|---|---|
+| `log/` | Logdateien | nein |
+| `cache/` | Lock-Dateien, bei Orca main auch `cookies.db` | nein |
+| `user_backup-v<Version>/` | Einmalige Kopie von `user/` je Programmversion, wird nie aktualisiert oder zurückgespielt | nein (Slicer-eigen) |
+| `user/Temp/` | Flüchtige Vollkopien aller sichtbaren Drucker, solange der Export-Dialog offen ist | nein |
+| `user/<ordner>/temp/` | Rest eines abgebrochenen Imports. SnOrca nutzt immer `user/default/temp` | nein |
+| `hms/`, `ota/`, `web/`, `log_upload_spool/` | SnOrca: Gerätemeldungen, Hot-Updates, Flutter-Gerätepanel, Telemetrie-Warteschlange | nein |
+| `.snapmaker_orca_machine_id` (Orca: `.orcaslicer_machine_id`) | Zufällige UUID für Telemetrie und Update-Check | ja, nie übertragen, nie anzeigen |
+| `printers/`, `plugins/`, `orca_plugins/`, `models/`, `cameratools/`, `SVG/`, `vendor/` | je nach Version und Nutzung | nein |
+| `<Key>.conf.<pid>` | Temporäre Datei beim Speichern | Zeichen für laufenden Schreibvorgang |
+| `<Key>.conf.bak` | nur Windows | ja |
+| `system/<Vendor>.new`, `.old` | Reste nach Absturz (SnOrca) | nein |
+| `simplyprint_oauth.json`, `3dprinteros_api_cred.json`, `orca_refresh_token.sec` | Zugangstoken | vertraulich |
+| `user/hints.cereal` | Zustand der Tipps, beim Beenden geschrieben. Weder Konto- noch Profilordner | ja |
+
+**Außerhalb des Datenordners** legt die eingebaute Web-Oberfläche (WebKitGTK) eigene Ordner nach dem Programmnamen an. SnOrca nutzt `~/.local/share/snapmaker-orca` (localstorage, u. a. für die Snapmaker-Anmeldung) und `~/.cache/snapmaker-orca`. Alle SnOrca-Datenordner teilen sich diese Ordner, auch bei `--datadir`. Orfix verwaltet sie nicht und sichert sie nicht mit, es nennt sie nur.
+
+## 4.3 Die .conf
+
+| Spezifikation | Befund | Folge für Orfix |
+|---|---|---|
+| JSON, 4 Leerzeichen, temporäre Datei plus Umbenennen | **SnOrca:** `setw(4)`. **Orca bis v2.3.2:** 4 Leerzeichen. **Orca ab v2.4.0 (auch 2.4.2) und main:** Tab (`dump(1, '\t')`). Alle sortieren Schlüssel auf allen Ebenen alphabetisch (nlohmann mit `std::map`), schreiben Nicht-ASCII roh als UTF-8, nutzen LF und enden mit `\n`. Temporäre Datei `<Key>.conf.<pid>`, dann `rename`. Die echte SnOrca-Datei ist byte-identisch mit `json.dumps(obj, indent=4, ensure_ascii=False, sort_keys=True) + "\n"`. | Einrückung aus der vorgefundenen Datei übernehmen, `sort_keys=True`, abschließendes `\n`. |
+| `"models"`: `{vendor, model, nozzle_diameter "0.4;0.6"}` | Stimmt. Der Wert unter `nozzle_diameter` sind `printer_variant`-Werte, beliebige Zeichenketten wie `"0.4+0.6"` in Orca. Verbunden mit `escape_strings_cstyle`, sortiert, Werte mit Leerzeichen in Anführungszeichen. `model` ist der Manifestname des Modells (`Snapmaker U1`), nicht `model_id` (`SM_U1`). | Varianten als unveränderte Zeichenketten behandeln. |
+| `"filaments"`: Liste von Profilnamen | Stimmt. Sortiert, ohne Duplikate. Ein vorhandener, aber leerer Abschnitt wird als `null` geschrieben. **Fehlend, `[]` und `null` bedeuten beim Laden dasselbe: kein Abschnitt, alle Systemfilamente sichtbar.** | Drei Zustände unterscheiden (siehe 4.6). |
+| `"presets"` plus druckerbezogene Auswahlabschnitte | **Präzisiert:** `"presets"` enthält nur noch `machine` und `filaments` (meist `null`). Die Auswahl je Drucker steht im Array **`"orca_presets"`**: ein Objekt pro Druckername mit `machine`, `process`, `filament`, `filament_01…NN` (weitere Köpfe, beim U1 bis `_03`), `curr_bed_type`, `filament_colors` usw. Alle Werte sind Strings. Echte Datei: drei Einträge, darunter ein veralteter für `Default Printer`. | Abhängigkeiten eines Druckers über `presets.machine` **und** `orca_presets` prüfen. Veraltete Einträge markieren, nicht automatisch löschen. |
+| `"preset_folder"` | liegt unter `app`, siehe 4.2 | – |
+| `"header"` und alles andere unverändert | `header` wird bei jedem Speichern neu erzeugt (`"Snapmaker Orca 2.4.0"`, `"OrcaSlicer 2.5.0-dev"`). Das ist die **einzige zuverlässige Versionsangabe**, denn `app.version` ist `SLIC3R_VERSION` (`01.10.01.50`). Unbekannte Schlüssel überleben nur als Objekt mit String- oder Bool-Werten. | Version aus `header` anzeigen. Orfix legt keine eigenen Schlüssel in der `.conf` ab. |
+| Windows-Prüfsumme | Gehasht wird der JSON-Text **ohne** abschließenden Zeilenumbruch, im Format der Slicer-Version (`dump(4)` bzw. `dump(1, '\t')`). Datei = JSON + `\n` + `# MD5 checksum <HEX>` + `\n`. HEX sind Großbuchstaben (`boost::algorithm::hex`). Bei jedem Speichern entsteht eine `.bak`. | `hashlib.md5(text).hexdigest().upper()` über den LF-Text. Ob die Datei auf der Platte CRLF hat, klärt erst eine echte Windows-Datei. |
+| Falsche Prüfsumme: nur Log | Bestätigt. | – |
+| JSON-Fehler: Wiederherstellung aus `.bak` (Windows) | **Präzisiert, gilt für alle Plattformen:** Bei einem Syntaxfehler probiert nur Windows die `.bak`. Sonst meldet der Slicer den Verlust und setzt alle Einstellungen auf Standard. **Typfehler** in gültigem JSON, etwa ein Nicht-String in `models`, `filaments` oder `presets`, brechen das Laden mittendrin ab: Die Abschnitte vor dem Fehler sind übernommen, alles danach geht verloren. Ein Nicht-String in `orca_presets[].filament` lässt SnOrca beim Start mit „GUI initialization failed“ abbrechen. Unter Windows wirft eine Datei, die direkt auf `}` ohne Zeilenumbruch endet, eine nicht abgefangene Ausnahme. | Nach dem Erzeugen die Datei neu parsen und die Typen der bekannten Abschnitte prüfen. Immer mit `\n` enden. |
+| SnOrca benennt Filamentnamen um (`update_filament_names`) | Nur eine feste Tabelle von etwa 70 alten J1- und Dual-Namen. Betrifft `"filaments"` und `orca_presets`. | Für den U1 ohne Bedeutung. |
+| Wann der Slicer die .conf schreibt | Beim Start (Linux und macOS ohne Bedingung, noch vor dem Laden der Profile), im Leerlauf, sobald sich ein Wert geändert hat, und beim Beenden. Nicht periodisch. Unter POSIX löscht der Slicer das Ziel vor dem Umbenennen, die `.conf` kann also kurz fehlen. | Bestätigt Regel 3. Fehlt die `.conf` beim Scan, versucht Orfix es erneut, statt einen Fehler zu melden. Die neue Datei übernimmt die Dateirechte der alten, denn `mkstemp` legt sie mit 0600 an. |
+| Escaping in `"models"` und `renamed_from` | Gelesen wird in beiden Slicern gleich (`unescape_strings_cstyle`). Beim Schreiben setzt Orca main einen Wert auch bei `;` in Anführungszeichen, SnOrca nur bei Leerzeichen, Tab, `\`, `"`, CR, LF und leerem Einzelwert. | Beim Schreiben die Variante des Ziel-Slicers nehmen. |
+
+**Zugangsdaten in der .conf:** SnOrca speichert unter `"devices"` je LAN-Gerät `api_key`, `user`, `password`, `ca`, `cert`, `key` und `clientId`, Orca unter `"local_machines"` den `access_code`. Orfix maskiert diese Werte im Diff (Regel 5) und in der Anzeige.
+
+## 4.4 Aufbau eines Profils
+
+| Spezifikation | Befund | Folge für Orfix |
+|---|---|---|
+| Beispiel `SUNLU PLA+ @System` | Zeichen für Zeichen bestätigt. | – |
+| Wichtige Schlüssel | Metaschlüssel sind `version`, `name`, `type`, `from`, `inherits`, `instantiation`, `setting_id`, `filament_id`, `description`, `renamed_from`, `url` und `is_custom_defined` (nur SnOrca). **`base_id` steht nie in einer Profil-JSON**, nur in der `.info`. **`type` fehlt in Benutzer-JSONs.** | Typ aus dem Ordner ableiten. `base_id` aus der `.info` lesen. |
+| `from`: `system` bzw. `User` | Systemdateien haben `"system"`. Beim Speichern schreibt der Slicer `"User"`, `"Project"`, `"System"` oder `"Default"`, Orca main auch `"Bundle"`. Der Exportdialog schreibt `""`. In Orca main hat sogar eine Systemdatei `"from": "User"`. | Herkunft **nie** aus `from` ableiten, sondern aus dem Speicherort. |
+| `renamed_from` | Immer ein **String**, mehrere Namen mit `;` getrennt, optional in Anführungszeichen mit C-Escapes. Fehlt der Schlüssel und enthält der Name ein `@`, gilt der Name ohne `@` als impliziter Eintrag: `Generic PLA @System` wird zu `Generic PLA System`. | Den Resolver und die Sichtbarkeit auch über implizite Namen prüfen. |
+| Werte als String-Arrays | Nur Strings oder String-Arrays. Zahlen und Bools verwirft der Slicer. Derselbe Schlüssel kann skalar oder als Array vorkommen. SnOrca hat Flow-Varianten `*_flow_support = ["standard","high_flow"]` mit einem Wert je Variante, die Orca nicht kennt. | `"x"` und `["x"]` beim Vergleich gleich behandeln. Arrays als „Standard / High Flow“ beschriften. Beim Übertragen SnOrca → Orca nur den ersten Wert übernehmen. |
+| Name statt Dateiname maßgeblich | **Systemprofile:** Stimmt (6 Abweichungen im echten `system/`, darunter das Marble-Beispiel). **Benutzerprofile:** SnOrca nimmt `name`, **Orca ab v2.4.x nimmt den Dateinamen** und ignoriert `name`. | Beim Schreiben sind Dateiname und `name` immer gleich. Abweichungen zeigt Orfix als Warnung. |
+| Benutzerprofile speichern nur Abweichungen | Stimmt: `diff(parent)` plus immer `version`, `name`, `from`, `inherits` und den passenden `*_settings_id`. Wurzelprofile ohne Elternprofil speichern die komplette Konfiguration nach `<typ>/base/`. | Beim flachen Schreiben alle Werte, beim Anhängen nur die Differenz plus Pflichtschlüssel. |
+| Ohne Elternprofil „verwaist“ | Der Slicer **lädt** solche Profile nicht (Log „can not find parent“), die Datei bleibt liegen. Vorher versucht er `renamed_from` und einen Rückgriff: Namen mit `Generic` werden auf `Generic <Material> @System` der Bibliothek abgebildet. Nur SnOrca lädt sie mit `is_custom_defined = "1"` trotzdem, dann mit Standardwerten. | Den Status „verwaist“ als „im Slicer unsichtbar“ erklären. Zusätzlicher Status „Ersatz-Elternprofil“, wenn der Generic-Rückgriff greift. |
+| `.info`-Format | Bestätigt: `sync_info`, `user_id`, `setting_id`, `base_id`, `updated_time`. SnOrca schreibt eine vorhandene `.info` beim Laden neu, wenn `updated_time` fehlt. | `.info` immer mit `updated_time` schreiben. |
+
+**Wann der Slicer Benutzerprofile löscht oder überspringt:**
+
+| Fall | Folge |
+|---|---|
+| Ungültiges JSON, ein Wert, der sich nicht umwandeln lässt (z. B. `"abc"` für eine Zahl), ein Nicht-String in `name`, `version` oder `instantiation` | **`.json` und `.info` werden gelöscht.** |
+| `version` fehlt oder ist kein gültiges Semver (2 bis 4 numerische Teile, führende Nullen erlaubt) | still übersprungen |
+| Name gleich einem schon geladenen Profil, etwa einem Systemprofil | übersprungen („already present“) |
+| `type` passt nicht zum Ordner (nur SnOrca) | übersprungen |
+| `"instantiation": "false"` | geladen, aber unsichtbar |
+| Ungültige Enum- oder Bool-Werte | durch den Standardwert ersetzt |
+
+**Dateien, die der Slicer von sich aus ändert:**
+
+- Orca main füllt bei Wurzel-Filamenten mit leerer `compatible_printers` den Text nach `@` als Druckernamen ein und speichert die Datei sofort.
+- Orca trägt ein per Rückgriff gefundenes Elternprofil in `inherits` ein.
+- SnOrca bindet die Kopie eines Systemfilaments mit leerer Druckerliste beim „Speichern unter“ an den aktuellen Drucker.
+
+Deshalb zeigt der Schnappschussvergleich nach einem Slicer-Start auch Änderungen, die nicht vom Nutzer kommen.
+
+## 4.5 Vererbung auflösen
+
+| Spezifikation | Befund | Folge für Orfix |
+|---|---|---|
+| Effektive Werte = Elternwerte, überschrieben durch eigene, rekursiv | Die Wurzel ist nicht leer, sondern die **Standardkonfiguration aus `PrintConfigDef`**, gefiltert auf den Typ. Danach füllt `Preset::normalize` Lücken und verlängert Vektoren auf die Extruderzahl bzw. die Flow-Varianten. Bei `SUNLU PLA+ @System` kommen rund 50 Schlüssel nur aus den Standardwerten, etwa `pressure_advance 0.02`. | Werte aus der Kette exakt zeigen, den Rest als „Standardwert des Slicers“ ausweisen. Eine Tabelle der Standardwerte ist ein eigener, späterer Schritt. |
+| Systemprofile im Paket, Filamente auch gegen die Bibliothek | Bestätigt. Ladereihenfolge: OrcaFilamentLibrary zuerst, dann die übrigen Hersteller. Fehlt ein Elternprofil oder ist ein Name doppelt, **fällt der ganze Hersteller weg**. Bei der Bibliothek entfernt der nächste Hersteller auch die schon geladenen Bibliotheksprofile. | Warnung „Hersteller würde im Slicer nicht laden“. |
+| Benutzerprofile gegen alle geladenen Profile | **Präzisiert:** Aufgelöst wird gegen die Sammlung desselben Typs. Darin stehen **nur wählbare** Systemprofile, das Default-Profil und die eigenen Wurzelprofile aus `base/`. Suchreihenfolge `find_preset2`: exakter Name, dann `renamed_from`, dann der Generic-Rückgriff. Beim **Import** sucht SnOrca dagegen nur exakt, Orca auch hier per `find_preset2`. | Der Resolver bildet `find_preset2` nach. Beim Anhängen nur wählbare Systemprofile oder eigene Wurzelprofile anbieten. |
+| Zyklen und fehlende Eltern als Status | Bestätigt. | – |
+
+## 4.6 Sichtbarkeit und Kompatibilität
+
+**Systemdrucker** sind sichtbar, wenn `get_variant(vendor_id, printer_model, printer_variant)` in `"models"` steht. `vendor_id` ist der Dateistamm von `system/<Vendor>.json`. Nur SnOrca schaltet beim Start alle Varianten eines aktiven Modells ein (`install_missing_variants_for_enabled_models`). Drucker gruppieren beide Slicer im Dropdown nach Modell.
+
+**Systemfilamente** in drei Zuständen:
+
+| `"filaments"` in der .conf | Wirkung |
+|---|---|
+| fehlt, `[]` oder `null` | **Alle** Systemfilamente sind sichtbar, auch die ganze Bibliothek. |
+| Liste mit Namen | Sichtbar ist, wessen `name` oder `renamed_from` (auch implizit) exakt in der Liste steht. |
+
+Beim Start ergänzen beide Slicer die `default_materials` jedes sichtbaren Systemdruckers, für den kein kompatibles Filament in der Liste steht. Die Folgen sind je Slicer verschieden:
+
+- **SnOrca:** Keins der 19 Snapmaker-Modelle hat `default_materials`, es wird also nichts ergänzt. Wer in SnOrca alle Filamente ausblendet, bekommt eine leere Liste, und dann ist **alles** sichtbar. **Orfix darf `"filaments"` in SnOrca nie leer schreiben.**
+- **Orca main:** Alle 19 Snapmaker-Modelle haben `default_materials`. Wer alle Filamente eines Druckers ausblendet, bekommt dessen Standardfilamente zurück. Das zeigt Orfix vorher im Plan an.
+
+**Prozesse** hängen nicht an der `.conf`. Sichtbar sind sie, wenn sie zum gewählten Drucker kompatibel sind.
+
+**Kompatibilität mit Drucker P** (`is_compatible_with_printer`), in dieser Reihenfolge geprüft:
+
+1. Ist das Profil ein Bibliotheksfilament und steht P in dessen Ausschlussliste, ist es inkompatibel.
+2. Ist `compatible_printers` leer und `compatible_printers_condition` gesetzt, entscheidet allein die Bedingung. Ein Parserfehler zählt als kompatibel. Bei nicht leerer Liste ignoriert der Slicer die Bedingung.
+3. Sonst ist das Profil kompatibel, wenn die Liste leer ist, P in der Liste steht oder P ein eigener Drucker ist, dessen **direktes** Elternprofil in der Liste steht.
+
+Folge: Orfix zeigt „bedingt“ nur bei leerer Liste und gesetzter Bedingung. Im echten `system/` ist keine Bedingung gesetzt.
+
+**Ausschlussregel der Bibliothek:**
+
+- Der Alias ist der Text vor dem ersten `@`, rechts ohne Leerraum. Ohne `@` ist es der volle Name. Groß- und Kleinschreibung zählen.
+- Bibliotheksprofile mit leerer Druckerliste werden für jeden Drucker ausgeblendet, für den ein anderer Hersteller ein Profil mit gleichem Alias und expliziter Druckerliste mitbringt.
+- Orca main wendet den Ausschluss zusätzlich über `inherits` auf eigene Drucker an. Dort verdrängen auch Bibliotheksprofile mit eigener Druckerliste.
+
+Das Beispiel aus der Spezifikation stimmt **für SnOrca**: `Generic PLA @System` ist für alle vier U1-Varianten ausgeblendet, weil Snapmaker `Generic PLA` und `Generic PLA @U1 …` mitbringt. Beim U1 0.4 sind 16 Bibliotheksprofile betroffen (Generic ABS, ASA, PETG, PLA, TPU usw.). **Kein SUNLU-Profil ist betroffen**, 126 von 142 Bibliotheksprofilen passen zum U1 0.4.
+
+In **Orca main** ist es umgekehrt: Dort bringt Snapmaker kein Generic-Profil für den U1 mit. `Generic PLA @System` ist kompatibel und steht sogar in den `default_materials` des U1. Ausgeblendet werden dort 23 andere, nämlich Panchroma, PolyLite, PolyTerra und Polymaker HT.
+
+**Weitere Befunde:**
+
+- **SnOrca zeigt bei gleichem Alias nur ein Filament.** Die Seitenleiste legt Systemfilamente nach Alias ab. Von mehreren sichtbaren, kompatiblen Filamenten mit gleichem Alias erscheint nur das erste. Orca nimmt den vollen Namen. Orfix warnt davor.
+- **Weitere Stellen schreiben `"filaments"` und `"models"` neu:**
+  - der Einrichtungsassistent, auch über „Add/Remove presets“ im Kontextmenü;
+  - in SnOrca der `WebPresetDialog`, wenn man einen Drucker bindet;
+  - in Orca `apply_vendor_config` beim Cloud-Sync.
+
+  Orfix vergleicht deshalb bei **jedem** Scan, ob Freischaltungen verloren gingen.
+- **Aktueller Stand der echten `.conf`:**
+  - In `"filaments"` stehen 13 Namen, alle von Snapmaker. Nur 5 passen zum U1. Die übrigen 8 (`@J1`, `@Dual` usw.) hat der Assistent mitgenommen, weil er nach Kurzname gruppiert.
+  - Im Dropdown für U1 0.4 erscheinen aus dem System nur `Snapmaker ABS @U1 0.4 nozzle` und `Snapmaker PLA Basic @U1`.
+
+## 4.7 Die versteckte Bibliothek in SnOrca
+
+| Spezifikation | Befund |
+|---|---|
+| Leeres Manifest, Dateien trotzdem da, 7 SUNLU-Profile | Bestätigt: 7 × `@System` und 7 × `@base`. Die Programmressourcen haben ebenfalls ein leeres Manifest. |
+| SnOrca lädt die Dateien seit 2.3.5 direkt von der Platte | Bestätigt, der Kommentar steht in `load_vendor_configs_from_json`. |
+| Unsichtbar, weil nicht in `"filaments"`; der Assistent kann sie nicht anbieten | Bestätigt. |
+| Manifest ändern ist zwecklos | Bestätigt: Die Bibliothek wird bei jedem Start ersetzt. |
+| Assistent schreibt `"filaments"` neu | Bestätigt. Dazu kommen die weiteren Auslöser aus 4.6. |
+| „SUNLU PLA+“ ist dünn | Präzisiert: `SUNLU PLA+ @System` setzt selbst nur `compatible_printers = []`. Die 12 Werte kommen aus `SUNLU PLA+ @base`: Preis 18,99, Dichte 1,23, Flow 1,0, Volumengeschwindigkeit 12, Hersteller SUNLU, Scarf-Naht, Erweichungstemperatur 54. Die Temperaturen (220 °C, Bett 55 °C) kommen aus `fdm_filament_pla`. |
+
+**Kann man die Bibliothek freischalten? Laut Code ja.**
+
+- Die Bibliotheksprofile stehen als Systemprofile in der Filament-Sammlung.
+- `set_visible_from_appconfig` macht jeden Namen aus `"filaments"` sichtbar. Nichts entfernt unbekannte Namen beim Laden.
+- Für den U1 ist kein SUNLU-Profil ausgeschlossen.
+
+**Zwei Wege:**
+
+| Weg | Vorteil | Nachteil |
+|---|---|---|
+| **A: Eintrag in `"filaments"`** | kein zusätzliches Profil | geht verloren, wenn der Assistent, der WebPresetDialog oder die Druckerbindung läuft |
+| **B: eigenes Profil** mit `inherits: "SUNLU PLA+ @System"` und ohne weitere Abweichungen | übersteht Assistent und Druckerbindung, weil `find_preset2` auch unsichtbare Bibliotheksprofile findet und eigene Profile nicht an `"filaments"` hängen | zusätzliches Benutzerprofil, das bei Anmeldung womöglich in die Cloud synchronisiert wird |
+
+Das eigene Profil aus Weg B erbt `compatible_printers = []` und passt damit zu jedem Drucker.
+
+**Kleinster sicherer Test:**
+
+1. SnOrca schließen.
+2. Das Datenverzeichnis in ein temporäres Verzeichnis kopieren.
+3. Nur in der Kopie `"SUNLU PLA+ @System"` an `"filaments"` anhängen.
+4. SnOrca mit `--datadir <Kopie>` starten.
+
+Weg B testet man genauso. Beide Tests stehen noch aus.
+
+**Weitere Befunde:**
+
+- Die Bibliothek in SnOrca ist älter als in Orca main: Manifest 02.03.01.10 gegen 02.04.00.09, 274 gegen 543 Dateien. Außerdem hat sie **eigene IDs**. Bei 232 von 272 gemeinsamen Profilen unterscheiden sich nur `setting_id` und `filament_id`, bei 40 auch Werte. Profile werden deshalb zwischen den Slicern über den **Namen** zugeordnet, nie über IDs.
+- SnOrca setzt bei Systemfilamenten ohne eigene `filament_id` zuerst die `setting_id` ein. Bei `SUNLU PLA+ @System` ist die `filament_id` also `OSNLS03`. Orca erbt dagegen `OGFSNL03` von `@base`.
+- Material4Print gibt es in keinem U1-relevanten Paket. Es kommt nur per Import herein, damit bleibt der ZIP-Import ein guter Testfall für Phase 3.
+
+## 4.8 Import und Export
+
+| Spezifikation | Befund | Folge für Orfix |
+|---|---|---|
+| Import von `.json`, `.zip`, `.orca_printer`, `.orca_filament` | Bestätigt für SnOrca. **Orca** zusätzlich `.orca_bundle`. | Orfix liest auch `.orca_bundle`. |
+| `.orca_*` sind ZIPs mit `bundle_structure.json` | Bestätigt, mit zwei Formaten (Beispiel unten). | – |
+| Wie der Import arbeitet | Den Typ erkennt der Slicer **nur** am Vorhandensein von `printer_settings_id`, `print_settings_id` oder `filament_settings_id`, `type` ignoriert er. Ohne gültige `version` überspringt er die Datei still. `inherits` muss exakt ein geladenes, wählbares Profil treffen. Eltern müssen im ZIP vor ihren Kindern liegen. Gleichnamige Systemprofile überspringt er ohne Meldung. Bei Konflikten fragt er „Ja / Nein / für alle“, ohne Umbenennen. Eine Kompatibilitätsprüfung findet trotz Meldungstext nicht statt. Rohdateien aus `system/OrcaFilamentLibrary` haben weder `version` noch `*_settings_id` und werden deshalb **still ignoriert**. | Von Orfix erzeugte Importdateien bekommen immer `version`, `name` und `*_settings_id`. |
+| Ziel des Imports | SnOrca schreibt immer flach nach `user/<ordner>/<typ>/` (Wurzelprofile nach `base/`). **Orca** legt ein Archiv **mit** `bundle_structure.json` als lokales Bundle unter `_local/<neue UUID>/` ab. Ein zweiter Import desselben Bundles erzeugt dort Dubletten. | Für Orca-Ziele standardmäßig eine `.zip` **ohne** `bundle_structure.json` erzeugen, dann entstehen normale Benutzerprofile. |
+| IDs eigener Profile (Phase 3) | **`setting_id` wird lokal nie erzeugt**, sondern kommt nur aus der Cloud. `filament_id` ist `"P"` plus die ersten 7 Hex-Zeichen von `md5(<Name vor " @">)`. Hat ein Filament mit gleichem Namensstamm schon eine ID, wird sie wiederverwendet. Bei einer Kollision kommt ein Zeitstempel in den Hash. Der Slicer prüft beim Import keine Eindeutigkeit. | `setting_id` nie mitkopieren. `filament_id` nur für flache Filamente vergeben, nach demselben Algorithmus, und gegen alle Filamente des Ziels prüfen. |
+
+**`bundle_structure.json`** (Export-Code, hier lesbar formatiert; der Slicer schreibt kompakt und sortiert):
+
+```json
+{
+    "bundle_id": "offline_My U1_20260921143000",
+    "bundle_type": "printer config bundle",
+    "filament_config": ["filament/SUNLU PLA+ @My U1.json"],
+    "printer_config": ["printer/My U1.json"],
+    "printer_preset_name": "My U1",
+    "process_config": ["process/0.20mm Standard @My U1.json"],
+    "version": ""
+}
+```
+
+```json
+{
+    "bundle_id": "offline_SUNLU PLA+_20260921143000",
+    "bundle_type": "filament config bundle",
+    "filament_name": "SUNLU PLA+",
+    "printer_vendor": [
+        {"vendor": "Snapmaker", "filament_path": ["Snapmaker/SUNLU PLA+ @Snapmaker U1 (0.4 nozzle).json"]}
+    ],
+    "version": ""
+}
+```
+
+**Inhalt der Bundles beim Export:**
+
+- `printer/` enthält Vollkopien der Drucker ohne `print_host` und `printhost_*`.
+- `filament/` und `process/` enthalten die Rohdateien mit `inherits`.
+- Elternprofile sind nie dabei.
+
+**Export-Dialog:** Er erzeugt `.orca_printer`, `.orca_filament` oder die festen ZIPs `Printer presets.zip`, `Filament presets.zip` und `Process presets.zip`. Solange er offen ist, legt er `user/Temp/` an. Die ZIPs eignen sich direkt als Importquelle für Orfix.
+
+**Muster „Flach“:** „Filament erstellen“ legt je Drucker ein flaches Profil an: `<Hersteller> <Typ> <Serie> @<Druckername>`, `compatible_printers = [<Drucker>]`, abgelegt in `filament/base/`. Nach diesem Muster kann Orfix die Strategie „Flach“ umsetzen.
+
+## 4.9 3MF-Projekte
+
+| Spezifikation | Befund |
+|---|---|
+| Archivaufbau und Dateinamen der eingebetteten Profile | Bestätigt (`bbs_3mf.cpp` und `.hpp`). In `project_settings.config` haben `inherits_group` und `different_settings_to_system` die Reihenfolge `[Prozess, Filament 1…n, Drucker]`. |
+| Beim Öffnen Projektprofile im Speicher, versteckte Systemprofile werden sichtbar | Bestätigt. Einen Projektnamen `<Name>(<Datei>.3mf)` gibt es nur, wenn der Originalname nicht existiert oder bei weiteren Filamenten mit abweichenden Werten. |
+| Was dauerhaft bleibt | **Präzisiert:** Das Öffnen selbst schreibt **nie** nach `user/` und ändert weder `"filaments"` noch `"models"`. Es ändert nur `"presets"`, den Druckereintrag in `"orca_presets"` sowie `app.import_project_action` und `app.project_load_behaviour`. Dateien in `user/` entstehen erst über Speichern-Dialoge. |
+
+- Folge für „Neu seit dem letzten Scan“: Neben Dateien, `"models"` und `"filaments"` auch `"presets"`, `"orca_presets"` und die beiden `app`-Schlüssel vergleichen.
+- Herkunft der 3MF: SnOrca schreibt `Application = Snapmaker_Orca-2.4.0`. Orca erkennt diesen Tag nicht und behandelt die Datei als „fremd“, lädt die Einstellungen laut Code aber trotzdem. Getestet ist das nicht.
+
+## 4.10 Quellcode-Referenzen
+
+Die Liste ist richtig. Folgende Dateien fehlen darin:
+
+- `src/libslic3r/PresetCacheFormat.{hpp,cpp}` (Orca main, `.opc`)
+- `src/libslic3r/utils.cpp` (Installation von Herstellern)
+- `src/slic3r/GUI/InstanceCheck.cpp` (Lock-Datei)
+- `src/slic3r/GUI/ExportPresetBundleDialog.cpp` (Orca, `.orca_bundle`)
+- `src/libslic3r/Semver.hpp` und `semver.c` (gültige `version`-Werte)
+
+---
+
+## Beobachtung: Erststart der OrcaSlicer-Nightly (21.09.2026, 13:24)
+
+Der Nutzer hat OrcaSlicer 2.5.0-dev gestartet und den Einrichtungsassistenten mit „Generic Klipper Printer“ (Hersteller `Custom`) abgeschlossen. Das Datenverzeichnis `~/.config/OrcaSlicer` bestätigt die Befunde:
+
+- `system/` enthält nur `Custom.opc` und `OrcaFilamentLibrary.opc`, keine JSON-Dateien und keine Herstellerordner.
+- Die `.conf` ist mit Tab eingerückt, `header` = `OrcaSlicer 2.5.0-dev`. `"filaments"` enthält 10 `Generic … @System`.
+- Weitere Einträge: `printers/` (Druckerbeschreibungen wie `BL-P001.json`, keine Profile), `orca_plugins/`, `python/`, `ota/`, `user_backup-v2.5.0-dev/` und `user/hints.cereal`.
+- `user/default/{filament,machine,process}` ist leer.
+
+Um 13:28 hat der Nutzer in Orca zusätzlich den Snapmaker U1 installiert:
+
+- `system/Snapmaker.opc` ist dazugekommen, 414.364 Byte, byte-gleich mit der Datei aus der AppImage.
+- `"models"`: `{"model": "Snapmaker U1", "nozzle_diameter": "0.2;0.4;0.4+0.6;0.6;0.8", "vendor": "Snapmaker"}`. Die Variante `0.4+0.6` gibt es nur in Orca.
+- Orca hat die `default_materials` des U1 selbst in `"filaments"` eingetragen, etwa `Panchroma PLA @Snapmaker U1` und `Snapmaker PLA SnapSpeed @U1 0.2 nozzle`. Das bestätigt 4.6.
+
+## Das .opc-Format (OrcaSlicer main)
+
+Der Prototyp liegt in [prototypes/opc](../prototypes/opc/README.md). Er hat alle 65 `.opc` der Nightly vom 21.09.2026 gelesen, zusammen 12.618 Profile in 2 s.
+
+- **Abgleich:** Namen, `inherits`, `setting_id`, `filament_id` und `instantiation` stimmen mit den JSON-Quellen gleicher Version überein. Werte gleich nach Normalisierung: 99,95 %.
+- **Woher der Rest kommt:** Orca schreibt beim Laden alte Werte um, der Cache enthält also, was der Slicer tatsächlich verwendet.
+
+```
+Kopf, 20 Byte, little endian
+  u32 magic 0x4F52435A ("ZCRO" auf der Platte) · u32 version (1) · u64 data_size · u32 crc32 (zlib.crc32 über den Rumpf)
+Rumpf (cereal binär; Längen u64, Anzahlen in Listen, Konfiguration und Enums u32)
+  u32 cache_version · str vendor_name · str vendor_version ("2.4.0.15")
+  Wörterbuch: vec<str> keys · vec<u16> types (ConfigOptionType) · vec<str> enum_values ([0] = "")
+  VendorMap: size + (str, VendorProfile{name, id, config_version, …, vec<PrinterModel> models, set default_filaments, …})
+  3 Listen: process, filament, machine – je u32 count × {str name, str sub_path,
+      config: u32 n × (u16 key_index, Wert nach Typ), str inherits, str description,
+      str instantiation, str setting_id, str filament_id, vec<str> renamed_from}
+  u64 parse_errors
+```
+
+**Typcodes:**
+
+| Typ | Code | Wert |
+|---|---|---|
+| Float | `0x01` | f64 |
+| Int | `0x02` | i32 |
+| String | `0x03` | str |
+| Percent | `0x04` | f64 |
+| FloatOrPercent | `0x05` | f64 plus bool |
+| Point | `0x06` | 2 × f64 |
+| Point3 | `0x07` | 3 × f64 |
+| Bool | `0x08` | u8 |
+| Enum | `0x09` | u16-Index in `enum_values`. Bei Index 0 folgt ein i32-Rohwert |
+| Vektoren | `0x4000` + Skalarcode | – |
+| PointsGroups | `0x400A` | – |
+| IntsGroups | `0x400B` | – |
+
+Nil-Werte: NaN, `INT_MAX` bzw. 255.
+
+**Was im Cache fehlt:**
+
+- `from`, `type` und Schlüssel, die `print_config_def` nicht kennt.
+- Die Rohformatierung: Aus `"1.0"` wird `"1"`, aus Kommazahlen in Ganzzahl-Optionen werden Ganzzahlen.
+- Die machine_model-Dateien liegen nicht einzeln vor, stecken aber vollständig in `VendorProfile.models`.
+
+**Regeln für Orfix:**
+
+- Nur `CACHE_VERSION` 1 parsen, vorher Magic, Größe und CRC prüfen.
+- Bei unbekannter Version nicht raten. Liegt daneben ein JSON, dieses lesen. Sonst den Hersteller als „vorhanden, Format nicht unterstützt“ zeigen und abhängige Benutzerprofile als „nicht auflösbar“ markieren.
+- Liegen `.opc` und JSON nebeneinander, nimmt Orca den Cache, wenn dessen Stempel mindestens so neu ist wie das JSON (`cache_covers`). Orfix wendet dieselbe Regel an.
+
+---
+
+## Schnappschuss: was sich ohne Zutun des Nutzers ändert (Phase 1)
+
+| Was ändert sich | Wann |
+|---|---|
+| die `.conf` | bei Start, Leerlauf und Beenden, z. B. durch Fenstergrößen oder die Auswahl |
+| `system/OrcaFilamentLibrary*` | bei jedem Start: die Änderungszeit immer, der Inhalt nur nach einem Programm- oder Hot-Update |
+| `hms/`, `log/`, `cache/` | bei jedem Start, die Lock-Datei entsteht und verschwindet |
+| `user_backup-v<Version>/` | einmal je Programmversion |
+| die Änderungszeit von Ordnern | durch das Umbenennen der `.conf` |
+| `.info` mit `updated_time` 0 | SnOrca schreibt sie neu |
+| Wurzel-Filamente mit `@` und leerer `compatible_printers` | Orca main schreibt sie neu |
+| `user/hints.cereal` | nach dem Beenden |
+
+„Neu seit dem letzten Scan“ vergleicht deshalb nur per Hash: `user/**` ohne `Temp`/`temp`, die Manifeste in `system/` und in der `.conf` nur `models`, `filaments`, `presets`, `orca_presets` sowie `app.project_load_behaviour` und `app.import_project_action`. Nicht verglichen werden `log`, `cache`, `hms`, `ota`, `web` und die Änderungszeiten von Ordnern.
+
+## Abschnitt 7 der Spezifikation
+
+| Punkt | Stand |
+|---|---|
+| `psutil` oder `/proc` | Entschieden: `psutil`, gebraucht wird es unter Windows. Unter Linux ergänzen Sperrdatei und Arbeitsverzeichnis die Prozessliste. |
+| Cloud-Synchronisation | **Teilweise geklärt.** In **SnOrca** wird `preset_folder` nur mit dem Bambu-Netzwerk-Plugin und einer Bambu-Anmeldung zur `user_id`. Die Snapmaker-Anmeldung in der Web-Oberfläche ändert ihn nicht. In **Orca main** setzt die Anmeldung bei OrcaCloud `preset_folder`. Synchronisiert wird in beiden Slicern nur mit `app.sync_user_preset = true`, auf diesem Rechner steht der Wert auf `false`. Bei einem Sync lädt der Slicer Profile, die lokal fehlen, aus der Cloud nach. **Löscht Orfix ein synchronisiertes Profil nur lokal, kommt es also zurück.** Der Slicer selbst markiert es beim Löschen mit `sync_info=delete`. Folge: Orfix warnt bei angemeldetem Konto und `sync_user_preset = true` und löscht solche Profile nicht selbst. Der Praxistest fehlt noch. |
+| Suchreihenfolge der Vererbung | Geklärt, siehe 4.5. SnOrca liest die Bibliothek bei leerem Manifest so ein: `base/` rekursiv, dann `filament/*.json`, dann die Markenordner alphabetisch. In jeder Gruppe kommt `fdm_filament_common` vor `*@base`, dann `*_common`, dann der Rest. |
+| Eindeutigkeit von IDs | Geklärt, siehe 4.8. |
+| „Bibliothek freischalten“ | Laut Code funktioniert es, siehe 4.7. Der Praxistest steht aus. |
+| Vue lokal oder CDN | Entschieden: lokal. |
+
+---
+
+## Abnahme-Checkliste Resolver (4.5)
+
+Für jedes Profil: in Orfix die aufgelöste Ansicht öffnen, im Slicer dasselbe Profil öffnen und die genannten Werte vergleichen. Die Punkte 6 bis 8 sind in SnOrca unsichtbar. Sie lassen sich erst nach dem Freischalt-Test oder in einer OrcaSlicer-Installation vergleichen, dort mit gleichen Werten, aber anderen IDs.
+
+- [ ] **1. Drucker `Snapmaker U1 (0.4 nozzle)`:** → `fdm_U1` → `fdm_toolchanger` → `fdm_klipper`. `printable_height` 270.05 (eigen), `retraction_length` 1.5 je Extruder × 4 (eigen), `nozzle_type` hardened_steel (eigen), `gcode_flavor` klipper (`fdm_U1`), `machine_max_acceleration_x` 20000 (`fdm_toolchanger`).
+- [ ] **2. Prozess `0.20mm Standard @Snapmaker U1 (0.4 nozzle)`:** → `fdm_process_U1_0.20` → `fdm_process_U1_common` → `fdm_process_U1`. `layer_height` 0.2, `initial_layer_print_height` 0.25 (eigen), `wall_loops` 2, `top_shell_layers` 5, `outer_wall_speed` 200 Standard / 500 High Flow (eigen). Hat `renamed_from` mit zwei Namen.
+- [ ] **3. Prozess `0.08mm Standard @Snapmaker U1 (0.4 nozzle)`:** `layer_height` 0.08, `top_shell_layers` 9, `bottom_shell_layers` 7, `initial_layer_print_height` 0.2 (`fdm_process_U1`), `inner_wall_speed` 120 (eigen, skalar gespeichert).
+- [ ] **4. Filament `Snapmaker PLA Basic @U1`:** → `… @U1 base` → `fdm_filament_pla_category` → `fdm_filament_common`. `nozzle_temperature` 220, `hot_plate_temp` 65, `filament_max_volumetric_speed` 15, `filament_flow_ratio` 0.98, `filament_density` 1.32.
+- [ ] **5. Filament `Snapmaker ABS @U1 0.4 nozzle`:** `nozzle_temperature` 265 Standard / 280 High Flow, `hot_plate_temp` 100, `chamber_temperature` 60, `filament_type` ABS (`fdm_filament_abs_category`), `filament_vendor` Snapmaker (`@U1 base`).
+- [ ] **6. Bibliothek `SUNLU PLA+ @System`:** → `@base` → `fdm_filament_pla` → `fdm_filament_common`. `nozzle_temperature` 220, `hot_plate_temp` 55 (`fdm_filament_pla`), `filament_flow_ratio` 1.0, `filament_density` 1.23, `filament_cost` 18.99 (`@base`), `pressure_advance` 0.02 (nur Standardwert).
+- [ ] **7. Bibliothek `SUNLU PLA Marble @System`** (Datei `SUNLU Marble PLA @System.json`): `filament_cost` 31.99, `filament_density` 1.25, `filament_retraction_distances_when_cut` 18 (eigen), `temperature_vitrification` 45.
+- [ ] **8. Bibliothek `AliZ PETG-CF @System`** (Kette mit 5 Gliedern: → `AliZ PETG-CF @base` → `AliZ PETG @base` → `fdm_filament_pet` → `fdm_filament_common`): `nozzle_temperature` 275 (überschreibt 250), `filament_max_volumetric_speed` 10, `fan_max_speed` 35, `filament_density` 1.27.
+
+---
+
+## Offen: nur am laufenden Slicer prüfbar
+
+Jeder Test läuft mit einer **Kopie** des Datenverzeichnisses und `--datadir`, nie mit dem echten Verzeichnis.
+
+- [ ] „Bibliothek freischalten“, Weg A und Weg B, mit `SUNLU PLA+ @System` (4.7).
+- [ ] SnOrca mit fehlendem bzw. `null`-`"filaments"`: Sind wirklich alle Systemfilamente sichtbar?
+- [ ] Windows: Hat die `.conf` auf der Platte CRLF? Sind die MD5-Ziffern Großbuchstaben? Dafür braucht es eine echte Windows-Datei.
+- [ ] Flatpak: Zeigt `/proc/<pid>/cwd` bzw. `F_GETLK` aus Sicht des Hosts dasselbe wie bei der AppImage?
+- [ ] Was steht in `"version"` eines Bundles, das SnOrca ohne Anmeldung exportiert?
+- [ ] Wie sieht die Material4Print-U1-ZIP aus: Ordner, `version`, `*_settings_id`, `inherits`? Die Datei liegt lokal nicht vor.
+- [ ] Cloud-Sync bei angemeldetem Konto: Bekommen importierte Profile eine `setting_id`? Kommen gelöschte Profile zurück? Auf diesem Rechner ist `sync_user_preset = false`.
+- [ ] Orca main: Werden installierte Hersteller bei `enable_ota = false` nach einem Programmupdate wirklich nie erneuert?
