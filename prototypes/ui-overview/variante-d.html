@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Orfix – Entwurf D</title>
+  <link rel="stylesheet" href="../../orfix/static/style.css">
+  <style>
+    /* Draft D: a minimal core, everything else on demand in a side panel that is
+       opened from a narrow tool rail on the right (ionpy side toolbar). */
+    body { height: 100vh; display: flex; flex-direction: column; }
+    .draft-note { margin: 0; padding: 4px 16px; color: var(--muted); font-size: 12px; }
+
+    .d-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto 48px; }
+    .d-main { overflow: auto; padding: 20px 24px; }
+    .d-inner { max-width: 640px; }
+
+    .d-printer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .d-printer-name { font-size: 15px; font-weight: 600; margin-right: 8px; }
+    .chip {
+      height: 26px; min-width: 44px; padding: 0 10px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font: 13px var(--font-mono); cursor: pointer;
+    }
+    .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .chip-label { color: var(--muted); font-size: 12px; margin-right: 2px; }
+
+    .d-heading { display: flex; align-items: baseline; gap: 8px; margin: 24px 0 6px; font-size: 14px; font-weight: 600; }
+    .d-count { color: var(--muted); font-weight: 400; }
+
+    .d-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+    .d-row {
+      width: 100%; display: flex; align-items: center; gap: 12px;
+      height: 34px; padding: 0 8px; border: 0; border-bottom: 1px solid var(--border);
+      background: none; color: var(--text); font: 14px var(--font-ui); text-align: left; cursor: pointer;
+    }
+    .d-row:hover { background: var(--surface); }
+    .d-row[aria-current="true"] { background: var(--selected); }
+    .d-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tag { font: 11px var(--font-mono); color: var(--muted); border: 1px solid var(--border); padding: 0 5px; }
+    .tag--own { color: var(--accent); border-color: var(--accent); }
+
+    .d-more { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+
+    /* Tool rail and panel */
+    .rail { display: flex; flex-direction: column; align-items: stretch; background: var(--band); border-left: 1px solid var(--border); }
+    .rail-btn {
+      position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 10px 0 8px; border: 0; border-left: 2px solid transparent; background: none;
+      color: var(--muted); font: 10px var(--font-ui); cursor: pointer;
+    }
+    .rail-btn svg { width: 20px; height: 20px; }
+    .rail-btn:hover { color: var(--text); }
+    .rail-btn[aria-expanded="true"] { color: var(--text); border-left-color: var(--accent); background: var(--surface); }
+    .badge {
+      position: absolute; top: 4px; right: 6px; min-width: 16px; height: 16px; padding: 0 4px;
+      border-radius: 8px; background: var(--warn); color: var(--bg); font: 600 10px/16px var(--font-ui);
+    }
+
+    .panel-side { width: 340px; overflow: auto; background: var(--surface); border-left: 1px solid var(--border); }
+    .panel-head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--border); }
+    .panel-head h2 { margin: 0; flex: 1; }
+    .icon-btn { width: 28px; height: 28px; border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+    .icon-btn:hover { color: var(--text); }
+    .panel-body { padding: 12px 16px 24px; }
+    .panel-body h3 { margin: 16px 0 6px; font-size: 13px; }
+    .lead { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+
+    .values { width: 100%; border-collapse: collapse; }
+    .values th { text-align: left; font-weight: 400; color: var(--muted); padding: 4px 8px 4px 0; }
+    .values td { text-align: right; padding: 4px 0; font-family: var(--font-mono); white-space: nowrap; }
+    .values tr.own td::after { content: " ●"; color: var(--accent); font-size: 9px; vertical-align: middle; }
+
+    .group { border-bottom: 1px solid var(--border); }
+    .group summary { display: flex; gap: 6px; padding: 6px 0; cursor: pointer; }
+    .group ul { list-style: none; margin: 0 0 8px; padding: 0; }
+    .group li { display: flex; align-items: center; gap: 8px; padding: 3px 0 3px 14px; }
+    .group li .name { flex: 1; }
+    .answer { padding: 6px 0; border-bottom: 1px solid var(--border); }
+
+    .hint { padding: 8px 0 8px 10px; border-left: 3px solid currentColor; margin-bottom: 10px; }
+    .hint p { color: var(--text); margin: 0 0 4px; }
+    .hint small { color: var(--muted); }
+
+    @media (max-width: 760px) {
+      .d-layout { grid-template-columns: minmax(0, 1fr) 48px; position: relative; }
+      .panel-side { position: absolute; top: 0; right: 48px; bottom: 0; width: min(340px, calc(100vw - 48px)); z-index: 2; }
+      .d-main { padding: 16px; }
+    }
+  </style>
+  <script src="../../orfix/static/vendor/vue.global.prod.js"></script>
+  <script src="data.js"></script>
+</head>
+<body>
+  <div id="app" style="display: contents"></div>
+  <script>
+    const { createApp, ref, computed, watch, nextTick } = Vue;
+    const DATA = window.ORFIX_DATA;
+
+    const TEXT = {
+      origin: { vendor: "Vom Hersteller", library: "Aus der Orca-Bibliothek", user: "Dein eigenes Profil" },
+      panels: { details: "Details", add: "Dazuholen", hints: "Hinweise" },
+    };
+
+    createApp({
+      setup() {
+        const instanceId = ref(DATA.instances[0].id);
+        const instance = computed(() => DATA.instances.find((i) => i.id === instanceId.value));
+        const printerName = ref(instance.value.selected_printer);
+        const selectedName = ref(null);
+        const panel = ref(null);
+        const query = ref("");
+
+        watch(instanceId, () => {
+          printerName.value = instance.value.selected_printer;
+          selectedName.value = null;
+        });
+        watch(printerName, () => { selectedName.value = null; });
+
+        const statusAt = (f) => (f.printers[printerName.value] || {}).status;
+        const inSlicer = computed(() =>
+          instance.value.filaments.filter((f) => statusAt(f) === "visible").sort((a, b) => a.alias.localeCompare(b.alias)));
+        const addable = computed(() => instance.value.filaments.filter((f) => statusAt(f) === "hidden"));
+        const addableGroups = computed(() => {
+          const groups = new Map();
+          for (const f of addable.value) {
+            const key = f.vendor || "Ohne Hersteller";
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(f);
+          }
+          return [...groups.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([vendor, items]) => ({ vendor, items: items.sort((a, b) => a.alias.localeCompare(b.alias)) }));
+        });
+        const selected = computed(() => instance.value.filaments.find((f) => f.name === selectedName.value) || null);
+        const printerLabel = computed(() => {
+          for (const m of instance.value.models) {
+            const p = m.printers.find((p) => p.name === printerName.value);
+            if (p) return `${m.model}, Düse ${p.variant}`;
+          }
+          return printerName.value;
+        });
+        const hints = computed(() => instance.value.warnings);
+
+        const answers = computed(() => {
+          const q = query.value.trim().toLowerCase();
+          if (q.length < 2) return [];
+          return instance.value.filaments
+            .filter((f) => f.name.toLowerCase().includes(q) || (f.vendor || "").toLowerCase().includes(q))
+            .slice(0, 12)
+            .map((f) => {
+              const entry = f.printers[printerName.value];
+              let text;
+              if (!entry) text = "ist für einen anderen Drucker gedacht.";
+              else if (entry.status === "visible") text = "ist schon im Slicer.";
+              else if (entry.status === "hidden") text = "passt und kann dazugeholt werden.";
+              else text = `erscheint hier nie, weil „${(entry.displaced_by || ["ein Herstellerprofil"])[0]}“ Vorrang hat.`;
+              return { name: f.alias, full: f.name, text, addable: entry && entry.status === "hidden" };
+            });
+        });
+
+        function toggle(name) {
+          panel.value = panel.value === name ? null : name;
+        }
+        function select(f) {
+          selectedName.value = f.name;
+          panel.value = "details";
+        }
+        function value(v, unit) {
+          if (!v || v.value === null) return "–";
+          const main = v.high_flow && v.high_flow !== v.value ? `${v.value} / ${v.high_flow}` : v.value;
+          return unit ? `${main} ${unit}` : main;
+        }
+        const hasHighFlow = computed(() => selected.value && Object.values(selected.value.values).some((v) => v.high_flow && v.high_flow !== v.value));
+        const parent = computed(() => {
+          const f = selected.value;
+          if (!f || f.origin_kind !== "user") return null;
+          return f.chain[0] || null;
+        });
+        const levelClass = (level) => ({ error: "status--error", warning: "status--warn" }[level] || "status--ok");
+
+        window.addEventListener("keydown", (e) => { if (e.key === "Escape") panel.value = null; });
+
+        return {
+          DATA, TEXT, instanceId, instance, printerName, printerLabel, panel, query,
+          inSlicer, addable, addableGroups, selected, selectedName, hints, answers, hasHighFlow, parent,
+          toggle, select, value, levelClass,
+        };
+      },
+
+      template: `
+        <header class="app-header">
+          <span class="brand">Orfix</span>
+          <select class="input" v-model="instanceId" aria-label="Installation">
+            <option v-for="i in DATA.instances" :value="i.id">{{ i.header }}</option>
+          </select>
+          <span class="status status--ok">Geschlossen</span>
+        </header>
+        <p class="draft-note">Entwurf D: nur das Nötigste, alles andere über die Leiste rechts. Daten aus deiner Installation, eigene Profile sind Beispiele.</p>
+
+        <div class="d-layout">
+          <main class="d-main">
+            <div class="d-inner">
+              <div v-for="m in instance.models" :key="m.model" class="d-printer">
+                <span class="d-printer-name">{{ m.model }}</span>
+                <span class="chip-label">Düse</span>
+                <button v-for="p in m.printers" :key="p.name" class="chip" type="button"
+                        :aria-pressed="p.name === printerName" @click="printerName = p.name">{{ p.variant }}</button>
+              </div>
+
+              <h2 class="d-heading">Im Slicer <span class="d-count">{{ inSlicer.length }}</span></h2>
+              <ul class="d-list">
+                <li v-for="f in inSlicer" :key="f.name">
+                  <button class="d-row" type="button" :aria-current="f.name === selectedName" @click="select(f)">
+                    <span class="name">{{ f.alias }}</span>
+                    <span v-if="f.origin_kind === 'user'" class="tag tag--own">eigenes</span>
+                    <span class="tag">{{ f.material || "–" }}</span>
+                  </button>
+                </li>
+              </ul>
+
+              <div class="d-more">
+                <button class="btn" type="button" @click="panel = 'add'">+ Filament dazuholen</button>
+                <span class="muted">{{ addable.length }} weitere passen zu diesem Drucker</span>
+              </div>
+            </div>
+          </main>
+
+          <aside v-if="panel" class="panel-side" :aria-label="TEXT.panels[panel]">
+            <div class="panel-head">
+              <h2>{{ TEXT.panels[panel] }}</h2>
+              <button class="icon-btn" type="button" aria-label="Schließen" @click="panel = null">×</button>
+            </div>
+
+            <div v-if="panel === 'details'" class="panel-body">
+              <p v-if="!selected" class="muted">Wähle links ein Filament.</p>
+              <template v-else>
+                <p class="lead">{{ selected.alias }}</p>
+                <p class="muted">{{ TEXT.origin[selected.origin_kind] }}<template v-if="parent">, baut auf „{{ parent }}“ auf</template></p>
+                <table class="values">
+                  <tr v-for="c in DATA.core_values" :key="c.key" :class="{ own: selected.origin_kind === 'user' && selected.values[c.key]?.own }">
+                    <th>{{ c.label }}</th><td>{{ value(selected.values[c.key], c.unit) }}</td>
+                  </tr>
+                </table>
+                <p v-if="hasHighFlow" class="muted"><small>Zwei Werte: Standard / High Flow</small></p>
+                <p v-if="selected.origin_kind === 'user'" class="muted"><small>● selbst geändert, der Rest kommt von „{{ parent }}“</small></p>
+                <h3>Voller Name im Slicer</h3>
+                <p class="mono">{{ selected.name }}</p>
+              </template>
+            </div>
+
+            <div v-else-if="panel === 'add'" class="panel-body">
+              <input class="input" style="width: 100%" v-model="query" placeholder="Filament suchen, z. B. SUNLU" aria-label="Filament suchen">
+              <template v-if="answers.length">
+                <div v-for="a in answers" :key="a.full" class="answer">
+                  <strong>{{ a.name }}</strong> {{ a.text }}
+                  <button v-if="a.addable" class="btn" type="button" disabled style="height: 24px; margin-left: 6px">Dazuholen</button>
+                </div>
+              </template>
+              <template v-else>
+                <p class="muted" style="margin-top: 10px">{{ addable.length }} Filamente passen zu {{ printerLabel }}, sind aber ausgeblendet.</p>
+                <details v-for="g in addableGroups" :key="g.vendor" class="group">
+                  <summary><strong>{{ g.vendor }}</strong> <span class="muted">{{ g.items.length }}</span></summary>
+                  <ul>
+                    <li v-for="f in g.items" :key="f.name">
+                      <span class="name">{{ f.alias }}</span>
+                      <span class="tag">{{ f.material || "–" }}</span>
+                      <button class="btn" type="button" disabled style="height: 22px; padding: 0 8px">+</button>
+                    </li>
+                  </ul>
+                </details>
+              </template>
+            </div>
+
+            <div v-else-if="panel === 'hints'" class="panel-body">
+              <p v-if="!hints.length" class="muted">Alles in Ordnung.</p>
+              <div v-for="h in hints" :key="h.code" class="hint" :class="levelClass(h.level)">
+                <p>{{ h.text }}</p>
+                <small>{{ h.action }}</small>
+              </div>
+            </div>
+          </aside>
+
+          <nav class="rail" aria-label="Werkzeuge">
+            <button class="rail-btn" type="button" :aria-expanded="panel === 'details'" @click="toggle('details')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+              Details
+            </button>
+            <button class="rail-btn" type="button" :aria-expanded="panel === 'add'" @click="toggle('add')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Dazu&shy;holen
+            </button>
+            <button class="rail-btn" type="button" :aria-expanded="panel === 'hints'" @click="toggle('hints')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17v.5"/></svg>
+              Hinweise
+              <span v-if="hints.length" class="badge">{{ hints.length }}</span>
+            </button>
+          </nav>
+        </div>
+      `,
+    }).mount("#app");
+  </script>
+</body>
+</html>

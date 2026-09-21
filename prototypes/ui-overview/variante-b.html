@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Orfix – Entwurf B</title>
+  <link rel="stylesheet" href="../../orfix/static/style.css">
+  <style>
+    /* Draft-only additions. Only custom properties from style.css, no own colors. */
+    .draft-note { margin: 0; color: var(--muted); font-size: 12px; }
+    .facts-line { margin: 0; color: var(--muted); }
+    .small { font-size: 12px; }
+    .nowrap { white-space: nowrap; }
+    .status--muted { color: var(--muted); }
+
+    .notices { display: grid; gap: 6px; }
+    .notices .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+    .notice-text { flex: 1 1 320px; margin: 0; }
+    .notice-actions { display: flex; gap: 8px; }
+    .notice--info { color: var(--text); border-left-color: var(--accent); }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+    .layout.has-side { grid-template-columns: minmax(0, 1fr) 320px; }
+
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 8px; }
+    .field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+    .field .input { color: var(--text); }
+    .field--search .input { width: 240px; }
+    .check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .check input { margin: 0; accent-color: var(--accent); }
+
+    .result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+
+    /* The table scrolls inside its own box, so header row and name column can stay put. */
+    .table-wrap { overflow: auto; max-height: max(320px, calc(100vh - 240px)); border: 1px solid var(--border); background: var(--surface); }
+    .matrix { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .matrix th, .matrix td { padding: 2px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+    .matrix thead th { position: sticky; top: 0; z-index: 2; background: var(--band); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .matrix thead tr:first-child th { height: var(--row); }
+    .matrix thead tr:nth-child(2) th { top: var(--row); }
+    .matrix tbody tr { cursor: pointer; }
+    .matrix tbody th, .matrix tbody td { height: var(--row); background-color: var(--surface); font-weight: 400; }
+    .matrix tbody tr:hover > * { background-color: var(--band); }
+    .matrix tbody tr.is-selected > * { background-image: linear-gradient(var(--selected), var(--selected)); }
+
+    .col-name { position: sticky; left: 0; z-index: 1; min-width: 220px; border-right: 1px solid var(--border); }
+    .matrix thead .col-name { z-index: 3; }
+    .matrix .col-group { text-align: center; color: var(--text); border-left: 1px solid var(--border); }
+    .group-start { border-left: 1px solid var(--border); }
+    .col-printer.is-current .sort-btn { color: var(--accent); }
+    .col-count { display: block; font-weight: 400; }
+
+    .cell { white-space: nowrap; font-size: 12px; }
+    .cell.is-visible { color: var(--ok); }
+    .cell.is-displaced { color: var(--warn); }
+    .cell.is-hidden, .cell.is-none { color: var(--muted); }
+    .sym { display: inline-block; width: 1.1em; text-align: center; }
+
+    .row-btn { display: block; width: 100%; max-width: 300px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .row-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+    .name-alias { font-family: var(--font-mono); }
+    .name-suffix { font-family: var(--font-mono); color: var(--muted); }
+    .tag { display: inline-block; margin-left: 6px; padding: 0 4px; border: 1px solid var(--border); color: var(--muted); font: 11px/16px var(--font-ui); vertical-align: 1px; }
+
+    .sort-btn { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; white-space: nowrap; }
+    .sort-btn:hover { color: var(--text); }
+    th[aria-sort="ascending"] .sort-btn, th[aria-sort="descending"] .sort-btn { color: var(--text); }
+    .sort-arrow { display: inline-block; min-width: 0.8em; }
+
+    .side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; min-width: 0; padding: 12px; background: var(--surface); border: 1px solid var(--border); }
+    .side-head { display: flex; align-items: flex-start; gap: 8px; }
+    .side-head h2 { flex: 1; margin: 0; font-family: var(--font-mono); overflow-wrap: anywhere; }
+    .side h3 { margin: 16px 0 6px; font-size: 13px; font-weight: 600; }
+    .side .notice { margin: 8px 0; }
+    .why { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .why p { margin: 2px 0 0; }
+    .chain { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+    .chain li { overflow-wrap: anywhere; }
+    .step { color: var(--muted); }
+    .link-btn { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-align: left; text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; }
+    .values th { width: 1%; }
+    .value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .value.is-own { font-weight: 600; }
+    .source { font-size: 12px; color: var(--muted); }
+    .source.is-own { color: var(--text); }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0; }
+    .plain { margin: 0; padding: 0; list-style: none; }
+
+    /* Below 900 px the panel lies over the table like a drawer (see PLAN, Designplan). */
+    @media (max-width: 900px) {
+      .layout.has-side { grid-template-columns: minmax(0, 1fr); }
+      .side { position: fixed; top: 0; right: 0; bottom: 0; z-index: 10; width: min(360px, 100%); max-height: none; border-width: 0 0 0 1px; }
+    }
+    @media (max-width: 760px) {
+      .col-vendor { display: none; }
+      .field--search { flex: 1 1 100%; }
+      .field--search .input { flex: 1; width: auto; }
+      .col-name { min-width: 180px; }
+      .row-btn { max-width: 220px; }
+    }
+  </style>
+  <script src="../../orfix/static/vendor/vue.global.prod.js"></script>
+  <script src="data.js"></script>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Vue reads this as raw text, so the browser never reshuffles the table markup. -->
+<script type="text/x-template" id="app-template">
+  <header class="app-header">
+    <span class="brand">Orfix</span>
+    <label class="picker">
+      <span class="muted">Installation</span>
+      <select class="input" v-model="instanceId">
+        <option v-for="i in instances" :key="i.id" :value="i.id">{{ i.header }} · {{ i.path }}</option>
+      </select>
+    </label>
+    <span class="status" :class="inst.running ? 'status--warn' : 'status--ok'">{{ inst.running ? T.running : T.closed }}</span>
+    <span class="spacer"></span>
+    <button class="btn" type="button" disabled :title="T.later">Neu einlesen</button>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" type="button" aria-selected="true">Übersicht</button>
+    <button class="tab" role="tab" type="button" aria-selected="false" disabled>Verwalten <span class="muted">· Kommt in Phase 2</span></button>
+  </nav>
+
+  <main class="content">
+    <h1 class="visually-hidden">Übersicht</h1>
+    <p class="draft-note">{{ T.draft }}</p>
+    <p class="facts-line">{{ factsLine }}</p>
+
+    <section v-if="inst.warnings.length" class="notices" aria-label="Hinweise">
+      <div v-for="w in inst.warnings" :key="w.code" class="notice" :class="noticeOf(w).cls">
+        <p class="notice-text"><strong>{{ noticeOf(w).word }}:</strong> {{ w.text }} <span class="muted">{{ w.action }}</span></p>
+        <div class="notice-actions">
+          <button v-if="w.names.length" type="button" class="btn" @click="showNames(w)">Zeigen</button>
+          <button v-if="WARNING_ACTIONS[w.code]" type="button" class="btn" disabled :title="T.later">{{ WARNING_ACTIONS[w.code] }}</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout" :class="{ 'has-side': selected }">
+      <section class="panel" aria-labelledby="list-title">
+        <h2 id="list-title">Filamente</h2>
+
+        <div class="filters">
+          <label class="field field--search">Suche
+            <input class="input" type="search" v-model="search" placeholder="Name, Hersteller oder Material">
+          </label>
+          <label class="field">Herkunft
+            <select class="input" v-model="origin">
+              <option value="">Alle</option>
+              <option v-for="o in origins" :key="o.value" :value="o.value">{{ o.value }} ({{ o.count }})</option>
+            </select>
+          </label>
+          <label class="field">Material
+            <select class="input" v-model="material">
+              <option value="">Alle</option>
+              <option v-for="m in materials" :key="m.value" :value="m.value">{{ m.value }} ({{ m.count }})</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" v-model="onlyVisible"> Nur sichtbare und eigene</label>
+        </div>
+
+        <p class="result">
+          <span aria-live="polite">{{ resultText }}</span>
+          <span v-if="nameFilter" class="muted">{{ nameFilterText }}</span>
+          <button v-if="!filtersAreDefault" type="button" class="btn" @click="resetFilters">Filter zurücksetzen</button>
+        </p>
+
+        <ul class="legend" aria-label="Zeichenerklärung">
+          <li v-for="k in LEGEND" :key="k"><span class="cell" :class="CELL[k].cls"><span class="sym" aria-hidden="true">{{ CELL[k].sym }}</span> {{ CELL[k].word }}</span>: {{ CELL[k].explain }}</li>
+        </ul>
+
+        <div v-if="rows.length" class="table-wrap" ref="tableWrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th v-for="c in TEXT_COLUMNS" :key="c.key" rowspan="2" scope="col" :class="c.cls" :aria-sort="ariaSort(c.key)">
+                  <button type="button" class="sort-btn" @click="setSort(c.key)">{{ c.label }}<span class="sort-arrow" aria-hidden="true">{{ arrow(c.key) }}</span></button>
+                </th>
+                <th v-for="g in groups" :key="g.key" :colspan="g.count" scope="colgroup" class="col-group">{{ g.label }}</th>
+              </tr>
+              <tr>
+                <th v-for="p in printers" :key="p.name" scope="col" class="col-printer" :class="{ 'is-current': p.selected, 'group-start': p.groupStart }" :aria-sort="ariaSort('p:' + p.name)" :title="p.selected ? p.name + ' – im Slicer gewählt' : p.name">
+                  <button type="button" class="sort-btn" @click="setSort('p:' + p.name)">{{ p.variantLabel }}<span v-if="p.selected" class="visually-hidden">, im Slicer gewählt</span><span class="sort-arrow" aria-hidden="true">{{ arrow('p:' + p.name) }}</span></button>
+                  <span class="col-count">{{ visibleCounts[p.name] }} sichtbar</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(r, i) in rows" :key="r.f.name" :class="{ 'is-selected': r.f.name === selectedName }" @click="openFromRow(r.f.name, $event)">
+                <th scope="row" class="col-name">
+                  <button type="button" class="row-btn" :aria-current="r.f.name === selectedName ? 'true' : null" @keydown="onRowKey($event, i)"><span class="name-alias">{{ r.alias }}</span><span v-if="r.suffix" class="name-suffix"> {{ r.suffix }}</span><span v-if="r.f.example" class="tag">Beispiel</span></button>
+                </th>
+                <td class="col-vendor">{{ r.f.vendor || '–' }}</td>
+                <td>{{ r.f.material || '–' }}</td>
+                <td class="nowrap">{{ r.f.origin }}</td>
+                <td v-if="r.orphaned" :colspan="printers.length" class="cell group-start"><span class="status status--error">Verwaist – der Slicer lädt dieses Profil nicht</span></td>
+                <template v-else>
+                  <td v-for="c in r.cells" :key="c.p.name" class="cell" :class="[c.state.cls, { 'group-start': c.p.groupStart }]" :title="c.p.name + ': ' + c.state.long"><span class="sym" aria-hidden="true">{{ c.state.sym }}</span> {{ c.state.word }}</td>
+                </template>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state">
+          <p>Keine Filamente passen zu diesen Filtern.</p>
+          <button type="button" class="btn" @click="resetFilters">Filter zurücksetzen</button>
+        </div>
+      </section>
+
+      <aside v-if="selected" class="side" aria-labelledby="side-title">
+        <div class="side-head">
+          <h2 id="side-title" ref="sideTitle" tabindex="-1">{{ selected.name }}</h2>
+          <button type="button" class="btn" ref="closeBtn" @click="closeSide">Schließen</button>
+        </div>
+        <p class="muted">{{ sideFacts }}</p>
+        <p v-if="selected.example" class="notice notice--info">{{ T.exampleNote }}</p>
+        <p v-if="selected.status === 'orphaned'" class="notice notice--error"><strong>Verwaist:</strong> {{ selected.problem }}</p>
+
+        <h3>Im Slicer</h3>
+        <p>{{ visibleSummary }}</p>
+        <ul v-if="why.length" class="why">
+          <li v-for="g in why" :key="g.key + g.text">
+            <span class="status" :class="g.state.status">{{ g.state.long }}</span> <span class="muted">– {{ g.who }}</span>
+            <p>{{ g.text }}</p>
+          </li>
+        </ul>
+        <div v-if="actions.length" class="actions">
+          <button v-for="a in actions" :key="a" type="button" class="btn" disabled :title="T.later">{{ a }}</button>
+          <span class="muted small">{{ T.draftButtons }}</span>
+        </div>
+
+        <h3>Worauf es aufbaut</h3>
+        <ol class="chain">
+          <li><span class="mono">{{ selected.name }}</span> <span class="muted">(dieses Profil)</span></li>
+          <li v-for="c in chain" :key="c.name"><span class="step" aria-hidden="true">↳ </span><button v-if="c.known" type="button" class="link-btn mono" @click="openFromChain(c.name)">{{ c.name }}</button><span v-else class="mono">{{ c.name }}</span><span v-if="c.base" class="muted small"> – Grundwerte des Slicers</span></li>
+          <li v-if="!selected.chain_complete"><span class="step" aria-hidden="true">↳ </span><span class="status status--error">Fehlt</span></li>
+        </ol>
+        <p v-if="!selected.chain.length && selected.chain_complete" class="muted">Baut auf keinem anderen Profil auf.</p>
+
+        <h3>Wichtige Werte</h3>
+        <table class="facts values">
+          <tbody>
+            <tr v-for="v in values" :key="v.key">
+              <th scope="row">{{ v.label }}</th>
+              <td>
+                <span class="value" :class="{ 'is-own': v.own }">{{ v.text }}</span><span v-if="v.high" class="muted small"> · mit High-Flow-Düse <span class="value">{{ v.high }}</span></span>
+                <div class="source" :class="{ 'is-own': v.own }"><template v-if="v.sourceName">von <span class="mono">{{ v.sourceName }}</span></template><template v-else>{{ v.sourceText }}</template></div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="muted small">{{ T.moreValues }}</p>
+
+        <h3>Passt zu</h3>
+        <p v-if="!selected.compatible_printers.length">{{ T.fitsAll }}</p>
+        <ul v-else class="plain">
+          <li v-for="c in compat.shown" :key="c.name"><span class="mono">{{ c.name }}</span><span v-if="!c.installed" class="muted"> – nicht installiert</span></li>
+          <li v-if="compat.more" class="muted">und {{ compat.more }} weitere, nicht installiert</li>
+        </ul>
+      </aside>
+    </div>
+  </main>
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  const root = document.getElementById("app");
+
+  // A draft has no console for the user, so errors show up on the page.
+  function showError(err) {
+    const p = document.createElement("p");
+    p.className = "notice notice--error";
+    p.setAttribute("role", "alert");
+    p.textContent = "Fehler im Entwurf: " + (err && err.message ? err.message : String(err));
+    document.body.prepend(p);
+  }
+  window.addEventListener("error", (ev) => showError(ev.error || ev.message));
+
+  const D = window.ORFIX_DATA;
+  if (!window.Vue || !D) {
+    root.textContent = "data.js oder Vue fehlt. Die Datei muss in prototypes/ui-overview liegen.";
+    return;
+  }
+  const { createApp, ref, shallowRef, computed, watch, nextTick, onMounted, onBeforeUnmount } = Vue;
+
+  const T = {
+    draft: "Entwurf B: Filamentliste – Daten aus deiner Installation, eigene Profile sind Beispiele",
+    closed: "Geschlossen",
+    running: "Läuft – nur lesen",
+    later: "Kommt später. Dieser Entwurf zeigt nur an.",
+    draftButtons: "Im Entwurf ohne Funktion.",
+    exampleNote: "Beispiel: Dieses eigene Profil gibt es in deiner Installation nicht. Es zeigt, wie Orfix eigene Profile darstellt.",
+    fitsAll: "Allen Druckern, das Profil schränkt nichts ein.",
+    moreValues: "Alle übrigen Werte kommen später aufklappbar dazu.",
+    allPrinters: (n) => "alle " + n + " Drucker",
+    summary: {
+      orphaned: "Erscheint bei keinem Drucker, weil der Slicer das Profil nicht lädt.",
+      visible(n, total) {
+        if (n === 0) return "Erscheint bei keinem deiner Drucker.";
+        if (n === total) return total === 1 ? "Erscheint im Slicer bei deinem Drucker." : "Erscheint im Slicer bei allen " + total + " Druckern.";
+        return "Erscheint im Slicer bei " + n + " von " + total + " Druckern.";
+      },
+    },
+    source: {
+      own: "selbst gesetzt",
+      slicerDefault: "Standardwert des Slicers",
+      unknown: "unbekannt, weil das Profil fehlt, auf dem es aufbaut",
+    },
+    why: {
+      visibleSystem: "Es ist eingeblendet und passt zu diesem Drucker.",
+      visibleUser: "Eigene Profile erscheinen immer, wenn sie zum Drucker passen.",
+      hidden: "Es passt, ist im Slicer aber nicht eingeblendet.",
+      hiddenLibrary: (slicer, hint) => "Es passt, ist aber nicht eingeblendet. " + slicer + " bietet die Orca-Bibliothek selbst nicht an. " + hint,
+      displacedOne: "Ein Profil mit gleichem Kurznamen, das ausdrücklich für diesen Drucker gedacht ist, hat Vorrang: ",
+      displacedMany: "Profile mit gleichem Kurznamen, die ausdrücklich für diese Drucker gedacht sind, haben Vorrang: ",
+      displacedFrom: (origin, many) => (many ? "Sie stammen von " : "Es stammt von ") + origin + ".",
+      otherProfile: "ein anderes Profil",
+      noneGeneric: "Das Profil ist für andere Drucker gedacht.",
+      noneOnly: (names) => "Das Profil ist nur für " + names.join(", ") + " gedacht.",
+      noneNotInstalled: "Das Profil ist nur für Drucker gedacht, die hier nicht installiert sind.",
+      inListAnyway: "Es ist trotzdem eingeblendet. Das stört nicht.",
+    },
+  };
+
+  // Symbol plus short word in the table, the long word in the panel. Color only adds to it.
+  const CELL = {
+    visible: { sym: "✓", word: "sichtbar", long: D.labels.status.visible, explain: "erscheint im Slicer", cls: "is-visible", status: "status--ok", rank: 0 },
+    displaced: { sym: "↷", word: "verdrängt", long: D.labels.status.displaced, explain: "ein Profil des Druckerherstellers mit gleichem Kurznamen hat Vorrang", cls: "is-displaced", status: "status--warn", rank: 1 },
+    hidden: { sym: "○", word: "aus", long: D.labels.status.hidden, explain: "passt, ist aber ausgeblendet", cls: "is-hidden", status: "status--muted", rank: 2 },
+    none: { sym: "–", word: "passt nicht", long: "Passt nicht", explain: "das Profil ist für andere Drucker gedacht", cls: "is-none", status: "status--muted", rank: 3 },
+    orphaned: { sym: "✕", word: "verwaist", long: D.labels.status.orphaned, explain: "", cls: "is-orphaned", status: "status--error", rank: 4 },
+  };
+  const LEGEND = ["visible", "hidden", "displaced", "none"];
+  const NOTICE = {
+    info: { word: "Hinweis", cls: "notice--info" },
+    warning: { word: "Warnung", cls: "notice--warn" },
+    error: { word: "Fehler", cls: "notice--error" },
+  };
+  // Where a change would go later; shown disabled so the idea is visible.
+  const WARNING_ACTIONS = { library_hidden: "Freischalten", visible_without_printer: "Ausblenden" };
+  const TEXT_COLUMNS = [
+    { key: "name", label: "Kurzname", cls: "col-name" },
+    { key: "vendor", label: "Hersteller", cls: "col-vendor" },
+    { key: "material", label: "Material", cls: "" },
+    { key: "origin", label: "Herkunft", cls: "" },
+  ];
+  const KIND_ORDER = { vendor: 0, library: 1, user: 2 };
+  const collator = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+
+  // "Snapmaker U1 (0.4 nozzle)" -> "Snapmaker U1", "MyKlipper 0.4 nozzle" -> "MyKlipper"
+  function groupName(name) {
+    return name.replace(/\s*\(?[\d.+]+\s*nozzle\)?\s*$/i, "").trim() || name;
+  }
+
+  // The short name is the part before the first "@" (same rule as the slicer's alias).
+  function nameParts(name) {
+    const at = name.indexOf("@");
+    return at < 0 ? [name, ""] : [name.slice(0, at).trimEnd(), name.slice(at)];
+  }
+
+  function cellKey(f, printerName) {
+    if (f.status === "orphaned") return "orphaned";
+    const entry = f.printers[printerName];
+    return entry ? entry.status : "none";
+  }
+
+  // Default view: what shows up in the slicer somewhere, plus all own profiles (also broken ones).
+  function isDefaultRow(f) {
+    return f.origin_kind === "user" || Object.values(f.printers).some((e) => e.status === "visible");
+  }
+
+  function formatValue(value, unit) {
+    if (value == null || value === "") return "–";
+    const text = String(value).replace(/^(-?\d+)\.(\d+)$/, "$1,$2");
+    return unit ? text + " " + unit : text;
+  }
+
+  function countBy(list, keyOf) {
+    const counts = new Map();
+    for (const item of list) {
+      const key = keyOf(item);
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...counts].map(([value, count]) => ({ value, count }));
+  }
+
+  const app = createApp({
+    template: "#app-template",
+    setup() {
+      const instances = D.instances;
+      const instanceId = ref(instances[0].id);
+      const inst = computed(() => instances.find((i) => i.id === instanceId.value) || instances[0]);
+
+      const printers = computed(() => {
+        const list = [];
+        for (const m of inst.value.models) {
+          for (const p of m.printers) {
+            const group = groupName(p.name);
+            list.push({
+              name: p.name,
+              selected: p.selected,
+              model: m.model,
+              group,
+              variantLabel: p.variant ? p.variant + " mm" : p.name,
+              short: (group.replace(/^Snapmaker\s+/, "") + (p.variant ? " " + p.variant : "")).trim(),
+              groupStart: false,
+            });
+          }
+        }
+        list.forEach((p, i) => {
+          p.groupStart = i === 0 || list[i - 1].model !== p.model || list[i - 1].group !== p.group;
+        });
+        return list;
+      });
+      const groups = computed(() => {
+        const out = [];
+        for (const p of printers.value) {
+          if (p.groupStart) out.push({ key: p.model + "|" + p.group, label: p.group, count: 0 });
+          out[out.length - 1].count += 1;
+        }
+        return out;
+      });
+      const printerNames = computed(() => new Set(printers.value.map((p) => p.name)));
+      const shortOf = computed(() => new Map(printers.value.map((p) => [p.name, p.short])));
+      const byName = computed(() => new Map(inst.value.filaments.map((f) => [f.name, f])));
+      const visibleCounts = computed(() => {
+        const counts = {};
+        for (const p of printers.value) counts[p.name] = 0;
+        for (const f of inst.value.filaments) {
+          for (const name in f.printers) {
+            if (f.printers[name].status === "visible" && name in counts) counts[name] += 1;
+          }
+        }
+        return counts;
+      });
+
+      const factsLine = computed(() => {
+        const i = inst.value;
+        return printers.value.length + " Drucker · im Slicer gewählt: " + (i.selected_printer || "keiner") + " · " + (i.logged_in ? "angemeldet" : "nicht angemeldet");
+      });
+
+      // Filters
+      const search = ref("");
+      const origin = ref("");
+      const material = ref("");
+      const onlyVisible = ref(true);
+      const nameFilter = shallowRef(null); // { names: Set, count } from a notice's "Zeigen"
+
+      const origins = computed(() => {
+        const kinds = new Map(inst.value.filaments.map((f) => [f.origin, f.origin_kind]));
+        const rank = (o) => (o in KIND_ORDER ? KIND_ORDER[o] : 9);
+        return countBy(inst.value.filaments, (f) => f.origin)
+          .sort((a, b) => rank(kinds.get(a.value)) - rank(kinds.get(b.value)) || collator.compare(a.value, b.value));
+      });
+      const materials = computed(() =>
+        countBy(inst.value.filaments, (f) => f.material).sort((a, b) => collator.compare(a.value, b.value)));
+
+      // Sorting
+      const sortKey = ref("name");
+      const sortDir = ref(1);
+      function setSort(key) {
+        if (sortKey.value === key) sortDir.value = -sortDir.value;
+        else { sortKey.value = key; sortDir.value = 1; }
+      }
+      function ariaSort(key) {
+        if (sortKey.value !== key) return "none";
+        return sortDir.value > 0 ? "ascending" : "descending";
+      }
+      function arrow(key) {
+        if (sortKey.value !== key) return "";
+        return sortDir.value > 0 ? "▲" : "▼";
+      }
+      function compareRows(key, dir) {
+        return (a, b) => {
+          let result;
+          if (key.startsWith("p:")) {
+            const printer = key.slice(2);
+            result = CELL[cellKey(a, printer)].rank - CELL[cellKey(b, printer)].rank;
+          } else {
+            const va = a[key] || "";
+            const vb = b[key] || "";
+            if (!va !== !vb) return va ? -1 : 1; // empty values always last
+            result = collator.compare(va, vb);
+          }
+          return result * dir || collator.compare(a.name, b.name);
+        };
+      }
+
+      const rows = computed(() => {
+        const query = search.value.trim().toLowerCase();
+        const names = nameFilter.value ? nameFilter.value.names : null;
+        const onlyVis = onlyVisible.value;
+        const orig = origin.value;
+        const mat = material.value;
+        const list = inst.value.filaments.filter((f) =>
+          (!names || names.has(f.name)) &&
+          (!onlyVis || isDefaultRow(f)) &&
+          (!orig || f.origin === orig) &&
+          (!mat || f.material === mat) &&
+          (!query || [f.name, f.vendor, f.material, f.origin].some((s) => s && s.toLowerCase().includes(query))));
+        list.sort(compareRows(sortKey.value, sortDir.value));
+        return list.map((f) => {
+          const [alias, suffix] = nameParts(f.name);
+          return {
+            f,
+            alias,
+            suffix,
+            orphaned: f.status === "orphaned",
+            cells: printers.value.map((p) => ({ p, state: CELL[cellKey(f, p.name)] })),
+          };
+        });
+      });
+
+      const resultText = computed(() => rows.value.length + " von " + inst.value.filaments.length + " Filamenten");
+      const nameFilterText = computed(() => {
+        if (!nameFilter.value) return "";
+        return nameFilter.value.count === 1 ? "Nur das Filament aus dem Hinweis." : "Nur die " + nameFilter.value.count + " Filamente aus dem Hinweis.";
+      });
+      const filtersAreDefault = computed(() =>
+        !search.value && !origin.value && !material.value && onlyVisible.value && !nameFilter.value);
+
+      function resetFilters() {
+        search.value = "";
+        origin.value = "";
+        material.value = "";
+        onlyVisible.value = true;
+        nameFilter.value = null;
+      }
+
+      // Side panel
+      const selectedName = ref(null);
+      const selected = computed(() => (selectedName.value && byName.value.get(selectedName.value)) || null);
+      const tableWrap = ref(null);
+      const sideTitle = ref(null);
+      const closeBtn = ref(null);
+      let returnFocus = null;
+      const narrow = () => window.matchMedia("(max-width: 900px)").matches;
+
+      function showNames(w) {
+        search.value = "";
+        origin.value = "";
+        material.value = "";
+        onlyVisible.value = false;
+        nameFilter.value = { names: new Set(w.names), count: w.names.length };
+        if (w.names.length === 1) selectedName.value = w.names[0];
+        nextTick(() => {
+          const first = tableWrap.value && tableWrap.value.querySelector(".row-btn");
+          if (first) { first.focus(); returnFocus = first; }
+        });
+      }
+
+      function openFromRow(name, ev) {
+        selectedName.value = name;
+        returnFocus = ev.currentTarget.querySelector(".row-btn");
+        // As a drawer the panel covers the table, so focus has to move into it.
+        if (narrow()) nextTick(() => closeBtn.value && closeBtn.value.focus());
+      }
+      function openFromChain(name) {
+        selectedName.value = name;
+        nextTick(() => sideTitle.value && sideTitle.value.focus());
+      }
+      function closeSide() {
+        selectedName.value = null;
+        const target = returnFocus;
+        nextTick(() => { if (target && target.isConnected) target.focus(); });
+      }
+      // Arrow keys walk the rows; with the panel open it follows along.
+      function onRowKey(ev, index) {
+        const step = ev.key === "ArrowDown" ? 1 : ev.key === "ArrowUp" ? -1 : 0;
+        if (!step || !tableWrap.value) return;
+        const next = tableWrap.value.querySelectorAll(".row-btn")[index + step];
+        if (!next) return;
+        ev.preventDefault();
+        next.focus();
+        returnFocus = next;
+        if (selectedName.value) selectedName.value = rows.value[index + step].f.name;
+      }
+      function onKey(ev) {
+        if (ev.key === "Escape" && selectedName.value) closeSide();
+      }
+      onMounted(() => document.addEventListener("keydown", onKey));
+      onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
+
+      watch(instanceId, () => {
+        nameFilter.value = null;
+        if (!materials.value.some((m) => m.value === material.value)) material.value = "";
+        if (!origins.value.some((o) => o.value === origin.value)) origin.value = "";
+        if (sortKey.value.startsWith("p:") && !printerNames.value.has(sortKey.value.slice(2))) {
+          sortKey.value = "name";
+          sortDir.value = 1;
+        }
+        // Keep the panel if the same profile exists in the other installation, handy for comparing.
+        if (selectedName.value && !byName.value.has(selectedName.value)) selectedName.value = null;
+      });
+
+      function whyText(f, p, key) {
+        const entry = f.printers[p.name];
+        if (key === "visible") return f.origin_kind === "user" ? T.why.visibleUser : T.why.visibleSystem;
+        if (key === "hidden") {
+          if (!entry.hint) return T.why.hidden;
+          return f.origin_kind === "library" ? T.why.hiddenLibrary(inst.value.slicer, entry.hint) : T.why.hidden + " " + entry.hint;
+        }
+        const listed = f.compatible_printers || [];
+        const installed = listed.filter((n) => printerNames.value.has(n)).map((n) => shortOf.value.get(n));
+        let text = !listed.length ? T.why.noneGeneric : installed.length ? T.why.noneOnly(installed) : T.why.noneNotInstalled;
+        if (f.in_list && f.origin_kind !== "user" && !Object.keys(f.printers).length) text += " " + T.why.inListAnyway;
+        return text;
+      }
+
+      function displacedText(pairs) {
+        const many = pairs.length > 1;
+        const origins = new Set();
+        const parts = pairs.map((pair) => {
+          for (const n of pair.by) if (byName.value.has(n)) origins.add(byName.value.get(n).origin);
+          const who = pair.by.length ? pair.by.map((n) => "„" + n + "“").join(" und ") : T.why.otherProfile;
+          return many ? who + " für " + pair.short : who;
+        });
+        let text = (many ? T.why.displacedMany : T.why.displacedOne) + parts.join(", ") + ".";
+        if (origins.size === 1) text += " " + T.why.displacedFrom([...origins][0], many);
+        return text;
+      }
+
+      // One sentence per printer, printers with the same sentence share a line.
+      const why = computed(() => {
+        const f = selected.value;
+        if (!f || f.status === "orphaned") return [];
+        const out = [];
+        for (const p of printers.value) {
+          const key = cellKey(f, p.name);
+          const text = key === "displaced" ? "" : whyText(f, p, key);
+          let group = out.find((g) => g.key === key && g.text === text);
+          if (!group) {
+            group = { key, text, state: CELL[key], names: [], pairs: [] };
+            out.push(group);
+          }
+          group.names.push(p.short);
+          if (key === "displaced") group.pairs.push({ short: p.short, by: f.printers[p.name].displaced_by || [] });
+        }
+        const total = printers.value.length;
+        out.sort((a, b) => a.state.rank - b.state.rank);
+        return out.map((g) => ({
+          key: g.key,
+          state: g.state,
+          text: g.key === "displaced" ? displacedText(g.pairs) : g.text,
+          who: g.names.length === total && total > 1 ? T.allPrinters(total) : g.names.join(", "),
+        }));
+      });
+
+      const visibleSummary = computed(() => {
+        const f = selected.value;
+        if (!f) return "";
+        if (f.status === "orphaned") return T.summary.orphaned;
+        const n = printers.value.filter((p) => cellKey(f, p.name) === "visible").length;
+        return T.summary.visible(n, printers.value.length);
+      });
+
+      const actions = computed(() => {
+        const f = selected.value;
+        if (!f) return [];
+        if (f.status === "orphaned") return ["Zuordnen", "Löschen"];
+        if (f.origin_kind === "user") return ["Druckern zuordnen"];
+        if (f.in_list) return ["Ausblenden"];
+        const entries = Object.values(f.printers);
+        if (entries.some((e) => e.status === "hidden" && e.hint)) return ["Freischalten"];
+        if (entries.some((e) => e.status === "hidden")) return ["Einblenden"];
+        return [];
+      });
+
+      const sideFacts = computed(() => {
+        const f = selected.value;
+        if (!f) return "";
+        return [f.origin, f.vendor && "Hersteller " + f.vendor, f.material].filter(Boolean).join(" · ");
+      });
+
+      const chain = computed(() => {
+        const f = selected.value;
+        if (!f) return [];
+        return f.chain.map((n) => ({ name: n, base: n.startsWith("fdm_"), known: byName.value.has(n) }));
+      });
+
+      const values = computed(() => {
+        const f = selected.value;
+        if (!f) return [];
+        return D.core_values.map((c) => {
+          const v = f.values[c.key] || { value: null, own: false, source: null };
+          const row = { key: c.key, label: c.label, own: v.own, text: formatValue(v.value, c.unit), high: null, sourceName: null, sourceText: "" };
+          if (v.high_flow != null && v.high_flow !== v.value) row.high = formatValue(v.high_flow, c.unit);
+          if (v.own) row.sourceText = T.source.own;
+          else if (v.value == null && f.status === "orphaned") row.sourceText = T.source.unknown;
+          else if (v.source == null) row.sourceText = T.source.slicerDefault;
+          else row.sourceName = v.source;
+          return row;
+        });
+      });
+
+      // Installed printers first; long lists of foreign printers are cut short.
+      const compat = computed(() => {
+        const f = selected.value;
+        if (!f) return { shown: [], more: 0 };
+        const installed = f.compatible_printers.filter((n) => printerNames.value.has(n));
+        const others = f.compatible_printers.filter((n) => !printerNames.value.has(n));
+        const shown = installed.map((n) => ({ name: n, installed: true }))
+          .concat(others.slice(0, 3).map((n) => ({ name: n, installed: false })));
+        return { shown, more: Math.max(0, others.length - 3) };
+      });
+
+      function noticeOf(w) {
+        return NOTICE[w.level] || NOTICE.info;
+      }
+
+      return {
+        T, CELL, LEGEND, WARNING_ACTIONS, TEXT_COLUMNS,
+        instances, instanceId, inst, printers, groups, visibleCounts, factsLine,
+        search, origin, material, onlyVisible, nameFilter, origins, materials,
+        setSort, ariaSort, arrow, rows, resultText, nameFilterText, filtersAreDefault, resetFilters, showNames,
+        selectedName, selected, tableWrap, sideTitle, closeBtn,
+        openFromRow, openFromChain, closeSide, onRowKey,
+        why, visibleSummary, actions, sideFacts, chain, values, compat, noticeOf,
+      };
+    },
+  });
+  app.config.errorHandler = (err) => showError(err);
+  app.mount(root);
+})();
+</script>
+</body>
+</html>

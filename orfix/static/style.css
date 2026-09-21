@@ -140,6 +140,9 @@ p { margin: 0 0 8px; }
 .facts td { padding: 4px 0; overflow-wrap: anywhere; }
 .facts td p { margin: 0 0 4px; }
 
+.link-list { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; padding: 0; list-style: none; }
+a { color: var(--accent); }
+
 /* Controls */
 
 .btn, .input {

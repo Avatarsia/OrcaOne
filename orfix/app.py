@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__, guard, instances
 
 STATIC_DIR = Path(__file__).parent / "static"
+DRAFTS_DIR = Path(__file__).parent.parent / "prototypes" / "ui-overview"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
 # On Windows the registry can map .js to text/plain, and browsers then refuse to
@@ -56,6 +57,7 @@ def list_instances():
     return {
         "version": __version__,
         "orfix_data_dir": str(instances.orfix_data_dir()),
+        "drafts": DRAFTS_DIR.is_dir(),
         "instances": [
             {
                 **asdict(instance),
@@ -91,5 +93,11 @@ def remove_manual(path: str):
         return _error("save_failed", 500)
     return {"removed": path}
 
+
+# Drafts of the overview page, only until its layout is decided. They load the
+# app's stylesheet and Vue via ../../orfix/static/, hence the second mount.
+if DRAFTS_DIR.is_dir():
+    app.mount("/prototypes/ui-overview", StaticFiles(directory=DRAFTS_DIR), name="drafts")
+    app.mount("/orfix/static", StaticFiles(directory=STATIC_DIR), name="drafts-static")
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

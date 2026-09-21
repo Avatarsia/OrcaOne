@@ -15,6 +15,7 @@ function remember(id) {
 createApp({
   setup() {
     const instances = ref([]);
+    const drafts = ref(false);
     const selectedId = ref(null);
     const loading = ref(true);
     const error = ref(null);
@@ -55,6 +56,7 @@ createApp({
       try {
         const data = await api.instances();
         instances.value = data.instances;
+        drafts.value = data.drafts;
         const ids = data.instances.map((i) => i.id);
         if (!ids.includes(selectedId.value)) {
           selectedId.value = ids.includes(remembered()) ? remembered() : ids[0] || null;
@@ -99,7 +101,7 @@ createApp({
     onMounted(load);
 
     return {
-      T, instances, selectedId, selected, loading, error, newPath, notice, busy,
+      T, instances, drafts, selectedId, selected, loading, error, newPath, notice, busy,
       slicerName, statusText, statusClass, runDetail, userFolders, systemFormats, confFormat,
       select, load, add, remove,
     };
@@ -166,6 +168,16 @@ createApp({
           <section class="panel empty-state">
             <h2>{{ T.profilesPending.title }}</h2>
             <p class="muted">{{ T.profilesPending.text }}</p>
+          </section>
+
+          <section v-if="drafts" class="panel">
+            <h2>{{ T.drafts.title }}</h2>
+            <p class="muted">{{ T.drafts.hint }}</p>
+            <ul class="link-list">
+              <li v-for="link in T.drafts.links" :key="link.href">
+                <a :href="link.href" target="_blank" rel="noopener">{{ link.label }}</a>
+              </li>
+            </ul>
           </section>
         </template>
 

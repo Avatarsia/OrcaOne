@@ -67,6 +67,16 @@ def test_serves_the_ui(server):
     assert status == 200 and b'<div id="app">' in body
 
 
+def test_serves_the_drafts_with_the_app_stylesheet(server):
+    from orfix.app import DRAFTS_DIR
+    if not DRAFTS_DIR.is_dir():
+        return
+    status, body = call(f"{server}/prototypes/ui-overview/variante-a.html")
+    assert status == 200 and b"../../orfix/static/style.css" in body
+    status, _ = call(f"{server}/orfix/static/style.css")
+    assert status == 200
+
+
 def test_rejects_foreign_hosts_and_origins(server):
     status, _ = call(f"{server}/api/instances", headers={"Host": "evil.example"})
     assert status == 403

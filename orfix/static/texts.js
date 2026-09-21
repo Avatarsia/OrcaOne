@@ -68,6 +68,16 @@ export const T = {
     title: "Profile",
     text: "Die Übersicht der Drucker, Filamente und Prozesse kommt in Phase 1.",
   },
+  drafts: {
+    title: "Entwürfe für die Übersicht",
+    hint: "Vorschläge zum Vergleichen, jeweils in einem neuen Tab. Die Daten stammen aus deinen Installationen, eigene Profile sind Beispiele.",
+    links: [
+      { href: "/prototypes/ui-overview/variante-a.html", label: "A – Drucker zuerst" },
+      { href: "/prototypes/ui-overview/variante-b.html", label: "B – Filamentliste" },
+      { href: "/prototypes/ui-overview/variante-c.html", label: "C – Ganz einfach" },
+      { href: "/prototypes/ui-overview/variante-d.html", label: "D – Nur das Nötigste, Rest in der Seitenleiste" },
+    ],
+  },
   list: {
     title: "Alle gefundenen Installationen",
     slicer: "Slicer",

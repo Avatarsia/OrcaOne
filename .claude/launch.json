@@ -4,7 +4,13 @@
     {
       "name": "orfix",
       "runtimeExecutable": ".lenv/bin/python",
-      "runtimeArgs": ["-m", "orfix", "--port", "8765", "--no-browser"],
+      "runtimeArgs": [
+        "-m",
+        "orfix",
+        "--port",
+        "8765",
+        "--no-browser"
+      ],
       "port": 8765
     }
   ]
