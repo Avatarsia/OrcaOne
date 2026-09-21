@@ -1,0 +1,77 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from orfix import guard
+from orfix.guard import SlicerProcess, process_data_dir, run_state
+from orfix.model import Instance
+
+# Takes the same kind of lock as the slicer: a POSIX write lock on byte 0.
+HOLD_LOCK = """
+import fcntl, os, sys, time
+fd = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT)
+fcntl.lockf(fd, fcntl.LOCK_EX, 1, 0)
+print("locked", flush=True)
+time.sleep(60)
+"""
+
+
+@pytest.mark.skipif(os.name != "posix", reason="the lock file exists on Linux and macOS only")
+def test_lock_holder_reports_the_pid(tmp_path):
+    (tmp_path / "cache").mkdir()
+    lock = tmp_path / "cache" / "11911699295906290287.lock"
+    holder = subprocess.Popen([sys.executable, "-c", HOLD_LOCK, str(lock)], stdout=subprocess.PIPE, text=True)
+    try:
+        assert holder.stdout.readline().strip() == "locked"
+        assert guard.lock_holder(tmp_path) == holder.pid
+    finally:
+        holder.kill()
+        holder.wait()
+        holder.stdout.close()
+    # After a crash the file stays behind without a lock.
+    assert lock.exists()
+    assert guard.lock_holder(tmp_path) is None
+
+
+def test_lock_holder_without_cache(tmp_path):
+    assert guard.lock_holder(tmp_path) is None
+
+
+def test_process_data_dir():
+    assert process_data_dir(["snapmaker-orca", "--datadir", "/tmp/copy"], None) == Path("/tmp/copy")
+    assert process_data_dir(["orca-slicer", "--datadir=/tmp/copy"], "/somewhere") == Path("/tmp/copy")
+    assert process_data_dir(["orca-slicer"], "/home/u/.config/OrcaSlicer/log") == Path("/home/u/.config/OrcaSlicer")
+    assert process_data_dir(["orca-slicer"], "/home/u") is None
+    assert process_data_dir(["orca-slicer", "--datadir"], None) is None
+    assert process_data_dir(["orca-slicer", "--datadir", "copy"], "/home/u") == Path("/home/u/copy")
+
+
+def test_appimage_runtime_names():
+    assert guard._appimage_slicer("/home/u/Downloads/Snapmaker_Orca_Linux_AppImage_Ubuntu2404_V2.4.0.appimage") == "Snapmaker_Orca"
+    assert guard._appimage_slicer("/opt/OrcaSlicer_Linux_AppImage_Ubuntu2404_nightly.AppImage") == "OrcaSlicer"
+    assert guard._appimage_slicer("/opt/Mayo-0.10.0-x86_64.appimage") is None
+    assert guard._appimage_slicer("/usr/bin/orca") is None
+
+
+def test_run_state(tmp_path):
+    instance = Instance(id="x", slicer="OrcaSlicer", data_dir=tmp_path, source="auto")
+    assert run_state(instance, []).running is False
+
+    other_slicer = SlicerProcess(1, "Snapmaker_Orca", None)
+    elsewhere = SlicerProcess(2, "OrcaSlicer", tmp_path / "other")
+    assert run_state(instance, [other_slicer, elsewhere]).running is False
+
+    mine = SlicerProcess(3, "OrcaSlicer", tmp_path)
+    state = run_state(instance, [elsewhere, mine])
+    assert (state.running, state.reason, state.pids) == (True, "process", [3])
+
+    unknown = SlicerProcess(4, "OrcaSlicer", None)
+    state = run_state(instance, [elsewhere, unknown])
+    assert (state.running, state.reason, state.pids) == (True, "process_unmapped", [4])
+
+
+def test_find_processes_runs():
+    assert isinstance(guard.find_processes(), list)
