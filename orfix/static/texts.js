@@ -7,6 +7,7 @@ export const T = {
   reload: "Neu einlesen",
   loading: "Lese Installationen …",
   tabs: {
+    label: "Seiten",
     overview: "Übersicht",
     manage: "Verwalten",
     manageLater: "Kommt in Phase 2",
@@ -60,7 +61,8 @@ export const T = {
     problems: "Probleme",
   },
   problems: {
-    conf_unreadable: "Die .conf ließ sich nicht lesen. Starte den Slicer einmal, damit er sie neu schreibt.",
+    conf_unreadable: "Die .conf ließ sich nicht lesen. Ist sie beschädigt, setzt der Slicer beim nächsten Start alle Einstellungen zurück (unter Windows versucht er vorher die .bak). Sichere die Datei vorher, wenn du sie reparieren willst.",
+    dir_unreadable: "Ein Ordner im Datenverzeichnis ist nicht lesbar. Prüfe die Zugriffsrechte, etwa ob er nach einem Start mit sudo root gehört.",
   },
   profilesPending: {
     title: "Profile",
@@ -90,6 +92,9 @@ export const T = {
   errors: {
     path_not_found: "Diesen Ordner gibt es nicht. Prüfe den Pfad.",
     not_a_data_dir: "In diesem Ordner liegt weder Snapmaker_Orca.conf noch OrcaSlicer.conf. Wähle den Ordner, in dem die .conf liegt.",
+    already_listed: "Diese Installation findet Orfix schon von selbst. Sie steht bereits in der Liste.",
+    not_listed: "Dieser Eintrag war schon entfernt.",
+    save_failed: "Orfix konnte seine Liste nicht speichern. Prüfe, ob der Ordner von Orfix beschreibbar ist.",
     forbidden: "Die Anfrage wurde abgelehnt. Öffne Orfix über 127.0.0.1.",
     network: "Orfix antwortet nicht. Läuft das Programm noch? Starte es neu und lade die Seite.",
     unknown: "Etwas ist schiefgegangen. Lade die Seite neu.",

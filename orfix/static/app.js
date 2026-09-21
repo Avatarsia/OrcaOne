@@ -88,10 +88,10 @@ createApp({
       try {
         await api.removeManual(instance.data_dir);
         notice.value = { kind: "ok", text: T.list.removed };
-        await load();
       } catch (err) {
         notice.value = { kind: "error", text: message(err) };
       } finally {
+        await load();
         busy.value = false;
       }
     }
@@ -123,9 +123,9 @@ createApp({
       <button class="btn" type="button" :disabled="loading" @click="load">{{ T.reload }}</button>
     </header>
 
-    <nav class="tabs" role="tablist">
-      <button class="tab" role="tab" type="button" aria-selected="true">{{ T.tabs.overview }}</button>
-      <button class="tab" role="tab" type="button" aria-selected="false" disabled>
+    <nav class="tabs" :aria-label="T.tabs.label">
+      <button class="tab" type="button" aria-current="page">{{ T.tabs.overview }}</button>
+      <button class="tab" type="button" disabled>
         {{ T.tabs.manage }} <span class="muted">· {{ T.tabs.manageLater }}</span>
       </button>
     </nav>
@@ -204,7 +204,7 @@ createApp({
             <input class="input mono" v-model="newPath" :placeholder="T.add.placeholder" :aria-label="T.add.title">
             <button class="btn btn--primary" type="submit" :disabled="busy || !newPath.trim()">{{ T.add.button }}</button>
           </form>
-          <p v-if="notice" class="notice" :class="'notice--' + notice.kind" role="status">{{ notice.text }}</p>
+          <p class="notice" :class="notice && 'notice--' + notice.kind" role="status">{{ notice ? notice.text : "" }}</p>
         </section>
       </template>
     </main>

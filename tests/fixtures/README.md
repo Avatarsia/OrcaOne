@@ -10,7 +10,7 @@ python3 tests/fixtures/make_snorca_fixture.py ~/.config/Snapmaker_Orca
 
 Das Skript liest die Quelle nur und läuft nie während der Tests.
 
-- **`Snapmaker_Orca.conf`:** Nur Textersetzungen, deshalb bleibt die Formatierung des Slicers byte-genau erhalten. `slicer_uuid` ist durch Nullen ersetzt, der Home-Pfad durch `/home/user`. `devices` muss vorher leer sein, sonst bricht das Skript ab. `.snapmaker_orca_machine_id` wird nie kopiert.
+- **`Snapmaker_Orca.conf`:** Nur Textersetzungen, deshalb bleibt die Formatierung des Slicers byte-genau erhalten. `slicer_uuid` ist durch Nullen ersetzt, der Home-Pfad durch `/home/user`. `devices` muss vorher leer sein und `preset_folder` ohne Konto-ID, sonst bricht das Skript ab, bevor es etwas löscht. `.snapmaker_orca_machine_id` wird nie kopiert.
 - **`system/Snapmaker/`:**
   - die vier U1-Drucker mit ihrer Kette, das Modell `Snapmaker U1`, zwei Prozesse und einige Filamente, jeweils mit vollständiger `inherits`-Kette;
   - eine Regeldatei (`filament_allow_list.json`), die kein Profil ist;

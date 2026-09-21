@@ -44,6 +44,14 @@ def test_non_ascii_stays_raw():
     assert "Größe" in dump_conf(conf).decode("utf-8")
 
 
+def test_reads_a_conf_with_byte_order_mark():
+    raw = (FIXTURES / "conf/snorca_linux.conf").read_bytes()
+    conf = parse_conf(b"\xef\xbb\xbf" + raw)
+    assert conf.data["header"] == "Snapmaker Orca 2.4.0"
+    # Written back without BOM, like the slicer does on its next save.
+    assert dump_conf(conf) == raw
+
+
 def test_rejects_anything_but_an_object():
     with pytest.raises(ValueError):
         parse_conf(b"[]\n")

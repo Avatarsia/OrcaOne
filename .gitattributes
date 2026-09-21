@@ -1,0 +1,4 @@
+# Fixtures must stay byte for byte (CRLF, BOM, checksums), never converted.
+tests/fixtures/** -text
+*.sh text eol=lf
+*.cmd text eol=crlf

@@ -29,7 +29,8 @@ class ConfFile:
 
 def parse_conf(raw: bytes) -> ConfFile:
     """Parse the file content. Raises ValueError if it is not a JSON object."""
-    text = raw.decode("utf-8")
+    # nlohmann::json skips a UTF-8 BOM (e.g. after editing with old Notepad), so do we.
+    text = raw.decode("utf-8-sig")
     crlf = "\r\n" in text
     if crlf:
         text = text.replace("\r\n", "\n")

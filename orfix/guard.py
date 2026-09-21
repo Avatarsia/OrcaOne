@@ -22,9 +22,13 @@ import psutil
 from .model import SLICERS, Instance, RunState
 
 _EXECUTABLES = {name.lower(): key for key, info in SLICERS.items() for name in info["executables"]}
-# The AppImage runtime process is named after the .appimage file and lives longer
-# than the slicer inside it, which is started, renamed by exec and ended within it.
-_APPIMAGE_MARKERS = {"Snapmaker_Orca": ("snapmaker",), "OrcaSlicer": ("orcaslicer", "orca-slicer", "orca_slicer")}
+# The AppImage runtime (FUSE) process is named after the .appimage file. It is not a
+# parent of the slicer: the start process becomes the slicer by exec, the runtime
+# detaches. It lives before and after the slicer, so it counts as running too.
+_APPIMAGE_MARKERS = {
+    "Snapmaker_Orca": ("snapmaker_orca", "snapmaker-orca", "snapmaker orca"),
+    "OrcaSlicer": ("orcaslicer", "orca-slicer", "orca_slicer"),
+}
 
 
 @dataclass
@@ -61,6 +65,7 @@ def lock_holder(data_dir: Path) -> int | None:
             os.close(fd)
         fields = struct.unpack(layout, reply)
         lock_type, pid = (fields[3], fields[2]) if sys.platform == "darwin" else (fields[0], fields[4])
+        # pid is 0 when the holder lives in another PID namespace (Flatpak).
         if lock_type != fcntl.F_UNLCK:
             return pid
     return None
@@ -79,7 +84,9 @@ def process_data_dir(cmdline: list[str], cwd: str | None) -> Path | None:
         # With --datadir the slicer does not change directory, so a relative
         # path is relative to the working directory it was started in.
         path = Path(datadir)
-        return path if path.is_absolute() or not cwd else Path(cwd) / path
+        if path.is_absolute():
+            return path
+        return Path(cwd) / path if cwd else None
     if cwd and Path(cwd).name == "log":
         return Path(cwd).parent
     return None
@@ -92,8 +99,18 @@ def _appimage_slicer(exe: str) -> str | None:
     return next((key for key, markers in _APPIMAGE_MARKERS.items() if any(m in name for m in markers)), None)
 
 
+def _normalized(path: str) -> str:
+    return os.path.normcase(os.path.realpath(path))
+
+
+def uncovered_runtimes(runtimes: list[tuple[int, str, str]], covered_appimages: set[str]) -> list[SlicerProcess]:
+    """AppImage runtimes (pid, slicer, exe) whose slicer is not running with a
+    known data directory, e.g. while it starts or exits."""
+    return [SlicerProcess(pid, slicer, None) for pid, slicer, exe in runtimes if _normalized(exe) not in covered_appimages]
+
+
 def find_processes() -> list[SlicerProcess]:
-    slicers, runtimes = [], []
+    slicers, runtimes, covered = [], [], set()
     for proc in psutil.process_iter(["pid", "name", "exe", "cmdline"]):
         info = proc.info
         exe = info["exe"] or ""
@@ -104,21 +121,19 @@ def find_processes() -> list[SlicerProcess]:
                 cwd = proc.cwd()
             except (psutil.Error, OSError):
                 cwd = None
-            slicers.append(SlicerProcess(info["pid"], slicer, process_data_dir(info["cmdline"] or [], cwd)))
+            process = SlicerProcess(info["pid"], slicer, process_data_dir(info["cmdline"] or [], cwd))
+            slicers.append(process)
+            if process.data_dir:
+                # The AppImage runtime sets $APPIMAGE for the slicer inside it.
+                try:
+                    appimage = proc.environ().get("APPIMAGE")
+                except (psutil.Error, OSError):
+                    appimage = None
+                if appimage:
+                    covered.add(_normalized(appimage))
         elif (runtime_slicer := _appimage_slicer(exe)) is not None:
-            runtimes.append((proc, runtime_slicer))
-
-    # A runtime is covered by the slicer running inside it. Without one (start,
-    # exit) its data directory is unknown.
-    mapped = {p.pid for p in slicers if p.data_dir}
-    for proc, slicer in runtimes:
-        try:
-            children = {child.pid for child in proc.children(recursive=True)}
-        except psutil.Error:
-            children = set()
-        if not children & mapped:
-            slicers.append(SlicerProcess(proc.pid, slicer, None))
-    return slicers
+            runtimes.append((info["pid"], runtime_slicer, exe))
+    return slicers + uncovered_runtimes(runtimes, covered)
 
 
 def _same_path(a: Path, b: Path) -> bool:
@@ -130,7 +145,7 @@ def _same_path(a: Path, b: Path) -> bool:
 
 def run_state(instance: Instance, processes: list[SlicerProcess]) -> RunState:
     pid = lock_holder(instance.data_dir)
-    if pid:
+    if pid is not None:
         return RunState(True, "lock", [pid])
     same_slicer = [p for p in processes if p.slicer == instance.slicer]
     mine = [p.pid for p in same_slicer if p.data_dir and _same_path(p.data_dir, instance.data_dir)]

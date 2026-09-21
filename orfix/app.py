@@ -1,5 +1,6 @@
 """FastAPI app: JSON API under /api, the static UI under /."""
 
+import mimetypes
 from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,6 +14,11 @@ from . import __version__, guard, instances
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
+# On Windows the registry can map .js to text/plain, and browsers then refuse to
+# run ES modules.
+mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+
 app = FastAPI(title="Orfix", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -23,13 +29,18 @@ def _hostname(value: str) -> str | None:
 @app.middleware("http")
 async def local_only(request: Request, call_next):
     # The server listens on 127.0.0.1 only. Checking Host blocks DNS rebinding,
-    # checking Origin blocks other web pages from sending changes to it.
-    if _hostname(request.headers.get("host", "")) not in _LOCAL_HOSTS:
+    # checking Origin blocks other pages (even other local ports) from sending
+    # changes, and refusing frames blocks clickjacking.
+    host = request.headers.get("host", "")
+    if _hostname(host) not in _LOCAL_HOSTS:
         return JSONResponse({"error": "forbidden"}, status_code=403)
     origin = request.headers.get("origin")
-    if request.method not in ("GET", "HEAD") and origin and urlparse(origin).hostname not in _LOCAL_HOSTS:
+    if request.method not in ("GET", "HEAD") and origin and origin != f"http://{host}":
         return JSONResponse({"error": "forbidden"}, status_code=403)
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+    return response
 
 
 def _error(code: str, status: int = 400) -> JSONResponse:
@@ -65,6 +76,8 @@ def add_manual(payload: dict = Body(...)):
         instance = instances.add_manual_path(path)
     except ValueError as exc:
         return _error(str(exc))
+    except OSError:
+        return _error("save_failed", 500)
     return {"instance": asdict(instance)}
 
 
@@ -74,6 +87,8 @@ def remove_manual(path: str):
         instances.remove_manual_path(path)
     except ValueError as exc:
         return _error(str(exc), 404)
+    except OSError:
+        return _error("save_failed", 500)
     return {"removed": path}
 
 

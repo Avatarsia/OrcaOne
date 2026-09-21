@@ -120,24 +120,30 @@ def load_instance(path: Path, source: str) -> Instance | None:
             instance.active_user_folder = preset_folder
             instance.logged_in = True
 
-    user_dir = path / "user"
-    if user_dir.is_dir():
-        instance.user_folders = sorted(
-            child.name for child in user_dir.iterdir()
-            if child.is_dir() and child.name not in _NOT_USER_FOLDERS
-        )
-
-    system_dir = path / "system"
-    if system_dir.is_dir():
-        suffixes = {child.suffix for child in system_dir.iterdir() if child.is_file()}
-        instance.system_formats = [name for name in ("json", "opc") if f".{name}" in suffixes]
+    # A folder without read permission must not take the whole list down.
+    try:
+        user_dir = path / "user"
+        if user_dir.is_dir():
+            instance.user_folders = sorted(
+                child.name for child in user_dir.iterdir()
+                if child.is_dir() and child.name not in _NOT_USER_FOLDERS
+            )
+        system_dir = path / "system"
+        if system_dir.is_dir():
+            suffixes = {child.suffix for child in system_dir.iterdir() if child.is_file()}
+            instance.system_formats = [name for name in ("json", "opc") if f".{name}" in suffixes]
+    except OSError:
+        instance.problems.append("dir_unreadable")
     return instance
+
+
+def _default_candidates() -> list[tuple[Path, str]]:
+    return candidate_dirs(platform.system(), os.environ, Path.home())
 
 
 def discover(process_dirs: list[Path] | None = None) -> list[Instance]:
     """All data directories found on this computer, each path once."""
-    system, env, home = platform.system(), os.environ, Path.home()
-    candidates = candidate_dirs(system, env, home)
+    candidates = _default_candidates()
     candidates += [(path, "process") for path in process_dirs or []]
     candidates += [(Path(path), "manual") for path in manual_paths()]
 
@@ -178,14 +184,28 @@ def _save_manual_paths(paths: list[str]) -> None:
 
 
 def add_manual_path(raw: str) -> Instance:
-    """Remember a data directory. Raises ValueError with an error code."""
-    path = Path(raw.strip()).expanduser()
-    if not raw.strip() or not path.is_dir():
+    """Remember a data directory. Raises ValueError with an error code,
+    OSError if Orfix' own folder cannot be written."""
+    # File managers copy paths with quotes ("Copy as path" on Windows).
+    raw = raw.strip().strip('"').strip()
+    try:
+        path = Path(raw).expanduser()
+    except RuntimeError:  # "~name" with an unknown user
+        raise ValueError("path_not_found") from None
+    if not raw or not path.is_dir():
         raise ValueError("path_not_found")
     path = path.resolve()
     instance = load_instance(path, "manual")
     if instance is None:
         raise ValueError("not_a_data_dir")
+    found = set()
+    for candidate, _ in _default_candidates():
+        try:
+            found.add(candidate.resolve())
+        except OSError:
+            continue
+    if path in found:
+        raise ValueError("already_listed")
     paths = manual_paths()
     if str(path) not in paths:
         _save_manual_paths(paths + [str(path)])
@@ -195,5 +215,5 @@ def add_manual_path(raw: str) -> Instance:
 def remove_manual_path(raw: str) -> None:
     paths = manual_paths()
     if raw not in paths:
-        raise ValueError("path_not_found")
+        raise ValueError("not_listed")
     _save_manual_paths([p for p in paths if p != raw])

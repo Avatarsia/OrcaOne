@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -94,6 +95,19 @@ def test_load_instance_with_broken_conf(tmp_path):
     assert instance.version is None
 
 
+@pytest.mark.skipif(os.name != "posix" or os.geteuid() == 0, reason="needs POSIX permissions and no root")
+def test_load_instance_with_unreadable_folder(tmp_path):
+    data_dir = make_data_dir(tmp_path / "Snapmaker_Orca")
+    (data_dir / "user").mkdir()
+    (data_dir / "user").chmod(0)
+    try:
+        instance = load_instance(data_dir, "manual")
+    finally:
+        (data_dir / "user").chmod(0o755)
+    assert instance.version == "2.4.0"
+    assert instance.problems == ["dir_unreadable"]
+
+
 def test_load_instance_on_the_snorca_fixture():
     fixture = Path(__file__).parent / "fixtures" / "snorca"
     instance = load_instance(fixture, "auto")
@@ -109,7 +123,9 @@ def test_load_instance_ignores_folders_without_conf(tmp_path):
 def test_discover_finds_each_directory_once(fake_home, monkeypatch):
     monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
     data_dir = make_data_dir(fake_home / ".config" / "Snapmaker_Orca")
-    add_manual_path(str(data_dir))
+    # A manual entry for a folder that is also found automatically, e.g. saved
+    # before XDG_CONFIG_HOME changed.
+    instances._save_manual_paths([str(data_dir)])
     found = discover([data_dir])
     assert [(i.data_dir, i.source) for i in found] == [(data_dir.resolve(), "auto")]
 
@@ -124,6 +140,10 @@ def test_manual_paths(fake_home):
     remove_manual_path(str(data_dir.resolve()))
     assert manual_paths() == []
 
+    # "Copy as path" on Windows puts quotes around it.
+    add_manual_path(f'"{data_dir}"')
+    assert manual_paths() == [str(data_dir.resolve())]
+
 
 def test_manual_path_errors(fake_home):
     with pytest.raises(ValueError, match="path_not_found"):
@@ -133,4 +153,14 @@ def test_manual_path_errors(fake_home):
     with pytest.raises(ValueError, match="not_a_data_dir"):
         add_manual_path(str(fake_home))
     with pytest.raises(ValueError, match="path_not_found"):
+        add_manual_path("~nosuchuser_orfix/OrcaSlicer")
+    with pytest.raises(ValueError, match="not_listed"):
         remove_manual_path("/never/added")
+
+
+def test_manual_path_already_found_automatically(fake_home, monkeypatch):
+    monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
+    data_dir = make_data_dir(fake_home / ".config" / "OrcaSlicer", key="OrcaSlicer")
+    with pytest.raises(ValueError, match="already_listed"):
+        add_manual_path(str(data_dir))
+    assert manual_paths() == []

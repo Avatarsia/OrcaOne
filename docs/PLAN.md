@@ -168,9 +168,9 @@ Er beruht auf dem ionpy-Styleguide (`~/dev/ionpy/static/dev/styleguide/`): dunke
 | Fläche (Tabellen, Panel) | `#202024` | `#f9f9f9` |
 | Rahmen | `#44444b` | `#bbbbbb` |
 | Text | `#f4f4f5` | `#2c2c2c` |
-| Nebentext | `#a1a1aa` | `#636363` |
+| Nebentext | `#a1a1aa` | `#595959` |
 | Akzent, Fokus | `#0ea5e9` | `#0f766e` |
-| Status OK / Warnung / Fehler | `#10b981` / `#f59e0b` / `#f87171` | `#15803d` / `#a16207` / `#b91c1c` |
+| Status OK / Warnung / Fehler | `#10b981` / `#f59e0b` / `#f87171` | `#166534` / `#854d0e` / `#b91c1c` |
 
 **Schriften**
 

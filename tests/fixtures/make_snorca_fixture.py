@@ -82,11 +82,17 @@ def library_slice(source: Path) -> None:
     copy(source, "system/OrcaFilamentLibrary.json")
 
 
-def anonymised_conf(source: Path) -> None:
-    raw = (source / "Snapmaker_Orca.conf").read_text(encoding="utf-8")
-    conf = json.loads(raw)
+def check_source(source: Path) -> None:
+    """Refuse sources whose .conf holds personal data the text replacements miss."""
+    conf = json.loads((source / "Snapmaker_Orca.conf").read_text(encoding="utf-8"))
     if conf.get("devices"):
         sys.exit("devices is not empty: remove the printer connections by hand first")
+    if conf.get("app", {}).get("preset_folder"):
+        sys.exit("preset_folder holds a user id: sign out and start the slicer once first")
+
+
+def anonymised_conf(source: Path) -> None:
+    raw = (source / "Snapmaker_Orca.conf").read_text(encoding="utf-8")
     # Text replacements keep the slicer's exact formatting.
     raw = re.sub(r'("slicer_uuid": ")[^"]*"', r'\g<1>00000000-0000-0000-0000-000000000000"', raw)
     raw = raw.replace(HOME, "/home/user")
@@ -95,6 +101,7 @@ def anonymised_conf(source: Path) -> None:
 
 def main() -> None:
     source = Path(sys.argv[1]).expanduser()
+    check_source(source)
     if TARGET.exists():
         shutil.rmtree(TARGET)
     TARGET.mkdir()

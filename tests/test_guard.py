@@ -47,6 +47,7 @@ def test_process_data_dir():
     assert process_data_dir(["orca-slicer"], "/home/u") is None
     assert process_data_dir(["orca-slicer", "--datadir"], None) is None
     assert process_data_dir(["orca-slicer", "--datadir", "copy"], "/home/u") == Path("/home/u/copy")
+    assert process_data_dir(["orca-slicer", "--datadir", "copy"], None) is None
 
 
 def test_appimage_runtime_names():
@@ -54,6 +55,16 @@ def test_appimage_runtime_names():
     assert guard._appimage_slicer("/opt/OrcaSlicer_Linux_AppImage_Ubuntu2404_nightly.AppImage") == "OrcaSlicer"
     assert guard._appimage_slicer("/opt/Mayo-0.10.0-x86_64.appimage") is None
     assert guard._appimage_slicer("/usr/bin/orca") is None
+    assert guard._appimage_slicer("/home/u/Downloads/Snapmaker-Luban-4.15.0-linux-x86_64.AppImage") is None
+
+
+def test_appimage_runtime_is_covered_by_its_slicer(tmp_path):
+    snorca = tmp_path / "Snapmaker_Orca_V2.4.0.appimage"
+    orca = tmp_path / "OrcaSlicer_nightly.AppImage"
+    runtimes = [(10, "Snapmaker_Orca", str(snorca)), (11, "OrcaSlicer", str(orca))]
+    covered = {guard._normalized(str(snorca))}
+    # SnOrca runs inside its runtime; the OrcaSlicer runtime is starting or exiting.
+    assert guard.uncovered_runtimes(runtimes, covered) == [SlicerProcess(11, "OrcaSlicer", None)]
 
 
 def test_run_state(tmp_path):
@@ -71,6 +82,14 @@ def test_run_state(tmp_path):
     unknown = SlicerProcess(4, "OrcaSlicer", None)
     state = run_state(instance, [elsewhere, unknown])
     assert (state.running, state.reason, state.pids) == (True, "process_unmapped", [4])
+
+
+def test_lock_held_from_another_pid_namespace(tmp_path, monkeypatch):
+    # F_GETLK reports pid 0 for a holder inside a Flatpak sandbox.
+    monkeypatch.setattr(guard, "lock_holder", lambda data_dir: 0)
+    instance = Instance(id="x", slicer="OrcaSlicer", data_dir=tmp_path, source="flatpak")
+    state = run_state(instance, [])
+    assert (state.running, state.reason, state.pids) == (True, "lock", [0])
 
 
 def test_find_processes_runs():

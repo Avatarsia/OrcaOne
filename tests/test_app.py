@@ -22,6 +22,7 @@ def server(fake_home, monkeypatch):
     thread = threading.Thread(target=srv.run, daemon=True)
     thread.start()
     while not srv.started:
+        assert thread.is_alive(), "server did not start"
         time.sleep(0.02)
     yield f"http://127.0.0.1:{port}"
     srv.should_exit = True
@@ -71,3 +72,17 @@ def test_rejects_foreign_hosts_and_origins(server):
     assert status == 403
     status, _ = call(f"{server}/api/instances/manual", "POST", {"path": "/"}, headers={"Origin": "http://evil.example"})
     assert status == 403
+    # Another program on this computer, e.g. a local dev server on another port.
+    status, _ = call(f"{server}/api/instances/manual", "POST", {"path": "/"}, headers={"Origin": "http://127.0.0.1:1"})
+    assert status == 403
+    status, body = call(f"{server}/api/instances/manual", "POST", {"path": "/"}, headers={"Origin": server})
+    assert (status, json.loads(body)) == (400, {"error": "not_a_data_dir"})
+
+
+def test_refuses_to_be_framed(server):
+    request = urllib.request.Request(f"{server}/")
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.headers["X-Frame-Options"] == "DENY"
+        assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+    with urllib.request.urlopen(f"{server}/app.js", timeout=5) as response:
+        assert response.headers["Content-Type"].startswith("text/javascript")
