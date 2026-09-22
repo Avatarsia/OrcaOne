@@ -99,3 +99,12 @@ Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
   Danach folgen Zusammenführen samt Ende-zu-Ende-Test, Review und Nachbessern.
 - **Sicherheitsregel:** Orfix schreibt nur in von Hand hinzugefügte Ordner, sonst meldet es `write_not_allowed`.
 - **Nach einem Abbruch** fortsetzen mit `resumeFromRunId: "wf_9ea0a07b-6fd"`, Skript unter `…/workflows/scripts/orfix-writes-part-b-wf_9ea0a07b-6fd.js`.
+
+## Nächster Wunsch (22.09.2026): Seite „Prozesse“
+
+Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwischen Filamente und Drucker.
+- **Aufbau:** Drucker und Düse, die Wahl teilt sich die Seite mit „Filamente“. Darunter die Prozesse als Kacheln: groß die Schichthöhe, darunter die Art. Markiert ist der zuletzt gewählte Prozess aus `orca_presets`.
+- **Aufteilung:** Vom Hersteller und Eigene. Im Seitenpanel Kernwerte (Schichthöhe, Wände, Infill, Geschwindigkeit, Stützen) und „baut auf … auf“.
+- **Umfang:** zuerst nur Übersicht, Anlegen, Umbenennen und Löschen danach.
+- **Wann:** erst bauen, wenn der Workflow für Teil B fertig ist, weil er dieselben Dateien bearbeitet.
+- **Zuordnung** zur Erklärung für den Nutzer: Drucker → Düse (Druckerprofil) → Prozesse und Filamente getrennt, beide über ihre Druckerliste. Prozess und Filament sind unabhängig, `compatible_prints` nutzt niemand.
