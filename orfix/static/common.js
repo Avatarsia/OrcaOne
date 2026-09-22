@@ -1,27 +1,24 @@
-// Shared data, state, icons and small components for all pages of draft E2.
-// Pages are plain component objects; app.js picks one by the hash route.
+// Shared data, state, icons and small components for all pages.
+// The data comes live from GET /api/data (orfix/overview.py): load() fetches it at the start
+// and again for "Neu einlesen". Pages are plain component objects; app.js picks one by the hash
+// route and mounts it fresh for every route and every load.
+import { T } from "./texts.js";
+import { api } from "./api.js";
 
-const { reactive, ref } = Vue;
+const { reactive, ref, shallowReactive, computed } = Vue;
 
-export const DATA = window.ORFIX_DATA;
-export const LABELS = DATA.labels;
+const LOCALE = "de-DE";
 
-// Draft only, to look at states the data of this machine does not have: ?leer shows Orfix
-// without any installation, ?laeuft and ?vielleicht let the first installation run (known or
-// unsure data directory, FINDINGS 4.1).
-const SIMULATE = new URLSearchParams(location.search);
-const RUN_DEMO = SIMULATE.has("laeuft") ? { code: "lock", pids: [4711], lock: "cache/1520934887.lock" }
-  : SIMULATE.has("vielleicht") ? { code: "process_unmapped", pids: [4711], lock: null } : null;
-
-export const INSTANCES = (SIMULATE.has("leer") ? [] : DATA.instances).map((inst, n) => ({
-  ...inst,
-  ...(n === 0 && RUN_DEMO && { running: true, running_reason: RUN_DEMO }),
-  snorca: inst.id === "snorca",
-  byName: new Map(inst.filaments.map((f) => [f.name, f])),
-}));
-
-// Image paths in data.js are relative to prototypes/ui-overview/, this draft sits one folder deeper.
-export const asset = (path) => "../" + path;
+// ------------------------------------------------------------ data
+// shallowReactive: a load replaces the list, the megabyte of nested data inside stays plain.
+export const INSTANCES = shallowReactive([]);
+// Installations Orfix found but could not read (failed[] of GET /api/data); the others still show.
+export const FAILED = shallowReactive([]);
+// editable_fields with label and unit from texts.js, for the filament form.
+export const FIELDS = shallowReactive([]);
+// status: "loading" until the first answer, then "ready" or "error". version counts the loads,
+// it is part of the page key in app.js.
+export const loadState = reactive({ status: "loading", error: null, busy: false, generated: null, version: 0 });
 
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index>. The
@@ -54,8 +51,7 @@ export const clearLeaveGuard = (fn) => { if (leaveGuard === fn) leaveGuard = nul
 export const leave = (step) => (leaveGuard ? leaveGuard(step) : step());
 
 // Internal links set the route right away, so the view never depends on the "hashchange"
-// event alone (draft E sometimes kept the old view after a click). Back, forward and typed
-// URLs still arrive through the listener in app.js.
+// event alone. Back, forward and typed URLs still arrive through the listener in app.js.
 export function go(ev, hash) {
   if (ev && (ev.button > 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey)) return;  // new tab or window
   if (ev) ev.preventDefault();
@@ -66,35 +62,20 @@ export function go(ev, hash) {
 }
 
 // ------------------------------------------------------------ shared state
-// The chosen installation follows the address (app.js). "examples" shows the example profiles
-// of make_data.py; off by default, because the slicer does not have them (docs/TEST-VERGLEICH.md, part A).
-export const ui = reactive({ instId: route.value.instId || INSTANCES[0]?.id || null, toast: "", examples: false });
-export const showExample = (x) => ui.examples || !x.example;
+// The chosen installation follows the address (app.js).
+export const ui = reactive({ instId: null, toast: "" });
 
-// One word per state on every page, as in orfix/static/texts.js, but "nur ansehen" as on the pages.
+// One word per state on every page.
 export function statusText(inst) {
-  if (!inst.running) return "Geschlossen";
-  return inst.running_reason?.code === "process_unmapped" ? "Läuft vielleicht – nur ansehen" : "Läuft – nur ansehen";
-}
-// First sentence of the read-only banner on the pages; the page adds what to do.
-export const busyText = (inst) => inst.running_reason?.code === "process_unmapped"
-  ? `Vielleicht läuft ${inst.slicer} gerade.` : `${inst.slicer} ist offen.`;
-// Why Orfix only shows (hard rule 3), in the words of orfix/static/texts.js.
-export function runReason(inst) {
-  const r = inst.running_reason;
-  if (!inst.running || !r) return "";
-  const pids = r.pids.join(", ");
-  if (r.code === "lock") return `${inst.slicer} läuft gerade (PID ${pids}) und hält die Sperrdatei ${r.lock}.`;
-  if (r.code === "process") return `${inst.slicer} läuft gerade mit diesem Datenordner (PID ${pids}).`;
-  return `Ein Prozess von ${inst.slicer} läuft (PID ${pids}), sein Datenordner ist unbekannt. `
-    + `Deshalb sind alle Installationen von ${inst.slicer} schreibgeschützt.`;
+  if (!inst.running) return T.status.closed;
+  return inst.running_reason?.code === "process_unmapped" ? T.status.maybeRunning : T.status.running;
 }
 
-// What the pages "Drucker", "Sicherungen" and "Filamente" change, per installation: own profiles
-// (files in user/), the printer models switched on and the vendor packages in system/, the
-// default printer and the stale "orca_presets" entries (in the .conf). A backup keeps a copy,
-// restoring puts it back. Memory only.
-export function initialLive(inst) {
+// What the pages "Drucker" and "Sicherungen" change, per installation: own profiles (files in
+// user/), the printer models switched on and the vendor packages in system/, the default
+// printer and the stale "orca_presets" entries (in the .conf), plus the backups to make,
+// restore or delete. Memory only: the change list collects it, nothing is written yet.
+function initialLive(inst) {
   const pp = inst.printers_page;
   const own = new Set(inst.filaments.filter((f) => f.origin_kind === "user").map((f) => f.name));
   for (const p of pp.own) own.add(p.name);
@@ -105,62 +86,84 @@ export function initialLive(inst) {
     packages: new Set(pp.system.map((m) => m.origin)),
     defaultPrinter: pp.default_printer.name,
     dead: pp.dead_entries.map((d) => d.machine),
+    backup: false, restore: null, dropBackups: new Set(),
   };
 }
-export const copyLive = (s) => ({
+const copyLive = (s) => ({
   own: new Set(s.own), models: new Set(s.models), packages: new Set(s.packages),
   defaultPrinter: s.defaultPrinter, dead: [...s.dead],
+  backup: s.backup, restore: s.restore, dropBackups: new Set(s.dropBackups),
 });
-export const live = reactive(Object.fromEntries(INSTANCES.map((i) => [i.id, initialLive(i)])));
+export const live = reactive({});
 
-// Own profiles by name, for the lists "Kommt zurück" and "Fällt weg" and the printer cards.
-const PROFILES = new Map(INSTANCES.map((inst) => {
+// Pages with state of their own (the filament switches) rebuild it here after every load and
+// after "Verwerfen".
+const resetHooks = [];
+export const onReset = (fn) => resetHooks.push(fn);
+export function resetChanges() {
+  for (const id of Object.keys(live)) delete live[id];
+  for (const i of INSTANCES) live[i.id] = copyLive(i.initial);
+  for (const fn of resetHooks) fn();
+}
+
+// Own profiles by name, for the change list, "Mitlöschen" and the printer cards.
+const orphaned = (x) => x.status === "orphaned" || x.status === "ignored";
+function profileMap(inst) {
   const pp = inst.printers_page, map = new Map();
   for (const f of inst.filaments) {
-    if (f.origin_kind === "user") map.set(f.name, { name: f.name, kind: "filament", example: !!f.example, helper: !!f.helper, orphaned: f.status === "orphaned" });
+    if (f.origin_kind === "user") map.set(f.name, { name: f.name, kind: "filament", helper: !!f.helper, orphaned: orphaned(f) });
   }
   for (const x of [...pp.system, ...pp.own].flatMap((c) => c.only_here)) {
-    if (!map.has(x.name)) map.set(x.name, { name: x.name, kind: x.kind, example: !!x.example, helper: !!x.helper, orphaned: !!x.orphaned });
+    if (!map.has(x.name)) map.set(x.name, { name: x.name, kind: x.kind, helper: !!x.helper, orphaned: !!x.orphaned });
   }
-  for (const p of pp.own) map.set(p.name, { name: p.name, kind: "machine", example: !!p.example, helper: false, orphaned: p.status === "orphaned" });
-  return [inst.id, map];
-}));
-export const profileInfo = (inst, name) => PROFILES.get(inst.id).get(name) || { name, kind: "filament", example: false, helper: false, orphaned: false };
+  for (const p of pp.own) map.set(p.name, { name: p.name, kind: "machine", helper: false, orphaned: orphaned(p) });
+  return map;
+}
+export const profileInfo = (inst, name) => inst.profiles.get(name) || { name, kind: "filament", helper: false, orphaned: false };
 export const KIND_ICON = { machine: "printer", filament: "spool", process: "layers" };
-export const KIND_TEXT = { machine: "Drucker", filament: "Filament", process: "Prozess" };
 // One short line under a profile name, in the words of the page "Filamente".
 export function profileSub(p) {
-  if (p.orphaned) return "Im Slicer nicht sichtbar";
-  if (p.helper) return "Freigeschaltet aus der Orca-Bibliothek";
-  return KIND_TEXT[p.kind];
+  if (p.orphaned) return T.profileSub.orphaned;
+  if (p.helper) return T.profileSub.helper;
+  return T.kindText[p.kind];
 }
 
 // "Snapmaker U1 · 0,4 mm" for a printer of a manufacturer, the plain name for an own one.
 export function printerText(inst, name) {
   for (const m of inst.printers_page.system) {
     const p = m.printers.find((x) => x.name === name);
-    if (p) return printerShortName(p.name) + " · " + nozzleLabel(p.variant) + " mm";
+    if (p) return T.printerWithNozzle(printerShortName(p.name), nozzleLabel(p.variant));
   }
   return name;
 }
 
-// Backups made in this session, newest first; nothing is written in the draft.
-// Size and file count are what a backup of this data directory is today (make_data.py).
-export const sessionBackups = reactive([]);
-let backupNo = 0;
-export function backupNow(inst, { kind, reason, detail = null, restored = null }) {
-  const time = new Date(), p = (n) => String(n).padStart(2, "0");
-  const stamp = `${time.getFullYear()}-${p(time.getMonth() + 1)}-${p(time.getDate())}-${p(time.getHours())}${p(time.getMinutes())}${p(time.getSeconds())}`;
-  const now = inst.backups_page.now;
-  const entry = {
-    id: "s" + ++backupNo, instId: inst.id, time, kind, reason, detail, restored,
-    file: inst.slicer_page.conf.file.replace(/\.conf$/, "") + "-" + stamp + ".zip",
-    size: now.zip_size, files: now.files, changed: [], example: false, session: true,
-    snapshot: copyLive(live[inst.id]),
-  };
-  sessionBackups.unshift(entry);
-  return entry;
-}
+// Pending changes of the pages "Drucker" and "Sicherungen": where `live` differs from the data.
+// The page "Filamente" adds its own (pages/filamente.js); app.js shows both in one list.
+export const liveChanges = computed(() => {
+  const out = [];
+  for (const i of INSTANCES) {
+    const now = live[i.id], was = i.initial;
+    if (!now) continue;
+    const add = (page, type, name, where = "") => out.push({ inst: i, page, type, name, where });
+    for (const m of i.printers_page.system) {
+      if (!was.models.has(m.model) || now.models.has(m.model)) continue;
+      const dropped = was.packages.has(m.origin) && !now.packages.has(m.origin);
+      add("drucker", "remove", printerShortName(m.printers[0]?.name || m.model), dropped ? T.changes.packageGoes(m.origin) : "");
+    }
+    for (const n of was.own) {
+      if (!now.own.has(n)) add("drucker", "delete", n, T.kindText[profileInfo(i, n).kind]);
+    }
+    if (now.defaultPrinter !== was.defaultPrinter) add("drucker", "default", printerText(i, now.defaultPrinter));
+    const cleaned = was.dead.filter((d) => !now.dead.includes(d));
+    if (cleaned.length) add("drucker", "clean", plural(cleaned.length, ...T.words.staleEntry), cleaned.join(", "));
+    const backups = i.backups_page.backups;
+    const when = (id) => whenText(new Date(backups.find((b) => b.id === id)?.time));
+    if (now.backup) add("sicherungen", "backup", T.changes.backupName, T.changes.backupByHand);
+    if (now.restore) add("sicherungen", "restore", T.changes.stateOf(when(now.restore)));
+    for (const id of now.dropBackups) add("sicherungen", "dropBackup", T.changes.backupOf(when(id)));
+  }
+  return out;
+});
 
 let toastTimer = 0;
 export function flash(text) {
@@ -169,10 +172,82 @@ export function flash(text) {
   toastTimer = setTimeout(() => { ui.toast = ""; }, 2800);
 }
 
+// ------------------------------------------------------------ loading
+function enrich(raw) {
+  const inst = { ...raw, snorca: raw.kind === "snorca", byName: new Map(raw.filaments.map((f) => [f.name, f])) };
+  inst.profiles = profileMap(inst);
+  inst.initial = initialLive(inst);
+  return inst;
+}
+
+// The installation in the address, else the one chosen so far, else the first. An address
+// without an installation gets it added, so a reload stays with it.
+function pickInstance() {
+  const wanted = parseHash(location.hash);
+  const kept = INSTANCES.some((i) => i.id === ui.instId) ? ui.instId : null;
+  ui.instId = wanted.instId || kept || INSTANCES[0]?.id || null;
+  if (!wanted.instId && ui.instId) history.replaceState(null, "", hashOf(wanted.page, ui.instId));
+  syncRoute();
+}
+
+function setData(data) {
+  FIELDS.splice(0, FIELDS.length, ...data.editable_fields.map((f) => ({ ...f, ...(T.fields[f.key] || { label: f.key, unit: "" }) })));
+  INSTANCES.splice(0, INSTANCES.length, ...data.instances.map(enrich));
+  FAILED.splice(0, FAILED.length, ...(data.failed || []));
+  loadState.generated = data.generated;
+  resetChanges();
+  pickInstance();
+  loadState.version++;
+}
+
+// Reads everything again. Pending changes are gone afterwards: they refer to the old state.
+// Returns whether it worked; loadState.error holds the code otherwise.
+export async function load() {
+  loadState.busy = true;
+  try {
+    setData(await api.data());
+    loadState.error = null;
+    loadState.status = "ready";
+    return true;
+  } catch (err) {
+    if (!err.code) console.error(err);
+    loadState.error = err.code || "unknown";
+    if (loadState.status !== "ready") loadState.status = "error";
+    return false;
+  } finally {
+    loadState.busy = false;
+  }
+}
+
+// Data directories added by hand (orfix/instances.py). Both read everything again and
+// return an error code for T.errors, or null.
+export async function addDataDir(path) {
+  let result;
+  try {
+    result = await api.addManual(path);
+  } catch (err) {
+    return err.code || "unknown";
+  }
+  if (!(await load())) return loadState.error;
+  go(null, hashOf(route.value.page, result.instance.id));
+  return null;
+}
+export async function removeDataDir(inst) {
+  let code = null;
+  try {
+    await api.removeManual(inst.data_dir);
+  } catch (err) {
+    code = err.code || "unknown";
+  }
+  // Also after "not_listed": the list on the page is out of date then.
+  if (!(await load())) return loadState.error;
+  return code;
+}
+
 // ------------------------------------------------------------ formatting
 export const nozzleLabel = (v) => v.split("+").map((d) => d.replace(".", ",")).join(" + ");
 export const printerShortName = (name) => name.replace(/\s*\(?[\d.+]+ nozzle\)?$/, "");
-export const plural = (n, one, many) => n.toLocaleString("de-DE") + " " + (n === 1 ? one : many);
+export const plural = (n, one, many) => n.toLocaleString(LOCALE) + " " + (n === 1 ? one : many);
 
 // Decimal units (kB, MB), as the file managers on Linux show them.
 export function fmtSize(bytes) {
@@ -180,13 +255,28 @@ export function fmtSize(bytes) {
   const units = ["kB", "MB", "GB"];
   let v = bytes / 1000, u = 0;
   while (v >= 999.5 && u < units.length - 1) { v /= 1000; u++; }
-  return v.toLocaleString("de-DE", { maximumFractionDigits: v < 100 ? 1 : 0 }) + " " + units[u];
+  return v.toLocaleString(LOCALE, { maximumFractionDigits: v < 100 ? 1 : 0 }) + " " + units[u];
 }
 
-export const timeText = (d) => d.toLocaleString("de-DE", {
+export const timeText = (d) => d.toLocaleString(LOCALE, {
   day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
 });
-export const generatedText = timeText(new Date(DATA.generated));
+export const clockText = (d) => d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+export const generatedText = computed(() => loadState.generated ? timeText(new Date(loadState.generated)) : "");
+
+// "Heute", "Gestern", else weekday and date.
+export function dayLabel(d) {
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const diff = Math.round((day(new Date()) - day(d)) / 86400000);
+  if (diff === 0) return T.today;
+  if (diff === 1) return T.yesterday;
+  return d.toLocaleDateString(LOCALE, { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+// "heute, 07:29 Uhr", "gestern, 16:40 Uhr", "Montag, 21.09.2026, 16:40 Uhr"; reads after "Stand von".
+export function whenText(d) {
+  const l = dayLabel(d);
+  return T.when(l === T.today || l === T.yesterday ? l.toLowerCase() : l, clockText(d));
+}
 
 // ------------------------------------------------------------ icons
 // 24x24, stroke = currentColor, so hover, the active menu entry and dark mode colour them.

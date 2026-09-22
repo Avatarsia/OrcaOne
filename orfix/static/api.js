@@ -25,7 +25,7 @@ async function request(method, url, body) {
 }
 
 export const api = {
-  instances: () => request("GET", "/api/instances"),
+  data: () => request("GET", "/api/data"),
   addManual: (path) => request("POST", "/api/instances/manual", { path }),
   removeManual: (path) => request("DELETE", `/api/instances/manual?path=${encodeURIComponent(path)}`),
 };

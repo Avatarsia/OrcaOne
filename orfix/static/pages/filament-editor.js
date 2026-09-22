@@ -1,16 +1,14 @@
 // Form for one filament, shown in the side panel of the page "Filamente". It is the only way
 // to change or create a filament: "edit" changes an own one, "copy" saves a manufacturer or
 // library profile as an own one, "new" creates one on top of a template.
-// The fields come from ORFIX_DATA.editable_fields (make_data.py). An empty field takes the
-// value of the template, shown grey as placeholder; a typed value that differs from it counts
-// as changed. The form only reports name and own values, the page files them as a change.
+// The fields come from editable_fields of GET /api/data (FIELDS in common.js). An empty field
+// takes the value of the template, shown grey as placeholder; a typed value that differs from it
+// counts as changed. The form only reports name and own values, the page files them as a change.
 // It reports "dirty" while something is typed, so the page can ask before throwing it away.
-import { DATA } from "../common.js";
+import { FIELDS } from "../common.js";
+import { T } from "../texts.js";
 
 const { reactive, ref, computed, watch, nextTick } = Vue;
-
-export const FIELDS = DATA.editable_fields;
-const GROUPS = [...new Set(FIELDS.map((f) => f.group))];
 
 // Sensible ranges for a hobby printer. The slicer's own limits in editable_fields are much
 // wider (the nozzle goes up to 1500 °C there), so a typo like 2150 would pass them.
@@ -31,13 +29,14 @@ const RANGES = {
 // Characters the slicer refuses in a profile name (SavePresetDialog.cpp, Item::update), plus
 // "@", which separates the short name from the printer (FINDINGS 4.6).
 const BAD_CHARS = /[@<>[\]:/\\|?*"]/;
+const E = T.editor;
 
 export function nameProblem(name, taken) {
   const n = name.trim();
-  if (!n) return "Bitte einen Namen eingeben.";
+  if (!n) return E.nameMissing;
   const bad = n.match(BAD_CHARS);
-  if (bad) return `Bitte ohne „${bad[0]}“.`;
-  return taken(n) ? "Diesen Namen gibt es schon." : "";
+  if (bad) return E.nameBadChar(bad[0]);
+  return taken(n) ? E.nameTaken : "";
 }
 
 export const hexOf = (v) => (/^#[0-9A-Fa-f]{6}/.exec((v || "").trim()) || [""])[0].toUpperCase();
@@ -51,9 +50,9 @@ const de = (n) => n.toLocaleString("de-DE");
 
 // Short text of one value for the list of changes: "Düse 225 °C", "Bett wie Vorlage".
 export function changeText(f, x) {
-  if (f.type === "colour") return x ? "neue Farbe" : "Farbe wie Vorlage";
-  if (!x) return f.label + " wie Vorlage";
-  if (f.type === "text") return `${f.label} „${x.value}“`;
+  if (f.type === "colour") return x ? E.newColour : E.colourAsTemplate;
+  if (!x) return E.asTemplate(f.label);
+  if (f.type === "text") return E.textValue(f.label, x.value);
   const v = shown(x.value) + (x.high_flow !== undefined ? " / " + shown(x.high_flow) : "");
   return f.label + " " + v + (f.unit ? " " + f.unit : "");
 }
@@ -83,12 +82,13 @@ export default {
     const form = reactive({ name: props.startName, values: Object.fromEntries(FIELDS.map((f) => [f.key, initial(f)])) });
     const tried = ref(false);
     const touched = reactive(new Set());
-    const groups = GROUPS.map((g) => ({ name: g, fields: FIELDS.filter((f) => f.group === g) }));
+    const groups = [...new Set(FIELDS.map((f) => f.group))]
+      .map((g) => ({ name: T.fieldGroups[g] || g, fields: FIELDS.filter((f) => f.group === g) }));
 
     // SnOrca keeps a second value for the high-flow hotend (FINDINGS 4.4): two small fields.
     const twoOf = (f) => props.base[f.key]?.high_flow !== undefined || props.own[f.key]?.high_flow !== undefined;
     const slotsOf = (f) => twoOf(f)
-      ? [{ key: "a", id: "ef-" + f.key, caption: "Standard" }, { key: "b", id: "ef-" + f.key + "-hf", caption: "High Flow" }]
+      ? [{ key: "a", id: "ef-" + f.key, caption: E.standard }, { key: "b", id: "ef-" + f.key + "-hf", caption: E.highFlow }]
       : [{ key: "a", id: "ef-" + f.key, caption: "" }];
     const baseOf = (f, slot) => {
       const inh = props.base[f.key];
@@ -102,9 +102,9 @@ export default {
     }
     const empty = (f) => !form.values[f.key].a.trim() && !form.values[f.key].b.trim();
     function fromText(f) {
-      if (f.type === "colour") return hexOf(baseOf(f, "a")) ? "von Vorlage" : "Keine Farbe festgelegt";
-      if (f.type === "text" && props.base[f.key]?.default) return "Keine Angabe";
-      return "von Vorlage";
+      if (f.type === "colour") return hexOf(baseOf(f, "a")) ? E.fromTemplate : E.noColour;
+      if (f.type === "text" && props.base[f.key]?.default) return E.noValue;
+      return E.fromTemplate;
     }
 
     // What is typed into a field, or null when it is empty. One empty field of a pair takes
@@ -149,16 +149,14 @@ export default {
         if (!text) continue;
         const prefix = s.caption ? s.caption + ": " : "";
         const n = num(text);
-        if (isNaN(n)) return prefix + "Bitte eine Zahl eingeben.";
-        if (f.type === "int" && !Number.isInteger(n)) return prefix + "Bitte eine ganze Zahl.";
+        if (isNaN(n)) return prefix + E.needNumber;
+        if (f.type === "int" && !Number.isInteger(n)) return prefix + E.needInteger;
         // Values that are there already always pass, even outside the range.
         const orig = props.own[f.key];
         if (n === Number(baseOf(f, s.key)) || (orig && n === Number(s.key === "b" ? orig.high_flow ?? orig.value : orig.value))) continue;
         const [lo, hi] = RANGES[f.key] || [f.min ?? -Infinity, f.max ?? Infinity];
         const unit = f.unit ? " " + f.unit : "";
-        if (n < lo || n > hi) {
-          return prefix + (hi === Infinity ? `Bitte mindestens ${de(lo)}${unit}.` : `Bitte zwischen ${de(lo)} und ${de(hi)}${unit}.`);
-        }
+        if (n < lo || n > hi) return prefix + (hi === Infinity ? E.atLeast(de(lo), unit) : E.between(de(lo), de(hi), unit));
       }
       return "";
     }
@@ -200,7 +198,7 @@ export default {
     watch(dirty, (v) => emit("dirty", v));
 
     return {
-      form, groups, slotsOf, placeholder, empty, fromText, changed, shownError, touch, nameError,
+      T, E, form, groups, slotsOf, placeholder, empty, fromText, changed, shownError, touch, nameError,
       reset, colourValue, setColour, preview, save, cancel,
     };
   },
@@ -208,15 +206,15 @@ export default {
   template: `
     <form class="edit-form" novalidate @submit.prevent="save">
       <div class="panel-body">
-        <p v-if="mode === 'copy'" class="quiet-note"><ui-icon name="info"/>Wird als eigenes Filament gespeichert – das Original bleibt.</p>
-        <p v-else-if="mode === 'new'" class="quiet-note"><ui-icon name="info"/>Ein neues eigenes Filament. Leere Felder nehmen den Wert der Vorlage.</p>
+        <p v-if="mode === 'copy'" class="quiet-note"><ui-icon name="info"/>{{ E.copyNote }}</p>
+        <p v-else-if="mode === 'new'" class="quiet-note"><ui-icon name="info"/>{{ E.newNote }}</p>
         <div class="hero edit-hero">
           <spool-icon :colour="preview" :size="72"/>
           <div class="hero-text">
-            <label class="name-label" for="edit-name">Name</label>
+            <label class="name-label" for="edit-name">{{ E.name }}</label>
             <input id="edit-name" v-model="form.name" class="name-input" autocomplete="off" spellcheck="false"
                    :aria-invalid="nameError ? 'true' : 'false'" aria-describedby="edit-name-error">
-            <p v-if="templateName" class="hero-sub">Vorlage: {{ templateName }}</p>
+            <p v-if="templateName" class="hero-sub">{{ T.filaments.template(templateName) }}</p>
           </div>
         </div>
         <p id="edit-name-error" class="field-error" aria-live="polite">{{ nameError }}</p>
@@ -227,8 +225,8 @@ export default {
             <label class="ef-label" :for="'ef-' + f.key">{{ f.label }}</label>
             <span class="ef-sub">
               <template v-if="changed(f)">
-                <span class="ef-mark">Geändert</span>
-                <button class="ef-reset" type="button" :aria-label="f.label + ' zurücksetzen'" @click="reset(f)"><ui-icon name="undo" :size="14"/>Zurücksetzen</button>
+                <span class="ef-mark">{{ E.changed }}</span>
+                <button class="ef-reset" type="button" :aria-label="E.resetLabel(f.label)" @click="reset(f)"><ui-icon name="undo" :size="14"/>{{ E.reset }}</button>
               </template>
               <span v-else-if="empty(f)" class="ef-from">{{ fromText(f) }}</span>
             </span>
@@ -253,11 +251,11 @@ export default {
             <p :id="'ef-' + f.key + '-error'" class="field-error ef-error" aria-live="polite">{{ shownError(f) }}</p>
           </div>
         </section>
-        <p v-if="mode !== 'edit' && scopeText" class="note">Aktiv für: {{ scopeText }}.</p>
+        <p v-if="mode !== 'edit' && scopeText" class="note">{{ E.activeFor(scopeText) }}</p>
       </div>
       <div class="panel-foot">
-        <button class="btn" type="button" @click="cancel">Abbrechen</button>
-        <button class="btn btn-primary right" type="submit">{{ mode === 'new' ? 'Anlegen' : 'Fertig' }}</button>
+        <button class="btn" type="button" @click="cancel">{{ T.cancel }}</button>
+        <button class="btn btn-primary right" type="submit">{{ mode === 'new' ? E.create : E.done }}</button>
       </div>
     </form>
   `,

@@ -1,102 +1,106 @@
-// All user-facing texts. German, sentence case; an action and its message use the
-// same word (button "Hinzufügen" -> message "Hinzugefügt").
+// All user-facing texts of Orfix. German, sentence case; an action and its message use the
+// same word (button "Hinzufügen" -> message "Hinzugefügt"). The pages take their words from
+// here only. The backend sends codes (orfix/overview.py); their words are in the second half.
+// A function gets what the sentence needs: a count, a name, or the entry that carries the code.
+
+const n = (x) => x.toLocaleString("de-DE");
+const q = (name) => `„${name}“`;
 
 export const T = {
   appName: "Orfix",
-  instanceLabel: "Installation",
   reload: "Neu einlesen",
+  reloaded: "Neu eingelesen",
+  reloadedDiscarded: "Neu eingelesen. Die vorgemerkten Änderungen sind verworfen.",
+  dataFrom: (time) => `Stand der Daten: ${time} Uhr`,
   loading: "Lese Installationen …",
-  tabs: {
-    label: "Seiten",
-    overview: "Übersicht",
-    manage: "Verwalten",
-    manageLater: "Kommt in Phase 2",
+  close: "Schließen",
+  cancel: "Abbrechen",
+  back: "Zurück",
+  retry: "Erneut versuchen",
+  today: "Heute",
+  yesterday: "Gestern",
+  clock: (time) => `${time} Uhr`,
+  when: (day, time) => `${day}, ${time} Uhr`,
+  printerWithNozzle: (printer, nozzle) => `${printer} · ${nozzle} mm`,
+
+  // Singular and plural, for plural() in common.js.
+  words: {
+    file: ["Datei", "Dateien"],
+    backup: ["Sicherung", "Sicherungen"],
+    printer: ["Drucker", "Drucker"],
+    installation: ["Installation", "Installationen"],
+    profile: ["Profil", "Profile"],
+    ownProfile: ["eigenes Profil", "eigene Profile"],
+    ownValue: ["eigener Wert", "eigene Werte"],
+    staleEntry: ["veralteter Eintrag", "veraltete Einträge"],
+    section: ["Abschnitt", "Abschnitte"],
+    model: ["Druckermodell", "Druckermodelle"],
+    machine: ["Drucker", "Drucker"],
+    process: ["Prozess", "Prozesse"],
+    filament: ["Filament", "Filamente"],
   },
-  slicerNames: {
-    Snapmaker_Orca: "Snapmaker Orca",
-    OrcaSlicer: "OrcaSlicer",
+  kindText: { machine: "Drucker", filament: "Filament", process: "Prozess" },
+  profileSub: {
+    orphaned: "Im Slicer nicht sichtbar",
+    helper: "Freigeschaltet aus der Orca-Bibliothek",
   },
-  sources: {
-    auto: "Standardort",
-    flatpak: "Flatpak",
-    flatpak_legacy: "Flatpak, alte ID (veraltete Kopie)",
-    appimage_portable: "AppImage, portabel",
-    process: "Laufender Slicer mit --datadir",
-    manual: "Von Hand hinzugefügt",
+
+  // ---------------------------------------------------------------- frame (app.js)
+  nav: {
+    label: "Hauptmenü",
+    pages: { filamente: "Filamente", drucker: "Drucker", sicherungen: "Sicherungen", slicer: "Slicer" },
+    technik: "Technik",
+    pending: "vorgemerkte Änderungen",
+    backups: "Sicherungen",
   },
+  instMenu: "Installation",
   status: {
-    running: "Läuft – nur lesen",
-    maybeRunning: "Läuft vielleicht – nur lesen",
     closed: "Geschlossen",
+    running: "Läuft – nur ansehen",
+    maybeRunning: "Läuft vielleicht – nur ansehen",
   },
-  runDetail(state, slicer) {
-    const pids = state.pids.join(", ");
-    if (state.reason === "lock" || state.reason === "process") {
-      return `${slicer} läuft gerade (PID ${pids}). Schließe das Programm, um Änderungen zu speichern.`;
-    }
-    if (state.reason === "process_unmapped") {
-      return `Ein ${slicer}-Prozess läuft (PID ${pids}), sein Datenordner ist unbekannt. Deshalb ist jede ${slicer}-Installation schreibgeschützt. Schließe das Programm, um Änderungen zu speichern.`;
-    }
-    return `${slicer} ist geschlossen.`;
+  // First sentence of the read-only banner on the pages; the page adds what to do.
+  busy: (inst) => inst.running_reason?.code === "process_unmapped"
+    ? `Vielleicht läuft ${inst.slicer} gerade.` : `${inst.slicer} ist offen.`,
+  closeToChange: "Zum Ändern bitte den Slicer schließen.",
+  // Why Orfix only shows (hard rule 3). running_reason comes from orfix/guard.py.
+  runReason(inst) {
+    const r = inst.running_reason;
+    if (!inst.running || !r) return "";
+    const pids = r.pids.join(", ");
+    if (r.code === "lock") return `${inst.slicer} läuft gerade (PID ${pids}) und hält die Sperrdatei ${r.lock}.`;
+    if (r.code === "process") return `${inst.slicer} läuft gerade mit diesem Datenordner (PID ${pids}).`;
+    return `Ein Prozess von ${inst.slicer} läuft (PID ${pids}), sein Datenordner ist unbekannt. `
+      + `Deshalb sind alle Installationen von ${inst.slicer} schreibgeschützt.`;
   },
-  facts: {
-    title: "Installation",
-    slicer: "Slicer",
-    version: "Version",
-    versionUnknown: "unbekannt",
-    path: "Datenordner",
-    source: "Gefunden als",
-    userFolder: "Eigene Profile",
-    userFolderActive: "aktiv",
-    loggedIn: "Angemeldet – Profile werden womöglich mit der Cloud synchronisiert",
-    notLoggedIn: "Nicht angemeldet",
-    account: "Konto",
-    systemFormat: "Systemprofile",
-    formats: { json: "JSON", opc: ".opc (OrcaSlicer 2.5, binär)" },
-    noSystem: "keine",
-    confFormat: "Format der .conf",
-    indentTab: "Tab-Einrückung",
-    indentSpaces: "4 Leerzeichen",
-    checksum: "mit Windows-Prüfsumme",
-    problems: "Probleme",
+  loadError: {
+    network: {
+      title: "Orfix antwortet nicht",
+      text: "Läuft Orfix noch? Starte es neu, mit ./orfix.sh oder orfix.cmd, und versuche es dann erneut.",
+    },
+    other: {
+      title: "Orfix konnte die Installationen nicht einlesen",
+      text: "Versuche es erneut. Hilft das nicht, steht der Grund im Terminal, in dem Orfix läuft.",
+    },
   },
-  problems: {
-    conf_unreadable: "Die .conf ließ sich nicht lesen. Ist sie beschädigt, setzt der Slicer beim nächsten Start alle Einstellungen zurück (unter Windows versucht er vorher die .bak). Sichere die Datei vorher, wenn du sie reparieren willst.",
-    dir_unreadable: "Ein Ordner im Datenverzeichnis ist nicht lesbar. Prüfe die Zugriffsrechte, etwa ob er nach einem Start mit sudo root gehört.",
+  // failed[] of GET /api/data: an installation that could not be read, the others are shown.
+  failed: {
+    scan_failed: (f) => `Orfix konnte ${f.slicer} in ${f.path} nicht einlesen und zeigt diese Installation deshalb nicht. `
+      + "Den Grund nennt das Terminal, in dem Orfix läuft.",
   },
-  profilesPending: {
-    title: "Profile",
-    text: "Die Übersicht der Drucker, Filamente und Prozesse kommt in Phase 1.",
-  },
-  drafts: {
-    title: "Entwürfe für die Übersicht",
-    hint: "Gewählte Richtung für Phase 1, öffnet sich in einem neuen Tab. Die Daten stammen aus deinen Installationen, eigene Profile sind Beispiele.",
-    links: [
-      { href: "/prototypes/ui-overview/variante-d.html", label: "D – Nur das Nötigste, Rest in der Seitenleiste" },
-      { href: "/prototypes/ui-overview/variante-e.html", label: "E – Drucker wählen, Düse, Filament-Baum" },
-    ],
-  },
-  list: {
-    title: "Alle gefundenen Installationen",
-    slicer: "Slicer",
-    version: "Version",
-    path: "Datenordner",
-    source: "Gefunden als",
-    status: "Status",
-    remove: "Entfernen",
-    removed: "Entfernt",
+  empty: {
+    title: "Keine Slicer-Installation gefunden",
+    text: "Orfix hat weder Snapmaker Orca noch OrcaSlicer an den üblichen Orten gefunden. Starte den Slicer einmal, damit er seinen Datenordner anlegt, und lies dann neu ein. Oder füge den Ordner hier von Hand hinzu.",
   },
   add: {
     title: "Datenordner hinzufügen",
-    hint: "Für portable Installationen oder einen Slicer, der mit --datadir startet. Gemeint ist der Ordner, in dem die Snapmaker_Orca.conf bzw. OrcaSlicer.conf liegt.",
+    label: "Datenordner",
+    hint: "Für eine portable Installation oder einen Slicer, der mit --datadir startet. Gemeint ist der Ordner, in dem die Snapmaker_Orca.conf bzw. OrcaSlicer.conf liegt.",
     placeholder: "/pfad/zum/datenordner",
     button: "Hinzufügen",
     added: "Hinzugefügt",
   },
-  empty: {
-    title: "Keine Slicer-Installation gefunden",
-    text: "Orfix hat weder Snapmaker Orca noch OrcaSlicer an den üblichen Orten gefunden. Starte den Slicer einmal, damit er seinen Datenordner anlegt, oder füge den Ordner unten von Hand hinzu.",
-  },
+  // Error codes of the API (orfix/app.py) and of api.js.
   errors: {
     path_not_found: "Diesen Ordner gibt es nicht. Prüfe den Pfad.",
     not_a_data_dir: "In diesem Ordner liegt weder Snapmaker_Orca.conf noch OrcaSlicer.conf. Wähle den Ordner, in dem die .conf liegt.",
@@ -107,4 +111,575 @@ export const T = {
     network: "Orfix antwortet nicht. Läuft das Programm noch? Starte es neu und lade die Seite.",
     unknown: "Etwas ist schiefgegangen. Lade die Seite neu.",
   },
+
+  // The change list: every page puts what it would change here. c.name + verb, then "where".
+  changes: {
+    count: (k) => k === 1 ? "1 Änderung" : `${n(k)} Änderungen`,
+    discard: "Verwerfen",
+    discarded: "Änderungen verworfen",
+    open: "Übernehmen …",
+    title: "Übernehmen",
+    none: "Nichts zu übernehmen.",
+    safe: "Vorher legt Orfix eine Sicherung an. Damit lässt sich alles wiederherstellen.",
+    notYet: "Änderungen speichern kommt mit dem nächsten Schritt.",
+    apply: "Übernehmen",
+    verbs: {
+      on: "einschalten", off: "ausschalten", new: "neu anlegen", delete: "löschen", rename: "umbenennen", edit: "ändern",
+      remove: "entfernen", default: "als Standard festlegen", clean: "aufräumen",
+      backup: "anlegen", restore: "wiederherstellen", dropBackup: "löschen",
+    },
+    allPrinters: "alle Drucker",
+    allNozzles: "alle Düsen",
+    nozzles: (labels) => `Düse ${labels}`,
+    renameTo: (name) => `in ${q(name)}`,
+    packageGoes: (pkg) => `Danach löscht der Slicer das Paket ${q(pkg)}.`,
+    backupName: "Sicherung",
+    backupByHand: "von Hand",
+    stateOf: (when) => `Stand von ${when}`,
+    backupOf: (when) => `Sicherung von ${when}`,
+  },
+
+  // ---------------------------------------------------------------- page "Filamente"
+  filaments: {
+    homeTitle: "Welchen Drucker möchtest du bearbeiten?",
+    nozzlesLabel: "Düsen",
+    activeCount: (k) => `${n(k)} ${k === 1 ? "Filament" : "Filamente"} aktiv`,
+    noPrinter: "Kein Drucker eingerichtet. Richte im Slicer einen ein und lies dann neu ein.",
+    credits: "Druckerbilder und Symbole aus OrcaSlicer",
+    ownPrinter: "Eigener Drucker",
+    allPrinters: "Alle Drucker",
+    backToPrinters: "Zurück zur Druckerauswahl",
+    printerGone: "Diesen Drucker zeigt der Slicer nicht mehr, sobald die Änderungen übernommen sind.",
+    nozzle: "Düse",
+    allNozzlesTile: "Alle",
+    active: "Aktiv",
+    shelfSub: (nozzle) => `Diese Filamente zeigt der Slicer · ${nozzle}`,
+    shelfEmpty: "Noch nichts aktiv. Unten einschalten oder hierher ziehen.",
+    changedTag: "geändert",
+    partly: "teilweise",
+    switchOff: "Ausschalten",
+    switchOffLabel: (name) => `${name} ausschalten`,
+    activeLabel: (name) => `${name} aktiv`,
+    lastOne: "Mindestens ein Filament bleibt an.",
+    allFilaments: "Alle Filamente",
+    search: "Filament suchen",
+    newFilament: "Neues Filament",
+    newFrom: "Neues Filament daraus",
+    material: "Material",
+    materials: { pla: "PLA", petg: "PETG", abs: "ABS/ASA", tpu: "TPU", other: "Weitere" },
+    kinds: {
+      user: "Eigene",
+      vendor: "Vom Hersteller",
+      vendorFrom: (vendor) => `Von ${vendor}`,
+      library: "Orca-Bibliothek",
+    },
+    ownShort: "Eigenes",
+    noBrand: "Ohne Marke",
+    onOf: (on, total) => `${n(on)} von ${n(total)}`,
+    onOfActive: (on, total) => `${n(on)} von ${n(total)} aktiv`,
+    ownCount: (k) => `+${n(k)} ${k === 1 ? "eigenes" : "eigene"}`,
+    libraryNote: {
+      orca: "Ein Schalter gilt hier für alle Drucker.",
+      snorcaOff: "Ausgeschaltet – einzeln einschalten",
+    },
+    hints: {
+      notLoaded: "Im Slicer nicht sichtbar",
+      unresolved: "Vorlage für Orfix nicht lesbar",
+      pending: "Geändert, noch nicht übernommen",
+      activeAt: (labels) => `aktiv bei ${labels}`,
+    },
+    template: (name) => `Vorlage: ${name}`,
+    templateLabel: "Vorlage:",
+    templateNozzle: (name, nozzle) => `${name} · Düse ${nozzle} mm`,
+    noOwn: "Noch keine eigenen Filamente.",
+    noHits: "Keine Treffer.",
+    nothingFound: "Nichts gefunden.",
+    dock: { on: "Einschalten", off: "Ausschalten" },
+    switched: (name, on) => `${q(name)} ${on ? "eingeschaltet" : "ausgeschaltet"}`,
+    deleted: (name) => `${q(name)} gelöscht`,
+    created: (name) => `${q(name)} angelegt`,
+    changed: (name) => `${q(name)} geändert`,
+    nothingChanged: "Nichts geändert",
+    templateNotFound: "Vorlage nicht gefunden.",
+    copySuffix: " (Kopie)",
+    ownSuffix: " (eigen)",
+    filament: "Filament",
+    edit: "Bearbeiten",
+    delete: "Löschen",
+    notForNozzle: "Für diese Düse nicht vorhanden.",
+    goneFilament: "Dieses Filament gibt es nicht mehr.",
+    notLoaded: "Der Slicer lädt dieses Filament nicht und zeigt es deshalb nicht an.",
+    colours: "Gibt es in",
+    valuesTitle: "Werte",
+    values: {
+      nozzle_temperature: { label: "Düse", unit: "°C" },
+      hot_plate_temp: { label: "Bett", unit: "°C" },
+      filament_cost: { label: "Preis je kg", unit: "" },
+    },
+    ownValue: "selbst geändert",
+    ownLegend: "selbst geändert, der Rest kommt von der Vorlage",
+    activeAtNozzle: "Aktiv bei Düse",
+    state: { on: "An", some: "Teilweise an", off: "Aus", na: "Für diese Düse nicht da" },
+    scope: {
+      everywhere: "Gilt für alle Düsen und alle Drucker.",
+      allNozzles: "Gilt für alle Düsen.",
+      only: (labels) => `Nur für Düse ${labels} mm.`,
+    },
+    leave: {
+      question: "Änderungen verwerfen?",
+      detail: "Was du im Formular eingetragen hast, geht verloren.",
+      stay: "Weiter bearbeiten",
+      discard: "Verwerfen",
+    },
+    pick: {
+      lead: "Worauf baut das neue Filament auf? Es übernimmt die Werte der Vorlage, danach kannst du sie ändern.",
+      more: "Weitere",
+      searchLabel: "Vorlage suchen",
+      moreHits: (k) => `${n(k)} weitere – genauer suchen`,
+    },
+  },
+
+  // Filament form (pages/filament-editor.js)
+  editor: {
+    name: "Name",
+    nameMissing: "Bitte einen Namen eingeben.",
+    nameBadChar: (c) => `Bitte ohne ${q(c)}.`,
+    nameTaken: "Diesen Namen gibt es schon.",
+    newColour: "neue Farbe",
+    colourAsTemplate: "Farbe wie Vorlage",
+    asTemplate: (label) => `${label} wie Vorlage`,
+    textValue: (label, value) => `${label} ${q(value)}`,
+    standard: "Standard",
+    highFlow: "High Flow",
+    fromTemplate: "von Vorlage",
+    noColour: "Keine Farbe festgelegt",
+    noValue: "Keine Angabe",
+    needNumber: "Bitte eine Zahl eingeben.",
+    needInteger: "Bitte eine ganze Zahl.",
+    atLeast: (lo, unit) => `Bitte mindestens ${lo}${unit}.`,
+    between: (lo, hi, unit) => `Bitte zwischen ${lo} und ${hi}${unit}.`,
+    copyNote: "Wird als eigenes Filament gespeichert – das Original bleibt.",
+    newNote: "Ein neues eigenes Filament. Leere Felder nehmen den Wert der Vorlage.",
+    changed: "Geändert",
+    reset: "Zurücksetzen",
+    resetLabel: (label) => `${label} zurücksetzen`,
+    activeFor: (scope) => `Aktiv für: ${scope}.`,
+    create: "Anlegen",
+    done: "Fertig",
+  },
+
+  // ---------------------------------------------------------------- page "Drucker"
+  printers: {
+    title: "Drucker",
+    atStart: "Beim Start gewählt",
+    noDefault: "Keiner festgelegt",
+    defaultGone: "Diesen Drucker gibt es hier nicht mehr. Der Slicer nimmt beim Start einen anderen.",
+    yours: "Deine Drucker",
+    inSlicer: (k) => `${n(k)} Drucker im Slicer`,
+    tags: { vendor: "Vom Hersteller", own: "Eigener", default: "Standard" },
+    nozzlesLabel: "Düsen:",
+    notVisible: "Im Slicer nicht sichtbar",
+    unresolved: "Vorlage für Orfix nicht lesbar",
+    packageGone: (pkg) => `Die Vorlage steckt im Paket ${q(pkg)}, das der Slicer beim nächsten Start löscht. Danach lädt er diesen Drucker nicht.`,
+    otherNozzle: "Andere Düse",
+    asDefault: "Als Standard",
+    remove: "Entfernen",
+    delete: "Löschen",
+    lastOne: "Mindestens ein Drucker bleibt.",
+    setDefault: "Standard festlegen",
+    removeTitle: "Drucker entfernen",
+    deleteTitle: "Drucker löschen",
+    gone: "Diesen Drucker gibt es nicht mehr.",
+    whichNozzle: "Welche Düse?",
+    startsThen: (slicer) => `Beim Start wählt ${slicer} dann`,
+    alreadyDefault: "Das ist schon der Standard.",
+    safe: "Vorher legt Orfix eine Sicherung an.",
+    safeRestore: { before: "Vorher legt Orfix eine Sicherung an. Unter ", after: " stellst du alles wieder her." },
+    credits: "Druckerbilder aus OrcaSlicer",
+    plan: {
+      title: "Was passiert",
+      switchedOff: "wird im Slicer abgeschaltet",
+      allNozzles: (list, drops) => `Alle Düsen: ${list} mm.` + (drops ? "" : " Die Profile vom Hersteller bleiben auf dem Rechner."),
+      deleted: "wird gelöscht",
+      fileGoes: "Seine Datei kommt weg.",
+      packageName: (pkg) => `Paket ${q(pkg)}`,
+      packageDeleted: "wird beim nächsten Start gelöscht",
+      packageWhy: "Das macht der Slicer, sobald von einem Hersteller kein Drucker mehr eingerichtet ist. Richtest du wieder einen ein, holt er es zurück.",
+      becomesDefault: "wird Standard",
+      startsWith: "Mit ihm startet der Slicer dann.",
+      invisible: "wird unsichtbar",
+      invisibleWhy: "Seine Vorlage steckt in diesem Paket. Die Datei bleibt liegen.",
+      stays: "bleibt",
+      staysWhy: "Baut auf diesem Drucker auf und funktioniert weiter.",
+    },
+    along: {
+      title: "Mitlöschen?",
+      intro: "Das gehört nur zu diesem Drucker.",
+      notTicked: (names) => `Nicht angehakt, weil ${names.map(q).join(", ")} sie vielleicht noch braucht.`,
+    },
+    clean: {
+      title: "Aufräumen",
+      remembered: (k) => `Gemerkte Auswahl für ${n(k)} Drucker`,
+      intro: "Der Slicer merkt sich für jeden Drucker, was du zuletzt gewählt hast, und räumt nie auf. Diese Einträge gehören zu keinem Drucker mehr:",
+      button: "Aufräumen",
+      nothing: "Nichts aufzuräumen.",
+    },
+    // Flash after an action: it is in the change list now, nothing is written.
+    queued: {
+      default: (text) => `${q(text)} als Standard vorgemerkt`,
+      remove: (name) => `${q(name)} zum Entfernen vorgemerkt`,
+      delete: (name) => `${q(name)} zum Löschen vorgemerkt`,
+      clean: "Aufräumen vorgemerkt",
+    },
+  },
+
+  // ---------------------------------------------------------------- page "Sicherungen"
+  backups: {
+    title: "Sicherungen",
+    busy: "Sichern geht, zum Wiederherstellen bitte den Slicer schließen.",
+    summary: "Überblick",
+    newest: (when) => `die neueste von ${when}`,
+    now: "Jetzt sichern",
+    auto: (size) => `Orfix sichert vor jeder Änderung automatisch und löscht keine Sicherung von selbst. Eine neue braucht etwa ${size}.`,
+    all: "Alle Sicherungen",
+    newestFirst: "Neueste zuerst",
+    none: "Noch keine Sicherungen – Orfix legt vor jeder Änderung automatisch eine an.",
+    kinds: { change: "Vor einer Änderung", restore: "Vor dem Wiederherstellen", manual: "Von Hand" },
+    panelTitles: { backup: "Sicherung", delete: "Sicherung löschen" },
+    gone: "Diese Sicherung gibt es nicht mehr.",
+    stateOf: (when) => `Stand von ${when}`,
+    mustClose: (slicer) => `${slicer} muss geschlossen sein. Bitte erst schließen.`,
+    staysClosed: (slicer) => `${slicer} muss geschlossen bleiben, bis Orfix fertig ist.`,
+    restoreNote: "Die eigenen Profile und die Einstellungen des Slicers kommen auf diesen Stand, etwa welche Filamente sichtbar sind.",
+    restoreSafe: "Vorher sichert Orfix den jetzigen Stand. Du kannst also wieder zurück.",
+    details: "Einzelheiten",
+    file: "Datei",
+    content: "Inhalt",
+    deleteOpen: "Löschen …",
+    restore: "Wiederherstellen",
+    deletePlan: (size) => `Die Sicherung wird endgültig gelöscht. Das macht ${size} frei.`,
+    lastOne: "Das ist die letzte Sicherung. Danach lässt sich nichts mehr wiederherstellen.",
+    delete: "Löschen",
+    queued: {
+      backup: "Sicherung vorgemerkt",
+      restore: (when) => `Wiederherstellen vorgemerkt: Stand von ${when}`,
+      delete: "Löschen vorgemerkt",
+    },
+  },
+
+  // ---------------------------------------------------------------- page "Slicer"
+  slicer: {
+    title: "Slicer",
+    lead: (time) => `Wo deine Slicer ihre Daten ablegen und was Orfix damit macht. Stand ${time} Uhr.`,
+    scope: {
+      writeTitle: "Orfix ändert nur",
+      and: "und",
+      writeText: ", und nur bei geschlossenem Slicer.",
+      readTitle: "Alles andere liest Orfix nur",
+      readText: "Herstellerpakete, Protokolle, Zwischenspeicher und die Web-Oberfläche.",
+      backupTitle: "Vorher eine Sicherung",
+      backupText: "Vor jeder Änderung. Damit lässt sich jederzeit alles wiederherstellen.",
+    },
+    allTitle: "Alle Installationen",
+    installations: "Installationen",
+    found: (k) => `${n(k)} ${k === 1 ? "Installation" : "Installationen"} gefunden`,
+    version: (v) => `Version ${v || "unbekannt"}`,
+    shownBelow: "Unten gezeigt",
+    closeAndReload: (slicer) => `Zum Ändern ${slicer} schließen und neu einlesen.`,
+    onlyShows: "Solange zeigt Orfix alles nur an und ändert nichts.",
+    facts: {
+      path: "Datenordner",
+      source: "Gefunden als",
+      userFolder: "Eigene Profile",
+      account: "Konto",
+      systemFormat: "Herstellerprofile",
+      size: "Größe",
+    },
+    loggedIn: "Angemeldet – Profile werden womöglich mit der Cloud synchronisiert",
+    notLoggedIn: "Nicht angemeldet",
+    systemFormats: { json: "JSON", opc: ".opc (binär, OrcaSlicer 2.5)" },
+    remove: "Entfernen",
+    removed: "Entfernt",
+    dataDirOf: (slicer) => `Datenordner von ${slicer}`,
+    levels: { error: "Fehler", warning: "Achtung", info: "Hinweis" },
+    hints: {
+      title: "Hinweise",
+      sub: "Was Orfix beim Einlesen aufgefallen ist.",
+      show: (k) => `${n(k)} Profile zeigen`,
+      none: "Nichts aufgefallen.",
+    },
+    usage: {
+      title: "Platz",
+      sub: (size, files) => `${size} in ${files}`,
+    },
+    tree: {
+      title: "Ordner und Dateien",
+      sub: "Aufklappen zeigt, was drinliegt.",
+      openAll: "Alle aufklappen",
+      closeAll: "Alle zuklappen",
+    },
+    toggle: (name, open) => `${name} ${open ? "zuklappen" : "aufklappen"}`,
+    active: "aktiv",
+    activeTitle: "Diesen Ordner nutzt der Slicer gerade",
+    credentials: "Zugangsdaten",
+    empty: "leer",
+    notInBackup: "Nicht in der Sicherung",
+    share: (pct, of) => `${pct < 1 ? "unter 1" : Math.round(pct)} % ${of}`,
+    shareOfDataDir: "vom Datenordner",
+    shareOfFolder: (name) => `von ${name}/`,
+    outside: {
+      title: "Außerhalb des Datenordners",
+      sub: "Legt der Slicer selbst an. Orfix nennt die Ordner nur.",
+    },
+    packages: {
+      title: "Herstellerpakete",
+      in: "in",
+      roles: { library: "Bibliothek", vendor: "Hersteller" },
+      extra: (k) => `${n(k)} ${k === 1 ? "Datei" : "Dateien"} außerhalb des Inhaltsverzeichnisses`,
+    },
+    stats: {
+      title: "Profile",
+      sub: "So viele kennt der Slicer.",
+      selectable: "zur Auswahl vom Hersteller",
+      base: (k) => `+ ${n(k)} Grundprofile im Hintergrund`,
+      baseTitle: "Vorlagen, von denen die wählbaren Profile ihre Werte erben. Im Slicer nicht wählbar.",
+    },
+    noOwn: "Keine eigenen Profile",
+    conf: {
+      title: "Einstellungsdatei",
+      file: "Datei",
+      size: "Größe",
+      indent: "Einrückung",
+      checksum: "Prüfsumme",
+      checksumYes: "MD5-Zeile am Ende",
+      checksumNo: "keine, die gibt es nur unter Windows",
+      note: "Hier stehen die eingerichteten Drucker, die sichtbaren Filamente und die zuletzt gewählten Profile. Orfix ändert nur einzelne Einträge und schreibt die Datei im selben Format zurück.",
+    },
+    // Credentials in the .conf, only counted (FINDINGS 4.3).
+    credentialWords: {
+      access_code: ["Zugangscode", "Zugangscodes"],
+      api_key: ["API-Schlüssel", "API-Schlüssel"],
+      user: ["Benutzername", "Benutzernamen"],
+      password: ["Passwort", "Passwörter"],
+      ca: ["Zertifikat", "Zertifikate"],
+      cert: ["Zertifikat", "Zertifikate"],
+      key: ["privater Schlüssel", "private Schlüssel"],
+      clientId: ["Geräte-Kennung", "Geräte-Kennungen"],
+    },
+    credentialsList: (list) => `${list}. Orfix zeigt sie nie an.`,
+    noCredentials: "keine",
+    backup: {
+      title: "Sicherung",
+      text: (files, size, zip) => `Vor jeder Änderung packt Orfix ${files} (${size}) in ein ZIP von etwa ${zip}.`,
+      notIn: "Nicht dabei:",
+      location: "Ablage:",
+    },
+  },
+
+  // ================================================================ codes from GET /api/data
+  // The backend (orfix/overview.py) sends codes; these are their words. A function gets the
+  // entry that carries the code, some also the slicer_page of the installation.
+
+  sources: {
+    auto: "Standardort",
+    flatpak: "Flatpak",
+    flatpak_legacy: "Flatpak, alte ID (veraltete Kopie)",
+    appimage_portable: "AppImage, portabel",
+    process: "Laufender Slicer mit --datadir",
+    manual: "Von Hand hinzugefügt",
+  },
+  // instances[].problems
+  problems: {
+    conf_unreadable: "Die .conf ließ sich nicht lesen. Ist sie beschädigt, setzt der Slicer beim nächsten Start alle Einstellungen zurück (unter Windows versucht er vorher die .bak). Sichere die Datei vorher, wenn du sie reparieren willst.",
+    dir_unreadable: "Ein Ordner im Datenverzeichnis ist nicht lesbar. Prüfe die Zugriffsrechte, etwa ob er nach einem Start mit sudo root gehört.",
+  },
+  labels: {
+    status: { visible: "Sichtbar", hidden: "Ausgeblendet", displaced: "Verdrängt", orphaned: "Verwaist", ignored: "Wird ignoriert", unresolved: "Nicht auflösbar" },
+    origin_kind: { vendor: "Herstellerpaket", library: "Orca-Bibliothek", user: "Eigenes Profil" },
+    // Folder tree on the page "Slicer".
+    category: { managed: "Verwaltet Orfix", system: "Vom Hersteller", unmanaged: "Gehört dem Slicer", sensitive: "Vertraulich", temp: "Flüchtig" },
+    kind: { machine: "Drucker", process: "Prozesse", filament: "Filamente" },
+  },
+  // core_values and editable_fields carry only the key; label and unit are here.
+  coreValues: {
+    nozzle_temperature: { label: "Düsentemperatur", unit: "°C" },
+    hot_plate_temp: { label: "Bett", unit: "°C" },
+    filament_flow_ratio: { label: "Flow", unit: "" },
+    filament_max_volumetric_speed: { label: "Max. Volumengeschwindigkeit", unit: "mm³/s" },
+    filament_density: { label: "Dichte", unit: "g/cm³" },
+    filament_cost: { label: "Preis", unit: "je kg" },
+  },
+  fields: {
+    filament_vendor: { label: "Hersteller", unit: "" },
+    default_filament_colour: { label: "Farbe", unit: "" },
+    nozzle_temperature: { label: "Düse", unit: "°C" },
+    nozzle_temperature_initial_layer: { label: "Düse, erste Schicht", unit: "°C" },
+    hot_plate_temp: { label: "Bett", unit: "°C" },
+    hot_plate_temp_initial_layer: { label: "Bett, erste Schicht", unit: "°C" },
+    filament_flow_ratio: { label: "Flussrate", unit: "" },
+    filament_max_volumetric_speed: { label: "Max. Durchfluss", unit: "mm³/s" },
+    filament_density: { label: "Dichte", unit: "g/cm³" },
+    filament_diameter: { label: "Durchmesser", unit: "mm" },
+    filament_cost: { label: "Preis", unit: "je kg" },
+    fan_min_speed: { label: "Lüfter mindestens", unit: "%" },
+    fan_max_speed: { label: "Lüfter höchstens", unit: "%" },
+  },
+  fieldGroups: { general: "Allgemein", temperatures: "Temperaturen", flow: "Fluss", material: "Material", cooling: "Kühlung" },
+  // values[key].default: no profile in the chain sets it.
+  slicerDefault: "Standardwert des Slicers",
+  // filaments[].parent_via for own profiles whose template was not found by its exact name.
+  parentVia: { renamed: "Vorlage umbenannt", generic: "Ersatzvorlage aus der Orca-Bibliothek" },
+  // filaments[].printers[name]
+  printerHints: {
+    unlockable: "Kann freigeschaltet werden.",
+    conditional: "Passt nur unter einer Bedingung, die Orfix nicht prüft.",
+  },
+
+  // Why the slicer does not load an own profile: filaments[].problem, printers_page.own[].problem,
+  // warnings[].problem and the tree's "ignored". p is the entry, it carries "inherits".
+  profileProblems: {
+    parent_missing: (p) => p.kind === "machine" || p.based_on !== undefined
+      ? `Der Slicer findet die Vorlage ${q(p.inherits ?? p.based_on)} nicht, meist weil ihr Hersteller nicht installiert ist. Er lädt diesen Drucker deshalb nicht.`
+      : `Baut auf ${q(p.inherits)} auf, das es nicht gibt. Der Slicer lädt dieses Profil nicht.`,
+    parent_abstract: (p) => `Baut auf ${q(p.inherits ?? p.based_on)} auf. Das ist ein Grundprofil, das der Slicer nicht als Vorlage annimmt. Er lädt dieses Profil nicht.`,
+    parent_unreadable: (p) => `Baut auf ${q(p.inherits ?? p.based_on)} auf. Orfix findet diese Vorlage nicht, weil es ein Herstellerpaket nicht lesen kann. Ob der Slicer das Profil lädt, weiß Orfix deshalb nicht.`,
+    invalid_json: () => "Die Datei ist fehlerhaft. Der Slicer löscht sie beim nächsten Start samt .info.",
+    bad_version: () => "Die Datei hat keine gültige Versionsangabe. Der Slicer überspringt sie.",
+    wrong_type: () => "Die Datei liegt im Ordner einer anderen Profilart. Snapmaker Orca überspringt sie.",
+    name_taken: () => "Diesen Namen gibt es schon. Der Slicer lädt nur das erste Profil mit diesem Namen.",
+  },
+  // Short form for the folder tree.
+  ignoredShort: {
+    parent_missing: "Vorlage fehlt, der Slicer lädt es nicht",
+    parent_abstract: "Vorlage ist ein Grundprofil, der Slicer lädt es nicht",
+    parent_unreadable: "Vorlage steckt vielleicht in einem Paket, das Orfix nicht lesen kann",
+    invalid_json: "Fehlerhaft, der Slicer löscht es",
+    bad_version: "Ohne gültige Version, der Slicer überspringt es",
+    wrong_type: "Falscher Ordner, der Slicer überspringt es",
+    name_taken: "Name schon vergeben, der Slicer überspringt es",
+  },
+
+  // warnings[]: text and what to do. w is the warning.
+  warnings: {
+    visible_without_printer: {
+      text: (w) => `${n(w.count)} sichtbare Filamente passen zu keinem installierten Drucker.`,
+      action: "Kein Handlungsbedarf, sie stören nicht. Ausblenden räumt die Liste auf.",
+    },
+    orphaned: {
+      text: (w, T) => `${q(w.names[0])}: ${T.profileProblems[w.problem](w)}`,
+      action: "Einem vorhandenen Profil zuordnen oder löschen.",
+    },
+    ignored: {
+      text: (w, T) => `${q(w.names[0])}: ${T.profileProblems[w.problem](w)}`,
+      action: "Reparieren oder löschen.",
+    },
+    unresolved: {
+      text: (w, T) => `${q(w.names[0])}: ${T.profileProblems[w.problem](w)}`,
+      action: "Nicht löschen: Der Slicer lädt es womöglich trotzdem. Erst wenn Orfix das Paket lesen kann, lässt es sich prüfen.",
+    },
+    fallback_parent: {
+      text: (w) => `${q(w.names[0])} baut auf ${q(w.inherits)} auf, das es nicht gibt. Der Slicer nimmt stattdessen ${q(w.parent)}.`,
+      action: "Kein Handlungsbedarf.",
+    },
+    name_mismatch: {
+      text: (w) => `${q(w.names[0])} heißt in der Datei ${q(w.json_name)}. Snapmaker Orca nimmt den Namen aus der Datei, OrcaSlicer den Dateinamen.`,
+      action: "Datei und Namen angleichen, damit beide Slicer dasselbe zeigen.",
+    },
+    same_alias: {
+      text: (w) => `Für ${w.printer} zeigt der Slicer von ${w.names.join(", ")} nur eins.`,
+      action: "Eins davon ausblenden.",
+    },
+    library_hidden: {
+      text: (w) => `${n(w.count)} Profile der Orca-Bibliothek passen zu deinen Druckern, sind aber ausgeblendet. Snapmaker Orca bietet sie selbst nicht an.`,
+      action: "Einzelne Profile freischalten.",
+    },
+    package_unreadable: {
+      text: (w, T) => `Das Herstellerpaket ${q(w.names[0])} lässt sich nicht lesen. ${T.packageErrors[w.problem] || ""}`,
+      action: "Profile, die darauf aufbauen, kann Orfix nicht auflösen.",
+    },
+    package_incomplete: {
+      text: (w) => `Im Paket ${q(w.package)} fehlt ${w.count === 1 ? "einem Profil" : n(w.count) + " Profilen"} die Vorlage. Dann lädt der Slicer das ganze Paket nicht.`,
+      action: "Den Slicer einmal starten, er erneuert seine Pakete.",
+    },
+  },
+  packageErrors: {
+    opc_unsupported_version: "Die .opc-Datei hat ein neueres Format, das Orfix noch nicht kennt.",
+    opc_corrupt: "Die .opc-Datei ist beschädigt oder unvollständig.",
+    opc_unreadable: "Die .opc-Datei ließ sich nicht öffnen.",
+    manifest_unreadable: "Das Inhaltsverzeichnis ließ sich nicht lesen.",
+  },
+
+  // printers_page
+  printerOrigins: { own: "Eigener Drucker", project: "Aus einem Projekt übernommen" },
+  deadEntries: {
+    default_printer: "Platzhalter vom ersten Start, bevor ein Drucker eingerichtet war.",
+    project: "Drucker aus einem Projekt, das einmal geöffnet war.",
+    missing: "Diesen Drucker gibt es hier nicht mehr.",
+    action: "Kann weg. Der Slicer räumt solche Einträge nicht selbst auf.",
+  },
+
+  // slicer_page
+  systemRefresh: {
+    every_start: (slicer) => `${slicer} erneuert die Herstellerpakete bei jedem Start.`,
+    missing_only: (slicer) => `${slicer} erneuert installierte Herstellerpakete nicht, er ergänzt nur fehlende. Die Bibliothek kopiert er bei jedem Start neu.`,
+  },
+  confIndent: { tab: () => "Tab", spaces: (width) => `${width} Leerzeichen` },
+  packageNotes: {
+    library: (p) => "Filamente für alle Drucker. Der Slicer kopiert sie bei jedem Start neu."
+      + (p.manifest_empty ? " Das Inhaltsverzeichnis ist leer, Snapmaker Orca liest die Dateien direkt aus dem Ordner." : ""),
+    installed_for: (p) => `Installiert für ${p.printers_set_up.join(", ")}.`,
+    not_set_up: () => "Kein Drucker davon ist eingerichtet.",
+  },
+  // Folder tree: notes[node.note], a string or a function of (node, slicer_page).
+  notes: {
+    system: (node, sp) => `Profile der Hersteller. ${T.systemRefresh[sp.system_refresh.code](sp.slicer)} Orfix liest sie nur.`,
+    user: "Deine eigenen Profile. Nur hier und in der .conf schreibt Orfix.",
+    log: "Protokolle des Slicers.",
+    cache: "Zwischenspeicher und die Sperrdatei, solange der Slicer läuft.",
+    web: "Oberfläche des Geräte-Panels, wird vom Slicer verwaltet.",
+    hms: "Texte für Gerätemeldungen, wird vom Slicer verwaltet.",
+    ota: "Updates, die der Slicer selbst herunterlädt.",
+    log_upload_spool: "Warteschlange für Nutzungsdaten, die der Slicer sendet.",
+    printers: "Gerätebeschreibungen für die Druckerverbindung, keine Profile.",
+    plugins: "Erweiterungen, wird vom Slicer verwaltet.",
+    python: "Python für Erweiterungen, wird vom Slicer verwaltet.",
+    simplyprint: "Anmeldung bei SimplyPrint. Vertraulich.",
+    "3dprinteros": "Anmeldung bei 3DPrinterOS. Vertraulich.",
+    refresh_token: "Anmeldung beim Konto. Vertraulich.",
+    slicer_owned: "Gehört dem Slicer. Orfix fasst das nicht an.",
+    conf: (node) => "Einstellungen des Slicers: eingerichtete Drucker, sichtbare Filamente, zuletzt gewählte Profile. Orfix ändert hier nur einzelne Einträge."
+      + (node.secret ? " Enthält Zugangsdaten zu Druckern." : ""),
+    conf_bak: "Vorige Fassung der .conf, legt der Slicer nur unter Windows an.",
+    conf_tmp: "Zwischendatei beim Speichern. Liegt sie da, schreibt der Slicer gerade.",
+    user_backup: (node) => `Kopie von user/ beim ersten Start von Version ${node.version}. Der Slicer aktualisiert sie nie.`,
+    machine_id: "Zufällige Kennung dieses Rechners für Update-Prüfung und Nutzungsdaten. Orfix zeigt sie nie an.",
+    package_opc: (node) => `Alle Profile von ${q(node.package)} in einer Datei, Version ${node.version}. Format ab OrcaSlicer 2.5.`
+      + (node.error ? " " + (T.packageErrors[node.error] || "") : ""),
+    package_manifest: (node) => `Inhaltsverzeichnis von ${q(node.package)}, Version ${node.version}.`,
+    package_folder: (node) => `Profile von ${q(node.package)}.`
+      + (node.manifest_empty ? " Das Inhaltsverzeichnis ist leer, Snapmaker Orca liest die Dateien direkt aus diesem Ordner." : ""),
+    package_machine: "Drucker und Druckermodelle.",
+    package_process: "Prozesse: Schichthöhe, Tempo, Stützen.",
+    package_filament: "Filamente.",
+    colour_table: "Farbtabelle der Filamente.",
+    unlisted_profile: "Profil, das nicht im Inhaltsverzeichnis steht. Der Slicer lädt es nicht.",
+    vendor_extra: "Zusatzdatei des Herstellers, kein Profil.",
+    update_leftover: "Rest eines abgebrochenen Updates.",
+    hints: "Zustand der Tipps beim Start, kein Profil.",
+    export_temp: "Flüchtige Kopien, solange der Export-Dialog offen ist.",
+    import_leftover: "Rest eines abgebrochenen Imports.",
+    account_default: "Eigene Profile ohne Anmeldung.",
+    account_user: "Eigene Profile des angemeldeten Kontos.",
+    user_machine: "Eigene Drucker. Zu jedem Profil gehört eine .info mit Konto und Zeitstempel.",
+    user_process: "Eigene Prozesse. Zu jedem Profil gehört eine .info mit Konto und Zeitstempel.",
+    user_filament: "Eigene Filamente. Zu jedem Profil gehört eine .info mit Konto und Zeitstempel.",
+    user_base: "Eigene Profile ohne Vorlage.",
+    bundles: "Profilpakete, die OrcaSlicer importiert hat.",
+    own_profile: "Eigenes Profil.",
+    profile_info: "Verwaltungsdaten zum Profil.",
+    webview_data_snorca: "Speicher der eingebauten Web-Oberfläche, u. a. für die Snapmaker-Anmeldung. Alle Snapmaker-Orca-Datenordner teilen ihn.",
+    webview_data: "Speicher der eingebauten Web-Oberfläche.",
+    webview_cache: "Zwischenspeicher der eingebauten Web-Oberfläche.",
+  },
+  backupsSecret: "Sicherungen enthalten Zugangsdaten aus der .conf. Nicht weitergeben.",
 };

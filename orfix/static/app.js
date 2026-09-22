@@ -1,224 +1,291 @@
+// App frame: top bar, main menu on the left (ionpy device window), one page per hash route,
+// and the change list that all pages fill. The data comes live from GET /api/data (common.js).
+import {
+  INSTANCES, FAILED, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
+  liveChanges, resetChanges, addDataDir, removeDataDir, registerCommon,
+} from "./common.js";
 import { T } from "./texts.js";
-import { api, ApiError } from "./api.js";
+import FilamentePage, { changes as filamentChanges } from "./pages/filamente.js";
+import DruckerPage from "./pages/drucker.js";
+import SicherungenPage from "./pages/sicherungen.js";
+import SlicerPage from "./pages/slicer.js";
 
-const { createApp, ref, computed, onMounted } = Vue;
+const { createApp, ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
-// The chosen instance is only a per-browser convenience; storage may be blocked.
-const STORAGE_KEY = "orfix.instance";
-function remembered() {
-  try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
-}
-function remember(id) {
-  try { localStorage.setItem(STORAGE_KEY, id); } catch { /* ignore */ }
-}
+// Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
+const PAGES = [
+  { id: "filamente", icon: "spool", component: FilamentePage },
+  { id: "drucker", icon: "printer", component: DruckerPage },
+  { id: "sicherungen", icon: "backup", component: SicherungenPage },
+  { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
+].map((p) => ({ ...p, label: T.nav.pages[p.id] }));
 
-createApp({
+// Icon and colour class per type of change; the verbs are in texts.js.
+const CHANGE = {
+  on: { icon: "check", cls: "ch-on" }, off: { icon: "minus", cls: "ch-off" },
+  new: { icon: "plus", cls: "ch-new" }, delete: { icon: "trash", cls: "ch-delete" },
+  rename: { icon: "pencil", cls: "ch-rename" }, edit: { icon: "pencil", cls: "ch-edit" },
+  remove: { icon: "minus", cls: "ch-off" }, default: { icon: "star", cls: "ch-on" },
+  clean: { icon: "broom", cls: "ch-off" }, backup: { icon: "backup", cls: "ch-new" },
+  restore: { icon: "backup", cls: "ch-new" }, dropBackup: { icon: "trash", cls: "ch-delete" },
+};
+
+const app = createApp({
   setup() {
-    const instances = ref([]);
-    const drafts = ref(false);
-    const selectedId = ref(null);
-    const loading = ref(true);
-    const error = ref(null);
+    const inst = computed(() => INSTANCES.find((i) => i.id === ui.instId) || null);
+    const page = computed(() => PAGES.find((p) => p.id === route.value.page));
+    // A new key per route and per load mounts the page fresh, so a printer view never patches
+    // over the last one and never keeps state from old data.
+    const pageKey = computed(() => [route.value.page, ui.instId, route.value.modelIdx, loadState.version].join("|"));
+    const pageProps = computed(() => route.value.page === "filamente"
+      ? { instId: ui.instId, modelIdx: route.value.modelIdx }
+      : { instId: ui.instId });
+
+    // ------------------------------------------------------------ change list
+    // All pages, all installations: one "Übernehmen" will handle each installation with its own
+    // backup. Saving comes with the next step, so the button stays off for now.
+    const changes = computed(() => [...filamentChanges.value, ...liveChanges.value]);
+    const changeGroups = computed(() => INSTANCES.map((i) => ({ inst: i, items: changes.value.filter((c) => c.inst === i) }))
+      .filter((g) => g.items.length));
+    const changesOpen = ref(false);
+    let changesFocus = null;
+    function openChanges() {
+      if (!changesOpen.value) changesFocus = document.activeElement;
+      changesOpen.value = true;
+      nextTick(() => document.getElementById("changes-title")?.focus());
+    }
+    function closeChanges() {
+      changesOpen.value = false;
+      if (changesFocus && document.contains(changesFocus)) changesFocus.focus();
+      changesFocus = null;
+    }
+    function discard() {
+      resetChanges();
+      changesOpen.value = false;
+      flash(T.changes.discarded);
+    }
+    // Escape closes the change list first; the page's own panel lies below it.
+    const onKey = (ev) => {
+      if (ev.key !== "Escape" || !changesOpen.value) return;
+      ev.stopPropagation();
+      closeChanges();
+    };
+    onMounted(() => window.addEventListener("keydown", onKey, true));
+    onUnmounted(() => window.removeEventListener("keydown", onKey, true));
+
+    // What the menu shows on the right: pending changes per page (orange, all installations, as
+    // the change bar counts them), else the backups of the chosen installation.
+    const badges = computed(() => {
+      const out = {};
+      for (const p of PAGES) {
+        const n = changes.value.filter((c) => c.page === p.id).length;
+        if (n) out[p.id] = { n, text: T.nav.pending, changed: true };
+      }
+      const backups = inst.value ? inst.value.backups_page.backups.length : 0;
+      if (!out.sicherungen && backups) out.sicherungen = { n: backups, text: T.nav.backups, changed: false };
+      return out;
+    });
+
+    // ------------------------------------------------------------ loading
+    // "Neu einlesen" reads everything again and checks whether the slicers run.
+    async function reread() {
+      if (loadState.busy) return;
+      const had = changes.value.length;
+      if (await load()) flash(had ? T.reloadedDiscarded : T.reloaded);
+      else flash(T.errors[loadState.error] || T.errors.unknown);
+    }
+    const loadError = computed(() => T.loadError[loadState.error === "network" ? "network" : "other"]);
+    load();
+
+    // First start without any installation: the form adds one by hand.
     const newPath = ref("");
-    const notice = ref(null);
-    const busy = ref(false);
-
-    const selected = computed(() => instances.value.find((i) => i.id === selectedId.value) || null);
-
-    const slicerName = (i) => T.slicerNames[i.slicer] || i.slicer;
-    const statusText = (i) => {
-      if (!i.run_state.running) return T.status.closed;
-      return i.run_state.reason === "process_unmapped" ? T.status.maybeRunning : T.status.running;
-    };
-    const statusClass = (i) => (i.run_state.running ? "status--warn" : "status--ok");
-    const runDetail = (i) => T.runDetail(i.run_state, slicerName(i));
-    const userFolders = (i) => {
-      const names = new Set([...i.user_folders, i.active_user_folder]);
-      return [...names].map((n) => (n === i.active_user_folder ? `${n} (${T.facts.userFolderActive})` : n)).join(", ");
-    };
-    const systemFormats = (i) =>
-      i.system_formats.length ? i.system_formats.map((f) => T.facts.formats[f]).join(", ") : T.facts.noSystem;
-    const confFormat = (i) => {
-      if (i.conf_indent === null) return "–";
-      const indent = i.conf_indent === "\t" ? T.facts.indentTab : T.facts.indentSpaces;
-      return i.conf_checksum ? `${indent}, ${T.facts.checksum}` : indent;
-    };
-    const message = (err) => T.errors[err instanceof ApiError ? err.code : "unknown"] || T.errors.unknown;
-
-    function select(id) {
-      selectedId.value = id;
-      remember(id);
+    const addError = ref("");
+    async function addDir() {
+      const path = newPath.value.trim();
+      if (!path) return;
+      addError.value = "";
+      const code = await addDataDir(path);
+      if (code) addError.value = T.errors[code] || T.errors.unknown;
+      else flash(T.add.added);
+    }
+    // A data directory added by hand that cannot be read can still be removed.
+    async function removeFailed(f) {
+      if (loadState.busy) return;
+      const code = await removeDataDir(f);
+      flash(code ? T.errors[code] || T.errors.unknown : T.slicer.removed);
     }
 
-    async function load() {
-      loading.value = true;
-      error.value = null;
-      try {
-        const data = await api.instances();
-        instances.value = data.instances;
-        drafts.value = data.drafts;
-        const ids = data.instances.map((i) => i.id);
-        if (!ids.includes(selectedId.value)) {
-          selectedId.value = ids.includes(remembered()) ? remembered() : ids[0] || null;
-        }
-      } catch (err) {
-        error.value = message(err);
-      } finally {
-        loading.value = false;
+    // ------------------------------------------------------------ installation picker
+    const instOpen = ref(false);
+    const instBtn = ref(null);
+    const instMenu = ref(null);
+
+    window.addEventListener("hashchange", () => syncRoute());
+    // The address carries the installation; one without it gets the chosen one added.
+    watch(route, (r) => {
+      if (r.instId) ui.instId = r.instId;
+      else if (ui.instId) history.replaceState(null, "", hashOf(r.page, ui.instId));
+    }, { immediate: true });
+    // After a page switch the focus moves to the page title.
+    watch(route, () => {
+      instOpen.value = false;
+      window.scrollTo(0, 0);
+      nextTick(() => document.getElementById("page-title")?.focus());
+    });
+
+    function toggleInst() {
+      instOpen.value = !instOpen.value;
+      if (instOpen.value) nextTick(() => instMenu.value?.querySelector('[aria-checked="true"]')?.focus());
+    }
+    function closeInst() {
+      instOpen.value = false;
+      instBtn.value?.focus();
+    }
+    function pickInst(i) {
+      closeInst();
+      if (i.id === ui.instId) return;
+      const r = route.value;
+      const current = r.page === "filamente" && r.modelIdx !== null ? inst.value.models[r.modelIdx] : null;
+      if (!current) return go(null, hashOf(r.page, i.id));
+      // Stay with the same printer model if the other installation has it, else show its printers.
+      const idx = i.models.findIndex((m) => m.model === current.model);
+      go(null, hashOf("filamente", i.id, idx >= 0 ? idx : null));
+    }
+    function instKey(ev) {
+      if (!instOpen.value) return;
+      if (ev.key === "Escape") {
+        ev.stopPropagation();  // the page's own Escape (side panel) stays untouched
+        closeInst();
+      } else if (ev.key === "Tab") {
+        ev.preventDefault();  // back to the button, as with Escape; the removed item cannot keep the focus
+        closeInst();
+      } else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        const items = [...instMenu.value.querySelectorAll(".inst-item")];
+        const n = items.indexOf(document.activeElement), down = ev.key === "ArrowDown";
+        const next = n < 0 ? (down ? 0 : items.length - 1) : (n + (down ? 1 : items.length - 1)) % items.length;
+        items[next].focus();
       }
     }
-
-    async function add() {
-      busy.value = true;
-      notice.value = null;
-      try {
-        const result = await api.addManual(newPath.value);
-        newPath.value = "";
-        notice.value = { kind: "ok", text: T.add.added };
-        await load();
-        select(result.instance.id);
-      } catch (err) {
-        notice.value = { kind: "error", text: message(err) };
-      } finally {
-        busy.value = false;
-      }
-    }
-
-    async function remove(instance) {
-      busy.value = true;
-      notice.value = null;
-      try {
-        await api.removeManual(instance.data_dir);
-        notice.value = { kind: "ok", text: T.list.removed };
-      } catch (err) {
-        notice.value = { kind: "error", text: message(err) };
-      } finally {
-        await load();
-        busy.value = false;
-      }
-    }
-
-    onMounted(load);
+    document.addEventListener("pointerdown", (ev) => {
+      if (instOpen.value && !(ev.target instanceof Element && ev.target.closest(".inst"))) instOpen.value = false;
+    });
 
     return {
-      T, instances, drafts, selectedId, selected, loading, error, newPath, notice, busy,
-      slicerName, statusText, statusClass, runDetail, userFolders, systemFormats, confFormat,
-      select, load, add, remove,
+      INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, badges, go, hashOf, leave,
+      statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
+      newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
     };
   },
 
   template: `
-    <header class="app-header">
-      <span class="brand">{{ T.appName }}</span>
-      <label v-if="instances.length" class="picker">
-        <span class="muted">{{ T.instanceLabel }}</span>
-        <select class="input" :value="selectedId" @change="select($event.target.value)">
-          <option v-for="i in instances" :key="i.id" :value="i.id">
-            {{ slicerName(i) }} {{ i.version || "" }} · {{ i.data_dir }}
-          </option>
-        </select>
-      </label>
-      <span v-if="selected" class="status" :class="statusClass(selected)" :title="runDetail(selected)">
-        {{ statusText(selected) }}
-      </span>
+    <header class="topbar">
+      <a class="brand" :href="hashOf('filamente', ui.instId)" @click="go($event, hashOf('filamente', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
       <span class="spacer"></span>
-      <button class="btn" type="button" :disabled="loading" @click="load">{{ T.reload }}</button>
+      <div v-if="INSTANCES.length > 1" class="inst" @keydown="instKey">
+        <button ref="instBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="instOpen ? 'true' : 'false'"
+                :title="inst.slicer + ' ' + inst.version + ' · ' + statusText(inst)" @click="toggleInst">
+          <span class="inst-name">{{ inst.slicer }}</span>
+          <run-status :inst="inst"/>
+          <ui-icon name="chevronDown"/>
+        </button>
+        <div v-if="instOpen" ref="instMenu" class="inst-menu" role="menu" :aria-label="T.instMenu">
+          <div class="inst-menu-label" aria-hidden="true">{{ T.instMenu }}</div>
+          <button v-for="i in INSTANCES" :key="i.id" class="inst-item" type="button" role="menuitemradio"
+                  :aria-checked="i.id === inst.id ? 'true' : 'false'" @click="pickInst(i)">
+            <ui-icon name="check" class="check"/>
+            <span class="inst-item-text">
+              <span>{{ i.slicer }} <span class="version">{{ i.version }}</span></span>
+              <span class="inst-item-path">{{ i.path }}</span>
+              <run-status :inst="i"/>
+            </span>
+          </button>
+        </div>
+      </div>
+      <span v-else-if="inst" class="inst-single">{{ inst.slicer }}</span>
+      <button v-if="loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
+              :title="T.dataFrom(generatedText)" @click="leave(reread)">
+        <ui-icon name="refresh"/><span class="bar-btn-label">{{ T.reload }}</span>
+      </button>
     </header>
 
-    <nav class="tabs" :aria-label="T.tabs.label">
-      <button class="tab" type="button" aria-current="page">{{ T.tabs.overview }}</button>
-      <button class="tab" type="button" disabled>
-        {{ T.tabs.manage }} <span class="muted">· {{ T.tabs.manageLater }}</span>
-      </button>
-    </nav>
-
-    <main class="content">
-      <p v-if="error" class="notice notice--error" role="alert">{{ error }}</p>
-      <p v-if="loading && !instances.length" class="muted">{{ T.loading }}</p>
-
-      <template v-else>
-        <section v-if="!instances.length && !error" class="panel empty-state">
-          <h2>{{ T.empty.title }}</h2>
-          <p>{{ T.empty.text }}</p>
-        </section>
-
-        <template v-if="selected">
-          <p v-if="selected.run_state.running" class="notice notice--warn">{{ runDetail(selected) }}</p>
-
-          <section class="panel">
-            <h2>{{ T.facts.title }}</h2>
-            <table class="facts">
-              <tbody>
-                <tr><th scope="row">{{ T.facts.slicer }}</th><td>{{ slicerName(selected) }}</td></tr>
-                <tr><th scope="row">{{ T.facts.version }}</th><td>{{ selected.version || T.facts.versionUnknown }}</td></tr>
-                <tr><th scope="row">{{ T.facts.path }}</th><td class="mono">{{ selected.data_dir }}</td></tr>
-                <tr><th scope="row">{{ T.facts.source }}</th><td>{{ T.sources[selected.source] }}</td></tr>
-                <tr><th scope="row">{{ T.facts.userFolder }}</th><td class="mono">{{ userFolders(selected) }}</td></tr>
-                <tr><th scope="row">{{ T.facts.account }}</th><td>{{ selected.logged_in ? T.facts.loggedIn : T.facts.notLoggedIn }}</td></tr>
-                <tr><th scope="row">{{ T.facts.systemFormat }}</th><td>{{ systemFormats(selected) }}</td></tr>
-                <tr><th scope="row">{{ T.facts.confFormat }}</th><td>{{ confFormat(selected) }}</td></tr>
-                <tr v-if="selected.problems.length">
-                  <th scope="row">{{ T.facts.problems }}</th>
-                  <td><p v-for="p in selected.problems" :key="p" class="status status--error">{{ T.problems[p] || p }}</p></td>
-                </tr>
-              </tbody>
-            </table>
-          </section>
-
-          <section class="panel empty-state">
-            <h2>{{ T.profilesPending.title }}</h2>
-            <p class="muted">{{ T.profilesPending.text }}</p>
-          </section>
-
-          <section v-if="drafts" class="panel">
-            <h2>{{ T.drafts.title }}</h2>
-            <p class="muted">{{ T.drafts.hint }}</p>
-            <ul class="link-list">
-              <li v-for="link in T.drafts.links" :key="link.href">
-                <a :href="link.href" target="_blank" rel="noopener">{{ link.label }}</a>
-              </li>
-            </ul>
-          </section>
+    <div class="shell">
+      <nav class="nav" :aria-label="T.nav.label">
+        <template v-for="p in PAGES" :key="p.id">
+          <div v-if="p.group" class="nav-label">{{ p.group }}</div>
+          <a class="nav-item" :href="hashOf(p.id, ui.instId)" :aria-current="route.page === p.id ? 'page' : null" @click="go($event, hashOf(p.id, ui.instId))">
+            <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
+            <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
+                  :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
+          </a>
         </template>
+      </nav>
+      <main class="main">
+        <div v-if="FAILED.length" class="page failed-list" role="alert">
+          <p v-for="f in FAILED" :key="f.id" class="alert">
+            {{ T.failed[f.code] ? T.failed[f.code](f) : f.code }}
+            <button v-if="f.manual" class="link" type="button" :disabled="loadState.busy" @click="leave(() => removeFailed(f))">{{ T.slicer.remove }}</button>
+          </p>
+        </div>
+        <component v-if="inst" :is="page.component" :key="pageKey" v-bind="pageProps"/>
+        <div v-else class="page">
+          <p v-if="loadState.status === 'loading'" class="loading" role="status">{{ T.loading }}</p>
+          <section v-else-if="loadState.status === 'error'" class="soon" role="alert">
+            <span class="soon-icon is-bad"><ui-icon name="warn" :size="44"/></span>
+            <h1 id="page-title" tabindex="-1" class="soon-title">{{ loadError.title }}</h1>
+            <p class="soon-text">{{ loadError.text }}</p>
+            <button class="btn btn-primary" type="button" :disabled="loadState.busy" @click="load">{{ T.retry }}</button>
+          </section>
+          <section v-else class="soon">
+            <span class="soon-icon"><ui-icon name="folder" :size="44"/></span>
+            <h1 id="page-title" tabindex="-1" class="soon-title">{{ FAILED.length ? T.add.title : T.empty.title }}</h1>
+            <p v-if="!FAILED.length" class="soon-text">{{ T.empty.text }}</p>
+            <form class="add-form" @submit.prevent="addDir">
+              <input v-model="newPath" class="input" type="text" autocomplete="off" :placeholder="T.add.placeholder" :aria-label="T.add.label"
+                     :aria-invalid="addError ? 'true' : 'false'" aria-describedby="add-error">
+              <button class="btn btn-primary" type="submit" :disabled="!newPath.trim()">{{ T.add.button }}</button>
+            </form>
+            <p id="add-error" class="field-error" aria-live="polite">{{ addError }}</p>
+            <button class="btn" type="button" :disabled="loadState.busy" @click="reread"><ui-icon name="refresh"/>{{ T.reload }}</button>
+          </section>
+        </div>
 
-        <section v-if="instances.length" class="panel">
-          <h2>{{ T.list.title }}</h2>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th scope="col">{{ T.list.slicer }}</th>
-                <th scope="col">{{ T.list.version }}</th>
-                <th scope="col">{{ T.list.path }}</th>
-                <th scope="col">{{ T.list.source }}</th>
-                <th scope="col">{{ T.list.status }}</th>
-                <th scope="col"><span class="visually-hidden">{{ T.list.remove }}</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="i in instances" :key="i.id" :class="{ 'is-selected': i.id === selectedId }">
-                <td>{{ slicerName(i) }}</td>
-                <td>{{ i.version || "–" }}</td>
-                <td class="mono">{{ i.data_dir }}</td>
-                <td>{{ T.sources[i.source] }}</td>
-                <td><span class="status" :class="statusClass(i)">{{ statusText(i) }}</span></td>
-                <td>
-                  <button v-if="i.manual" class="btn" type="button" :disabled="busy" @click="remove(i)">{{ T.list.remove }}</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
+        <aside v-if="changesOpen" class="panel changes-panel" aria-labelledby="changes-title">
+          <div class="panel-head">
+            <h2 id="changes-title" tabindex="-1">{{ T.changes.title }}</h2>
+            <button class="icon-btn" type="button" :aria-label="T.close" @click="closeChanges"><ui-icon name="close"/></button>
+          </div>
+          <div class="panel-body">
+            <p v-if="!changes.length" class="note">{{ T.changes.none }}</p>
+            <div v-for="g in changeGroups" :key="g.inst.id">
+              <h3>{{ g.inst.slicer }}</h3>
+              <ul class="plain-list">
+                <li v-for="(c, n) in g.items" :key="n">
+                  <span :class="CHANGE[c.type].cls"><ui-icon :name="CHANGE[c.type].icon"/></span>
+                  <span class="grow"><strong>{{ c.name }}</strong> {{ T.changes.verbs[c.type] }}<small v-if="c.where">{{ c.where }}</small></span>
+                </li>
+              </ul>
+            </div>
+            <p class="note">{{ T.changes.safe }}</p>
+            <p class="quiet-note later-note"><ui-icon name="info"/>{{ T.changes.notYet }}</p>
+            <div class="actions">
+              <button class="btn" type="button" @click="closeChanges">{{ T.back }}</button>
+              <button class="btn btn-primary right" type="button" disabled :title="T.changes.notYet">{{ T.changes.apply }}</button>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
 
-        <section class="panel">
-          <h2>{{ T.add.title }}</h2>
-          <p class="muted">{{ T.add.hint }}</p>
-          <form class="add-form" @submit.prevent="add">
-            <input class="input mono" v-model="newPath" :placeholder="T.add.placeholder" :aria-label="T.add.title">
-            <button class="btn btn--primary" type="submit" :disabled="busy || !newPath.trim()">{{ T.add.button }}</button>
-          </form>
-          <p class="notice" :class="notice && 'notice--' + notice.kind" role="status">{{ notice ? notice.text : "" }}</p>
-        </section>
-      </template>
-    </main>
+    <div v-if="changes.length" class="changebar">
+      <span class="what">{{ T.changes.count(changes.length) }}</span>
+      <button class="btn" type="button" @click="leave(discard)">{{ T.changes.discard }}</button>
+      <button class="btn btn-primary" type="button" @click="leave(openChanges)">{{ T.changes.open }}</button>
+    </div>
+
+    <div :class="['toast', { show: ui.toast }]" role="status" aria-live="polite">{{ ui.toast }}</div>
   `,
-}).mount("#app");
+});
+
+registerCommon(app);
+app.mount("#app");
