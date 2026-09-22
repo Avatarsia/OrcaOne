@@ -88,3 +88,14 @@ Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 | `prototypes/U1Cam/` | Kamera des U1, vom Nutzer |
 | `slicer-src/` | Sparse-Clones von SnOrca v2.4.0 und OrcaSlicer main, nicht im Git |
 | `tests/fixtures/snorca/`, `tests/fixtures/orca/` | anonymisierte Ausschnitte aus den echten Installationen, dazu synthetische eigene Profile |
+
+## Teil B in Arbeit (22.09.2026, ab 11:50)
+
+- **Teil A** des Tests ist mit SnOrca bestanden: alle Düsen stimmen.
+- **Workflow `orfix-writes-part-b`** (Run `wf_9ea0a07b-6fd`). Backend und Oberfläche entstehen parallel gegen eine feste Schnittstelle:
+  - `changes` mit ops wie `filament_visible`, `filament_bind`, `filament_create`, `filament_update`, `filament_rename`, `filament_delete`, `default_printer`, `printer_delete`, `printer_model_off`, `cleanup_presets`;
+  - `/plan` → `/apply`, dazu die Sicherungs-API.
+
+  Danach folgen Zusammenführen samt Ende-zu-Ende-Test, Review und Nachbessern.
+- **Sicherheitsregel:** Orfix schreibt nur in von Hand hinzugefügte Ordner, sonst meldet es `write_not_allowed`.
+- **Nach einem Abbruch** fortsetzen mit `resumeFromRunId: "wf_9ea0a07b-6fd"`, Skript unter `…/workflows/scripts/orfix-writes-part-b-wf_9ea0a07b-6fd.js`.
