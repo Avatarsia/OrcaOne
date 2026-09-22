@@ -19,22 +19,31 @@ Die Entwürfe A bis C waren zu voll und sind nur noch in der Git-Geschichte zu f
 **Entwurf E2** (`e2/index.html`, 22.09.2026) teilt E in Seiten auf:
 
 - Links ein Menü nach dem Gerätefenster von ionpy: Filamente, Drucker, Sicherungen und unter „Technik“ die Seite „Slicer“. Unter 900 px wird es eine Reihe mit vier Reitern.
-- Oben rechts wählt man die Installation. „Drucker“, „Sicherungen“ und „Slicer“ zeigen nur sie, die Druckerauswahl unter „Filamente“ zeigt wie E alle Installationen, die gewählte zuerst.
-- „Filamente“ ist E als Komponente (`e2/pages/filamente.js`). Beispielprofile aus `make_data.py` tragen das Etikett „Beispiel“.
-- „Bearbeiten“ im Seitenpanel eines Filaments öffnet ein Formular (`e2/pages/filament-editor.js`) mit den Feldern aus `editable_fields`, gruppiert nach Allgemein, Temperaturen, Fluss, Material und Kühlung:
-  - Oben stehen der Name, groß und änderbar, und die Spule als Vorschau der Farbe.
-  - Ein leeres Feld zeigt grau den Wert der Vorlage („von Vorlage“). Ein abweichender Wert ist orange markiert, wie „Wert geändert“ in Orca, und hat „Zurücksetzen“. Werte mit zweitem Wert für High Flow bekommen zwei kleine Felder.
-  - Ein Profil vom Hersteller oder aus der Bibliothek bleibt unverändert. Das Ergebnis wird ein eigenes Filament „<Name> (eigen)“, das oben im Formular angekündigt wird.
-  - Geprüft wird direkt am Feld: Name nicht leer, nicht doppelt und ohne die Zeichen, die der Slicer ablehnt, außerdem Zahlen in sinnvollen Grenzen (Düse 150–350 °C).
-  - „Übernehmen“ legt einen Eintrag in der Änderungsliste an („umbenennen“, „ändern“, „neu anlegen“) und aktualisiert Kachel und Baum. Geschrieben wird nichts.
-  - Für eigene Profile liefert `make_data.py` je selbst gesetztem Wert auch den Wert der Vorlage (`inherited`).
-- „Slicer“ ist die technische Seite. Sie zeigt je Installation Ordner, Größen und Pakete und sagt, was Orfix ändert (nur `user/` und die `.conf`).
-- „Drucker“ zeigt je Druckermodell und je eigenem Drucker eine Karte mit Bild, Düsen und Etikett („Vom Hersteller“, „Eigener“, „Aus einem Projekt übernommen“, „Standard“). „Als Standard“ und „Entfernen“ bzw. „Löschen“ öffnen das Seitenpanel mit dem Plan. Beim Entfernen lassen sich Filamente und Prozesse mitlöschen, die nur zu diesem Drucker gehören. Darunter steht „Aufräumen“ für gemerkte Einträge ohne Drucker.
-- „Sicherungen“ zeigt oben die Gesamtgröße und „Jetzt sichern“, darunter alle Sicherungen nach Tagen. „Wiederherstellen“ zeigt im Seitenpanel, was zurückkommt und was wegfällt. Gelöscht wird nur von Hand.
-- Jede Aktion legt vorher eine Sicherung an, auch „Übernehmen“ unter „Filamente“. Eine Wiederherstellung wirkt sofort auf der Seite „Drucker“. Alles bleibt im Speicher (`live` und `backupNow` in `e2/common.js`).
-- Die Filamentschalter und die Bearbeitungen setzt eine Wiederherstellung noch nicht zurück. Umbenannte und neue Filamente kennen „Drucker“ und „Sicherungen“ noch nicht.
-- Adressen: `#/filamente`, `#/filamente/<installation>/<nummer>`, `#/drucker`, `#/sicherungen`, `#/slicer`.
-- E2 lädt ES-Module und läuft deshalb nur über den Orfix-Server, nicht per `file://`.
+  - Rechts im Menü stehen die Zahl der offenen Änderungen (oranger Punkt) und die Zahl der Sicherungen.
+- Oben rechts wählt man die Installation, daneben steht „Neu einlesen“. Überall heißt der Zustand gleich: „Geschlossen“, „Läuft – nur ansehen“ oder „Läuft vielleicht – nur ansehen“. Unter 700 px bleibt der Name, das Statuswort steht im Seitenkopf.
+- Am Etikett „Entwurf“ sitzt der Schalter „Beispiele“. Er ist aus, dann zeigt E2 nur, was es wirklich gibt (Teil A von `docs/TEST-VERGLEICH.md`). Eingeschaltet kommen die Beispielprofile aus `make_data.py` dazu, mit dem Etikett „Beispiel“, auch im Ordnerbaum und bei den Größen.
+- „Filamente“ ist E als Komponente (`e2/pages/filamente.js`). Sie folgt den anderen Seiten: Ein entfernter Drucker verschwindet, mitgelöschte oder wiederhergestellte eigene Filamente ebenso. Eigene Drucker bekommen eine eigene Karte mit dem Bild ihres Basismodells.
+- Ein Formular für alles (`e2/pages/filament-editor.js`):
+  - „Bearbeiten“ ändert ein eigenes Filament. Bei einem Profil vom Hersteller oder aus der Bibliothek wird daraus ein eigenes Filament „<Name> (eigen)“. Ohne Änderung meldet es „Nichts geändert“ und legt nichts an.
+  - „Neues Filament“ fragt zuerst nach der Vorlage, dann kommt dasselbe Formular. Das Ablageziel „Neues Filament daraus“ beim Ziehen öffnet es direkt.
+  - Die Felder kommen aus `editable_fields`, gruppiert nach Allgemein, Temperaturen, Fluss, Material und Kühlung. Ein leeres Feld zeigt grau den Wert der Vorlage, ein abweichender ist orange markiert und hat „Zurücksetzen“.
+  - Der Knopf heißt „Fertig“ (bzw. „Anlegen“). Er legt nur einen Eintrag in der Änderungsliste an, geschrieben wird erst mit „Übernehmen …“.
+  - Wer Eingetipptes verlassen würde (Escape, X, andere Zeile, Menü), bekommt „Änderungen verwerfen?“. Vor- und Zurück im Browser fragen nicht.
+- „Drucker“ zeigt je Druckermodell und je eigenem Drucker eine Karte. „Als Standard“ und „Entfernen“ bzw. „Löschen“ öffnen das Seitenpanel mit dem Plan.
+  - Beim Entfernen lassen sich Filamente und Prozesse mitlöschen, die nur zu diesem Drucker gehören.
+  - Ist es das letzte Modell eines Herstellers und löscht der Slicer dann das Paket (`drops_package`, FINDINGS 4.2), nennt der Plan das Paket und die eigenen Drucker, die unsichtbar werden. Mit den Daten dieses Rechners kommt das nicht vor: SnOrca behält Snapmaker, Orca 2.5 ohne `enable_ota` löscht nichts.
+  - Darunter steht „Aufräumen“ für gemerkte Einträge ohne Drucker.
+- „Sicherungen“ zeigt oben die Gesamtgröße und „Jetzt sichern“, darunter alle Sicherungen nach Tagen. Ein Klick auf eine Sicherung öffnet das Seitenpanel mit „Kommt zurück“, „Fällt weg“, „Wiederherstellen“ und „Löschen“.
+- „Slicer“ ist die technische Seite und übernimmt die jetzige Startseite:
+  - alle Installationen mit Grund für „nur ansehen“ (Sperrdatei, Prozess, PID), Konto samt Cloud-Hinweis und Problemen (`conf_unreadable`, `dir_unreadable`);
+  - „Hinweise“ aus `warnings`;
+  - Ordnerbaum nach Kategorie sortiert, Profile als eine Zeile `.json + .info`, das Kategorie-Etikett nur, wo es vom Ordner darüber abweicht;
+  - Pakete, Einstellungsdatei, Sicherung und „Datenordner hinzufügen“. Ein hinzugefügter Ordner erscheint als Karte mit „Entfernen“, eingelesen wird er im Entwurf nicht.
+- Jede Aktion legt vorher eine Sicherung an. Alles bleibt im Speicher (`live` und `backupNow` in `e2/common.js`).
+- Eine Wiederherstellung setzt die Filamentschalter, offene Bearbeitungen und unter „Filamente“ gelöschte Filamente noch nicht zurück.
+- Adressen tragen die Installation: `#/filamente/<installation>`, `#/filamente/<installation>/<nummer>`, `#/drucker/<installation>`, `#/sicherungen/<installation>`, `#/slicer/<installation>`.
+- Zustände zum Ansehen ohne passenden Rechner: `index.html?laeuft` (erste Installation läuft), `?vielleicht` (Prozess ohne bekannten Datenordner), `?leer` (keine Installation gefunden).
+- E2 lädt ES-Module und läuft deshalb nur über den Orfix-Server, nicht per `file://`. Texte zu Problemen, Konto und „keine Installation“ kommen aus `orfix/static/texts.js`.
 
 ## Ansehen
 

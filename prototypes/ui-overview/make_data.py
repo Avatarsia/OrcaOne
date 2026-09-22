@@ -7,9 +7,12 @@ installed system printers from "models", compatibility via compatible_printers,
 the library exclusion by alias, visibility via the "filaments" list.
 Filament colours come from default_filament_colour or, in SnOrca, from the vendor's
 filaments_colours.json; printer pictures are the copies in assets/.
+Own printers the slicer loads get a model entry of their own, with the picture of their
+base model. Everything marked "example" does not exist on disk; the drafts hide it by default.
 Per instance it also builds the data for the pages "Slicer" (facts, packages, folder
 tree, FINDINGS 4.2/4.3), "Drucker" (printers, default, stale orca_presets entries,
-FINDINGS 4.9) and "Sicherungen" (example backups sized like a real one, hard rule 4).
+packages the slicer drops, FINDINGS 4.2/4.9) and "Sicherungen" (example backups sized like
+a real one, hard rule 4), plus why a slicer counts as running (FINDINGS 4.1).
 Standard library only. The .opc files are read with prototypes/opc/opc_read.py.
 
 Usage: python3 make_data.py
@@ -546,6 +549,24 @@ def problems_of(path):
     return ["dir_unreadable"] if errors else []
 
 
+def ota_enabled(inst):
+    return (inst.conf.get("app") or {}).get("enable_ota") in (True, "true", "1")
+
+
+def drops_unused_package(inst, package):
+    """Whether the slicer deletes this vendor package at its next start once no model of it is
+    left in "models" (FINDINGS 4.2, PresetUpdater::check_installed_vendor_profiles). Each slicer
+    keeps its own package: Snapmaker in SnOrca, Custom in Orca. Orca main (.opc) only touches
+    installed vendors with app.enable_ota."""
+    if package == LIBRARY:
+        return False
+    if inst.key == "snorca":
+        return package != "Snapmaker"
+    if inst.storage == "opc" and not ota_enabled(inst):
+        return False
+    return package != "Custom"
+
+
 def display_version(version):
     # "02.03.03.03" -> "2.3.3.3"; the .opc stamp "2.4.0.15" stays as it is.
     return ".".join(str(int(part)) if part.isdigit() else part for part in version.split("."))
@@ -849,7 +870,7 @@ def slicer_page(inst, app_key, conf_text, indent, backup, running_now):
         refresh = {"value": True, "text": "Snapmaker Orca erneuert die Herstellerpakete bei jedem Start."}
     elif inst.storage == "opc":
         # Orca main refreshes installed vendors only with app.enable_ota (FINDINGS 4.2).
-        on = app.get("enable_ota") in (True, "true", "1")
+        on = ota_enabled(inst)
         refresh = {"value": on, "text": "OrcaSlicer erneuert die Herstellerpakete beim Start." if on else
                    "OrcaSlicer erneuert installierte Herstellerpakete nicht, er ergänzt nur fehlende. "
                    "Die Bibliothek kopiert er bei jedem Start neu."}
@@ -1023,14 +1044,18 @@ def printers_page(inst, out_models, all_printers, selected):
                           "visible_filaments": v["counts"]["visible"], "processes": v["process_count"]}
                          for v in m["printers"]],
             "own_printers": based, "only_here": only_on(inst, names),
+            # Whether it is the last model of its package is up to the page: it can change there.
+            "drops_package": drops_unused_package(inst, m["origin"]),
         })
 
     own = []
     for p in own_printers:
         chain, complete = chain_of(inst, p)
         model = first(lookup(p, chain, "printer_model")[0]) if complete else None
+        base = next((c for c in chain if c.package), None) if complete else None
         entry = {
             "name": p.name, "based_on": p.inherits or None, "based_on_found": complete and bool(p.inherits),
+            "package": base.package if base else None,
             "model": model, "variant": first(lookup(p, chain, "printer_variant")[0]) if complete else None,
             "cover": COVERS.get(model, PLACEHOLDER_COVER), "visible": complete, "default": p.name == selected,
             "origin": EXAMPLE_ORIGINS.get(p.name, "Eigener Drucker"),
@@ -1130,7 +1155,29 @@ def backups_page(inst, app_key, backup, indent):
     }
 
 
-def build(key, slicer, path, conf_name, process_names):
+def fits(printer, cps):
+    """is_compatible_with_printer without the condition: an empty list fits every printer, an own
+    printer also takes the profiles of its direct parent (FINDINGS 4.6, rule 3)."""
+    return not cps or printer.name in cps or (not printer.package and printer.inherits in cps)
+
+
+def own_printer_models(inst):
+    """Own printers the slicer loads, one model each: base model, variant and vendor package
+    come from the template chain. A printer with a broken chain is not loaded (FINDINGS 4.4)."""
+    out = []
+    for p in sorted((p for p in inst.of_kind("machine") if not p.package and p.selectable),
+                    key=lambda p: p.name.lower()):
+        chain, complete = chain_of(inst, p)
+        if not complete:
+            continue
+        base = next((c for c in chain if c.package), None)
+        out.append({"printer": p, "model": first(lookup(p, chain, "printer_model")[0]) or "",
+                    "variant": first(lookup(p, chain, "printer_variant")[0]) or "",
+                    "package": base.package if base else ""})
+    return out
+
+
+def build(key, slicer, path, conf_name, process_names, appimage_markers):
     conf_text = (path / conf_name).read_text(encoding="utf-8")
     # A Windows .conf ends with an MD5 line after the JSON (FINDINGS 4.3).
     conf = json.loads(re.sub(r"\n# MD5 checksum [0-9A-Fa-f]{32}\n?\Z", "\n", conf_text))
@@ -1142,10 +1189,14 @@ def build(key, slicer, path, conf_name, process_names):
     snorca = key == "snorca"
 
     models = installed_printers(inst)
-    all_printers = [p for m in models for _, p in m["printers"]]
-    u1 = [p.name for p in all_printers if p.name.startswith("Snapmaker U1")]
-    for example in example_profiles(u1):
+    system_printers = [p for m in models for _, p in m["printers"]]
+    u1 = [p.name for p in system_printers if p.name.startswith("Snapmaker U1")]
+    # All examples come in before anything is resolved, so every page sees the same ones and the
+    # example printer "Mein U1" gets its own card on the page "Filamente".
+    for example in example_profiles(u1) + printer_examples(inst):
         inst.add(example)
+    own_models = own_printer_models(inst)
+    all_printers = system_printers + [o["printer"] for o in own_models]
 
     filament_list = conf.get("filaments") or []
     list_names = set(filament_list)
@@ -1167,8 +1218,7 @@ def build(key, slicer, path, conf_name, process_names):
             records[p.name] = record
             continue
         for printer in all_printers:
-            cps = record["compatible_printers"]
-            if cps and printer.name not in cps:
+            if not fits(printer, record["compatible_printers"]):
                 continue
             by = excluded.get(p.name, {}).get(printer.name)
             if not by and not snorca:
@@ -1187,35 +1237,37 @@ def build(key, slicer, path, conf_name, process_names):
             records[p.name] = record
 
     processes = [p for p in inst.of_kind("process") if p.selectable]
-    out_models = []
     same_alias = []
-    for m in models:
-        variants = []
-        for variant, printer in m["printers"]:
-            rows, counts = [], {"visible": 0, "hidden": 0, "displaced": 0}
-            for r in records.values():
-                entry = r["printers"].get(printer.name)
-                if not entry:
-                    continue
-                counts[entry["status"]] += 1
-                rows.append({"name": r["name"], **entry})
-            proc_names = sorted(p.name for p in processes
-                                if not compatible_printers(inst, p) or printer.name in compatible_printers(inst, p))
-            if snorca:
-                # SnOrca's sidebar shows only one system filament per alias (FINDINGS 4.6).
-                seen = {}
-                for row in rows:
-                    r = records[row["name"]]
-                    if row["status"] == "visible" and r["origin_kind"] != "user":
-                        seen.setdefault(r["alias"], []).append(r["name"])
-                same_alias += [(printer.name, names) for names in seen.values() if len(names) > 1]
-            variants.append({
-                "name": printer.name, "variant": variant, "selected": printer.name == selected,
-                "counts": counts,
-                "process_count": len(proc_names), "processes": proc_names,
-            })
-        out_models.append({"model": m["model"], "origin": m["package"], "printers": variants,
-                           "cover": COVERS.get(m["model"], PLACEHOLDER_COVER)})
+
+    def variant_entry(variant, printer):
+        rows, counts = [], {"visible": 0, "hidden": 0, "displaced": 0}
+        for r in records.values():
+            entry = r["printers"].get(printer.name)
+            if not entry:
+                continue
+            counts[entry["status"]] += 1
+            rows.append({"name": r["name"], **entry})
+        proc_names = sorted(p.name for p in processes if fits(printer, compatible_printers(inst, p)))
+        if snorca and not printer.example:
+            # SnOrca's sidebar shows only one system filament per alias (FINDINGS 4.6).
+            seen = {}
+            for row in rows:
+                r = records[row["name"]]
+                if row["status"] == "visible" and r["origin_kind"] != "user":
+                    seen.setdefault(r["alias"], []).append(r["name"])
+            same_alias.extend((printer.name, names) for names in seen.values() if len(names) > 1)
+        return {"name": printer.name, "variant": variant, "selected": printer.name == selected,
+                "counts": counts, "process_count": len(proc_names), "processes": proc_names}
+
+    system_models = [{"model": m["model"], "origin": m["package"],
+                      "printers": [variant_entry(variant, printer) for variant, printer in m["printers"]],
+                      "cover": COVERS.get(m["model"], PLACEHOLDER_COVER)} for m in models]
+    # Own printers after the system models, so a model keeps its index (and its address).
+    out_models = system_models + [
+        {"model": o["printer"].name, "origin": o["package"], "own": True, "based_on": o["model"],
+         "printers": [variant_entry(o["variant"], o["printer"])],
+         "cover": COVERS.get(o["model"], PLACEHOLDER_COVER), **({"example": True} if o["printer"].example else {})}
+        for o in own_models]
 
     without_printer = []
     for name in filament_list:
@@ -1238,6 +1290,7 @@ def build(key, slicer, path, conf_name, process_names):
             warnings.append({
                 "code": "orphaned", "level": "error", "count": 1, "text": f"„{r['name']}“: {r['problem']}",
                 "action": "Einem vorhandenen Profil zuordnen oder löschen.", "names": [r["name"]],
+                **({"example": True} if r.get("example") else {}),
             })
     for printer_name, names in same_alias:
         warnings.append({
@@ -1246,8 +1299,10 @@ def build(key, slicer, path, conf_name, process_names):
             "action": "Eins davon ausblenden.", "names": names,
         })
     if snorca:
+        # Real printers only: the example printer "Mein U1" does not exist in the slicer.
+        real = {p.name for p in all_printers if not p.example}
         unlockable = {r["name"] for r in records.values()
-                      if any(e.get("hint") for e in r["printers"].values())}
+                      if any(e.get("hint") for name, e in r["printers"].items() if name in real)}
         if unlockable:
             warnings.append({
                 "code": "library_hidden", "level": "info", "count": len(unlockable),
@@ -1256,12 +1311,9 @@ def build(key, slicer, path, conf_name, process_names):
                 "action": "Einzelne Profile freischalten.", "names": sorted(unlockable),
             })
 
-    # The pages "Slicer", "Drucker" and "Sicherungen". Their examples come in only now, so the
-    # data above for the page "Filamente" stays as it was.
-    for example in printer_examples(inst):
-        inst.add(example)
     app_key = conf_name.rsplit(".", 1)[0]
-    running_now = running(process_names)
+    state = run_state(path, process_names, appimage_markers)
+    running_now = state["running"]
     backup = backup_measure(path)
     # Profiles are written with the indent of the .conf: tab in Orca >= 2.4.0 (FINDINGS 4.3).
     indent_match = re.match(r"\{\n([ \t]+)\S", conf_text)
@@ -1272,6 +1324,9 @@ def build(key, slicer, path, conf_name, process_names):
         "id": key, "slicer": slicer, "header": header, "version": header.rsplit(" ", 1)[-1],
         "path": "~/" + str(path.relative_to(Path.home())), "storage": inst.storage,
         "running": running_now,
+        # Why Orfix only shows: "lock", "process" or "process_unmapped" (orfix/guard.py).
+        "running_reason": {"code": state["reason"], "pids": state["pids"], "lock": state["lock"]} if running_now else None,
+        "problems": problems_of(path),
         "logged_in": (conf.get("app") or {}).get("preset_folder", "") != "",
         "selected_printer": selected,
         "filament_list": {"mode": "list" if filament_list else "all", "count": len(filament_list)},
@@ -1289,18 +1344,20 @@ def build(key, slicer, path, conf_name, process_names):
                             for m in out_models for v in m["printers"]},
         },
         "slicer_page": slicer_page(inst, app_key, conf_text, indent, backup, running_now),
-        "printers_page": printers_page(inst, out_models, all_printers, selected),
+        "printers_page": printers_page(inst, system_models, system_printers, selected),
         "backups_page": backups_page(inst, app_key, backup, indent),
     }
 
 
 def main():
     home = Path.home()
+    # Process names and the AppImage name markers as in orfix/guard.py.
     instances = [
         build("snorca", "Snapmaker Orca", home / ".config" / "Snapmaker_Orca", "Snapmaker_Orca.conf",
-              {"snapmaker-orca", "Snapmaker_Orca", "Snapmaker Orca"}),
+              {"snapmaker-orca", "Snapmaker_Orca", "Snapmaker Orca"},
+              ("snapmaker_orca", "snapmaker-orca", "snapmaker orca")),
         build("orca", "OrcaSlicer", home / ".config" / "OrcaSlicer", "OrcaSlicer.conf",
-              {"orca-slicer", "OrcaSlicer"}),
+              {"orca-slicer", "OrcaSlicer"}, ("orcaslicer", "orca-slicer", "orca_slicer")),
     ]
     data = {"generated": datetime.now().isoformat(timespec="seconds"), "labels": LABELS,
             "core_values": [{"key": k, "label": label, "unit": unit} for k, label, unit in CORE_VALUES],

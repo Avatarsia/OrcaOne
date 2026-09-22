@@ -6,8 +6,16 @@ const { reactive, ref } = Vue;
 export const DATA = window.ORFIX_DATA;
 export const LABELS = DATA.labels;
 
-export const INSTANCES = DATA.instances.map((inst) => ({
+// Draft only, to look at states the data of this machine does not have: ?leer shows Orfix
+// without any installation, ?laeuft and ?vielleicht let the first installation run (known or
+// unsure data directory, FINDINGS 4.1).
+const SIMULATE = new URLSearchParams(location.search);
+const RUN_DEMO = SIMULATE.has("laeuft") ? { code: "lock", pids: [4711], lock: "cache/1520934887.lock" }
+  : SIMULATE.has("vielleicht") ? { code: "process_unmapped", pids: [4711], lock: null } : null;
+
+export const INSTANCES = (SIMULATE.has("leer") ? [] : DATA.instances).map((inst, n) => ({
   ...inst,
+  ...(n === 0 && RUN_DEMO && { running: true, running_reason: RUN_DEMO }),
   snorca: inst.id === "snorca",
   byName: new Map(inst.filaments.map((f) => [f.name, f])),
 }));
@@ -16,16 +24,19 @@ export const INSTANCES = DATA.instances.map((inst) => ({
 export const asset = (path) => "../" + path;
 
 // ------------------------------------------------------------ routing
-// #/filamente, #/filamente/<installation>/<model index>, #/drucker, #/sicherungen, #/slicer
+// #/<page>/<installation>, for one printer #/filamente/<installation>/<model index>. The
+// installation is part of the address, so a reload stays with it.
 export const PAGE_IDS = ["filamente", "drucker", "sicherungen", "slicer"];
 
 export function parseHash(hash) {
   const [page, instId, idx] = hash.replace(/^#\/?/, "").split("/");
   if (!PAGE_IDS.includes(page)) return { page: "filamente", instId: null, modelIdx: null };
-  const inst = page === "filamente" ? INSTANCES.find((i) => i.id === instId) : null;
-  const ok = !!inst && /^\d+$/.test(idx || "") && !!inst.models[+idx];
-  return { page, instId: ok ? inst.id : null, modelIdx: ok ? +idx : null };
+  const inst = INSTANCES.find((i) => i.id === instId) || null;
+  const ok = page === "filamente" && !!inst && /^\d+$/.test(idx || "") && !!inst.models[+idx];
+  return { page, instId: inst ? inst.id : null, modelIdx: ok ? +idx : null };
 }
+export const hashOf = (page, instId, modelIdx = null) =>
+  "#/" + page + (instId ? "/" + instId : "") + (modelIdx === null ? "" : "/" + modelIdx);
 
 export const route = ref(parseHash(location.hash));
 
@@ -34,23 +45,55 @@ export function syncRoute(hash = location.hash) {
   if (next.page !== cur.page || next.instId !== cur.instId || next.modelIdx !== cur.modelIdx) route.value = next;
 }
 
+// A page with input that is not saved yet (the filament form) sets a guard. The guard gets the
+// step that leaves the page and runs it, after asking if needed. Back and forward in the
+// browser do not pass here.
+let leaveGuard = null;
+export const setLeaveGuard = (fn) => { leaveGuard = fn; };
+export const clearLeaveGuard = (fn) => { if (leaveGuard === fn) leaveGuard = null; };
+export const leave = (step) => (leaveGuard ? leaveGuard(step) : step());
+
 // Internal links set the route right away, so the view never depends on the "hashchange"
 // event alone (draft E sometimes kept the old view after a click). Back, forward and typed
 // URLs still arrive through the listener in app.js.
 export function go(ev, hash) {
   if (ev && (ev.button > 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey)) return;  // new tab or window
   if (ev) ev.preventDefault();
-  if (location.hash !== hash) location.hash = hash;
-  syncRoute(hash);
+  leave(() => {
+    if (location.hash !== hash) location.hash = hash;
+    syncRoute(hash);
+  });
 }
 
 // ------------------------------------------------------------ shared state
-// The chosen installation; a printer link carries its own and app.js follows it.
-export const ui = reactive({ instId: route.value.instId || INSTANCES[0].id, toast: "" });
+// The chosen installation follows the address (app.js). "examples" shows the example profiles
+// of make_data.py; off by default, because the slicer does not have them (docs/TEST-VERGLEICH.md, part A).
+export const ui = reactive({ instId: route.value.instId || INSTANCES[0]?.id || null, toast: "", examples: false });
+export const showExample = (x) => ui.examples || !x.example;
 
-// What the pages "Drucker" and "Sicherungen" change, per installation: own profiles (files in
-// user/), the printer models switched on, the default printer and the stale "orca_presets"
-// entries (all three in the .conf). A backup keeps a copy, restoring puts it back. Memory only.
+// One word per state on every page, as in orfix/static/texts.js, but "nur ansehen" as on the pages.
+export function statusText(inst) {
+  if (!inst.running) return "Geschlossen";
+  return inst.running_reason?.code === "process_unmapped" ? "Läuft vielleicht – nur ansehen" : "Läuft – nur ansehen";
+}
+// First sentence of the read-only banner on the pages; the page adds what to do.
+export const busyText = (inst) => inst.running_reason?.code === "process_unmapped"
+  ? `Vielleicht läuft ${inst.slicer} gerade.` : `${inst.slicer} ist offen.`;
+// Why Orfix only shows (hard rule 3), in the words of orfix/static/texts.js.
+export function runReason(inst) {
+  const r = inst.running_reason;
+  if (!inst.running || !r) return "";
+  const pids = r.pids.join(", ");
+  if (r.code === "lock") return `${inst.slicer} läuft gerade (PID ${pids}) und hält die Sperrdatei ${r.lock}.`;
+  if (r.code === "process") return `${inst.slicer} läuft gerade mit diesem Datenordner (PID ${pids}).`;
+  return `Ein Prozess von ${inst.slicer} läuft (PID ${pids}), sein Datenordner ist unbekannt. `
+    + `Deshalb sind alle Installationen von ${inst.slicer} schreibgeschützt.`;
+}
+
+// What the pages "Drucker", "Sicherungen" and "Filamente" change, per installation: own profiles
+// (files in user/), the printer models switched on and the vendor packages in system/, the
+// default printer and the stale "orca_presets" entries (in the .conf). A backup keeps a copy,
+// restoring puts it back. Memory only.
 export function initialLive(inst) {
   const pp = inst.printers_page;
   const own = new Set(inst.filaments.filter((f) => f.origin_kind === "user").map((f) => f.name));
@@ -59,11 +102,15 @@ export function initialLive(inst) {
   return {
     own,
     models: new Set(pp.system.map((m) => m.model)),
+    packages: new Set(pp.system.map((m) => m.origin)),
     defaultPrinter: pp.default_printer.name,
     dead: pp.dead_entries.map((d) => d.machine),
   };
 }
-export const copyLive = (s) => ({ own: new Set(s.own), models: new Set(s.models), defaultPrinter: s.defaultPrinter, dead: [...s.dead] });
+export const copyLive = (s) => ({
+  own: new Set(s.own), models: new Set(s.models), packages: new Set(s.packages),
+  defaultPrinter: s.defaultPrinter, dead: [...s.dead],
+});
 export const live = reactive(Object.fromEntries(INSTANCES.map((i) => [i.id, initialLive(i)])));
 
 // Own profiles by name, for the lists "Kommt zurück" and "Fällt weg" and the printer cards.
@@ -139,6 +186,7 @@ export function fmtSize(bytes) {
 export const timeText = (d) => d.toLocaleString("de-DE", {
   day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
 });
+export const generatedText = timeText(new Date(DATA.generated));
 
 // ------------------------------------------------------------ icons
 // 24x24, stroke = currentColor, so hover, the active menu entry and dark mode colour them.
@@ -175,6 +223,7 @@ export const ICONS = {
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3.5V6M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M4.5 12a7.5 7.5 0 0 1 13-5.1"/><path d="M17.5 3.5v3.4h-3.4M6.5 20.5v-3.4h3.4"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
+  warn: '<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.2"/>',
   star: '<path d="m12 3.8 2.5 5.2 5.7.8-4.1 4 1 5.7L12 16.8l-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/>',
   broom: '<path d="M14.5 3.5 11 11"/><path d="M7.5 11.5h7l2 9h-11z"/><path d="M9 16v4.5M12 16v4.5"/>',
 };
@@ -213,5 +262,12 @@ export function registerCommon(app) {
     props: { name: { type: String, required: true }, size: { type: Number, default: 18 } },
     computed: { paths() { return ICONS[this.name] || ""; } },
     template: `<svg class="icon" viewBox="0 0 24 24" :width="size" :height="size" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="paths"></svg>`,
+  });
+
+  // State of an installation as text plus colour, the same words on every page.
+  app.component("run-status", {
+    props: { inst: { type: Object, required: true } },
+    computed: { text() { return statusText(this.inst); } },
+    template: `<span :class="['status', { 'status--busy': inst.running }]">{{ text }}</span>`,
   });
 }

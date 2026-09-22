@@ -1,11 +1,12 @@
 // Page "Sicherungen": every backup of the chosen installation with time, reason and size, the
-// total on top and "Jetzt sichern"; per backup "Wiederherstellen" and "Löschen". Orfix never
-// deletes a backup by itself (hard rule 4). Data: ORFIX_DATA.instances[].backups_page plus the
-// backups made in this session (common.js). Restoring puts the saved state back into `live`,
-// so the page "Drucker" shows it at once. Memory only.
+// total on top and "Jetzt sichern". A click on a backup opens the side panel with what restoring
+// would change, "Wiederherstellen" and "Löschen". Orfix never deletes a backup by itself (hard
+// rule 4). Data: ORFIX_DATA.instances[].backups_page plus the backups made in this session
+// (common.js). Restoring puts the saved state back into `live`, so "Drucker" and "Filamente"
+// show it at once. Memory only.
 import {
-  INSTANCES, live, initialLive, copyLive, sessionBackups, backupNow, flash, fmtSize, plural,
-  printerShortName, printerText, profileInfo, profileSub, KIND_ICON,
+  INSTANCES, live, ui, showExample, busyText, initialLive, copyLive, sessionBackups, backupNow, flash, fmtSize,
+  plural, printerShortName, printerText, profileInfo, profileSub, KIND_ICON,
 } from "../common.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
@@ -30,6 +31,11 @@ const EXAMPLES = new Map(INSTANCES.map((inst) => {
 // Backups deleted in this session; module level, so they stay gone after a trip to another page.
 const deleted = reactive(new Set());
 const keyOf = (b) => b.instId + ":" + b.id;
+// All backups of an installation, also deleted and hidden ones, for "Danach wiederhergestellt".
+const knownOf = (instId) => [...sessionBackups.filter((b) => b.instId === instId), ...(EXAMPLES.get(instId) || [])];
+// What the list shows, newest first. The main menu shows the number, too (app.js).
+export const backupsOf = (instId) => knownOf(instId)
+  .filter((b) => !deleted.has(keyOf(b)) && showExample(b)).sort((a, b) => b.time - a.time);
 
 // "Heute", "Gestern", else weekday and date.
 function dayLabel(d) {
@@ -57,8 +63,8 @@ export default {
     const bp = computed(() => inst.value.backups_page);
     const readOnly = computed(() => !!inst.value.running);
 
-    const known = computed(() => [...sessionBackups.filter((b) => b.instId === props.instId), ...EXAMPLES.get(props.instId)]);
-    const backups = computed(() => known.value.filter((b) => !deleted.has(keyOf(b))).sort((a, b) => b.time - a.time));
+    const known = computed(() => knownOf(props.instId));
+    const backups = computed(() => backupsOf(props.instId));
     const total = computed(() => backups.value.reduce((sum, b) => sum + b.size, 0));
     const groups = computed(() => {
       const out = [];
@@ -82,7 +88,7 @@ export default {
     }
 
     // ------------------------------------------------------------ panel
-    const panel = ref(null);  // { type: "restore" | "delete", key }
+    const panel = ref(null);  // { type: "backup" | "delete", key }
     let lastFocus = null;
     const pb = computed(() => panel.value && backups.value.find((b) => keyOf(b) === panel.value.key) || null);
     function openPanel(type, b) {
@@ -110,7 +116,10 @@ export default {
         if (was && !is) back.push({ icon: "printer", name, sub: "Drucker vom Hersteller, wird wieder eingeschaltet" });
         if (!was && is) gone.push({ icon: "printer", name, sub: "Drucker vom Hersteller, wird abgeschaltet" });
       }
-      const own = (names) => [...names].map((n) => profileInfo(i, n))
+      for (const p of then.packages) {
+        if (!now.packages.has(p)) back.push({ icon: "factory", name: p, sub: "Herstellerpaket, der Slicer installiert es beim nächsten Start wieder" });
+      }
+      const own = (names) => [...names].map((n) => profileInfo(i, n)).filter(showExample)
         .sort((x, y) => KIND_ORDER.indexOf(x.kind) - KIND_ORDER.indexOf(y.kind) || x.name.localeCompare(y.name, "de"))
         .map((p) => ({ icon: KIND_ICON[p.kind], name: p.name, sub: profileSub(p), example: p.example }));
       back.push(...own([...then.own].filter((n) => !now.own.has(n))));
@@ -127,7 +136,7 @@ export default {
       fresh.value = backupNow(inst.value, { kind: "restore", reason: "vor Wiederherstellen", restored: b.id }).id;
       Object.assign(live[inst.value.id], copyLive(b.snapshot));
       closePanel();
-      flash(`Stand von ${when} zurückgeholt` + DONE);
+      flash(`Wiederhergestellt: Stand von ${when}` + DONE);
     }
     function removeBackup() {
       const b = pb.value;
@@ -136,16 +145,16 @@ export default {
       closePanel();
       flash("Sicherung gelöscht" + DONE);
     }
-    const panelTitle = computed(() => panel.value && ({ restore: "Wiederherstellen", delete: "Sicherung löschen" })[panel.value.type]);
+    const panelTitle = computed(() => panel.value && ({ backup: "Sicherung", delete: "Sicherung löschen" })[panel.value.type]);
 
     const onKey = (ev) => { if (ev.key === "Escape" && panel.value) closePanel(); };
     onMounted(() => window.addEventListener("keydown", onKey));
     onUnmounted(() => window.removeEventListener("keydown", onKey));
 
     return {
-      KINDS, inst, bp, readOnly, backups, total, groups, fresh, panel, pb, diff, panelTitle,
+      KINDS, ui, inst, bp, readOnly, backups, total, groups, fresh, panel, pb, diff, panelTitle,
       backupManual, openPanel, closePanel, restore, removeBackup, restoredText, keyOf,
-      titleOf, whenText, clock, fmtSize, plural,
+      titleOf, whenText, clock, fmtSize, plural, busyText,
     };
   },
 
@@ -157,9 +166,9 @@ export default {
             <h1 id="page-title" tabindex="-1">Sicherungen</h1>
             <p>{{ inst.slicer }} {{ inst.version }}</p>
           </div>
-          <span :class="['status', { 'status--busy': inst.running }]">{{ inst.running ? 'Läuft – nur ansehen' : 'Geschlossen' }}</span>
+          <run-status :inst="inst"/>
         </div>
-        <p v-if="readOnly" class="banner">{{ inst.slicer }} ist offen. Sichern geht, zum Wiederherstellen bitte den Slicer schließen.</p>
+        <p v-if="readOnly" class="banner">{{ busyText(inst) }} Sichern geht, zum Wiederherstellen bitte den Slicer schließen.</p>
 
         <section class="box bk-summary" aria-label="Überblick">
           <span class="bk-summary-icon"><ui-icon name="backup" :size="34"/></span>
@@ -171,7 +180,7 @@ export default {
           </div>
           <button class="btn btn-primary" type="button" @click="backupManual"><ui-icon name="plus"/>Jetzt sichern</button>
           <p class="bk-summary-note">
-            Orfix sichert vor jeder Änderung von selbst und löscht nie eine Sicherung. Eine neue braucht etwa {{ fmtSize(bp.now.zip_size) }}.
+            Orfix sichert vor jeder Änderung automatisch und löscht keine Sicherung von selbst. Eine neue braucht etwa {{ fmtSize(bp.now.zip_size) }}.
           </p>
           <p class="secret-note bk-secret"><ui-icon name="key"/><span>Sicherungen enthalten die Zugangsdaten deiner Drucker. Bitte nicht weitergeben.</span></p>
         </section>
@@ -182,31 +191,32 @@ export default {
             <span class="count">{{ backups.length }}</span>
             <span class="sub">Neueste zuerst</span>
           </div>
-          <p v-if="!backups.length" class="empty">Noch keine Sicherung. Orfix legt vor jeder Änderung eine an.</p>
+          <p v-if="!backups.length" class="empty">
+            Noch keine Sicherung. Orfix legt vor jeder Änderung eine an.
+            <template v-if="!ui.examples"><br>Beispiele zeigt der Schalter „Beispiele“ oben.</template>
+          </p>
           <template v-for="g in groups" :key="g.label">
             <h3 class="day-h">{{ g.label }}</h3>
             <ul class="bk-list">
-              <li v-for="b in g.items" :key="keyOf(b)" :class="['bk-row', { 'is-fresh': b.id === fresh, 'is-selected': panel && panel.key === keyOf(b) }]">
-                <span class="kind-icon" :title="KINDS[b.kind].text"><ui-icon :name="KINDS[b.kind].icon"/></span>
-                <div class="bk-text">
-                  <p class="bk-title">
-                    {{ titleOf(b) }}
-                    <span v-if="b.example" class="tag-example" title="Nur im Entwurf, diese Sicherung gibt es nicht">Beispiel</span>
-                  </p>
-                  <p class="bk-sub">{{ clock(b.time) }}<template v-if="b.detail"> · {{ b.detail }}</template></p>
-                  <p v-if="b.restored" class="bk-sub">Danach zurückgeholt: {{ restoredText(b) }}</p>
-                </div>
-                <span class="bk-size">{{ fmtSize(b.size) }}</span>
-                <div class="bk-actions">
-                  <button class="btn" type="button" @click="openPanel('restore', b)"><ui-icon name="backup"/>Wiederherstellen</button>
-                  <button class="btn btn-danger" type="button" @click="openPanel('delete', b)"><ui-icon name="trash"/>Löschen</button>
-                </div>
+              <li v-for="b in g.items" :key="keyOf(b)">
+                <button type="button" :class="['bk-row', { 'is-fresh': b.id === fresh, 'is-selected': panel && panel.key === keyOf(b) }]"
+                        :aria-current="panel && panel.key === keyOf(b) ? 'true' : null" @click="openPanel('backup', b)">
+                  <span class="kind-icon" :title="KINDS[b.kind].text"><ui-icon :name="KINDS[b.kind].icon"/></span>
+                  <span class="bk-text">
+                    <span class="bk-title">
+                      {{ titleOf(b) }}
+                      <span v-if="b.example" class="tag-example" title="Nur im Entwurf, diese Sicherung gibt es nicht">Beispiel</span>
+                    </span>
+                    <span class="bk-sub">{{ clock(b.time) }}<template v-if="b.detail"> · {{ b.detail }}</template></span>
+                    <span v-if="b.restored" class="bk-sub">Danach wiederhergestellt: {{ restoredText(b) }}</span>
+                  </span>
+                  <span class="bk-size">{{ fmtSize(b.size) }}</span>
+                  <ui-icon name="chevron" class="chev"/>
+                </button>
               </li>
             </ul>
           </template>
         </section>
-
-        <p class="note bk-where">Ablage: <code>{{ bp.location }}</code></p>
       </div>
     </div>
 
@@ -227,9 +237,9 @@ export default {
             </div>
           </div>
 
-          <template v-if="panel.type === 'restore'">
+          <template v-if="panel.type === 'backup'">
             <p :class="['state-note', { 'is-busy': readOnly }]">
-              <span :class="['status', { 'status--busy': readOnly }]">{{ readOnly ? 'Läuft' : 'Geschlossen' }}</span>
+              <run-status :inst="inst"/>
               <span>{{ readOnly ? inst.slicer + ' muss geschlossen sein. Bitte erst schließen.' : inst.slicer + ' muss geschlossen bleiben, bis Orfix fertig ist.' }}</span>
             </p>
 
@@ -270,16 +280,16 @@ export default {
             </details>
 
             <div class="actions">
-              <button class="btn" type="button" @click="closePanel">Abbrechen</button>
+              <button class="btn btn-danger" type="button" @click="openPanel('delete', pb)"><ui-icon name="trash"/>Löschen …</button>
               <button class="btn btn-primary right" type="button" :disabled="readOnly" @click="restore"><ui-icon name="backup"/>Wiederherstellen</button>
             </div>
           </template>
 
           <template v-else>
             <p class="plan-line"><ui-icon name="trash" class="ch-delete"/><span>Die Sicherung wird endgültig gelöscht. Das macht {{ fmtSize(pb.size) }} frei.</span></p>
-            <p v-if="backups.length === 1" class="alert">Das ist die letzte Sicherung. Danach kannst du nichts mehr zurückholen.</p>
+            <p v-if="backups.length === 1" class="alert">Das ist die letzte Sicherung. Danach lässt sich nichts mehr wiederherstellen.</p>
             <div class="actions">
-              <button class="btn" type="button" @click="closePanel">Abbrechen</button>
+              <button class="btn" type="button" @click="openPanel('backup', pb)">Zurück</button>
               <button class="btn btn-danger-solid right" type="button" @click="removeBackup"><ui-icon name="trash"/>Löschen</button>
             </div>
           </template>

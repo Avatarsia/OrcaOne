@@ -1,9 +1,15 @@
 // Page "Filamente", draft E as a component: printer cards first, then one printer with its
 // nozzle, the active filaments and one tree Eigene / Vom Hersteller / Orca-Bibliothek.
 // app.js mounts it fresh for every route, so no state leaks from one printer to the next.
-// "Bearbeiten" opens the form from filament-editor.js; its result is one more pending change.
-import { INSTANCES, flash, go, asset, backupNow, plural, nozzleLabel, printerShortName } from "../common.js";
-import FilamentEditor, { FIELDS, nameProblem, hexOf, changeText } from "./filament-editor.js";
+// Every way to a new or changed filament opens the form from filament-editor.js ("Bearbeiten",
+// "Neues Filament", the drop target); its result is one more pending change.
+// Cards and own filaments follow `live` (common.js), so what the pages "Drucker" and
+// "Sicherungen" change shows up here, too.
+import {
+  INSTANCES, live, ui, showExample, busyText, flash, go, hashOf, asset, backupNow, plural, nozzleLabel,
+  printerShortName, setLeaveGuard, clearLeaveGuard,
+} from "../common.js";
+import FilamentEditor, { FIELDS, hexOf, changeText } from "./filament-editor.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -48,16 +54,18 @@ const subOf = (e) => e.kind === "user" ? "Eigenes" : e.brand || e.material || ""
 const usesList = (inst, e) => e.kind === "vendor" || (e.kind === "library" && !inst.snorca);
 
 // make_data.py adds example own profiles the real slicer does not have. A library row that is
-// only on because of such a helper profile counts as example, too.
+// only on because of such a helper profile is on only while the examples are shown.
 const EXAMPLE_UNLOCKS = new Map(INSTANCES.map((i) => [i.id,
   new Set(i.filaments.filter((f) => f.helper && f.example).map((f) => f.chain[0]))]));
 
 function initialState(inst) {
-  const listed = new Set(), bound = new Set();
+  const listed = new Set(), bound = new Set(), exampleKeys = new Set();
   for (const f of inst.filaments) {
     if (f.helper) {
       // A helper profile only unlocks its library profile, so the library row counts as on.
-      for (const [p, s] of Object.entries(f.printers)) if (s.status === "visible") bound.add(key(f.chain[0], p));
+      for (const [p, s] of Object.entries(f.printers)) {
+        if (s.status === "visible") (f.example ? exampleKeys : bound).add(key(f.chain[0], p));
+      }
       continue;
     }
     if (usesList(inst, { kind: f.origin_kind })) {
@@ -66,19 +74,31 @@ function initialState(inst) {
     }
     for (const [p, s] of Object.entries(f.printers)) if (s.status === "visible") bound.add(key(f.name, p));
   }
-  return { listed, bound };
+  for (const k of bound) exampleKeys.delete(k);  // a real helper switches it on anyway
+  return { listed, bound, exampleKeys };
 }
 
 // Module level, so switches and new filaments survive a trip to another page.
 // edits: entry id -> { name, own } for own filaments changed with "Bearbeiten"; own maps a
 // field key to { value, high_flow? }, the values the profile sets itself.
+// base is the state after the last "Übernehmen", i.e. what is on disk.
+const EXAMPLE_KEYS = new Map();
 const store = reactive(Object.fromEntries(INSTANCES.map((inst) => {
-  const { listed, bound } = initialState(inst);
+  const { listed, bound, exampleKeys } = initialState(inst);
+  EXAMPLE_KEYS.set(inst.id, exampleKeys);
   return [inst.id, {
     listed, bound, created: [], deleted: new Set(), edits: {},
     base: { listed: new Set(listed), bound: new Set(bound), created: [], deleted: new Set(), edits: {} },
   }];
 })));
+// The switch "Beispiele" adds or removes what example helpers switch on, on both sides, so it
+// never shows up as a pending change.
+watch(() => ui.examples, (on) => {
+  for (const i of INSTANCES) {
+    const s = store[i.id];
+    for (const k of EXAMPLE_KEYS.get(i.id)) for (const set of [s.bound, s.base.bound]) on ? set.add(k) : set.delete(k);
+  }
+});
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 // ------------------------------------------------------------ own values
@@ -134,7 +154,7 @@ function makeEntry(kind, name, f) {
   return {
     uid: ++uid, id: kind + ":" + name, kind, name, brand: f.vendor || "", material: f.material || "",
     colours: f.colours || null, slots: {},
-    record: null, parent: null, orphan: false, template: null, fresh: false, example: !!f.example,
+    record: null, parent: null, orphan: false, template: null, fresh: false, example: !!f.example, unlockExample: false,
   };
 }
 function baseEntries(inst, model) {
@@ -153,7 +173,7 @@ function baseEntries(inst, model) {
       const e = map.get(id);
       e.slots[p] ??= f.name;
       e.colours ||= f.colours || null;
-      e.example ||= unlocks.has(f.name);
+      e.unlockExample ||= unlocks.has(f.name);
     }
   }
   for (const f of inst.filaments) {
@@ -179,11 +199,43 @@ function baseEntries(inst, model) {
   entryCache.set(cacheKey, list);
   return list;
 }
+// Name an own entry has on disk after the last "Übernehmen"; null while it is only planned.
+function diskName(inst, e) {
+  const s = store[inst.id], applied = s.base.edits[e.id]?.name;
+  if (e.record) return applied ?? e.record;
+  const c = s.base.created.find((x) => x.entry.id === e.id);
+  return c ? applied ?? c.entry.name : null;
+}
+// Own entries that are on disk follow `live`: "Mitlöschen" on the page "Drucker" or a restore
+// takes them away here, too.
+function stillThere(inst, e) {
+  if (e.kind !== "user") return true;
+  const n = diskName(inst, e);
+  return n === null || live[inst.id].own.has(n);
+}
 function entriesOf(inst, model) {
   const s = store[inst.id];
   return baseEntries(inst, model).filter((e) => !s.deleted.has(e.id))
     .concat(s.created.filter((c) => c.model === model.model && !s.deleted.has(c.entry.id)).map((c) => c.entry))
+    .filter((e) => showExample(e) && stillThere(inst, e))
     .map((e) => withEdits(inst, e));
+}
+// Own filament names on disk once `base` is written.
+function diskNames(inst, base) {
+  const names = new Set();
+  for (const f of inst.filaments) {
+    const id = "user:" + f.name;
+    if (f.origin_kind === "user" && !f.helper && !base.deleted.has(id)) names.add(base.edits[id]?.name ?? f.name);
+  }
+  for (const c of base.created) if (!base.deleted.has(c.entry.id)) names.add(base.edits[c.entry.id]?.name ?? c.entry.name);
+  return names;
+}
+// A printer card shows while the slicer shows the printer: a model switched on in "models", an
+// own printer while its file and its vendor package are there.
+function modelShown(inst, m) {
+  const s = live[inst.id];
+  if (!showExample(m)) return false;
+  return m.own ? s.own.has(m.model) && (!m.origin || s.packages.has(m.origin)) : s.models.has(m.model);
 }
 function isOn(inst, e, printer) {
   const profile = e.slots[printer];
@@ -205,6 +257,85 @@ function stateOf(inst, e, printers) {
 const materialColour = (e) => materialGroup(e.material).colour;
 const colourOf = (e) => e.colour || materialColour(e);
 
+// ------------------------------------------------------------ changes
+// "alle Düsen" instead of every single nozzle; the printer name only when there are several.
+function whereText(i, names) {
+  if (names.has(ALL_PRINTERS)) return "alle Drucker";
+  const parts = [];
+  for (const m of i.models) {
+    const hit = m.printers.filter((p) => names.has(p.name));
+    if (!hit.length) continue;
+    const nz = hit.length === m.printers.length ? "alle Düsen"
+      : "Düse " + hit.map((p) => nozzleLabel(p.variant)).join(" · ");
+    parts.push(i.models.length > 1 ? printerShortName(m.printers[0].name) + " · " + nz : nz);
+  }
+  return parts.join("; ");
+}
+// Pending changes of all installations: one "Übernehmen" handles each with its own backup.
+// Module level, so the main menu can show their number on every page (app.js).
+export const changes = computed(() => {
+  const out = [];
+  for (const i of INSTANCES) {
+    const s = store[i.id];
+    const createdNames = new Set(s.created.map((c) => c.entry.name));
+    const deletedNames = new Set([...s.deleted].map((id) => id.slice("user:".length)));
+    // An own profile shows up under its new name; n is the name it has on disk.
+    const shownName = (n, fallback) => s.edits["user:" + n]?.name ?? fallback;
+    const agg = new Map();
+    const note = (name, on, printerNames) => {
+      const k = name + "|" + on;
+      if (!agg.has(k)) agg.set(k, { type: on ? "on" : "off", name, printers: new Set() });
+      printerNames.forEach((p) => agg.get(k).printers.add(p));
+    };
+    for (const n of new Set([...s.listed, ...s.base.listed])) {
+      const on = s.listed.has(n);
+      if (on === s.base.listed.has(n)) continue;
+      const f = i.byName.get(n);
+      if (!f) continue;
+      note(f.alias, on, f.origin_kind === "library" ? [ALL_PRINTERS] : Object.keys(f.printers));
+    }
+    for (const k of new Set([...s.bound, ...s.base.bound])) {
+      const on = s.bound.has(k);
+      if (on === s.base.bound.has(k)) continue;
+      const cut = k.lastIndexOf("|"), n = k.slice(0, cut);
+      if (createdNames.has(n) || deletedNames.has(n)) continue;
+      const f = i.byName.get(n);
+      note(shownName(n, f ? f.alias : n), on, [k.slice(cut + 1)]);
+    }
+    for (const a of agg.values()) out.push({ inst: i, type: a.type, name: a.name, where: whereText(i, a.printers) });
+    for (const c of s.created) {
+      if (s.base.created.includes(c) || s.deleted.has(c.entry.id)) continue;
+      const now = s.edits[c.entry.id] || c.entry, count = Object.keys(now.own || {}).length;
+      const where = [c.entry.parent ? "Vorlage: " + c.entry.parent.name : "",
+        count ? plural(count, "eigener Wert", "eigene Werte") : ""].filter(Boolean).join(" · ");
+      out.push({ inst: i, type: "new", name: now.name, where });
+    }
+    // Edited own profiles: a new name and changed values are two steps in the slicer, too.
+    for (const id of new Set([...Object.keys(s.edits), ...Object.keys(s.base.edits)])) {
+      if (s.deleted.has(id)) continue;
+      const c = s.created.find((x) => x.entry.id === id);
+      if (c && !s.base.created.includes(c)) continue;  // still new, listed above with its current name
+      const init = initialOf(i, id);
+      if (!init) continue;
+      const before = s.base.edits[id] || init, now = s.edits[id] || init;
+      if (before.name !== now.name) out.push({ inst: i, type: "rename", name: before.name, where: `in „${now.name}“` });
+      const diff = FIELDS.filter((f) => !sameValue(before.own[f.key], now.own[f.key])).map((f) => changeText(f, now.own[f.key]));
+      if (diff.length) out.push({ inst: i, type: "edit", name: now.name, where: diff.join(" · ") });
+    }
+    for (const n of deletedNames) {
+      if (!s.base.deleted.has("user:" + n)) out.push({ inst: i, type: "delete", name: s.base.edits["user:" + n]?.name ?? n, where: "" });
+    }
+  }
+  return out;
+});
+const changeGroups = computed(() => INSTANCES.map((i) => ({ inst: i, items: changes.value.filter((c) => c.inst === i) }))
+  .filter((g) => g.items.length));
+const CHANGE = {
+  on: { icon: "check", verb: "einschalten" }, off: { icon: "minus", verb: "ausschalten" },
+  new: { icon: "plus", verb: "neu anlegen" }, delete: { icon: "trash", verb: "löschen" },
+  rename: { icon: "pencil", verb: "umbenennen" }, edit: { icon: "pencil", verb: "ändern" },
+};
+
 export default {
   name: "FilamentePage",
   components: { FilamentEditor },
@@ -216,6 +347,8 @@ export default {
   setup(props) {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
     const model = computed(() => props.modelIdx === null ? null : inst.value.models[props.modelIdx]);
+    // Removed under "Drucker", gone with a restore, or an example while examples are hidden.
+    const gone = computed(() => !!model.value && !modelShown(inst.value, model.value));
     const nozzle = ref("all");
     const printers = computed(() => !model.value ? []
       : nozzle.value === "all" ? model.value.printers.map((p) => p.name) : [nozzle.value]);
@@ -234,7 +367,7 @@ export default {
     const collapsed = reactive(new Set());  // brands closed by hand while searching
     const panel = ref(null);
     const dragging = ref(null);
-    const draft = reactive({ templateId: null, picking: false, query: "", name: "", tried: false });
+    const pickQuery = ref("");
     let dragSource = null, lastFocus = null;
 
     const filterActive = computed(() => query.value.trim() !== "" || materials.size > 0);
@@ -242,20 +375,21 @@ export default {
 
     // ------------------------------------------------------------ printer cards
     // All installations as in draft E; the one chosen in the top bar comes first.
+    // Only printers the slicer shows; idx stays the position in data.js, it is part of the address.
     const homeGroups = computed(() => [...INSTANCES].sort((a, b) => (b.id === inst.value.id) - (a.id === inst.value.id)).map((i) => ({
       inst: i,
-      cards: i.models.map((m, idx) => {
+      cards: i.models.map((m, idx) => ({ m, idx })).filter(({ m }) => modelShown(i, m)).map(({ m, idx }) => {
         const all = m.printers.map((p) => p.name);
         const active = entriesOf(i, m).filter((e) => ["on", "some"].includes(stateOf(i, e, all))).sort(byName);
         const name = printerShortName(m.printers[0]?.name || m.model);
-        return { m, idx, name, sub: name === m.model ? "" : m.model, active };
+        return { m, idx, name, sub: m.own ? "Eigener Drucker" : name === m.model ? "" : m.model, active };
       }),
     })));
 
     // ------------------------------------------------------------ tree
     const kindTitle = (kind) => ({
       user: "Eigene",
-      vendor: model.value && model.value.origin !== "Custom" ? "Von " + model.value.origin : "Vom Hersteller",
+      vendor: model.value && model.value.origin && model.value.origin !== "Custom" ? "Von " + model.value.origin : "Vom Hersteller",
       library: "Orca-Bibliothek",
     })[kind];
     const labelsOf = (names) => model.value.printers.filter((p) => names.includes(p.name))
@@ -387,12 +521,41 @@ export default {
       if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
       lastFocus = null;
     }
+
+    // A typed form is not thrown away without asking: Escape, the X, another row or tile, the
+    // menu and the other buttons of the page pass through here. "Abbrechen" in the form is the
+    // explicit way out and does not ask.
+    const editDirty = ref(false);
+    const leaveAsk = ref(null);  // the step that waits for "Verwerfen"
+    watch(() => panel.value && panel.value.type === "edit" ? panel.value.seq : null, () => {
+      editDirty.value = false;
+      leaveAsk.value = null;
+    });
+    function guarded(step) {
+      if (!(panel.value && panel.value.type === "edit" && editDirty.value)) return step();
+      leaveAsk.value = step;
+      nextTick(() => document.getElementById("leave-stay")?.focus());
+    }
+    function confirmLeave() {
+      const step = leaveAsk.value;
+      leaveAsk.value = null;
+      editDirty.value = false;
+      step();
+    }
+    function stayHere() {
+      leaveAsk.value = null;
+      nextTick(() => document.getElementById("edit-name")?.focus());
+    }
+    const requestClose = () => guarded(closePanel);
+    onMounted(() => setLeaveGuard(guarded));
+    onUnmounted(() => clearLeaveGuard(guarded));
     // By mouse the list keeps the focus; by keyboard the focus moves into the panel, Esc brings it back.
     function openDetails(e, byKeyboard = false) {
       if (!panel.value) lastFocus = document.activeElement;
       panel.value = { type: "details", id: e.id };
       if (byKeyboard) nextTick(() => document.getElementById("panel-title")?.focus());
     }
+    const pickRow = (e, byKeyboard = false) => guarded(() => openDetails(e, byKeyboard));
     const detail = computed(() => {
       if (!panel.value || panel.value.type !== "details") return null;
       const e = entries.value.find((x) => x.id === panel.value.id);
@@ -487,24 +650,19 @@ export default {
     }
 
     // ------------------------------------------------------------ new filament
-    const draftTemplate = computed(() => entries.value.find((e) => e.id === draft.templateId) || null);
-    // Template picker: the active filaments as spools, everything else by search.
+    // "Neues Filament" first asks for the template: the active filaments as spools, everything
+    // else by search. Then the same form opens as for "Bearbeiten".
     const PICK_LIMIT = 12;
     const templateHits = computed(() => {
-      const q = draft.query.trim().toLowerCase();
+      const q = pickQuery.value.trim().toLowerCase();
       if (!q) return [];
       return rows.value.filter((r) => !r.e.orphan && (r.e.name + " " + r.e.brand + " " + r.e.material).toLowerCase().includes(q))
         .map((r) => r.e).sort(byName);
     });
-    const templateError = computed(() => draft.tried && !draftTemplate.value ? "Bitte eine Vorlage wählen." : "");
-    function pickTemplate(e) {
-      draft.templateId = e.id;
-      draft.picking = false;
-      nextTick(() => document.getElementById("new-name")?.focus());
-    }
-    function otherTemplate() {
-      draft.picking = true;
-      nextTick(() => document.getElementById("tpl-search")?.focus());
+    function openPicker() {
+      if (readOnly.value) return;
+      pickQuery.value = "";
+      openPanel({ type: "pick" });
     }
     // Names of all profiles, new ones and edited names; exceptId is the entry being edited.
     // A name given up by a rename stays taken until the change is written.
@@ -519,18 +677,6 @@ export default {
       let name = base;
       for (let k = 2; nameTaken(name); k++) name = base.replace(/\)$/, " " + k + ")");
       return name;
-    }
-    const nameError = computed(() => !draft.name.trim() && !draft.tried ? "" : nameProblem(draft.name, (n) => nameTaken(n)));
-    // From a filament (panel or drag) the template is set; from the big button the user picks one.
-    function openNew(template) {
-      if (readOnly.value) return;
-      const pick = template && !template.orphan ? template : null;
-      draft.templateId = pick ? pick.id : null;
-      draft.picking = !pick;
-      draft.query = "";
-      draft.name = "";
-      draft.tried = false;
-      openPanel({ type: "new" }, pick ? "new-name" : "panel-title");
     }
     // A new own filament on top of tpl, switched on for the nozzles in view. On top of an own
     // filament it takes that one's template and copies its own values.
@@ -547,16 +693,6 @@ export default {
       for (const p of printers.value) if (e.slots[p]) s.bound.add(key(name, p));
       closedKinds.delete("user");
       return e;
-    }
-    function submitNew() {
-      draft.tried = true;
-      const tpl = draftTemplate.value;
-      if (nameError.value || !tpl) return;
-      const name = draft.name.trim();
-      const e = createOwn(tpl, name, tpl.kind === "user" ? clone(ownOf(tpl)) : {});
-      panel.value = { type: "details", id: e.id };
-      flash(`„${name}“ angelegt`);
-      nextTick(() => scrollToRow(e));
     }
     function removeOwn(e) {
       const s = store[inst.value.id];
@@ -576,28 +712,31 @@ export default {
     }
 
     // ------------------------------------------------------------ edit
-    // Own filaments change in place; a manufacturer or library profile stays as it is and the
-    // result becomes a new own filament on top of it (STAND, open task 2).
+    // One form for all of it (STAND, open task 2). mode "edit": an own filament changes in
+    // place. "copy": "Bearbeiten" on a manufacturer or library profile, which stays as it is; the
+    // result becomes a new own filament on top of it. "new": a new own filament on top of e, an
+    // own e passes on its template and its own values.
     let editSeq = 0;
-    function openEdit(e) {
+    function openEditor(e, mode) {
       if (readOnly.value || e.orphan) return;
       if (!panel.value) lastFocus = document.activeElement;
-      panel.value = { type: "edit", id: e.id, seq: ++editSeq };
+      panel.value = { type: "edit", id: e.id, mode, seq: ++editSeq };
       nextTick(() => document.getElementById("edit-name")?.focus());
     }
     const editing = computed(() => {
       if (!panel.value || panel.value.type !== "edit") return null;
       const e = entries.value.find((x) => x.id === panel.value.id);
       if (!e) return null;
-      const copy = e.kind !== "user", variant = copy ? templateProfile(e).variant : null;
+      const mode = panel.value.mode, own = e.kind === "user";
+      const variant = own ? null : templateProfile(e).variant;
       return {
-        e, copy,
-        name: copy ? freeName(e.name + " (eigen)") : e.name,
-        own: copy ? {} : ownOf(e),
+        e, mode,
+        name: mode === "edit" ? e.name : freeName(e.name + (own ? " (Kopie)" : " (eigen)")),
+        own: mode === "edit" ? ownOf(e) : own ? clone(ownOf(e)) : {},
         base: Object.fromEntries(FIELDS.map((f) => [f.key, inheritedOf(e, f.key)])),
-        templateName: !copy ? (e.parent ? e.parent.name : "")
+        templateName: own ? (e.parent ? e.parent.name : "")
           : e.name + (variant ? " · Düse " + nozzleLabel(variant) + " mm" : ""),
-        taken: (n) => nameTaken(n, copy ? null : e.id),
+        taken: (n) => nameTaken(n, mode === "edit" ? e.id : null),
       };
     });
     function saveEdit({ name, own }) {
@@ -605,7 +744,12 @@ export default {
       if (!ed) return;
       const i = inst.value, s = store[i.id];
       let id = ed.e.id;
-      if (ed.copy) {
+      editDirty.value = false;
+      if (ed.mode === "copy" && !Object.keys(own).length && name === ed.name) {
+        // Nothing typed: a copy would only be a second name for the same profile.
+        flash("Nichts geändert");
+        nextTick(() => document.getElementById("panel-title")?.focus());
+      } else if (ed.mode !== "edit") {
         const e = createOwn(ed.e, name, own);
         id = e.id;
         flash(`„${name}“ angelegt`);
@@ -658,95 +802,25 @@ export default {
       ev.stopPropagation();
       const e = dragSource.e;
       dragEnd();
-      if (target === "new") openNew(e);
+      if (target === "new") guarded(() => openEditor(e, "new"));
       else switchOn(e, target === "on");
     }
 
-    // ------------------------------------------------------------ changes
-    // "alle Düsen" instead of every single nozzle; the printer name only when there are several.
-    function whereText(i, names) {
-      if (names.has(ALL_PRINTERS)) return "alle Drucker";
-      const parts = [];
-      for (const m of i.models) {
-        const hit = m.printers.filter((p) => names.has(p.name));
-        if (!hit.length) continue;
-        const nz = hit.length === m.printers.length ? "alle Düsen"
-          : "Düse " + hit.map((p) => nozzleLabel(p.variant)).join(" · ");
-        parts.push(i.models.length > 1 ? printerShortName(m.printers[0].name) + " · " + nz : nz);
-      }
-      return parts.join("; ");
-    }
-    // Changes of all installations: one "Übernehmen" handles each with its own backup.
-    const changes = computed(() => {
-      const out = [];
-      for (const i of INSTANCES) {
-        const s = store[i.id];
-        const createdNames = new Set(s.created.map((c) => c.entry.name));
-        const deletedNames = new Set([...s.deleted].map((id) => id.slice("user:".length)));
-        // An own profile shows up under its new name; n is the name it has on disk.
-        const shownName = (n, fallback) => s.edits["user:" + n]?.name ?? fallback;
-        const agg = new Map();
-        const note = (name, on, printerNames) => {
-          const k = name + "|" + on;
-          if (!agg.has(k)) agg.set(k, { type: on ? "on" : "off", name, printers: new Set() });
-          printerNames.forEach((p) => agg.get(k).printers.add(p));
-        };
-        for (const n of new Set([...s.listed, ...s.base.listed])) {
-          const on = s.listed.has(n);
-          if (on === s.base.listed.has(n)) continue;
-          const f = i.byName.get(n);
-          if (!f) continue;
-          note(f.alias, on, f.origin_kind === "library" ? [ALL_PRINTERS] : Object.keys(f.printers));
-        }
-        for (const k of new Set([...s.bound, ...s.base.bound])) {
-          const on = s.bound.has(k);
-          if (on === s.base.bound.has(k)) continue;
-          const cut = k.lastIndexOf("|"), n = k.slice(0, cut);
-          if (createdNames.has(n) || deletedNames.has(n)) continue;
-          const f = i.byName.get(n);
-          note(shownName(n, f ? f.alias : n), on, [k.slice(cut + 1)]);
-        }
-        for (const a of agg.values()) out.push({ inst: i, type: a.type, name: a.name, where: whereText(i, a.printers) });
-        for (const c of s.created) {
-          if (s.base.created.includes(c) || s.deleted.has(c.entry.id)) continue;
-          const now = s.edits[c.entry.id] || c.entry, count = Object.keys(now.own || {}).length;
-          const where = [c.entry.parent ? "Vorlage: " + c.entry.parent.name : "",
-            count ? plural(count, "eigener Wert", "eigene Werte") : ""].filter(Boolean).join(" · ");
-          out.push({ inst: i, type: "new", name: now.name, where });
-        }
-        // Edited own profiles: a new name and changed values are two steps in the slicer, too.
-        for (const id of new Set([...Object.keys(s.edits), ...Object.keys(s.base.edits)])) {
-          if (s.deleted.has(id)) continue;
-          const c = s.created.find((x) => x.entry.id === id);
-          if (c && !s.base.created.includes(c)) continue;  // still new, listed above with its current name
-          const init = initialOf(i, id);
-          if (!init) continue;
-          const before = s.base.edits[id] || init, now = s.edits[id] || init;
-          if (before.name !== now.name) out.push({ inst: i, type: "rename", name: before.name, where: `in „${now.name}“` });
-          const diff = FIELDS.filter((f) => !sameValue(before.own[f.key], now.own[f.key])).map((f) => changeText(f, now.own[f.key]));
-          if (diff.length) out.push({ inst: i, type: "edit", name: now.name, where: diff.join(" · ") });
-        }
-        for (const n of deletedNames) {
-          if (!s.base.deleted.has("user:" + n)) out.push({ inst: i, type: "delete", name: s.base.edits["user:" + n]?.name ?? n, where: "" });
-        }
-      }
-      return out;
-    });
-    const changeGroups = computed(() => INSTANCES.map((i) => ({ inst: i, items: changes.value.filter((c) => c.inst === i) }))
-      .filter((g) => g.items.length));
-    const CHANGE = {
-      on: { icon: "check", verb: "einschalten" }, off: { icon: "minus", verb: "ausschalten" },
-      new: { icon: "plus", verb: "neu anlegen" }, delete: { icon: "trash", verb: "löschen" },
-      rename: { icon: "pencil", verb: "umbenennen" }, edit: { icon: "pencil", verb: "ändern" },
-    };
+    // ------------------------------------------------------------ apply
+    // Each installation gets its own backup. Deleted, new and renamed own filaments go into
+    // `live` as well, so "Drucker" and "Sicherungen" know them.
     function apply() {
       for (const g of changeGroups.value) {
-        const s = store[g.inst.id];
+        const s = store[g.inst.id], own = live[g.inst.id].own;
         backupNow(g.inst, { kind: "change", reason: "vor „Filamente geändert“", detail: plural(g.items.length, "Änderung", "Änderungen") });
+        const before = diskNames(g.inst, s.base);
         s.base = {
           listed: new Set(s.listed), bound: new Set(s.bound), created: [...s.created], deleted: new Set(s.deleted),
           edits: clone(s.edits),
         };
+        const after = diskNames(g.inst, s.base);
+        for (const n of before) if (!after.has(n)) own.delete(n);
+        for (const n of after) if (!before.has(n)) own.add(n);
       }
       closePanel();
       flash("Übernommen – im Entwurf wird aber nichts gespeichert.");
@@ -764,23 +838,32 @@ export default {
       flash("Änderungen verworfen");
     }
 
-    const onKey = (ev) => { if (ev.key === "Escape" && panel.value && !dragSource) closePanel(); };
+    const onKey = (ev) => {
+      if (ev.key !== "Escape" || dragSource) return;
+      if (leaveAsk.value) stayHere();
+      else if (panel.value) requestClose();
+    };
     onMounted(() => window.addEventListener("keydown", onKey));
     onUnmounted(() => window.removeEventListener("keydown", onKey));
     const activate = (ev, fn) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); fn(); } };
-    const panelTitle = computed(() => panel.value && ({
-      details: "Filament", new: "Neues Filament", apply: "Übernehmen", edit: "Bearbeiten",
-    })[panel.value.type]);
+    const panelTitle = computed(() => {
+      if (!panel.value) return "";
+      if (panel.value.type === "edit") return panel.value.mode === "new" ? "Neues Filament" : "Bearbeiten";
+      return { details: "Filament", pick: "Neues Filament", apply: "Übernehmen" }[panel.value.type];
+    });
+    // Example own profiles, and library rows only an example helper switches on.
+    const isExample = (e) => e.example || (ui.examples && e.unlockExample);
 
     return {
-      MATERIALS, store, inst, model, nozzle, printers, readOnly, printerTitle, nozzleText,
-      query, materials, closedKinds, panel, dragging, draft,
+      MATERIALS, store, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText,
+      query, materials, closedKinds, panel, dragging, pickQuery,
       homeGroups, tree, shelf, detail, detailValues, detailPrinters, nozzleSwitches, scopeText, STATE_TEXT,
-      draftTemplate, templateHits, templateError, PICK_LIMIT, pickTemplate, otherTemplate, nameError,
-      changes, changeGroups, CHANGE, panelTitle, editing, openEdit, saveEdit, cancelEdit,
-      nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, asset,
+      templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
+      changes, changeGroups, CHANGE, panelTitle, editing, openEditor, saveEdit, cancelEdit,
+      nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, asset,
+      busyText, isExample,
       brandOpen, toggleBrand, toggleKind, toggleMaterial, toggle, switchOn, toggleAt,
-      openPanel, closePanel, openDetails, jumpTo, openNew, submitNew, removeOwn,
+      openPanel, closePanel, openDetails, pickRow, jumpTo, removeOwn,
       dragStart, dragEnd, dragOver, drop, apply, discard, KIND_ICON,
     };
   },
@@ -794,13 +877,13 @@ export default {
           <div class="install-head">
             <h2>{{ g.inst.slicer }}</h2>
             <span class="version">{{ g.inst.version }}</span>
-            <span :class="['status', { 'status--busy': g.inst.running }]">{{ g.inst.running ? 'Läuft – nur ansehen' : 'Geschlossen' }}</span>
+            <run-status :inst="g.inst"/>
           </div>
-          <div class="cards">
-            <a v-for="c in g.cards" :key="c.idx" class="card" :href="'#/filamente/' + g.inst.id + '/' + c.idx"
-               @click="go($event, '#/filamente/' + g.inst.id + '/' + c.idx)">
+          <div v-if="g.cards.length" class="cards">
+            <a v-for="c in g.cards" :key="c.idx" class="card" :href="hashOf('filamente', g.inst.id, c.idx)"
+               @click="go($event, hashOf('filamente', g.inst.id, c.idx))">
               <span class="card-img"><img :src="asset(c.m.cover)" alt="" width="170" height="170"></span>
-              <span class="card-name">{{ c.name }}</span>
+              <span class="card-name">{{ c.name }}<span v-if="c.m.example" class="tag-example" title="Nur im Entwurf, im Slicer gibt es diesen Drucker nicht">Beispiel</span></span>
               <span v-if="c.sub" class="card-sub">{{ c.sub }}</span>
               <span class="card-meta"><nozzle-icon :sizes="[0.4]" :height="20"/><span class="sr-only">Düsen</span> {{ c.m.printers.map((p) => nozzleLabel(p.variant)).join(' · ') }} mm</span>
               <span class="card-spools" aria-hidden="true">
@@ -810,24 +893,37 @@ export default {
               <span class="card-meta">{{ c.active.length }} {{ c.active.length === 1 ? 'Filament' : 'Filamente' }} aktiv</span>
             </a>
           </div>
+          <p v-else class="empty">Kein Drucker eingerichtet. Unter <a :href="hashOf('sicherungen', g.inst.id)" @click="go($event, hashOf('sicherungen', g.inst.id))">Sicherungen</a> lässt sich ein früherer Stand wiederherstellen.</p>
         </section>
         <p class="credits">
           Druckerbilder und Symbole aus OrcaSlicer
         </p>
       </div>
 
-      <!-- Screen 2: one printer -->
-      <div v-else class="page">
+      <!-- Screen 2 without a printer: removed, restored away or a hidden example -->
+      <div v-else-if="gone" class="page">
         <div class="printer-bar">
-          <a class="btn" href="#/filamente" aria-label="Zurück zur Druckerauswahl" @click="go($event, '#/filamente')"><ui-icon name="back"/><span class="back-label">Alle Drucker</span></a>
-          <img class="bar-img" :src="asset(model.cover)" alt="" width="48" height="48">
+          <a class="btn" :href="hashOf('filamente', inst.id)" @click="go($event, hashOf('filamente', inst.id))"><ui-icon name="back"/><span class="back-label">Alle Drucker</span></a>
           <div class="bar-title">
             <h1 id="page-title" tabindex="-1">{{ printerTitle }}</h1>
             <span>{{ inst.slicer }} {{ inst.version }}</span>
           </div>
-          <span :class="['status', { 'status--busy': inst.running }]">{{ inst.running ? 'Läuft – nur ansehen' : 'Geschlossen' }}</span>
         </div>
-        <p v-if="readOnly" class="banner">{{ inst.slicer }} ist offen. Zum Ändern bitte den Slicer schließen.</p>
+        <p class="empty">Diesen Drucker zeigt der Slicer gerade nicht.</p>
+      </div>
+
+      <!-- Screen 2: one printer -->
+      <div v-else class="page">
+        <div class="printer-bar">
+          <a class="btn" :href="hashOf('filamente', inst.id)" aria-label="Zurück zur Druckerauswahl" @click="go($event, hashOf('filamente', inst.id))"><ui-icon name="back"/><span class="back-label">Alle Drucker</span></a>
+          <img class="bar-img" :src="asset(model.cover)" alt="" width="48" height="48">
+          <div class="bar-title">
+            <h1 id="page-title" tabindex="-1">{{ printerTitle }}</h1>
+            <span>{{ model.own ? 'Eigener Drucker · ' : '' }}{{ inst.slicer }} {{ inst.version }}</span>
+          </div>
+          <run-status :inst="inst"/>
+        </div>
+        <p v-if="readOnly" class="banner">{{ busyText(inst) }} Zum Ändern bitte den Slicer schließen.</p>
 
         <section class="box nozzles" aria-labelledby="nozzle-h">
           <h2 id="nozzle-h">Düse</h2>
@@ -853,10 +949,10 @@ export default {
             <li v-for="r in shelf" :key="r.e.uid" class="tile" :draggable="!readOnly"
                 @dragstart="dragStart($event, r.e, 'shelf')" @dragend="dragEnd">
               <div class="tile-main" role="button" tabindex="0" :aria-current="panel && panel.id === r.e.id ? 'true' : null"
-                   @click="openDetails(r.e)" @keydown="activate($event, () => openDetails(r.e, true))">
+                   @click="pickRow(r.e)" @keydown="activate($event, () => pickRow(r.e, true))">
                 <spool-icon :colour="colourOf(r.e)" :size="48"/>
                 <span class="tile-name" :title="r.e.name">{{ shortName(r.e) }}</span>
-                <span class="tile-sub">{{ subOf(r.e) }}<span v-if="r.e.pending" class="tile-changed">geändert</span><span v-else-if="r.st === 'some'" class="partly" :title="r.hint.text"> · teilweise</span><span v-if="r.e.example"> · Beispiel</span></span>
+                <span class="tile-sub">{{ subOf(r.e) }}<span v-if="r.e.pending" class="tile-changed">geändert</span><span v-else-if="r.st === 'some'" class="partly" :title="r.hint.text"> · teilweise</span><span v-if="isExample(r.e)"> · Beispiel</span></span>
               </div>
               <button class="icon-btn tile-off" type="button" :aria-label="r.e.name + ' ausschalten'" :title="r.locked ? 'Mindestens ein Filament bleibt an.' : 'Ausschalten'"
                       :disabled="readOnly || r.locked" @click="switchOn(r.e, false)"><ui-icon :name="r.locked ? 'lock' : 'close'"/></button>
@@ -871,7 +967,7 @@ export default {
               <ui-icon name="search"/>
               <input v-model="query" class="input" type="search" placeholder="Filament suchen" aria-label="Filament suchen">
             </label>
-            <button class="btn btn-primary" type="button" :disabled="readOnly" @click="openNew()"><ui-icon name="plus"/>Neues Filament</button>
+            <button class="btn btn-primary" type="button" :disabled="readOnly" @click="guarded(openPicker)"><ui-icon name="plus"/>Neues Filament</button>
           </div>
           <div class="toolbar chips" role="group" aria-label="Material">
             <button v-for="g in MATERIALS" :key="g.id" type="button" class="chip" :aria-pressed="materials.has(g.id)" @click="toggleMaterial(g.id)">
@@ -908,13 +1004,13 @@ export default {
                           :class="['row', 'is-' + (r.st === 'na' ? 'off' : r.st), { 'is-selected': panel && panel.id === r.e.id, 'is-fresh': r.e.fresh }]"
                           :draggable="!readOnly && !r.e.orphan" @dragstart="dragStart($event, r.e, 'tree')" @dragend="dragEnd">
                         <span class="grip" aria-hidden="true"><ui-icon name="grip"/></span>
-                        <div class="row-main" role="button" tabindex="0" @click="openDetails(r.e)" @keydown="activate($event, () => openDetails(r.e, true))">
+                        <div class="row-main" role="button" tabindex="0" @click="pickRow(r.e)" @keydown="activate($event, () => pickRow(r.e, true))">
                           <spool-icon :colour="colourOf(r.e)" :size="28"/>
                           <span class="row-text">
                             <span class="row-name" :title="r.e.name">{{ shortName(r.e) }}</span>
                             <span v-if="r.hint" :class="['row-hint', r.hint.cls]">{{ r.hint.text }}</span>
                           </span>
-                          <span v-if="r.e.example" class="tag-example" :title="r.e.kind === 'user' ? 'Nur im Entwurf, im Slicer gibt es dieses Filament nicht' : 'Nur im Entwurf eingeschaltet, als Beispiel'">Beispiel</span>
+                          <span v-if="isExample(r.e)" class="tag-example" :title="r.e.kind === 'user' ? 'Nur im Entwurf, im Slicer gibt es dieses Filament nicht' : 'Nur im Entwurf eingeschaltet, als Beispiel'">Beispiel</span>
                           <span v-if="r.ownCount" class="badge">+{{ r.ownCount }} {{ r.ownCount === 1 ? 'eigenes' : 'eigene' }}</span>
                           <span v-if="r.e.material" class="mat">{{ r.e.material }}</span>
                         </div>
@@ -943,15 +1039,24 @@ export default {
       <div class="dock-target" @dragover="dragOver($event, 'new')" @drop="drop($event, 'new')"><ui-icon name="plus"/>Neues Filament daraus</div>
     </div>
 
-    <aside v-if="panel" class="panel" aria-labelledby="panel-title">
+    <aside v-if="panel" :class="['panel', { 'is-asking': leaveAsk }]" aria-labelledby="panel-title">
       <div class="panel-head">
         <h2 id="panel-title" tabindex="-1">{{ panelTitle }}</h2>
-        <button class="icon-btn" type="button" aria-label="Schließen" @click="closePanel"><ui-icon name="close"/></button>
+        <button class="icon-btn" type="button" aria-label="Schließen" @click="requestClose"><ui-icon name="close"/></button>
       </div>
       <filament-editor v-if="editing" :key="panel.seq" :start-name="editing.name" :own="editing.own" :base="editing.base"
-                       :copy="editing.copy" :template-name="editing.templateName" :material-colour="materialColour(editing.e)"
-                       :name-taken="editing.taken" :scope-text="nozzleText" @save="saveEdit" @cancel="cancelEdit"/>
-      <div v-else class="panel-body">
+                       :mode="editing.mode" :template-name="editing.templateName" :material-colour="materialColour(editing.e)"
+                       :name-taken="editing.taken" :scope-text="nozzleText" @save="saveEdit" @cancel="cancelEdit"
+                       @dirty="editDirty = $event"/>
+      <div v-if="editing && leaveAsk" class="leave-ask" role="alertdialog" aria-labelledby="leave-q" aria-describedby="leave-d">
+        <p id="leave-q" class="leave-q">Änderungen verwerfen?</p>
+        <p id="leave-d" class="note">Was du im Formular eingetragen hast, geht verloren.</p>
+        <div class="actions">
+          <button id="leave-stay" class="btn" type="button" @click="stayHere">Weiter bearbeiten</button>
+          <button class="btn btn-danger-solid right" type="button" @click="confirmLeave">Verwerfen</button>
+        </div>
+      </div>
+      <div v-if="!editing" class="panel-body">
         <template v-if="panel.type === 'details'">
           <p v-if="!detail" class="note">Für diese Düse nicht vorhanden.</p>
           <template v-else>
@@ -973,7 +1078,7 @@ export default {
                 </div>
               </div>
             </div>
-            <p v-if="detail.e.example" class="note">
+            <p v-if="isExample(detail.e)" class="note">
               <span class="tag-example">Beispiel</span>
               {{ detail.e.kind === 'user' ? 'Nur im Entwurf, im Slicer gibt es dieses Filament nicht.' : 'Nur im Entwurf eingeschaltet, als Beispiel.' }}
             </p>
@@ -1008,63 +1113,45 @@ export default {
             </template>
             <p v-else-if="scopeText" class="scope"><nozzle-icon :sizes="[0.4]" :height="20"/>{{ scopeText }}</p>
 
+            <!-- One way per result: "Bearbeiten" on a manufacturer or library profile creates the own copy. -->
             <div class="actions">
-              <button v-if="!detail.e.orphan" class="btn btn-primary" type="button" :disabled="readOnly" @click="openEdit(detail.e)"><ui-icon name="pencil"/>Bearbeiten</button>
-              <button v-if="!detail.e.orphan" class="btn" type="button" :disabled="readOnly" @click="openNew(detail.e)"><ui-icon name="plus"/>Neues Filament daraus</button>
+              <button v-if="!detail.e.orphan" class="btn btn-primary" type="button" :disabled="readOnly"
+                      @click="openEditor(detail.e, detail.e.kind === 'user' ? 'edit' : 'copy')"><ui-icon name="pencil"/>Bearbeiten</button>
+              <button v-if="detail.e.kind === 'user' && !detail.e.orphan" class="btn" type="button" :disabled="readOnly"
+                      @click="openEditor(detail.e, 'new')"><ui-icon name="plus"/>Neues Filament daraus</button>
               <button v-if="detail.e.kind === 'user'" class="btn btn-danger right" type="button" :disabled="readOnly" @click="removeOwn(detail.e)"><ui-icon name="trash"/>Löschen</button>
             </div>
           </template>
         </template>
 
-        <form v-else-if="panel.type === 'new'" @submit.prevent="submitNew" novalidate>
-          <div v-if="draftTemplate && !draft.picking" class="hero">
-            <spool-icon :colour="colourOf(draftTemplate)" :size="72"/>
-            <div class="hero-text">
-              <p class="hero-name">{{ draft.name.trim() || 'Neues Filament' }}</p>
-              <p class="hero-sub">Vorlage: {{ draftTemplate.name }}</p>
-              <button class="link" type="button" @click="otherTemplate">Andere Vorlage</button>
-            </div>
+        <template v-else-if="panel.type === 'pick'">
+          <p class="note pick-lead">Worauf baut das neue Filament auf? Es übernimmt die Werte der Vorlage, danach kannst du sie ändern.</p>
+          <h3 v-if="shelf.length">Aktiv</h3>
+          <div v-if="shelf.length" class="pick-grid">
+            <button v-for="r in shelf" :key="r.e.uid" type="button" class="pick" :title="r.e.name" @click="openEditor(r.e, 'new')">
+              <spool-icon :colour="colourOf(r.e)" :size="36"/>
+              <span class="pick-name">{{ shortName(r.e) }}</span>
+              <span class="pick-sub">{{ subOf(r.e) }}</span>
+            </button>
           </div>
-          <fieldset v-else class="picker" aria-describedby="tpl-error">
-            <legend>Vorlage wählen</legend>
-            <p class="note">Das neue Filament übernimmt alle Werte der Vorlage.</p>
-            <h3 v-if="shelf.length">Aktiv</h3>
-            <div v-if="shelf.length" class="pick-grid">
-              <button v-for="r in shelf" :key="r.e.uid" type="button" class="pick" :aria-pressed="draft.templateId === r.e.id" :title="r.e.name" @click="pickTemplate(r.e)">
-                <spool-icon :colour="colourOf(r.e)" :size="36"/>
-                <span class="pick-name">{{ shortName(r.e) }}</span>
-                <span class="pick-sub">{{ subOf(r.e) }}</span>
-              </button>
-            </div>
-            <h3>Weitere</h3>
-            <label class="search">
-              <ui-icon name="search"/>
-              <input id="tpl-search" v-model="draft.query" class="input" type="search" autocomplete="off" placeholder="Filament suchen" aria-label="Vorlage suchen">
-            </label>
-            <div v-if="templateHits.length" class="pick-grid pick-hits">
-              <button v-for="e in templateHits.slice(0, PICK_LIMIT)" :key="e.uid" type="button" class="pick" :aria-pressed="draft.templateId === e.id" :title="e.name" @click="pickTemplate(e)">
-                <spool-icon :colour="colourOf(e)" :size="36"/>
-                <span class="pick-name">{{ shortName(e) }}</span>
-                <span class="pick-sub">{{ subOf(e) }}</span>
-              </button>
-            </div>
-            <p v-if="templateHits.length > PICK_LIMIT" class="note">{{ templateHits.length - PICK_LIMIT }} weitere – genauer suchen</p>
-            <p v-else-if="draft.query.trim() && !templateHits.length" class="note">Nichts gefunden.</p>
-            <p id="tpl-error" class="field-error" aria-live="polite">{{ templateError }}</p>
-          </fieldset>
-          <label class="field">
-            <span>Name</span>
-            <input id="new-name" v-model="draft.name" class="input" autocomplete="off"
-                   :placeholder="draftTemplate ? draftTemplate.name + ' matt' : ''"
-                   :aria-invalid="nameError ? 'true' : 'false'" aria-describedby="new-name-error">
+          <h3>Weitere</h3>
+          <label class="search">
+            <ui-icon name="search"/>
+            <input id="tpl-search" v-model="pickQuery" class="input" type="search" autocomplete="off" placeholder="Filament suchen" aria-label="Vorlage suchen">
           </label>
-          <p id="new-name-error" class="field-error" aria-live="polite">{{ nameError }}</p>
-          <p class="note">Aktiv für: {{ nozzleText }}.</p>
+          <div v-if="templateHits.length" class="pick-grid pick-hits">
+            <button v-for="e in templateHits.slice(0, PICK_LIMIT)" :key="e.uid" type="button" class="pick" :title="e.name" @click="openEditor(e, 'new')">
+              <spool-icon :colour="colourOf(e)" :size="36"/>
+              <span class="pick-name">{{ shortName(e) }}</span>
+              <span class="pick-sub">{{ subOf(e) }}</span>
+            </button>
+          </div>
+          <p v-if="templateHits.length > PICK_LIMIT" class="note">{{ templateHits.length - PICK_LIMIT }} weitere – genauer suchen</p>
+          <p v-else-if="pickQuery.trim() && !templateHits.length" class="note">Nichts gefunden.</p>
           <div class="actions">
             <button class="btn" type="button" @click="closePanel">Abbrechen</button>
-            <button class="btn btn-primary right" type="submit">Anlegen</button>
           </div>
-        </form>
+        </template>
 
         <template v-else-if="panel.type === 'apply'">
           <p v-if="!changes.length" class="note">Nichts zu übernehmen.</p>
@@ -1077,7 +1164,7 @@ export default {
               </li>
             </ul>
           </div>
-          <p class="note">Vorher legt Orfix eine Sicherung an. Die kannst du jederzeit zurückholen.</p>
+          <p class="note">Vorher legt Orfix eine Sicherung an. Damit lässt sich alles wiederherstellen.</p>
           <div class="actions">
             <button class="btn" type="button" @click="closePanel">Zurück</button>
             <button class="btn btn-primary right" type="button" :disabled="!changes.length" @click="apply">Übernehmen</button>
@@ -1089,8 +1176,8 @@ export default {
 
     <div v-if="changes.length" :class="['changebar', { 'with-panel': panel }]">
       <span class="what">{{ changes.length }} {{ changes.length === 1 ? 'Änderung' : 'Änderungen' }}</span>
-      <button class="btn" type="button" @click="discard">Verwerfen</button>
-      <button class="btn btn-primary" type="button" @click="openPanel({ type: 'apply' })">Übernehmen …</button>
+      <button class="btn" type="button" @click="guarded(discard)">Verwerfen</button>
+      <button class="btn btn-primary" type="button" @click="guarded(() => openPanel({ type: 'apply' }))">Übernehmen …</button>
     </div>
   `,
 };

@@ -3,10 +3,12 @@
 // filaments and processes that belong to that printer only. Each action opens the side panel
 // with the plan first (hard rule 5) and makes a backup (common.js). Memory only.
 // Data: ORFIX_DATA.instances[].printers_page; the changeable state is `live` in common.js, so a
-// restore on the page "Sicherungen" shows up here.
+// restore on the page "Sicherungen" shows up here, and a removal on "Filamente".
+// Removing the last model of a vendor can make the slicer delete the whole vendor package at its
+// next start (FINDINGS 4.2); the plan says so and names the own printers that go with it.
 import {
-  INSTANCES, live, backupNow, flash, go, asset, plural, nozzleLabel, printerShortName, printerText,
-  profileSub, KIND_ICON,
+  INSTANCES, live, showExample, busyText, backupNow, flash, go, hashOf, asset, plural, nozzleLabel,
+  printerShortName, printerText, profileInfo, profileSub, KIND_ICON,
 } from "../common.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
@@ -27,7 +29,7 @@ export default {
     // ------------------------------------------------------------ cards
     const cards = computed(() => {
       const i = inst.value, s = state.value, pp = i.printers_page;
-      const mine = (list) => list.filter((x) => s.own.has(x.name));
+      const mine = (list) => list.filter((x) => s.own.has(x.name) && showExample(x));
       const out = [];
       for (const m of pp.system) {
         if (!s.models.has(m.model)) continue;
@@ -35,36 +37,54 @@ export default {
         out.push({
           id: "model:" + m.model, system: true, model: m.model, name, sub: name === m.model ? "" : m.model,
           cover: m.cover, printers: m.printers, tag: "Vom Hersteller", tagIcon: "factory",
-          visible: true, example: false, problem: null,
+          visible: true, example: false, problem: null, package: m.origin, dropsPackage: m.drops_package,
           isDefault: m.printers.some((p) => p.name === s.defaultPrinter),
-          onlyHere: mine(m.only_here), keepsOwn: m.own_printers.filter((n) => s.own.has(n)),
+          onlyHere: mine(m.only_here), keepsOwn: m.own_printers.filter((n) => s.own.has(n) && showExample(profileInfo(i, n))),
         });
       }
       for (const p of pp.own) {
-        if (!s.own.has(p.name)) continue;
+        if (!s.own.has(p.name) || !showExample(p)) continue;
         const project = p.origin === PROJECT;
+        // Its template sits in a vendor package the slicer deletes at its next start.
+        const packageGone = !!p.package && !s.packages.has(p.package);
+        const visible = p.visible && !packageGone;
         out.push({
           id: "own:" + p.name, system: false, model: p.model, name: p.name,
           sub: p.based_on ? "Vorlage: " + (p.based_on_found ? printerText(i, p.based_on) : p.based_on) : "",
-          cover: p.cover, printers: p.visible ? [{ name: p.name, variant: p.variant }] : [],
+          cover: p.cover, printers: visible ? [{ name: p.name, variant: p.variant }] : [],
           tag: project ? PROJECT : "Eigener", tagIcon: project ? "file" : "user",
-          visible: p.visible, example: !!p.example, problem: p.problem || null,
+          visible, example: !!p.example, package: p.package,
+          problem: packageGone ? `Die Vorlage steckt im Paket „${p.package}“, das der Slicer beim nächsten Start löscht. Danach lädt er diesen Drucker nicht.`
+            : p.problem || null,
           isDefault: p.name === s.defaultPrinter, onlyHere: mine(p.only_here), keepsOwn: [],
         });
       }
       return out;
     });
-    const visibleCount = computed(() => cards.value.filter((c) => c.visible).length);
-    const locked = (c) => c.visible && visibleCount.value <= 1;
     const nozzlesOf = (c) => c.printers.filter((p) => p.variant);
     const nozzleList = (c) => nozzlesOf(c).map((p) => nozzleLabel(p.variant)).join(" · ");
+
+    // Removing the last model of a vendor: SnOrca and Orca up to 2.4.2 delete its package at the
+    // next start, own printers on top of it become invisible (FINDINGS 4.2, make_data.py).
+    function dropsPackage(c) {
+      if (!c.system || !c.dropsPackage) return false;
+      const s = state.value;
+      return !inst.value.printers_page.system.some((m) => m.model !== c.model && m.origin === c.package && s.models.has(m.model));
+    }
+    const lostOwn = (c) => dropsPackage(c) ? cards.value.filter((x) => !x.system && x.visible && x.package === c.package) : [];
+    // What stays visible without c; at least one printer stays.
+    const restOf = (c) => {
+      const lost = new Set(lostOwn(c).map((x) => x.id));
+      return cards.value.filter((x) => x.id !== c.id && x.visible && !lost.has(x.id));
+    };
+    const locked = (c) => c.visible && restOf(c).length < 1;
 
     const defaultCard = computed(() => cards.value.find((c) => c.isDefault) || null);
     const defaultText = computed(() => printerText(inst.value, state.value.defaultPrinter));
 
     // When the default printer goes, the slicer starts with another one; Orfix names it in the plan.
     function nextDefault(card) {
-      const rest = cards.value.filter((c) => c.id !== card.id && c.printers.length);
+      const rest = restOf(card).filter((c) => c.printers.length);
       if (!rest.length) return null;
       const c = rest[0];
       return (c.printers.find((p) => p.variant === "0.4") || c.printers[0]).name;
@@ -135,31 +155,43 @@ export default {
       const c = pcard.value;
       if (!c || !panel.value || panel.value.type !== "remove") return [];
       const out = [];
+      const drops = dropsPackage(c);
       if (c.system) {
         // SnOrca switches all nozzles of a model back on at start, so only whole models go (FINDINGS 12).
         out.push({ icon: "minus", cls: "ch-off", name: c.name, verb: "wird im Slicer abgeschaltet",
-                   sub: "Alle Düsen: " + nozzleList(c) + " mm. Die Profile vom Hersteller bleiben auf dem Rechner." });
+                   sub: "Alle Düsen: " + nozzleList(c) + " mm." + (drops ? "" : " Die Profile vom Hersteller bleiben auf dem Rechner.") });
       } else {
         out.push({ icon: "trash", cls: "ch-delete", name: c.name, verb: "wird gelöscht", sub: "Seine Datei kommt weg." });
+      }
+      if (drops) {
+        out.push({ icon: "factory", cls: "ch-delete", name: `Paket „${c.package}“`, verb: "wird beim nächsten Start gelöscht",
+                   sub: "Das macht der Slicer, sobald von einem Hersteller kein Drucker mehr eingerichtet ist. Richtest du wieder einen ein, holt er es zurück." });
       }
       if (c.isDefault) {
         const next = nextDefault(c);
         if (next) out.push({ icon: "star", cls: "ch-on", name: printerText(inst.value, next), verb: "wird Standard", sub: "Mit ihm startet der Slicer dann." });
       }
-      // Own printers built on a model stay visible without it (Preset::set_visible_from_appconfig
-      // leaves profiles without vendor alone). The ticked profiles below are part of the plan, too.
-      for (const n of c.keepsOwn) {
-        out.push({ icon: "user", cls: "ch-on", name: n, verb: "bleibt", sub: "Baut auf diesem Drucker auf und funktioniert weiter." });
+      if (drops) {
+        for (const x of lostOwn(c)) {
+          out.push({ icon: "user", cls: "ch-delete", name: x.name, verb: "wird unsichtbar", sub: "Seine Vorlage steckt in diesem Paket. Die Datei bleibt liegen." });
+        }
+      } else {
+        // Own printers built on a model stay visible without it (Preset::set_visible_from_appconfig
+        // leaves profiles without vendor alone). The ticked profiles below are part of the plan, too.
+        for (const n of c.keepsOwn) {
+          out.push({ icon: "user", cls: "ch-on", name: n, verb: "bleibt", sub: "Baut auf diesem Drucker auf und funktioniert weiter." });
+        }
       }
       return out;
     });
     function remove() {
       const c = pcard.value, s = state.value;
       if (!c || readOnly.value || locked(c)) return;
-      const next = c.isDefault ? nextDefault(c) : null;
+      const next = c.isDefault ? nextDefault(c) : null, drops = dropsPackage(c);
       backupNow(inst.value, { kind: "change", reason: c.system ? "vor „Drucker entfernt“" : "vor „Drucker gelöscht“", detail: c.name });
       if (c.system) s.models.delete(c.model);
       else s.own.delete(c.name);
+      if (drops) s.packages.delete(c.package);
       for (const n of along) s.own.delete(n);
       if (next) s.defaultPrinter = next;
       const name = c.name, verb = c.system ? "entfernt" : "gelöscht";
@@ -181,7 +213,7 @@ export default {
       LAST_ONE, KIND_ICON, inst, state, readOnly, cards, locked, nozzlesOf, defaultCard, defaultText,
       dead, remembered, clean, panel, choice, along, pcard, plan, panelTitle,
       openDefault, setDefault, openRemove, toggleAlong, remove, closePanel,
-      go, asset, plural, nozzleLabel, printerText, profileSub,
+      go, hashOf, asset, plural, nozzleLabel, printerText, profileSub, busyText,
     };
   },
 
@@ -193,9 +225,9 @@ export default {
             <h1 id="page-title" tabindex="-1">Drucker</h1>
             <p>{{ inst.slicer }} {{ inst.version }}</p>
           </div>
-          <span :class="['status', { 'status--busy': inst.running }]">{{ inst.running ? 'Läuft – nur ansehen' : 'Geschlossen' }}</span>
+          <run-status :inst="inst"/>
         </div>
-        <p v-if="readOnly" class="banner">{{ inst.slicer }} ist offen. Zum Ändern bitte den Slicer schließen.</p>
+        <p v-if="readOnly" class="banner">{{ busyText(inst) }} Zum Ändern bitte den Slicer schließen.</p>
 
         <section class="box start-box" aria-labelledby="start-h">
           <img class="bar-img" :src="asset(defaultCard ? defaultCard.cover : 'assets/printer-placeholder.png')" alt="" width="48" height="48">
@@ -334,7 +366,7 @@ export default {
               <p v-if="pcard.keepsOwn.length" class="note">Nicht angehakt, weil {{ pcard.keepsOwn.map((n) => '„' + n + '“').join(', ') }} sie vielleicht noch braucht.</p>
             </template>
 
-            <p class="safe-note"><ui-icon name="backup"/><span>Vorher legt Orfix eine Sicherung an. Unter <a href="#/sicherungen" @click="go($event, '#/sicherungen')">Sicherungen</a> holst du alles zurück.</span></p>
+            <p class="safe-note"><ui-icon name="backup"/><span>Vorher legt Orfix eine Sicherung an. Unter <a :href="hashOf('sicherungen', inst.id)" @click="go($event, hashOf('sicherungen', inst.id))">Sicherungen</a> stellst du alles wieder her.</span></p>
             <div class="actions">
               <button class="btn" type="button" @click="closePanel">Abbrechen</button>
               <button class="btn btn-danger-solid right" type="button" :disabled="readOnly || locked(pcard)" @click="remove">

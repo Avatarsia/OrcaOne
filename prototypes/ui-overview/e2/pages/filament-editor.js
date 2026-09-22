@@ -1,10 +1,13 @@
-// Form "Bearbeiten" for one filament, shown in the side panel of the page "Filamente".
+// Form for one filament, shown in the side panel of the page "Filamente". It is the only way
+// to change or create a filament: "edit" changes an own one, "copy" saves a manufacturer or
+// library profile as an own one, "new" creates one on top of a template.
 // The fields come from ORFIX_DATA.editable_fields (make_data.py). An empty field takes the
 // value of the template, shown grey as placeholder; a typed value that differs from it counts
 // as changed. The form only reports name and own values, the page files them as a change.
+// It reports "dirty" while something is typed, so the page can ask before throwing it away.
 import { DATA } from "../common.js";
 
-const { reactive, ref, computed, nextTick } = Vue;
+const { reactive, ref, computed, watch, nextTick } = Vue;
 
 export const FIELDS = DATA.editable_fields;
 const GROUPS = [...new Set(FIELDS.map((f) => f.group))];
@@ -61,13 +64,13 @@ export default {
     startName: { type: String, required: true },
     own: { type: Object, required: true },        // key -> {value, high_flow?}, set by the profile itself
     base: { type: Object, required: true },       // key -> what the template gives, or null
-    copy: { type: Boolean, default: false },      // manufacturer or library profile: saved as a new own one
+    mode: { type: String, default: "edit" },      // "edit", "copy" or "new", see above
     templateName: { type: String, default: "" },
     materialColour: { type: String, required: true },
     nameTaken: { type: Function, required: true },
     scopeText: { type: String, default: "" },
   },
-  emits: ["save", "cancel"],
+  emits: ["save", "cancel", "dirty"],
 
   setup(props, { emit }) {
     function initial(f) {
@@ -159,7 +162,7 @@ export default {
       }
       return "";
     }
-    // Errors show after leaving the field or after "Übernehmen", not while typing.
+    // Errors show after leaving the field or after "Fertig", not while typing.
     const shownError = (f) => tried.value || touched.has(f.key) ? fieldError(f) : "";
     const touch = (f) => touched.add(f.key);
     const nameError = computed(() => nameProblem(form.name, props.nameTaken));
@@ -191,6 +194,11 @@ export default {
     }
     const cancel = () => emit("cancel");
 
+    // Anything typed since the form opened; the page asks before it gets lost.
+    const startName = form.name.trim(), startValues = JSON.stringify(form.values);
+    const dirty = computed(() => form.name.trim() !== startName || JSON.stringify(form.values) !== startValues);
+    watch(dirty, (v) => emit("dirty", v));
+
     return {
       form, groups, slotsOf, placeholder, empty, fromText, changed, shownError, touch, nameError,
       reset, colourValue, setColour, preview, save, cancel,
@@ -200,7 +208,8 @@ export default {
   template: `
     <form class="edit-form" novalidate @submit.prevent="save">
       <div class="panel-body">
-        <p v-if="copy" class="quiet-note"><ui-icon name="info"/>Wird als eigenes Filament gespeichert – das Original bleibt.</p>
+        <p v-if="mode === 'copy'" class="quiet-note"><ui-icon name="info"/>Wird als eigenes Filament gespeichert – das Original bleibt.</p>
+        <p v-else-if="mode === 'new'" class="quiet-note"><ui-icon name="info"/>Ein neues eigenes Filament. Leere Felder nehmen den Wert der Vorlage.</p>
         <div class="hero edit-hero">
           <spool-icon :colour="preview" :size="72"/>
           <div class="hero-text">
@@ -244,11 +253,11 @@ export default {
             <p :id="'ef-' + f.key + '-error'" class="field-error ef-error" aria-live="polite">{{ shownError(f) }}</p>
           </div>
         </section>
-        <p v-if="copy && scopeText" class="note">Aktiv für: {{ scopeText }}.</p>
+        <p v-if="mode !== 'edit' && scopeText" class="note">Aktiv für: {{ scopeText }}.</p>
       </div>
       <div class="panel-foot">
         <button class="btn" type="button" @click="cancel">Abbrechen</button>
-        <button class="btn btn-primary right" type="submit">Übernehmen</button>
+        <button class="btn btn-primary right" type="submit">{{ mode === 'new' ? 'Anlegen' : 'Fertig' }}</button>
       </div>
     </form>
   `,
