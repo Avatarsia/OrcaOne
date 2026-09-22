@@ -39,3 +39,4 @@ class RunState:
     running: bool
     reason: str | None = None        # lock, process, process_unmapped
     pids: list[int] = field(default_factory=list)
+    lock: str | None = None          # "cache/<hash>.lock" the slicer holds, for reason "lock"

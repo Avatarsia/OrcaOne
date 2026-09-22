@@ -11,12 +11,31 @@ Details: docs/FINDINGS.md, section 4.3.
 import hashlib
 import json
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 CHECKSUM_PREFIX = "# MD5 checksum "
 _CHECKSUM_LINE = re.compile(r"\n# MD5 checksum [0-9A-Fa-f]{32}\n?\Z")
 _FIRST_INDENT = re.compile(r"\{\n([ \t]+)\S")
+_SURROGATE_ESCAPE = re.compile(r"\\u[dD][89a-fA-F]")
+# The slicer deletes the .conf right before it renames the new one into place (rename_file in
+# utils.cpp), so a missing file is looked for once more after this many seconds (FINDINGS 4.3).
+RETRY_DELAY = 0.1
+
+
+def _reject(constant: str):
+    raise ValueError(f"{constant} is not JSON")
+
+
+def loads(text: str):
+    """json.loads as strict as nlohmann::json, which both slicers read with: NaN, Infinity and
+    an unpaired surrogate escape ("\\ud800") are errors there, so the slicer rejects the file."""
+    data = json.loads(text, parse_constant=_reject)
+    if _SURROGATE_ESCAPE.search(text):
+        # Paired escapes became one character; an unpaired one cannot be encoded.
+        json.dumps(data, ensure_ascii=False).encode("utf-8")
+    return data
 
 
 @dataclass
@@ -37,7 +56,7 @@ def parse_conf(raw: bytes) -> ConfFile:
     match = _CHECKSUM_LINE.search(text)
     if match:
         text = text[:match.start()]
-    data = json.loads(text)
+    data = loads(text)
     if not isinstance(data, dict):
         raise ValueError("conf is not a JSON object")
     indent = _FIRST_INDENT.match(text)
@@ -50,7 +69,12 @@ def parse_conf(raw: bytes) -> ConfFile:
 
 
 def read_conf(path: Path) -> ConfFile:
-    return parse_conf(path.read_bytes())
+    """Raises OSError or ValueError if the file is still missing or broken on the second try."""
+    try:
+        return parse_conf(path.read_bytes())
+    except (OSError, ValueError):
+        time.sleep(RETRY_DELAY)
+        return parse_conf(path.read_bytes())
 
 
 def dump_conf(conf: ConfFile) -> bytes:

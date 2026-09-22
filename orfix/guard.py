@@ -40,6 +40,12 @@ class SlicerProcess:
 
 def lock_holder(data_dir: Path) -> int | None:
     """PID holding a lock file in <data_dir>/cache, if any."""
+    held = held_lock(data_dir)
+    return held[0] if held else None
+
+
+def held_lock(data_dir: Path) -> tuple[int, str] | None:
+    """(PID, "cache/<file>") of the lock the slicer holds in <data_dir>/cache, if any."""
     if os.name != "posix":
         return None
     import fcntl
@@ -67,7 +73,7 @@ def lock_holder(data_dir: Path) -> int | None:
         lock_type, pid = (fields[3], fields[2]) if sys.platform == "darwin" else (fields[0], fields[4])
         # pid is 0 when the holder lives in another PID namespace (Flatpak).
         if lock_type != fcntl.F_UNLCK:
-            return pid
+            return pid, f"cache/{lock.name}"
     return None
 
 
@@ -144,9 +150,9 @@ def _same_path(a: Path, b: Path) -> bool:
 
 
 def run_state(instance: Instance, processes: list[SlicerProcess]) -> RunState:
-    pid = lock_holder(instance.data_dir)
-    if pid is not None:
-        return RunState(True, "lock", [pid])
+    held = held_lock(instance.data_dir)
+    if held is not None:
+        return RunState(True, "lock", [held[0]], lock=held[1])
     same_slicer = [p for p in processes if p.slicer == instance.slicer]
     mine = [p.pid for p in same_slicer if p.data_dir and _same_path(p.data_dir, instance.data_dir)]
     if mine:

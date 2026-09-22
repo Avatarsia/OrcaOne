@@ -3,7 +3,9 @@
 Reads the source strictly read only and never runs during tests. Copies a small,
 complete slice: the U1 printers, two processes, a few filaments with their full
 inherits chains, library profiles for the acceptance checklist in
-docs/FINDINGS.md, and an anonymised .conf.
+docs/FINDINGS.md, and an anonymised .conf. Adds synthetic own profiles in
+user/default/, written like Preset::save and Preset::save_info (FINDINGS 4.4),
+because the real installation has none.
 
 Usage: python tests/fixtures/make_snorca_fixture.py ~/.config/Snapmaker_Orca
 """
@@ -27,7 +29,8 @@ VENDOR_PROFILES = {
         "0.08mm Standard @Snapmaker U1 (0.4 nozzle)",
     ],
     "filament_list": [
-        "Snapmaker PLA Basic @U1", "Snapmaker ABS @U1 0.4 nozzle", "Snapmaker ABS @J1",
+        "Snapmaker PLA Basic @U1", "Snapmaker ABS @U1 0.4 nozzle", "Snapmaker ABS @U1 0.2 nozzle",
+        "Snapmaker ABS @J1",
         "Generic PLA", "Generic PLA @U1 0.2 nozzle",
     ],
 }
@@ -41,6 +44,19 @@ LIBRARY_PROFILES = [
     "Generic PLA @System", "Generic PETG @System",
 ]
 HOME = str(Path.home())
+# Synthetic own profiles: (kind, name, own values). Parent and version come from the copied
+# system profiles, like the slicer takes them when saving.
+OWN_PROFILES = [
+    ("filament", "Mein PLA", {"inherits": "Snapmaker PLA Basic @U1", "filament_settings_id": ["Mein PLA"],
+                              "nozzle_temperature": ["215"]}),
+    # Its parent does not exist: the slicer skips it ("can not find parent").
+    ("filament", "Altes PETG", {"inherits": "Snapmaker PETG @U1 alt", "filament_settings_id": ["Altes PETG"],
+                                "nozzle_temperature": ["245"], "hot_plate_temp": ["75"],
+                                "compatible_printers": ["Snapmaker U1 (0.4 nozzle)"]}),
+    ("machine", "Mein U1", {"inherits": "Snapmaker U1 (0.4 nozzle)", "printer_settings_id": "Mein U1",
+                            "printable_height": "260"}),
+]
+UPDATED_TIME = 1758520000
 
 
 def copy(source: Path, relative: str) -> None:
@@ -82,6 +98,27 @@ def library_slice(source: Path) -> None:
     copy(source, "system/OrcaFilamentLibrary.json")
 
 
+def own_profiles() -> None:
+    """Write OWN_PROFILES as Preset::save does: only the differences plus version, name, from,
+    inherits and the *_settings_id, sorted, 4 spaces, newline at the end; the .info carries the
+    parent's setting_id as base_id (PresetCollection::save_current_preset)."""
+    manifest = json.loads((TARGET / "system" / "Snapmaker.json").read_text(encoding="utf-8"))
+    version = ".".join(str(int(part)) for part in manifest["version"].split("."))
+    sub_paths = {e["name"]: e["sub_path"] for key in VENDOR_PROFILES for e in manifest[key]}
+    for kind, name, values in OWN_PROFILES:
+        parent = sub_paths.get(values["inherits"])
+        base_id = ""
+        if parent:
+            base_id = json.loads((TARGET / "system" / "Snapmaker" / parent).read_text(encoding="utf-8")).get("setting_id", "")
+        folder = TARGET / "user" / "default" / kind
+        folder.mkdir(parents=True, exist_ok=True)
+        body = {"version": version, "name": name, "from": "User", **values}
+        (folder / f"{name}.json").write_text(json.dumps(body, indent=4, ensure_ascii=False, sort_keys=True) + "\n",
+                                            encoding="utf-8")
+        info = f"sync_info = \nuser_id = \nsetting_id = \nbase_id = {base_id}\nupdated_time = {UPDATED_TIME}\n"
+        (folder / f"{name}.info").write_text(info, encoding="utf-8")
+
+
 def check_source(source: Path) -> None:
     """Refuse sources whose .conf holds personal data the text replacements miss."""
     conf = json.loads((source / "Snapmaker_Orca.conf").read_text(encoding="utf-8"))
@@ -108,6 +145,7 @@ def main() -> None:
     anonymised_conf(source)
     vendor_slice(source, "Snapmaker")
     library_slice(source)
+    own_profiles()
     print(f"written: {sum(1 for p in TARGET.rglob('*') if p.is_file())} files in {TARGET}")
 
 

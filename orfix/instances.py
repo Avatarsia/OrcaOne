@@ -10,9 +10,10 @@ import json
 import os
 import platform
 import re
+import time
 from pathlib import Path
 
-from .conf import read_conf
+from .conf import RETRY_DELAY, read_conf
 from .model import SLICERS, Instance
 
 # Known Flatpak IDs. OrcaSlicer used io.github.softfever.OrcaSlicer up to v2.3.1
@@ -83,10 +84,14 @@ def _portable_appimage_dirs(home: Path) -> list[tuple[Path, str]]:
 
 
 def slicer_of(path: Path) -> str | None:
-    """APP_KEY of a data directory, recognised by its <APP_KEY>.conf."""
-    for key in SLICERS:
-        if (path / f"{key}.conf").is_file():
-            return key
+    """APP_KEY of a data directory, recognised by its <APP_KEY>.conf. The slicer deletes the
+    .conf right before it renames the new one into place, so look twice (FINDINGS 4.3)."""
+    for attempt in range(2):
+        for key in SLICERS:
+            if (path / f"{key}.conf").is_file():
+                return key
+        if not attempt:
+            time.sleep(RETRY_DELAY)
     return None
 
 

@@ -27,6 +27,7 @@ def test_lock_holder_reports_the_pid(tmp_path):
     try:
         assert holder.stdout.readline().strip() == "locked"
         assert guard.lock_holder(tmp_path) == holder.pid
+        assert guard.held_lock(tmp_path) == (holder.pid, "cache/11911699295906290287.lock")
     finally:
         holder.kill()
         holder.wait()
@@ -86,10 +87,10 @@ def test_run_state(tmp_path):
 
 def test_lock_held_from_another_pid_namespace(tmp_path, monkeypatch):
     # F_GETLK reports pid 0 for a holder inside a Flatpak sandbox.
-    monkeypatch.setattr(guard, "lock_holder", lambda data_dir: 0)
+    monkeypatch.setattr(guard, "held_lock", lambda data_dir: (0, "cache/1.lock"))
     instance = Instance(id="x", slicer="OrcaSlicer", data_dir=tmp_path, source="flatpak")
     state = run_state(instance, [])
-    assert (state.running, state.reason, state.pids) == (True, "lock", [0])
+    assert (state.running, state.reason, state.pids, state.lock) == (True, "lock", [0], "cache/1.lock")
 
 
 def test_find_processes_runs():

@@ -1,0 +1,8 @@
+{
+    "from": "User",
+    "inherits": "Snapmaker U1 (0.4 nozzle)",
+    "name": "Mein U1",
+    "printable_height": "260",
+    "printer_settings_id": "Mein U1",
+    "version": "2.3.3.3"
+}

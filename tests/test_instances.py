@@ -120,6 +120,18 @@ def test_load_instance_ignores_folders_without_conf(tmp_path):
     assert load_instance(tmp_path, "auto") is None
 
 
+def test_load_instance_while_the_slicer_saves_its_conf(tmp_path, monkeypatch):
+    """The slicer deletes the .conf right before it renames <key>.conf.<pid> into place
+    (FINDINGS 4.3). Orfix looks once more instead of losing the installation."""
+    data_dir = tmp_path / "Snapmaker_Orca"
+    data_dir.mkdir()
+    pending = data_dir / "Snapmaker_Orca.conf.4711"
+    pending.write_text('{\n    "header": "Snapmaker Orca 2.4.0"\n}\n', encoding="utf-8")
+    monkeypatch.setattr(instances.time, "sleep", lambda seconds: pending.rename(data_dir / "Snapmaker_Orca.conf"))
+    instance = load_instance(data_dir, "manual")
+    assert (instance.version, instance.problems) == ("2.4.0", [])
+
+
 def test_discover_finds_each_directory_once(fake_home, monkeypatch):
     monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
     data_dir = make_data_dir(fake_home / ".config" / "Snapmaker_Orca")

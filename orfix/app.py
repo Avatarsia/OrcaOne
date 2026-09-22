@@ -1,5 +1,6 @@
 """FastAPI app: JSON API under /api, the static UI under /."""
 
+import json
 import mimetypes
 from dataclasses import asdict
 from pathlib import Path
@@ -9,10 +10,9 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, guard, instances
+from . import __version__, guard, instances, overview
 
 STATIC_DIR = Path(__file__).parent / "static"
-DRAFTS_DIR = Path(__file__).parent.parent / "prototypes" / "ui-overview"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
 # On Windows the registry can map .js to text/plain, and browsers then refuse to
@@ -20,7 +20,19 @@ _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
 
-app = FastAPI(title="Orfix", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+
+class Utf8Response(JSONResponse):
+    """JSONResponse that does not fail on odd file names: on Linux a name that is not valid UTF-8
+    (from a Latin-1 ZIP, say) reaches Python with surrogate escapes, which strict UTF-8 refuses.
+    Those characters become "?"."""
+
+    def render(self, content) -> bytes:
+        text = json.dumps(content, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+        return text.encode("utf-8", "replace")
+
+
+app = FastAPI(title="Orfix", version=__version__, docs_url=None, redoc_url=None, openapi_url=None,
+              default_response_class=Utf8Response)
 
 
 def _hostname(value: str) -> str | None:
@@ -34,18 +46,21 @@ async def local_only(request: Request, call_next):
     # changes, and refusing frames blocks clickjacking.
     host = request.headers.get("host", "")
     if _hostname(host) not in _LOCAL_HOSTS:
-        return JSONResponse({"error": "forbidden"}, status_code=403)
+        return Utf8Response({"error": "forbidden"}, status_code=403)
     origin = request.headers.get("origin")
     if request.method not in ("GET", "HEAD") and origin and origin != f"http://{host}":
-        return JSONResponse({"error": "forbidden"}, status_code=403)
+        return Utf8Response({"error": "forbidden"}, status_code=403)
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+    # Revalidate every file: browsers otherwise keep old ES modules after an
+    # update of Orfix and mix them with new ones.
+    response.headers["Cache-Control"] = "no-cache"
     return response
 
 
 def _error(code: str, status: int = 400) -> JSONResponse:
-    return JSONResponse({"error": code}, status_code=status)
+    return Utf8Response({"error": code}, status_code=status)
 
 
 @app.get("/api/instances")
@@ -57,7 +72,6 @@ def list_instances():
     return {
         "version": __version__,
         "orfix_data_dir": str(instances.orfix_data_dir()),
-        "drafts": DRAFTS_DIR.is_dir(),
         "instances": [
             {
                 **asdict(instance),
@@ -67,6 +81,13 @@ def list_instances():
             for instance in found
         ],
     }
+
+
+@app.get("/api/data")
+def data():
+    # Read fresh on every call: the slicer may have changed its files or started meanwhile.
+    # A response directly: FastAPI's jsonable_encoder is slow for a megabyte of nested dicts.
+    return Utf8Response(overview.build_all())
 
 
 @app.post("/api/instances/manual")
@@ -93,11 +114,5 @@ def remove_manual(path: str):
         return _error("save_failed", 500)
     return {"removed": path}
 
-
-# Drafts of the overview page, only until its layout is decided. They load the
-# app's stylesheet and Vue via ../../orfix/static/, hence the second mount.
-if DRAFTS_DIR.is_dir():
-    app.mount("/prototypes/ui-overview", StaticFiles(directory=DRAFTS_DIR), name="drafts")
-    app.mount("/orfix/static", StaticFiles(directory=STATIC_DIR), name="drafts-static")
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

@@ -79,6 +79,10 @@
         {
             "name": "Snapmaker ABS @U1 0.4 nozzle",
             "sub_path": "filament/Snapmaker ABS @U1 0.4 nozzle.json"
+        },
+        {
+            "name": "Snapmaker ABS @U1 0.2 nozzle",
+            "sub_path": "filament/Snapmaker ABS @U1 0.2 nozzle.json"
         }
     ],
     "machine_list": [

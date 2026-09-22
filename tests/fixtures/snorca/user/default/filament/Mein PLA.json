@@ -1,0 +1,12 @@
+{
+    "filament_settings_id": [
+        "Mein PLA"
+    ],
+    "from": "User",
+    "inherits": "Snapmaker PLA Basic @U1",
+    "name": "Mein PLA",
+    "nozzle_temperature": [
+        "215"
+    ],
+    "version": "2.3.3.3"
+}

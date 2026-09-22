@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from orfix import conf as conf_module
 from orfix.conf import dump_conf, parse_conf, read_conf
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -57,3 +58,24 @@ def test_rejects_anything_but_an_object():
         parse_conf(b"[]\n")
     with pytest.raises(ValueError):
         parse_conf(b"{ broken\n")
+
+
+def test_rejects_what_nlohmann_rejects():
+    # Python reads NaN and unpaired surrogates, the slicers do not: they would reset the .conf.
+    with pytest.raises(ValueError):
+        parse_conf(b'{"x": NaN}\n')
+    with pytest.raises(ValueError):
+        parse_conf(b'{"x": "\\ud800"}\n')
+    assert parse_conf(b'{"x": "\\ud83d\\ude00"}\n').data == {"x": "\U0001F600"}
+
+
+def test_read_conf_looks_twice(tmp_path, monkeypatch):
+    """The slicer deletes the .conf right before it renames the new one into place (FINDINGS 4.3)."""
+    raw = (FIXTURES / "conf/snorca_linux.conf").read_bytes()
+    path = tmp_path / "Snapmaker_Orca.conf"
+    monkeypatch.setattr(conf_module.time, "sleep", lambda seconds: path.write_bytes(raw))
+    assert read_conf(path).data["header"] == "Snapmaker Orca 2.4.0"
+    path.unlink()
+    monkeypatch.setattr(conf_module.time, "sleep", lambda seconds: None)
+    with pytest.raises(OSError):
+        read_conf(path)
