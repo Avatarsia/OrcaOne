@@ -108,3 +108,11 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Umfang:** zuerst nur Übersicht, Anlegen, Umbenennen und Löschen danach.
 - **Wann:** erst bauen, wenn der Workflow für Teil B fertig ist, weil er dieselben Dateien bearbeitet.
 - **Zuordnung** zur Erklärung für den Nutzer: Drucker → Düse (Druckerprofil) → Prozesse und Filamente getrennt, beide über ihre Druckerliste. Prozess und Filament sind unabhängig, `compatible_prints` nutzt niemand.
+
+## Teil B bereit zum Test (22.09.2026, 13:30)
+
+- **Schreibfunktionen fertig** (`a2b06ad`, `e6b9938`), 175 Tests grün. Der Ende-zu-Ende-Test und ein Lauf auf einer Kopie des echten Ordners sind in Ordnung.
+- **Offen:** die Spalte „SnOrca“ in [TEST-VERGLEICH](TEST-VERGLEICH.md) Teil B. Der Nutzer testet mit einer Kopie unter `~/orfix-test/Snapmaker_Orca` und `--datadir`.
+- **Danach:** Seite „Prozesse“ mit Anzeigen und Bearbeiten, nach demselben Muster wie bei den Filamenten.
+  - Vorgeschlagene Gruppen: Qualität, Stabilität, Geschwindigkeit, Stützen, Haftung. Dazu „Alle Werte“ nur zum Lesen.
+  - Die Rückmeldung des Nutzers zur Auswahl steht noch aus.
