@@ -39,7 +39,13 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
    - Bei System- und Bibliotheksprofilen entsteht eine eigene Variante mit `inherits`.
    - Das hebt das Nicht-Ziel „kein Bearbeiten einzelner Werte“ der Spezifikation auf.
 3. **U1Cam:** Das Skript `prototypes/U1Cam/u1cam.py` stammt vom Nutzer und ist seit 22.09. im Repo. Es weckt die Kamera der Stock-Firmware alle 10 s per Moonraker-WebSocket `camera.start_monitor` (`{"domain": "lan", "interval": 0}`) und holt `http://<drucker>/server/files/camera/monitor.jpg`. Nur Standardbibliothek. Kein Orca-Thema, gehört zu den Ideen rund um den U1 (Kamera, Spoolman).
-4. **Recherche:** Wo stolpern Nutzer in Orca und SnOrca oft, und was davon kann Orfix vereinfachen? Quellen: GitHub-Issues, Foren, Reddit. **Läuft seit 22.09. 07:35** als Workflow `orfix-orca-pain-points`. Das Ergebnis landet in `docs/RECHERCHE-STOLPERSTEINE.md`.
+4. **Recherche:** Wo stolpern Nutzer in Orca und SnOrca oft, und was davon kann Orfix vereinfachen? Quellen: GitHub-Issues, Foren, Reddit. **Erledigt am 22.09.:** [RECHERCHE-STOLPERSTEINE](RECHERCHE-STOLPERSTEINE.md) enthält die Top 10 mit Belegen. Neu gegenüber dem Plan sind vier Ideen:
+   - Profile aus anderen `user/`-Ordnern zurückholen (nach Update oder Anmeldung „alles weg“);
+   - eine Import-Prüfung „warum nimmt der Slicer das nicht?“;
+   - unsichtbare Profile reparieren;
+   - einzelne Profile aus einer Sicherung zurückholen.
+
+   Außerdem: Orca main hat ein „Troubleshoot Center“, SnOrca 2.4.0 hat nichts davon.
 5. **Entwürfe** für die Seiten „Drucker“ und „Sicherungen“ im Stil von E. Danach den **Plan für Phase 1** auf Grundlage von E neu schreiben. Der Designplan im PLAN ist als überholt markiert.
 6. **Technische Seite „Slicer“ (neu am 22.09.):** eine Übersicht je Installation (was liegt wo, Verzeichnisse, Größen, Erklärung je Ordner). Sie ist wie die jetzige Startseite, aber schön im Stil von E.
 
