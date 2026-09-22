@@ -100,7 +100,7 @@ Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 - **Sicherheitsregel:** Orfix schreibt nur in von Hand hinzugefügte Ordner, sonst meldet es `write_not_allowed`.
 - **Nach einem Abbruch** fortsetzen mit `resumeFromRunId: "wf_9ea0a07b-6fd"`, Skript unter `…/workflows/scripts/orfix-writes-part-b-wf_9ea0a07b-6fd.js`.
 
-## Nächster Wunsch (22.09.2026): Seite „Prozesse“
+## Nächster Wunsch (22.09.2026): Seite „Prozesse“ – vom Nutzer bestätigt, nach Teil B bauen
 
 Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwischen Filamente und Drucker.
 - **Aufbau:** Drucker und Düse, die Wahl teilt sich die Seite mit „Filamente“. Darunter die Prozesse als Kacheln: groß die Schichthöhe, darunter die Art. Markiert ist der zuletzt gewählte Prozess aus `orca_presets`.
