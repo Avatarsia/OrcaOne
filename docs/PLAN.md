@@ -158,6 +158,14 @@ Die Checkliste aus FINDINGS gehen wir gemeinsam im Slicer durch.
 
 ## Designplan
 
+> **Stand 22.09.2026: überholt durch Entwurf E.** Die Oberfläche richtet sich jetzt nach `prototypes/ui-overview/variante-e.html`:
+> - **Farben:** von OrcaSlicer (Teal `#009688`, Palette in FINDINGS-Umfeld belegt).
+> - **Schrift:** Inter statt JetBrains Mono und ionpy-Stil.
+> - **Seiten:** Filamente, Drucker, Sicherungen, mit Druckerbildern und Spulen.
+>
+> Die Abschnitte unten beschreiben den früheren ionpy-Ansatz und bleiben nur zur Nachvollziehbarkeit stehen. Phase 1 wird auf Grundlage von E neu geplant.
+
+
 Er beruht auf dem ionpy-Styleguide (`~/dev/ionpy/static/dev/styleguide/`): dunkel, flach, kantig (Radius 0), 1-px-Rahmen, dicht (Zeilen 28 px), ein sparsamer Akzent, Mono-Schrift für technische Werte. Übernommen werden die Tokens und Bausteine Tabelle, Knopf, Status, Seitenpanel, Dialog und leerer Zustand. Das ganze Layout-System, die vier Themes, die Desktop-Metapher und die Icon-Schrift (730 KB) bleiben draußen.
 
 **Farben:** hell und dunkel automatisch über `prefers-color-scheme`. Die Werte stammen aus ionpy, nur die Statusfarben sind für lesbaren Text (Kontrast ≥ 4,5:1) eine Stufe angepasst.

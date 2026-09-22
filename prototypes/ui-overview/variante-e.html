@@ -9,44 +9,17 @@
     /* Draft E: printer first, then nozzle, then one tree of filaments with a switch each.
        Colours, radii and button shapes follow OrcaSlicer (StateColor.cpp, web/include/global.css),
        so Orfix looks like it belongs to the slicer. */
-    @font-face {
-      font-family: "HarmonyOS Sans SC";
-      src: url("assets/fonts/HarmonyOS_Sans_SC_Regular.ttf") format("truetype");
-      font-weight: 400;
-      font-display: swap;
-    }
-    @font-face {
-      font-family: "HarmonyOS Sans SC";
-      src: url("assets/fonts/HarmonyOS_Sans_SC_Bold.ttf") format("truetype");
-      font-weight: 700;
-      font-display: swap;
-    }
 
-    /* Font comparison for the draft: Orca's HarmonyOS Sans, Inter (OFL) or the system font. */
+    /* Inter (SIL OFL 1.1), shipped with Orfix in orfix/static/vendor/inter. */
     @font-face {
       font-family: "Inter";
       src: url("../../orfix/static/vendor/inter/InterVariable.woff2") format("woff2");
       font-weight: 100 900;
       font-display: swap;
     }
-    :root[data-font="inter"] { --font: "Inter", system-ui, "Segoe UI", Roboto, sans-serif !important; }
-    :root[data-font="system"] { --font: system-ui, "Segoe UI", Roboto, sans-serif !important; }
-    .font-switch {
-      position: fixed; left: 12px; bottom: 12px; z-index: 50;
-      display: flex; align-items: center; gap: 2px; padding: 3px;
-      background: var(--surface); border: 1px solid var(--line-box); border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); font: 12px/1 var(--font);
-    }
-    .font-switch span { color: var(--muted); padding: 0 6px 0 4px; }
-    .font-switch button {
-      height: 24px; padding: 0 10px; border: 0; border-radius: 4px;
-      background: none; color: var(--text); font: inherit; cursor: pointer;
-    }
-    .font-switch button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-    .font-switch button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
 
     :root {
-      --font: "HarmonyOS Sans SC", system-ui, "Segoe UI", Roboto, sans-serif;
+      --font: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
       --panel-w: 380px;
 
       --accent: #009688;        /* fills: primary button, switch */
@@ -422,28 +395,6 @@
 </head>
 <body>
   <div id="app"></div>
-  <div class="font-switch" role="group" aria-label="Schrift vergleichen">
-    <span>Schrift</span>
-    <button type="button" data-font="orca">Orca</button>
-    <button type="button" data-font="inter">Inter</button>
-    <button type="button" data-font="system">System</button>
-  </div>
-  <script>
-    // Draft only: compare fonts. The choice is a per-browser convenience; storage may be blocked.
-    (function () {
-      const buttons = document.querySelectorAll(".font-switch button");
-      function apply(font) {
-        if (font === "orca") delete document.documentElement.dataset.font;
-        else document.documentElement.dataset.font = font;
-        buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.font === font)));
-        try { localStorage.setItem("orfix.draft.font", font); } catch (e) { /* ignore */ }
-      }
-      let saved = "orca";
-      try { saved = localStorage.getItem("orfix.draft.font") || "orca"; } catch (e) { /* ignore */ }
-      buttons.forEach((b) => b.addEventListener("click", () => apply(b.dataset.font)));
-      apply(saved);
-    })();
-  </script>
   <script>
     const { createApp, ref, reactive, computed, watch, nextTick } = Vue;
     const DATA = window.ORFIX_DATA;
@@ -1126,7 +1077,6 @@
               </div>
             </section>
             <p class="credits">
-              Schrift: <a href="assets/fonts/HarmonyOS_Sans_NOTICE.txt">HarmonyOS Sans</a> ·
               Druckerbilder und Symbole aus OrcaSlicer
             </p>
           </div>

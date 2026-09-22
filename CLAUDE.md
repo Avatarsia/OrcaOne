@@ -33,9 +33,15 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 - **Umgebung:** `.lenv` im Projektordner und `requirements.txt`. Start mit `./orfix.sh` bzw. `orfix.cmd` oder `.lenv/bin/python -m orfix`. Tests mit `.lenv/bin/python -m pytest`.
 - **Zusätzliche Abhängigkeiten** nur nach Rücksprache.
 - **Frontend:** Vue 3 (lokal in `orfix/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
-  - Stil nach dem ionpy-Styleguide, aber Dateien kopieren, nie auf `~/dev/ionpy` verweisen.
+  - Stil nach Entwurf E (`prototypes/ui-overview/variante-e.html`): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orfix/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
+  - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
   - Satzschreibung, Status immer als Text plus Farbe.
-- **Oberfläche:** zwei Seiten, „Übersicht“ und „Verwalten“. Details kommen ins Seitenpanel oder aufklappbar, nicht auf neue Seiten.
+- **Oberfläche:** drei Seiten.
+  - **Filamente:** Drucker wählen → Düse → Baum aus Eigene, Vom Hersteller und Orca-Bibliothek.
+  - **Drucker:** Standard festlegen, aufräumen.
+  - **Sicherungen.**
+
+  Details nur auf Anforderung im Seitenpanel. Kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos.
 - **Plattformen:** Linux und Windows gleichwertig. Pfade nur mit `pathlib`.
 - **Sprache:** Code, Bezeichner und Kommentare auf Englisch. UI-Texte auf Deutsch, zentral in `orfix/static/texts.js`. Das Backend liefert Fehlercodes, keine Texte.
 - **KISS:** wenige Schichten, keine Abstraktionen auf Vorrat. Keine Platzhalter, jede Datei ist nach jedem Schritt vollständig und lauffähig.

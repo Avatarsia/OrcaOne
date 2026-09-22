@@ -13,7 +13,7 @@ Die Entwürfe A bis C waren zu voll und sind nur noch in der Git-Geschichte zu f
 - Filamente per Drag & Drop einschalten oder als „Neues Filament daraus“ anlegen, alles nur im Speicher.
 - Die Spule zeigt das Material, nicht die Farbe. Bekannte Farben stehen im Seitenpanel unter „Gibt es in“.
 - Das Hilfsprofil, mit dem SnOrca ein Bibliotheksfilament sieht, erscheint nicht unter „Eigene“. Es gilt als eingeschaltete Bibliothekszeile (`helper` in `data.js`).
-- Farben und Schrift wie OrcaSlicer (HarmonyOS Sans in `assets/fonts/`, Lizenz siehe `HarmonyOS_Sans_NOTICE.txt`).
+- Farben wie OrcaSlicer, Schrift Inter (OFL, `orfix/static/vendor/inter/`). HarmonyOS Sans, die Schrift von Orca, wurde verglichen und sah kaum anders aus.
 - Direkt zu einem Drucker: `variante-e.html#/snorca/0`.
 
 ## Ansehen

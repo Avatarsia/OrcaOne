@@ -4,5 +4,3 @@ __pycache__/
 .claude/settings.local.json
 slicer-src/
 prototypes/ui-overview/data.js
-# HarmonyOS Sans (16 MB) only for the font comparison in draft E, not in Git
-prototypes/ui-overview/assets/fonts/
