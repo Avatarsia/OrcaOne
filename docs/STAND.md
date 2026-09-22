@@ -39,7 +39,7 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
    - Bei System- und Bibliotheksprofilen entsteht eine eigene Variante mit `inherits`.
    - Das hebt das Nicht-Ziel „kein Bearbeiten einzelner Werte“ der Spezifikation auf.
 3. **U1Cam:** Das Skript `prototypes/U1Cam/u1cam.py` stammt vom Nutzer und liest die Originalkamera des U1. Es ist noch nicht angesehen und noch nicht committet (Dateirechte 600). Kein Orca-Thema, gehört zu den Ideen rund um den U1.
-4. **Recherche:** Wo stolpern Nutzer in Orca und SnOrca oft, und was davon kann Orfix vereinfachen? Quellen: GitHub-Issues, Foren, Reddit.
+4. **Recherche:** Wo stolpern Nutzer in Orca und SnOrca oft, und was davon kann Orfix vereinfachen? Quellen: GitHub-Issues, Foren, Reddit. **Läuft seit 22.09. 07:35** als Workflow `orfix-orca-pain-points`. Das Ergebnis landet in `docs/RECHERCHE-STOLPERSTEINE.md`.
 5. **Entwürfe** für die Seiten „Drucker“ und „Sicherungen“ im Stil von E. Danach den **Plan für Phase 1** auf Grundlage von E neu schreiben. Der Designplan im PLAN ist als überholt markiert.
 
 ## Offene Fehler und Punkte
