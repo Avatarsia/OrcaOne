@@ -55,7 +55,14 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 
 Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_page` und `editable_fields`. Die Sichtprüfung im Browser macht der Hauptagent, die Agenten starten keinen Browser.
 
-**Danach (Wunsch vom 22.09., 08:07):** E2 wird die echte App.
+**Stand 22.09., 09:20:** E2 ist fertig und im Browser geprüft (`754d706`). Die drei gemeldeten Fehler sind behoben:
+- Die Ansicht folgt den Klicks.
+- Beispiele sind standardmäßig aus.
+- Tote Einträge werden erkannt.
+
+**In Arbeit seit 09:25:** Workflow `orfix-e2-into-app` (Run `wf_1844b1d4-b0c`), vier Agenten nacheinander: Backend → Oberfläche → Review → Nachbessern. Nach einem Abbruch fortsetzen mit `Workflow({scriptPath: …/workflows/scripts/orfix-e2-into-app-wf_1844b1d4-b0c.js, resumeFromRunId: "wf_1844b1d4-b0c"})`.
+
+**Ziel (Wunsch vom 22.09., 08:07):** E2 wird die echte App.
 - `http://localhost:8765/` zeigt die neue Optik mit Menü.
 - Die Daten kommen live vom Backend, dafür wandert die Logik aus `make_data.py` mit Tests nach `orfix/`.
 - Die bisherige Startseite geht in der Seite „Slicer“ auf.
