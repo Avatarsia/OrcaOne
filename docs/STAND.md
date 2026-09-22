@@ -113,6 +113,5 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 
 - **Schreibfunktionen fertig** (`a2b06ad`, `e6b9938`), 175 Tests grün. Der Ende-zu-Ende-Test und ein Lauf auf einer Kopie des echten Ordners sind in Ordnung.
 - **Offen:** die Spalte „SnOrca“ in [TEST-VERGLEICH](TEST-VERGLEICH.md) Teil B. Der Nutzer testet mit einer Kopie unter `~/orfix-test/Snapmaker_Orca` und `--datadir`.
-- **Danach:** Seite „Prozesse“ mit Anzeigen und Bearbeiten, nach demselben Muster wie bei den Filamenten.
-  - Vorgeschlagene Gruppen: Qualität, Stabilität, Geschwindigkeit, Stützen, Haftung. Dazu „Alle Werte“ nur zum Lesen.
-  - Die Rückmeldung des Nutzers zur Auswahl steht noch aus.
+- **Danach:** Seite „Prozesse“ **nur zum Anzeigen**, ohne Bearbeiten. Das hat der Nutzer am 22.09. entschieden: „klingt fast wie ein Slicer-Nachbau … Overkill“.
+  - Gezeigt werden die eingestellten Werte in den Gruppen Qualität, Stabilität, Geschwindigkeit, Stützen und Haftung, dazu „Alle Werte“ aufklappbar.
