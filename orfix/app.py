@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, guard, instances, overview
+from . import __version__, backup, guard, instances, operations, overview
 
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -59,8 +59,23 @@ async def local_only(request: Request, call_next):
     return response
 
 
-def _error(code: str, status: int = 400) -> JSONResponse:
-    return Utf8Response({"error": code}, status_code=status)
+def _error(code: str, status: int = 400, **params) -> JSONResponse:
+    return Utf8Response({"error": code, **params}, status_code=status)
+
+
+@app.exception_handler(operations.OperationError)
+def _operation_error(request: Request, exc: operations.OperationError):
+    return _error(exc.code, exc.status, **exc.params)
+
+
+@app.exception_handler(operations.InvalidChange)
+def _invalid_change(request: Request, exc: operations.InvalidChange):
+    return _error("invalid_change", index=exc.index, field=exc.field)
+
+
+@app.exception_handler(backup.BackupError)
+def _backup_error(request: Request, exc: backup.BackupError):
+    return _error(exc.code, 404 if exc.code == "backup_not_found" else 500)
 
 
 @app.get("/api/instances")
@@ -113,6 +128,50 @@ def remove_manual(path: str):
     except OSError:
         return _error("save_failed", 500)
     return {"removed": path}
+
+
+# ---------------------------------------------------------------- changes (hard rule 5)
+
+@app.post("/api/instances/{instance_id}/plan")
+def make_plan(instance_id: str, payload: dict = Body(...)):
+    changes = payload.get("changes")
+    if not isinstance(changes, list):
+        raise operations.InvalidChange(None, "changes")
+    return {"plan": operations.make_plan(*operations.find_instance(instance_id), changes)}
+
+
+@app.post("/api/instances/{instance_id}/apply")
+def apply_plan(instance_id: str, payload: dict = Body(...)):
+    return operations.apply(instance_id, payload.get("plan_id"))
+
+
+# ---------------------------------------------------------------- backups (hard rule 4)
+
+@app.get("/api/instances/{instance_id}/backups")
+def list_backups(instance_id: str):
+    operations.find_instance(instance_id)
+    made = backup.list_backups(instance_id)
+    return {"backups": made, "total_size": sum(b["size"] for b in made),
+            "location": overview.home_path(backup.backup_dir(instance_id))}
+
+
+@app.post("/api/instances/{instance_id}/backups")
+def backup_now(instance_id: str):
+    # Reads the data directory only, so every installation may have one.
+    instance, _ = operations.find_instance(instance_id)
+    return {"backup": backup.create(instance, "manual")}
+
+
+@app.delete("/api/instances/{instance_id}/backups/{name}")
+def delete_backup(instance_id: str, name: str):
+    # Works without the installation, too: its folder may be gone, its backups not.
+    backup.delete(instance_id, name)
+    return {"deleted": name}
+
+
+@app.post("/api/instances/{instance_id}/backups/{name}/restore-plan")
+def restore_plan(instance_id: str, name: str):
+    return {"plan": operations.restore_plan(*operations.find_instance(instance_id), name)}
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

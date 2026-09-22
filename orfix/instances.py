@@ -222,3 +222,40 @@ def remove_manual_path(raw: str) -> None:
     if raw not in paths:
         raise ValueError("not_listed")
     _save_manual_paths([p for p in paths if p != raw])
+
+
+# ---------------------------------------------------------------- unlocked library filaments
+
+def _unlocks_file(instance_id: str) -> Path:
+    return orfix_data_dir() / "unlocks" / f"{instance_id}.json"
+
+
+def load_unlocks(instance_id: str) -> list[str]:
+    """Library filaments Orfix put into "filaments" (way A, FINDINGS 4.7). The wizard and a few
+    dialogs rewrite that list and drop them; overview.py compares on every scan."""
+    try:
+        data = json.loads(_unlocks_file(instance_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    names = data.get("names") if isinstance(data, dict) else None
+    return [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
+
+
+def save_unlocks(instance_id: str, names: list[str]) -> None:
+    file = _unlocks_file(instance_id)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = file.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"names": sorted(set(names))}, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, file)
+
+
+def write_allowed(instance: Instance) -> bool:
+    """Whether Orfix may write into this data directory at all.
+
+    Until the user allows writing to the real slicer folders, only data directories added by
+    hand qualify, e.g. a copy the slicer runs on with --datadir (docs/TEST-VERGLEICH.md). The
+    default locations, Flatpak, portable AppImages and folders known only from a running slicer
+    stay read only. A manual folder the slicer is running on shows up as "process"."""
+    if instance.source == "manual":
+        return True
+    return instance.source == "process" and str(instance.data_dir) in manual_paths()

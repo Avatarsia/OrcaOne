@@ -3,45 +3,11 @@ import os
 import posixpath
 import re
 import sys
-import threading
-import time
-import urllib.error
 import urllib.request
 
 import pytest
-import uvicorn
 
-from conftest import copy_fixture
-from orfix import guard, instances
-from orfix.__main__ import free_port
-from orfix.app import app
-
-
-@pytest.fixture
-def server(fake_home, monkeypatch):
-    """The real app on 127.0.0.1, isolated from the real slicers."""
-    monkeypatch.setattr(guard, "find_processes", lambda: [])
-    monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
-    port = free_port()
-    srv = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    thread = threading.Thread(target=srv.run, daemon=True)
-    thread.start()
-    while not srv.started:
-        assert thread.is_alive(), "server did not start"
-        time.sleep(0.02)
-    yield f"http://127.0.0.1:{port}"
-    srv.should_exit = True
-    thread.join(timeout=5)
-
-
-def call(url, method="GET", body=None, headers=None):
-    data = json.dumps(body).encode() if body is not None else None
-    request = urllib.request.Request(url, data=data, method=method, headers={"Content-Type": "application/json", **(headers or {})})
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            return response.status, response.read()
-    except urllib.error.HTTPError as err:
-        return err.code, err.read()
+from conftest import call, copy_fixture
 
 
 def test_lists_instances_and_adds_a_manual_path(server, fake_home):
@@ -154,3 +120,61 @@ def test_refuses_to_be_framed(server):
         assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
     with urllib.request.urlopen(f"{server}/app.js", timeout=5) as response:
         assert response.headers["Content-Type"].startswith("text/javascript")
+
+
+def test_change_backup_and_restore_through_the_api(server, fake_home):
+    data_dir = copy_fixture("snorca", fake_home / "orfix-test" / "Snapmaker_Orca")
+    call(f"{server}/api/instances/manual", "POST", {"path": str(data_dir)})
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    assert inst["write_allowed"] is True
+    base = f"{server}/api/instances/{inst['id']}"
+    change = {"op": "filament_visible", "name": "SUNLU PLA+ @System", "visible": True}
+    status, body = call(f"{base}/plan", "POST", {"changes": [change]})
+    plan = json.loads(body)["plan"]
+    assert status == 200 and plan["blocked"] is None and plan["ops"][0]["path"] == "Snapmaker_Orca.conf"
+    status, body = call(f"{base}/apply", "POST", {"plan_id": plan["id"]})
+    result = json.loads(body)
+    assert status == 200 and result["ok"] and result["applied"] == 1
+    assert (call(f"{base}/apply", "POST", {"plan_id": plan["id"]})[0]) == 404
+
+    status, body = call(f"{base}/backups", "POST")
+    manual = json.loads(body)["backup"]
+    assert status == 200 and manual["reason"] == "manual"
+    listed = json.loads(call(f"{base}/backups")[1])
+    assert [b["reason"] for b in listed["backups"]] == ["manual", "before_change"]
+    assert listed["total_size"] == sum(b["size"] for b in listed["backups"])
+    assert listed["location"].startswith("~/.local/share/orfix/backups/")
+    page = json.loads(call(f"{server}/api/data")[1])["instances"][0]["backups_page"]
+    assert page["count"] == 2 and page["backups"] == listed["backups"]
+
+    before = result["backup"]["name"]
+    status, body = call(f"{base}/backups/{before}/restore-plan", "POST")
+    restore = json.loads(body)["plan"]
+    assert status == 200 and [d["path"] for d in restore["conf_diff"]] == ["filaments"]
+    status, body = call(f"{base}/apply", "POST", {"plan_id": restore["id"]})
+    assert status == 200 and json.loads(body)["backup"]["reason"] == "before_restore"
+    assert "SUNLU PLA+ @System" not in json.loads((data_dir / "Snapmaker_Orca.conf").read_text(encoding="utf-8"))["filaments"]
+
+    assert call(f"{base}/backups/{manual['name']}", "DELETE")[0] == 200
+    assert call(f"{base}/backups/{manual['name']}", "DELETE")[0] == 404
+    assert call(f"{base}/backups/nope/restore-plan", "POST")[0] == 404
+
+
+def test_api_error_codes(server, fake_home):
+    status, body = call(f"{server}/api/instances/nope/plan", "POST", {"changes": []})
+    assert (status, json.loads(body)) == (404, {"error": "instance_not_found"})
+    copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    assert inst["write_allowed"] is False
+    base = f"{server}/api/instances/{inst['id']}"
+    status, body = call(f"{base}/plan", "POST", {"changes": [{"op": "zaubern"}]})
+    assert (status, json.loads(body)) == (400, {"error": "invalid_change", "index": 0, "field": "op"})
+    status, body = call(f"{base}/plan", "POST", {"changes": "alles"})
+    assert status == 400 and json.loads(body)["error"] == "invalid_change"
+    status, body = call(f"{base}/plan", "POST", {"changes": [{"op": "default_printer", "printer": "Snapmaker U1 (0.2 nozzle)"}]})
+    plan = json.loads(body)["plan"]
+    assert plan["blocked"] == "write_not_allowed"
+    status, body = call(f"{base}/apply", "POST", {"plan_id": plan["id"]})
+    assert (status, json.loads(body)) == (409, {"error": "write_not_allowed"})
+    # A backup only reads the data directory, so it works everywhere.
+    assert call(f"{base}/backups", "POST")[0] == 200

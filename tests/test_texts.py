@@ -11,6 +11,7 @@ from orfix.resolver import STATUS_OF_PROBLEM
 from test_overview import build
 
 TEXTS = (Path(__file__).parent.parent / "orfix" / "static" / "texts.js").read_text(encoding="utf-8")
+OPERATIONS = (Path(__file__).parent.parent / "orfix" / "operations.py").read_text(encoding="utf-8")
 
 
 def section(name: str) -> str:
@@ -68,3 +69,14 @@ def test_every_code_the_backend_knows_has_a_text():
     # orfix/app.py and orfix/instances.py, plus "network" and "unknown" from api.js
     assert {"path_not_found", "not_a_data_dir", "already_listed", "not_listed", "save_failed", "forbidden",
             "network", "unknown"} <= keys("errors")
+
+
+def test_every_code_of_plans_and_writes_has_a_text():
+    # POST /plan, /apply, /restore-plan and the backup API (orfix/operations.py, orfix/backup.py)
+    problems = set(re.findall(r'(?:Blocked|OperationError)\("(\w+)"', OPERATIONS))
+    problems |= {"slicer_running", "slicer_maybe_running", "write_not_allowed", "conf_unreadable", "name_invalid",
+                 "name_too_long", "path_outside_backup", "backup_unreadable", "backup_failed", "backup_not_found",
+                 "delete_failed", "invalid_change"}
+    assert problems <= keys("blocked") | keys("errors")
+    warnings = set(re.findall(r'"code": "(\w+)"', OPERATIONS)) - {"nothing_to_do"}
+    assert "default_materials_back" in warnings and warnings <= keys("planWarnings")

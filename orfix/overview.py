@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from . import guard, instances, scanner
+from . import backup, guard, instances, scanner
 from .model import SLICERS, Instance
 from .resolver import CORE_VALUES, EDITABLE_FIELDS, STATUS_OF_PROBLEM, VALUE_KEYS, Resolver, first, strings
 from .scanner import LIBRARY, KINDS
@@ -276,7 +276,7 @@ def _own_file_count(scan, kind: str) -> int:
     return sum(len(list((d / kind).glob("*.json"))) + len(list((d / kind / "base").glob("*.json"))) for d in folders)
 
 
-def _slicer_page(instance: Instance, res: Resolver, backup: tuple, running: bool) -> dict:
+def _slicer_page(instance: Instance, res: Resolver, measured: tuple, running: bool) -> dict:
     scan = res.scan
     conf = scan.conf
     credentials = credential_counts(conf)
@@ -316,7 +316,7 @@ def _slicer_page(instance: Instance, res: Resolver, backup: tuple, running: bool
     conf_file = scan.conf_file
     indent = conf_file.indent if conf_file else None
     preset_folder = _dict(conf.get("app")).get("preset_folder", "")
-    raw, zipped, backup_files = backup
+    raw, zipped, backup_files = measured
     return {
         "slicer": SLICERS[instance.slicer]["name"], "header": conf.get("header", ""),
         "version": instance.version or "", "path": home_path(instance.data_dir), "source": instance.source,
@@ -339,13 +339,15 @@ def _slicer_page(instance: Instance, res: Resolver, backup: tuple, running: bool
     }
 
 
-def _backups_page(instance: Instance, backup: tuple) -> dict:
-    """No backups yet: Orfix writes nothing before phase 2. "now" is what a backup of this data
-    directory would be today (hard rule 4, zipped in memory)."""
-    raw, zipped, files = backup
+def _backups_page(instance: Instance, measured: tuple) -> dict:
+    """The backups Orfix made (orfix/backup.py), newest first, as GET /api/instances/{id}/backups
+    lists them. "now" is what a backup of this data directory would be today (hard rule 4,
+    zipped in memory)."""
+    raw, zipped, files = measured
+    made = backup.list_backups(instance.id)
     return {
-        "location": home_path(instances.orfix_data_dir() / "backups" / instance.id),
-        "backups": [], "count": 0, "total_size": 0,
+        "location": home_path(backup.backup_dir(instance.id)),
+        "backups": made, "count": len(made), "total_size": sum(b["size"] for b in made),
         "now": {"size": raw, "zip_size": zipped, "files": files},
         "excluded": scanner.BACKUP_EXCLUDED,
     }
@@ -353,9 +355,20 @@ def _backups_page(instance: Instance, backup: tuple) -> dict:
 
 # ---------------------------------------------------------------- one installation
 
-def _warnings(res: Resolver, records: dict, without_printer: list, same_alias: list, real_printers: set) -> list:
+def hidden_filaments(res: Resolver, names) -> list:
+    """Of these system filament names, the ones "filaments" hides. For the library filaments
+    Orfix unlocked (way A): the wizard and a few dialogs rewrite the list (FINDINGS 4.6, 4.7)."""
+    listed = set(res.filament_list())
+    filaments = res.scan.of_kind("filament")
+    return sorted(n for n in names if not any(p.name == n and res.in_list(p, listed) for p in filaments))
+
+
+def _warnings(res: Resolver, records: dict, without_printer: list, same_alias: list, real_printers: set,
+              lost_unlocks: list) -> list:
     scan = res.scan
     warnings = []
+    if lost_unlocks:
+        warnings.append({"code": "unlock_lost", "level": "warning", "count": len(lost_unlocks), "names": lost_unlocks})
     for pk in scan.packages:
         if pk.error:
             warnings.append({"code": "package_unreadable", "level": "error", "count": 1, "names": [pk.name],
@@ -486,14 +499,17 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
             continue
         without_printer.append({"name": name, "exists": bool(matches)})
 
-    warnings = _warnings(res, records, without_printer, same_alias, {p.name for p in all_printers})
+    lost = hidden_filaments(res, instances.load_unlocks(instance.id)) if snorca else []
+    warnings = _warnings(res, records, without_printer, same_alias, {p.name for p in all_printers}, lost)
     running, reason = _run_state(instance, processes)
-    backup = scanner.backup_measure(instance.data_dir)
+    measured = scanner.backup_measure(instance.data_dir)
     return {
         "id": instance.id, "slicer": SLICERS[instance.slicer]["name"], "app_key": instance.slicer,
         "kind": "snorca" if snorca else "orca",
         "header": conf.get("header", ""), "version": instance.version or "",
         "path": home_path(instance.data_dir), "storage": scan.storage, "source": instance.source, "manual": manual,
+        # Whether Orfix may write here at all (instances.write_allowed); running comes on top.
+        "write_allowed": instances.write_allowed(instance),
         # The path as orfix/instances.py stores it: "Entfernen" sends it back for a manual one.
         "data_dir": str(instance.data_dir),
         "running": running,
@@ -515,9 +531,9 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
             "per_printer": {v["name"]: {**v["counts"], "processes": v["process_count"]}
                             for m in out_models for v in m["printers"]},
         },
-        "slicer_page": _slicer_page(instance, res, backup, running),
+        "slicer_page": _slicer_page(instance, res, measured, running),
         "printers_page": _printers_page(res, system_models, system_printers, selected),
-        "backups_page": _backups_page(instance, backup),
+        "backups_page": _backups_page(instance, measured),
     }
 
 

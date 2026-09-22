@@ -34,7 +34,7 @@ META_KEYS = {"version", "name", "type", "from", "inherits", "instantiation", "se
              "filament_id", "description", "renamed_from", "url", "is_custom_defined"}
 # Semver as the slicer accepts it: 2 to 4 numeric parts, leading zeros allowed (FINDINGS 4.4).
 # A pre-release or build suffix ("2.5.0-dev") is accepted as well, semver.c knows them.
-_SEMVER = re.compile(r"\d+(\.\d+){1,3}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?")
+SEMVER = re.compile(r"\d+(\.\d+){1,3}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?")
 _BUNDLE_DIRS = ("_local", "_subscribed")
 
 
@@ -47,6 +47,7 @@ class Profile:
     instantiation: str = "true"
     renamed_from: list = field(default_factory=list)  # explicit or implicit, FINDINGS 4.4
     values: dict = field(default_factory=dict)        # own settings only: key -> str or list
+    setting_id: str = ""       # system profiles: the id an own child keeps as base_id in its .info
     # Own profiles only:
     file: str | None = None    # path relative to the data directory
     load_pass: int = 0         # the slicer loads folder by folder; a parent must come earlier
@@ -97,6 +98,9 @@ class Scan:
     profiles: dict = field(default_factory=dict)  # (package, kind, name) -> system Profile
     own: list = field(default_factory=list)       # own profiles in load order
     colours: dict = field(default_factory=dict)   # (package, alias) -> [{"hex", "name"}]
+    # (package, printer model) -> default_materials: the slicer switches them on again for a
+    # printer without any filament in "filaments" that fits it (FINDINGS 4.6).
+    default_materials: dict = field(default_factory=dict)
 
     @property
     def snorca(self) -> bool:
@@ -142,12 +146,14 @@ def profile_from_json(data: dict, kind: str, package: str, name: str | None = No
     name = name if name is not None else str(data.get("name", ""))
     inherits = data.get("inherits", "")
     instantiation = data.get("instantiation", "true")
+    setting_id = data.get("setting_id", "")
     return Profile(
         name=name, kind=kind, package=package,
         inherits=inherits if isinstance(inherits, str) else "",
         instantiation=instantiation if isinstance(instantiation, str) else "true",
         renamed_from=implicit_renamed_from(name, [r for r in renamed if isinstance(r, str)]),
         values={k: v for k, v in data.items() if k not in META_KEYS},
+        setting_id=setting_id if isinstance(setting_id, str) else "",
     )
 
 
@@ -210,6 +216,14 @@ def _load_json_package(scan: Scan, manifest_path: Path, manifest: dict) -> None:
             scan.profiles[(name, kind, profile.name)] = profile
             package.counts[kind] += 1
     listed |= set(_sub_paths(manifest, "machine_model_list"))
+    for item in _list(manifest.get("machine_model_list")):
+        # The model id is the name in the manifest (VendorProfile::from_json).
+        if isinstance(item, dict) and isinstance(item.get("name"), str) and isinstance(item.get("sub_path"), str) \
+                and item["sub_path"]:
+            data = _read_json(folder / item["sub_path"])
+            materials = split_list(data.get("default_materials")) if isinstance(data, dict) else []
+            if materials:
+                scan.default_materials[(name, item["name"])] = materials
     # Files the manifest does not list are no system profiles (FINDINGS 4.2).
     if folder.is_dir():
         package.extra_files = sorted(rel for rel in (f.relative_to(folder).as_posix() for f in folder.rglob("*")
@@ -220,6 +234,10 @@ def _load_opc_package(scan: Scan, path: Path, cache: opc.VendorCache) -> None:
     package = Package(name=cache.vendor_name, format="opc", file=f"system/{path.name}", version=cache.vendor_version,
                       models=sum(len(v.models) for v in cache.vendors.values()))
     scan.packages.append(package)
+    for vendor in cache.vendors.values():
+        for model in vendor.models:
+            if model.default_materials:
+                scan.default_materials[(cache.vendor_name, model.id)] = list(model.default_materials)
     for kind in KINDS:
         for entry in getattr(cache, kind):
             profile = Profile(
@@ -227,6 +245,7 @@ def _load_opc_package(scan: Scan, path: Path, cache: opc.VendorCache) -> None:
                 instantiation=entry.instantiation or "true",
                 renamed_from=implicit_renamed_from(entry.name, entry.renamed_from),
                 values={k: opc.to_json_value(o) for k, o in entry.config.items()},
+                setting_id=entry.setting_id,
             )
             scan.profiles[(cache.vendor_name, kind, entry.name)] = profile
             package.counts[kind] += 1
@@ -331,7 +350,7 @@ def _own_profile_json(scan: Scan, path: Path, kind: str, load_pass: int, bundle:
         profile.json_name = json_name
     if scan.snorca and "type" in data and data["type"] not in TYPE_NAMES[kind]:
         profile.problem = "wrong_type"
-    elif not _SEMVER.fullmatch(data.get("version", "")):
+    elif not SEMVER.fullmatch(data.get("version", "")):
         profile.problem = "bad_version"
     return profile
 
