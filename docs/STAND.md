@@ -41,6 +41,13 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 3. **U1Cam:** Das Skript `prototypes/U1Cam/u1cam.py` stammt vom Nutzer und liest die Originalkamera des U1. Es ist noch nicht angesehen und noch nicht committet (Dateirechte 600). Kein Orca-Thema, gehört zu den Ideen rund um den U1.
 4. **Recherche:** Wo stolpern Nutzer in Orca und SnOrca oft, und was davon kann Orfix vereinfachen? Quellen: GitHub-Issues, Foren, Reddit. **Läuft seit 22.09. 07:35** als Workflow `orfix-orca-pain-points`. Das Ergebnis landet in `docs/RECHERCHE-STOLPERSTEINE.md`.
 5. **Entwürfe** für die Seiten „Drucker“ und „Sicherungen“ im Stil von E. Danach den **Plan für Phase 1** auf Grundlage von E neu schreiben. Der Designplan im PLAN ist als überholt markiert.
+6. **Technische Seite „Slicer“ (neu am 22.09.):** eine Übersicht je Installation (was liegt wo, Verzeichnisse, Größen, Erklärung je Ordner). Sie ist wie die jetzige Startseite, aber schön im Stil von E.
+
+**In Arbeit seit 22.09. 07:45:** Workflow `orfix-draft-e2` baut die Punkte 1, 2, 5 und 6 als mehrteiligen Entwurf in `prototypes/ui-overview/e2/`:
+- `index.html`, `app.js` mit Menü und Hash-Routing;
+- `pages/filamente.js`, `drucker.js`, `sicherungen.js`, `slicer.js`.
+
+Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_page` und `editable_fields`. Die Sichtprüfung im Browser macht der Hauptagent, die Agenten starten keinen Browser.
 
 ## Offene Fehler und Punkte
 
