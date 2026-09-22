@@ -19,7 +19,7 @@ Entwurf vom 22.09.2026. Ziel: prüfen, ob Orfix genau das zeigt, was SnOrca zeig
    ~/Downloads/Snapmaker_Orca_Linux_AppImage_Ubuntu2404_V2.4.0.appimage --datadir ~/orfix-test/Snapmaker_Orca
    ```
 
-4. In Orfix unter „Slicer“ den Ordner `~/orfix-test/Snapmaker_Orca` hinzufügen. Er erscheint als eigene Installation „von Hand hinzugefügt“.
+4. In Orfix links unter „Technik“ „Slicer“ öffnen, unten bei „Datenordner hinzufügen“ den Pfad `~/orfix-test/Snapmaker_Orca` eintragen und „Hinzufügen“ klicken. Die Kopie erscheint als eigene Installation, gefunden als „Von Hand hinzugefügt“. Nur in solche Ordner schreibt Orfix.
 
 ## Teil A: Anzeigen vergleichen (nur lesen)
 
@@ -37,23 +37,109 @@ Für jede Düse gilt: In SnOrca den Drucker „Snapmaker U1 (x nozzle)“ wähle
 
 ## Teil B: Änderungen (nur auf der Kopie)
 
-Dafür braucht Orfix echte Schreibfunktionen: Sicherung, `.conf` ändern, eigenes Profil anlegen. Sie entstehen vor dem Test als erster Teil von Phase 2. Orfix schreibt dabei **nur** in von Hand hinzugefügte Ordner, nie in die Standardorte.
+Orfix kann jetzt schreiben: Sicherung, `.conf` ändern, eigene Profile anlegen, umbenennen und löschen, Sicherung wiederherstellen. Es schreibt **nur** in von Hand hinzugefügte Ordner. In den Standardorten wie `~/.config/Snapmaker_Orca` bleibt „Übernehmen“ aus, und das Panel nennt den Grund („In diese Installation schreibt Orfix noch nicht …“).
 
-Ablauf je Schritt:
-1. SnOrca (Kopie) schließen.
-2. In Orfix ändern und die Änderungsliste bestätigen. Orfix legt vorher eine Sicherung an.
-3. SnOrca auf der Kopie wieder starten.
-4. Prüfen.
+**Schon geprüft, ohne SnOrca (22.09.2026):**
 
-| # | Änderung in Orfix | Was Orfix im Hintergrund tut | Erwartung in SnOrca | Ergebnis |
-|---|---|---|---|---|
-| B1 | SUNLU PLA+ einschalten, Weg A | `"SUNLU PLA+ @System"` in `"filaments"` eintragen | „SUNLU PLA+“ erscheint bei **allen** U1-Düsen im Dropdown | ☐ |
-| B2 | SUNLU PLA Matte nur für U1 0.4 einschalten, Weg B | eigenes Profil mit `inherits` auf das Bibliotheksprofil, `compatible_printers` = U1 0.4 | erscheint **nur** bei Düse 0.4, bei den eigenen Profilen | ☐ |
-| B3 | Die 8 Filamente ohne passenden Drucker ausblenden | aus `"filaments"` streichen, die Liste bleibt nie leer | kein sichtbarer Unterschied beim U1, die Liste in der `.conf` ist kürzer | ☐ |
-| B4 | Eigene Variante von PLA Basic anlegen, Düse 215 °C, Name „Mein PLA“ | eigenes Profil mit `inherits` und nur `nozzle_temperature` | „Mein PLA“ erscheint bei Düse 0.4, Temperatur 215 °C, der Rest wie PLA Basic | ☐ |
-| B5 | „Mein PLA“ in „Mein PLA hell“ umbenennen | Datei und `.info` umbenennen, `name` setzen, Verweise in `orca_presets` nachziehen | neuer Name im Dropdown, war es ausgewählt, bleibt es ausgewählt | ☐ |
-| B6 | Einrichtungsassistent in SnOrca einmal durchklicken | – | B1 ist weg (bekannt, FINDINGS 4.7). B2 und B4 bleiben. Orfix meldet „Freischaltung verloren“ | ☐ |
-| B7 | Sicherung von vor B1 wiederherstellen | `.conf` und `user/` zurückschreiben | Zustand wie in Teil A | ☐ |
+- `tests/test_writes_e2e.py` spielt B1 bis B5 und B7 per HTTP gegen eine Kopie der Fixtures durch.
+- Dieselben Schritte liefen auf einer Kopie des echten Datenordners, mit dem Seitencode von Orfix und dem Resolver als Prüfer: alle Düsen wie erwartet. B6 ist nachgestellt, indem SUNLU PLA+ in der `.conf` von Hand gestrichen wurde. Nach B7 war die Kopie Byte für Byte wie vorher.
+
+Offen ist nur die Spalte „SnOrca“.
+
+**Vor dem ersten Schritt:** Oben rechts unter „Installation“ die Kopie wählen, also den Eintrag mit dem Pfad `~/orfix-test/Snapmaker_Orca`. Die Seiten „Drucker“, „Sicherungen“ und „Slicer“ zeigen immer die gewählte Installation. Auf „Filamente“ stehen beide Installationen untereinander, jeweils mit ihrem Pfad. Die Kopie steht dann oben.
+
+**Ablauf je Schritt:**
+
+1. SnOrca (Kopie) schließen. In Orfix „Neu einlesen“ klicken. Bei der Kopie steht dann „Geschlossen“ statt „Läuft – nur ansehen“.
+2. In Orfix ändern, wie in der Klickfolge unten beschrieben. Unten erscheint die Leiste „1 Änderung“.
+3. Übernehmen:
+   - „Übernehmen …“ klicken.
+   - Im Seitenpanel „Übernehmen“ klicken.
+   - Das Panel „Das passiert“ zeigt jede Datei und jede Änderung der `.conf`, dazu „Vorher wird automatisch gesichert“.
+   - „Ausführen“ klicken. Die Meldung „Übernommen“ erscheint, und die Leiste ist leer.
+4. SnOrca auf der Kopie starten und prüfen.
+
+| # | Änderung in Orfix | Was Orfix im Hintergrund tut | Erwartung in SnOrca | Orfix | SnOrca |
+|---|---|---|---|---|---|
+| B1 | SUNLU PLA+ bei allen Düsen einschalten, Weg A | `"SUNLU PLA+ @System"` in `"filaments"` eintragen | „SUNLU PLA+“ erscheint bei **allen** U1-Düsen im Dropdown | ☑ | ☐ |
+| B2 | SUNLU PLA Matte nur für U1 0,4 einschalten, Weg B | eigenes Profil `SUNLU PLA Matte @Snapmaker U1` mit `inherits` auf das Bibliotheksprofil, `compatible_printers` = U1 0.4 | erscheint **nur** bei Düse 0.4, bei den eigenen Profilen | ☑ | ☐ |
+| B3 | Die 8 Filamente ohne passenden Drucker ausblenden | aus `"filaments"` streichen, die Liste bleibt nie leer | kein sichtbarer Unterschied beim U1, die Liste in der `.conf` ist kürzer | ☑ | ☐ |
+| B4 | Eigene Variante von PLA Basic anlegen, Düse 215 °C, Name „Mein PLA“ | eigenes Profil mit `inherits` und nur `nozzle_temperature` | „Mein PLA“ erscheint bei Düse 0.4, Temperatur 215 °C, der Rest wie PLA Basic | ☑ | ☐ |
+| B5 | „Mein PLA“ in „Mein PLA hell“ umbenennen | `.json` und `.info` umbenennen, `name` und `filament_settings_id` setzen, Verweise in `orca_presets` nachziehen | neuer Name im Dropdown, war es ausgewählt, bleibt es ausgewählt | ☑ | ☐ |
+| B6 | Einrichtungsassistent in SnOrca einmal durchklicken | – | B1 ist weg (bekannt, FINDINGS 4.7). B2 und B4 bleiben. Orfix meldet „Freischaltung verloren“ | ☑ (nachgestellt) | ☐ |
+| B7 | Sicherung von vor B1 wiederherstellen | `.conf` und `user/` zurückschreiben, was danach dazukam, fällt weg | Zustand wie in Teil A | ☑ | ☐ |
+
+### Klickfolge in Orfix
+
+**B1 – SUNLU PLA+ bei allen Düsen (Weg A)**
+
+1. „Filamente“ → Karte „Snapmaker U1“ der Kopie.
+2. Unter „Düse“ die Kachel „Alle“ wählen, sie ist schon voreingestellt.
+3. Unter „Alle Filamente“ ins Suchfeld „Filament suchen“ `SUNLU` tippen. Unter „Orca-Bibliothek“ klappt „SUNLU“ auf.
+4. Den Schalter rechts neben „PLA+“ einschalten. Oben unter „Aktiv“ steht jetzt „PLA+“ mit „SUNLU“ darunter.
+5. Übernehmen wie oben. „Das passiert“ zeigt:
+   - `Snapmaker_Orca.conf` wird geändert;
+   - „SUNLU PLA+ wird sichtbar“;
+   - unter „Gut zu wissen“: Der Einrichtungsassistent nimmt es wieder weg.
+
+**B2 – SUNLU PLA Matte nur für 0,4 mm (Weg B)**
+
+1. „Filamente“ → „Snapmaker U1“ → Kachel „0,4 mm“.
+2. Ins Suchfeld `SUNLU` tippen und den Schalter neben „PLA Matte“ einschalten.
+3. Übernehmen. „Das passiert“ zeigt:
+   - `SUNLU PLA Matte @Snapmaker U1.json` wird neu angelegt;
+   - Zusatz: baut auf „SUNLU PLA Matte @System“ auf, Werte: Druckerliste, dazu die `.info`.
+4. Danach ist „PLA Matte“ unter „Orca-Bibliothek“ nur bei der Kachel „0,4 mm“ an, bei „Alle“ steht in der Zeile „aktiv bei 0,4“. Das Hilfsprofil selbst zeigt Orfix nicht unter „Eigene“, SnOrca dagegen schon.
+
+**B3 – Filamente ohne Drucker ausblenden**
+
+1. Links unter „Technik“ „Slicer“ öffnen. Oben muss die Kopie gewählt sein.
+2. Unter „Hinweise“ steht „8 sichtbare Filamente passen zu keinem installierten Drucker“. Dort „Ausblenden“ klicken. Es erscheint „Zum Ausblenden vorgemerkt …“.
+3. Übernehmen. „Das passiert“ zeigt acht Zeilen „… wird ausgeblendet“, etwa „Snapmaker ABS“ mit dem vollen Namen `Snapmaker ABS @J1` darunter.
+4. Unter „Filamente“ → „Snapmaker U1“ ist bei jeder Düse dasselbe aktiv wie vorher.
+
+**B4 – „Mein PLA“ mit 215 °C**
+
+1. „Filamente“ → „Snapmaker U1“ → Kachel „0,4 mm“.
+2. Unter „Von Snapmaker“ → „Snapmaker“ die Zeile „PLA Basic“ anklicken, nicht den Schalter. Rechts öffnen sich die Details.
+3. „Bearbeiten“ klicken. Das Formular sagt: „Wird als eigenes Filament gespeichert – das Original bleibt.“
+4. Den Namen „Snapmaker PLA Basic (eigen)“ durch `Mein PLA` ersetzen, bei „Düse“ `215` eintragen und „Fertig“ klicken.
+5. Übernehmen. „Das passiert“ zeigt:
+   - `Mein PLA.json` wird neu angelegt;
+   - baut auf „Snapmaker PLA Basic @U1“ auf, Werte: Düse.
+6. In den Details von „Mein PLA“ steht „Düse 215 °C“ mit dem Punkt für „selbst geändert“, alles andere kommt von der Vorlage.
+7. Für den zweiten Teil von B5 in SnOrca „Mein PLA“ bei U1 0.4 auswählen und SnOrca wieder schließen. Dann merkt sich SnOrca die Auswahl in `orca_presets`.
+
+**B5 – Umbenennen in „Mein PLA hell“**
+
+1. „Filamente“ → „Snapmaker U1“ → unter „Eigene“ die Zeile „Mein PLA“ anklicken.
+2. „Bearbeiten“ klicken, den Namen in `Mein PLA hell` ändern und „Fertig“ klicken.
+3. Übernehmen. „Das passiert“ zeigt:
+   - „Mein PLA.json umbenennen in ‚Mein PLA hell.json‘“, dazu die `.info`;
+   - war „Mein PLA“ in SnOrca ausgewählt, zusätzlich „Snapmaker U1 · 0,4 mm merkt sich ein anderes Filament (Mein PLA → Mein PLA hell)“.
+
+**B6 – Einrichtungsassistent**
+
+1. In SnOrca den Assistenten durchklicken und SnOrca schließen.
+2. In Orfix „Neu einlesen“ klicken.
+3. Unter „Filamente“ steht bei der Kopie der Hinweis „Freischaltung verloren: ‚SUNLU PLA+ @System‘ aus der Orca-Bibliothek ist wieder ausgeblendet …“. Derselbe Hinweis steht unter „Slicer“ → „Hinweise“ als „Achtung“.
+4. „SUNLU PLA Matte @Snapmaker U1“ und „Mein PLA hell“ sind weiter aktiv.
+
+**B7 – Wiederherstellen**
+
+1. „Sicherungen“ öffnen, oben muss die Kopie gewählt sein. Die Liste steht neueste zuerst: je Schritt eine Sicherung „Vor einer Änderung“ mit Uhrzeit und Zusatz, etwa „Filament umbenannt“ oder „Freischaltung“.
+2. Die **unterste** Sicherung von heute anklicken. Das ist die von B1, mit dem Zusatz „Sichtbarkeit“.
+3. „Wiederherstellen …“ klicken. „Das passiert“ zeigt:
+   - `Snapmaker_Orca.conf` bekommt den Stand der Sicherung;
+   - `SUNLU PLA Matte @Snapmaker U1.json` und `Mein PLA hell.json` fallen weg;
+   - die acht Filamente aus B3 werden wieder sichtbar.
+4. „Ausführen“ klicken. Die Meldung „Wiederhergestellt“ erscheint. Vorher legt Orfix die Sicherung „Vor dem Wiederherstellen …“ an, damit lässt sich auch das zurücknehmen.
+5. Unter „Filamente“ ist der Stand wie in Teil A, auch der Hinweis aus B6 ist weg.
+
+**Wenn etwas nicht geht:**
+
+- Läuft SnOrca noch, ist „Übernehmen“ aus. Das Panel sagt dann: „Snapmaker Orca läuft gerade. Schließe das Programm …“.
+- Hat sich der Datenordner seit dem Plan geändert, etwa weil SnOrca kurz lief, meldet „Ausführen“ einen veralteten Plan und bietet „Neu planen“ an.
 
 ## Auswertung
 

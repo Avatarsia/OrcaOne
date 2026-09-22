@@ -1,16 +1,22 @@
 // App frame: top bar, main menu on the left (ionpy device window), one page per hash route,
 // and the change list that all pages fill. The data comes live from GET /api/data (common.js).
+// "Übernehmen" writes in two steps (hard rule 5): POST /plan shows "Das passiert" (plan.js),
+// "Ausführen" sends POST /apply; the backend backs up first, then the data is read again. What
+// the backend's check after writing reports stays in the panel (DoneView).
 import {
-  INSTANCES, FAILED, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
-  liveChanges, resetChanges, addDataDir, removeDataDir, registerCommon,
+  INSTANCES, FAILED, BACKUPS, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
+  liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon,
 } from "./common.js";
 import { T } from "./texts.js";
+import { api } from "./api.js";
+import { changesOf } from "./ops.js";
+import PlanView, { DoneView, problemText } from "./plan.js";
 import FilamentePage, { changes as filamentChanges } from "./pages/filamente.js";
 import DruckerPage from "./pages/drucker.js";
 import SicherungenPage from "./pages/sicherungen.js";
 import SlicerPage from "./pages/slicer.js";
 
-const { createApp, ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
+const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
 const PAGES = [
@@ -26,11 +32,11 @@ const CHANGE = {
   new: { icon: "plus", cls: "ch-new" }, delete: { icon: "trash", cls: "ch-delete" },
   rename: { icon: "pencil", cls: "ch-rename" }, edit: { icon: "pencil", cls: "ch-edit" },
   remove: { icon: "minus", cls: "ch-off" }, default: { icon: "star", cls: "ch-on" },
-  clean: { icon: "broom", cls: "ch-off" }, backup: { icon: "backup", cls: "ch-new" },
-  restore: { icon: "backup", cls: "ch-new" }, dropBackup: { icon: "trash", cls: "ch-delete" },
+  clean: { icon: "broom", cls: "ch-off" }, hide: { icon: "minus", cls: "ch-off" },
 };
 
 const app = createApp({
+  components: { PlanView, DoneView },
   setup() {
     const inst = computed(() => INSTANCES.find((i) => i.id === ui.instId) || null);
     const page = computed(() => PAGES.find((p) => p.id === route.value.page));
@@ -42,11 +48,19 @@ const app = createApp({
       : { instId: ui.instId });
 
     // ------------------------------------------------------------ change list
-    // All pages, all installations: one "Übernehmen" will handle each installation with its own
-    // backup. Saving comes with the next step, so the button stays off for now.
+    // All pages, all installations. Each installation is planned and written on its own, with
+    // its own backup. "Übernehmen" is off where Orfix may not write (writeBlock in common.js);
+    // the plan can still refuse, then it says why.
     const changes = computed(() => [...filamentChanges.value, ...liveChanges.value]);
-    const changeGroups = computed(() => INSTANCES.map((i) => ({ inst: i, items: changes.value.filter((c) => c.inst === i) }))
-      .filter((g) => g.items.length));
+    const changeGroups = computed(() => INSTANCES.map((i) => {
+      const block = writeBlock(i);
+      return { inst: i, items: changes.value.filter((c) => c.inst === i), block: block ? problemText(block, i) : "" };
+    }).filter((g) => g.items.length));
+    // planned: { inst, plan } after POST /plan; the panel shows "Das passiert" then.
+    const planned = ref(null);
+    // done: { inst, warnings } after POST /apply, if its check reported something.
+    const done = ref(null);
+    const plan = reactive({ busy: false, error: "", outdated: false, groupError: {} });
     const changesOpen = ref(false);
     let changesFocus = null;
     function openChanges() {
@@ -56,13 +70,86 @@ const app = createApp({
     }
     function closeChanges() {
       changesOpen.value = false;
+      planned.value = null;
+      done.value = null;
       if (changesFocus && document.contains(changesFocus)) changesFocus.focus();
       changesFocus = null;
     }
     function discard() {
       resetChanges();
-      changesOpen.value = false;
+      closeChanges();
       flash(T.changes.discarded);
+    }
+
+    // ------------------------------------------------------------ plan and apply
+    // A change on a page while the plan shows makes it stale, so the panel goes back to the list.
+    watch(changes, () => { if (!plan.busy) planned.value = null; });
+    const focusTitle = () => nextTick(() => document.getElementById("changes-title")?.focus());
+
+    async function makePlan(i) {
+      if (plan.busy || writeBlock(i)) return;
+      plan.busy = true;
+      plan.error = "";
+      plan.outdated = false;
+      plan.groupError = {};
+      try {
+        const data = await api.plan(i.id, changesOf(i));
+        done.value = null;
+        planned.value = { inst: i, plan: data.plan };
+        focusTitle();
+      } catch (err) {
+        if (planned.value) planned.value = null;
+        plan.groupError = { [i.id]: problemText(err.code, i, err.data) };
+      } finally {
+        plan.busy = false;
+      }
+    }
+    function backToList() {
+      planned.value = null;
+      plan.error = "";
+      plan.outdated = false;
+      focusTitle();
+    }
+    // The backend checks again right before writing, backs up, writes and checks after. Then
+    // everything is read again: the pending changes of all installations are gone with that.
+    async function runPlan() {
+      const p = planned.value;
+      if (!p || plan.busy) return;
+      plan.busy = true;
+      plan.error = "";
+      plan.outdated = false;
+      let result;
+      try {
+        result = await api.apply(p.inst.id, p.plan.id);
+      } catch (err) {
+        plan.error = problemText(err.code, p.inst, err.data);
+        // A plan that is stale or gone (Orfix restarted) can be made again from the list.
+        plan.outdated = err.code === "plan_outdated" || err.code === "plan_not_found";
+        if (err.data?.backup) {
+          // The backup was made already, the list must show it. After a write that failed and
+          // could not be rolled back the files changed: read everything again, like after a
+          // write. The pending changes refer to the old state then; the panel keeps the error.
+          if (err.code === "write_failed" && !err.data.rolled_back) {
+            if (!(await load())) resetChanges();
+          } else {
+            await refreshBackups(p.inst.id);
+          }
+        }
+        plan.busy = false;
+        return;
+      }
+      const others = changes.value.some((c) => c.inst.id !== p.inst.id);
+      // The files changed: pending changes of the old state must not stay, even if reading fails.
+      if (!(await load())) resetChanges();
+      plan.busy = false;
+      const text = others ? T.changes.appliedOthersGone : T.changes.applied;
+      flash(text);
+      const warnings = result.warnings || [];
+      if (!warnings.length) return closeChanges();
+      // The installation as read again, so names show as they are now.
+      planned.value = null;
+      done.value = { inst: INSTANCES.find((i) => i.id === p.inst.id) || p.inst, warnings, text: T.changes.appliedCheck };
+      focusTitle();
     }
     // Escape closes the change list first; the page's own panel lies below it.
     const onKey = (ev) => {
@@ -81,7 +168,7 @@ const app = createApp({
         const n = changes.value.filter((c) => c.page === p.id).length;
         if (n) out[p.id] = { n, text: T.nav.pending, changed: true };
       }
-      const backups = inst.value ? inst.value.backups_page.backups.length : 0;
+      const backups = inst.value ? BACKUPS[inst.value.id]?.backups.length || 0 : 0;
       if (!out.sicherungen && backups) out.sicherungen = { n: backups, text: T.nav.backups, changed: false };
       return out;
     });
@@ -175,6 +262,7 @@ const app = createApp({
       INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, badges, go, hashOf, leave,
       statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
+      planned, done, plan, makePlan, backToList, runPlan,
     };
   },
 
@@ -252,26 +340,45 @@ const app = createApp({
 
         <aside v-if="changesOpen" class="panel changes-panel" aria-labelledby="changes-title">
           <div class="panel-head">
-            <h2 id="changes-title" tabindex="-1">{{ T.changes.title }}</h2>
+            <h2 id="changes-title" tabindex="-1">{{ done ? T.changes.applied : planned ? T.plan.title : T.changes.title }}</h2>
             <button class="icon-btn" type="button" :aria-label="T.close" @click="closeChanges"><ui-icon name="close"/></button>
           </div>
           <div class="panel-body">
-            <p v-if="!changes.length" class="note">{{ T.changes.none }}</p>
-            <div v-for="g in changeGroups" :key="g.inst.id">
-              <h3>{{ g.inst.slicer }}</h3>
-              <ul class="plain-list">
-                <li v-for="(c, n) in g.items" :key="n">
-                  <span :class="CHANGE[c.type].cls"><ui-icon :name="CHANGE[c.type].icon"/></span>
-                  <span class="grow"><strong>{{ c.name }}</strong> {{ T.changes.verbs[c.type] }}<small v-if="c.where">{{ c.where }}</small></span>
-                </li>
-              </ul>
-            </div>
-            <p class="note">{{ T.changes.safe }}</p>
-            <p class="quiet-note later-note"><ui-icon name="info"/>{{ T.changes.notYet }}</p>
-            <div class="actions">
-              <button class="btn" type="button" @click="closeChanges">{{ T.back }}</button>
-              <button class="btn btn-primary right" type="button" disabled :title="T.changes.notYet">{{ T.changes.apply }}</button>
-            </div>
+            <template v-if="done">
+              <p class="note plan-for">{{ T.plan.forInst(done.inst.slicer, done.inst.path) }}</p>
+              <done-view :warnings="done.warnings" :inst="done.inst" :text="done.text" @close="closeChanges"/>
+            </template>
+            <template v-else-if="planned">
+              <p class="note plan-for">{{ T.plan.forInst(planned.inst.slicer, planned.inst.path) }}</p>
+              <plan-view :plan="planned.plan" :inst="planned.inst" :busy="plan.busy" :error="plan.error" :can-replan="plan.outdated"
+                         @apply="runPlan" @back="backToList" @replan="makePlan(planned.inst)"/>
+            </template>
+            <template v-else>
+              <p v-if="!changes.length" class="note">{{ T.changes.none }}</p>
+              <section v-for="g in changeGroups" :key="g.inst.id" class="change-group" :aria-label="g.inst.slicer">
+                <h3>{{ g.inst.slicer }}<small class="change-path">{{ g.inst.path }}</small></h3>
+                <ul class="plain-list">
+                  <li v-for="(c, n) in g.items" :key="n">
+                    <span :class="CHANGE[c.type].cls"><ui-icon :name="CHANGE[c.type].icon"/></span>
+                    <span class="grow"><strong>{{ c.name }}</strong> {{ T.changes.verbs[c.type] }}<small v-if="c.where">{{ c.where }}</small></span>
+                  </li>
+                </ul>
+                <p v-if="g.block" class="alert">{{ g.block }}</p>
+                <p v-else-if="plan.groupError[g.inst.id]" class="alert" role="alert">{{ plan.groupError[g.inst.id] }}</p>
+                <div v-if="changeGroups.length > 1" class="actions">
+                  <button class="btn btn-primary right" type="button" :disabled="!!g.block || plan.busy"
+                          :aria-label="T.changes.applyFor(g.inst.slicer)" @click="makePlan(g.inst)">{{ plan.busy ? T.changes.planning : T.changes.apply }}</button>
+                </div>
+              </section>
+              <p v-if="changes.length" class="note">{{ T.changes.safe }}</p>
+              <div class="actions">
+                <button class="btn" type="button" @click="closeChanges">{{ T.back }}</button>
+                <button v-if="changeGroups.length === 1" class="btn btn-primary right" type="button"
+                        :disabled="!!changeGroups[0].block || plan.busy" @click="makePlan(changeGroups[0].inst)">
+                  {{ plan.busy ? T.changes.planning : T.changes.apply }}
+                </button>
+              </div>
+            </template>
           </div>
         </aside>
       </main>

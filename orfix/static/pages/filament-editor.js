@@ -29,6 +29,8 @@ const RANGES = {
 // Characters the slicer refuses in a profile name (SavePresetDialog.cpp, Item::update), plus
 // "@", which separates the short name from the printer (FINDINGS 4.6).
 const BAD_CHARS = /[@<>[\]:/\\|?*"]/;
+// Longest name in characters, as MAX_NAME in orfix/operations.py (file names, Windows paths).
+const MAX_NAME = 120;
 const E = T.editor;
 
 export function nameProblem(name, taken) {
@@ -36,6 +38,7 @@ export function nameProblem(name, taken) {
   if (!n) return E.nameMissing;
   const bad = n.match(BAD_CHARS);
   if (bad) return E.nameBadChar(bad[0]);
+  if ([...n].length > MAX_NAME) return E.nameTooLong(MAX_NAME);
   return taken(n) ? E.nameTaken : "";
 }
 

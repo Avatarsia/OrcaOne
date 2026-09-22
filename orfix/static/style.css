@@ -221,6 +221,7 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .install-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; }
 .install-head h2 { font-size: 16px; font-weight: 700; }
 .install-head .version { color: var(--muted); }
+.install-head .inst-path { color: var(--muted); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 .install-head .status { margin-left: auto; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .card {
@@ -501,7 +502,15 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 /* Leaves room for a side panel, the page's or the change list */
 body:has(.panel) .changebar { right: var(--panel-w); }
 .main:has(.changes-panel) .page-host { padding-right: var(--panel-w); }
-.later-note { margin: 16px 0 0; }
+/* Change list and "Das passiert": per installation, file names may be long */
+.change-group + .change-group { margin-top: 8px; }
+.change-path { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+.plan-for { margin-top: 0; overflow-wrap: anywhere; }
+.plain-list strong { overflow-wrap: anywhere; }
+/* "Das passiert": long lists fold away, the rest keeps the size of the list */
+.plan-view .more { margin-top: 8px; font-size: inherit; }
+.plan-view > .state-note:first-child, .plan-view > .alert:first-child { margin-top: 0; }
+.hint-actions { margin-top: 6px; }
 .changebar .what { flex: 1; display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .changebar .what::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--changed); }
 
@@ -694,6 +703,7 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .bk-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
 .bk-summary-icon { display: grid; place-items: center; flex: none; width: 64px; height: 64px; border-radius: 50%; background: var(--focus-bg); color: var(--accent-text); }
 .bk-summary-text { flex: 1; min-width: 160px; }
+.bk-total-label { color: var(--label); font-size: 13px; font-weight: 700; }
 .bk-total { font-size: 30px; font-weight: 700; line-height: 1.1; }
 .bk-total-sub { margin-top: 2px; color: var(--label); }
 .bk-summary-note { flex-basis: 100%; color: var(--muted); font-size: 13px; }

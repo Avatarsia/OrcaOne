@@ -4,7 +4,8 @@
 // Every way to a new or changed filament opens the form from filament-editor.js ("Bearbeiten",
 // "Neues Filament", the drop target); its result is one more pending change.
 // Cards and own filaments follow `live` (common.js), so what the page "Drucker" changes shows up
-// here, too. Nothing is written: the change list in app.js collects all of it.
+// here, too. Nothing is written here: the change list in app.js collects all of it, ops.js turns
+// the state below (`store`) into the ops of POST /plan.
 import {
   INSTANCES, FIELDS, live, flash, go, hashOf, plural, nozzleLabel, printerShortName,
   setLeaveGuard, clearLeaveGuard, onReset,
@@ -53,8 +54,10 @@ const subOf = (e) => e.kind === "user" ? F.ownShort : e.brand || e.material || "
 const notLoaded = (f) => f.status === "orphaned" || f.status === "ignored" || f.status === "unresolved";
 
 // How a switch reaches the slicer (concept 4a-c): system filaments go through the global
-// "filaments" list, except the library in SnOrca, which gets a hidden helper profile per
-// printer; own profiles carry their printers themselves. Both kinds are kept in memory only.
+// "filaments" list, except the library in SnOrca, which is switched per printer here; ops.js
+// writes it to the list when it is on everywhere (way A) and as a hidden helper profile
+// otherwise (way B, FINDINGS 4.7). Own profiles carry their printers themselves. Both kinds
+// are kept in memory only.
 const usesList = (inst, e) => e.kind === "vendor" || (e.kind === "library" && !inst.snorca);
 
 function initialState(inst) {
@@ -79,7 +82,7 @@ function initialState(inst) {
 // edits: entry id -> { name, own } for own filaments changed with "Bearbeiten"; own maps a
 // field key to { value, high_flow? }, the values the profile sets itself.
 // base is what the data says, i.e. what is on disk.
-const store = reactive({});
+export const store = reactive({});
 const entryCache = new Map();
 onReset(() => {
   entryCache.clear();
@@ -112,13 +115,13 @@ function ownInitial(inst, e) {
   return e.record ? recordOwn(inst.byName.get(e.record)) : {};
 }
 // Name and own values an own entry has at the start, by entry id.
-function initialOf(inst, id) {
+export function initialOf(inst, id) {
   const c = store[inst.id].created.find((x) => x.entry.id === id);
   if (c) return { name: c.entry.name, own: c.entry.own || {} };
   const f = id.startsWith("user:") ? inst.byName.get(id.slice("user:".length)) : null;
   return f && f.origin_kind === "user" ? { name: f.name, own: recordOwn(f) } : null;
 }
-const sameValue = (a, b) => (a?.value ?? null) === (b?.value ?? null) && (a?.high_flow ?? null) === (b?.high_flow ?? null);
+export const sameValue = (a, b) => (a?.value ?? null) === (b?.value ?? null) && (a?.high_flow ?? null) === (b?.high_flow ?? null);
 const stateKey = (x) => x.name + "\n" + Object.keys(x.own).sort()
   .map((k) => k + "=" + x.own[k].value + "/" + (x.own[k].high_flow ?? "")).join(";");
 // An edited own entry shows its new name, and its own colour on the spool: a colour the user
@@ -168,7 +171,8 @@ function baseEntries(inst, model) {
     const e = makeEntry("user", f.name, f);
     e.record = f.name;
     const parent = f.chain.length ? inst.byName.get(f.chain[0]) : null;
-    if (parent) e.parent = { id: parent.origin_kind + ":" + parent.alias, name: parent.alias };
+    // name is what the page shows, profile the real name a new filament on top of it inherits.
+    if (parent) e.parent = { id: parent.origin_kind + ":" + parent.alias, name: parent.alias, profile: parent.name };
     if (notLoaded(f)) {
       e.orphan = true;
       e.unresolved = f.status === "unresolved";
@@ -331,8 +335,17 @@ export default {
     // ------------------------------------------------------------ printer cards
     // All installations; the one chosen in the top bar comes first.
     // Only printers the slicer shows; idx stays the position in the data, it is part of the address.
+    // Library filaments Orfix switched on for every nozzle (way A) that the slicer hid again, e.g.
+    // after its setup wizard (FINDINGS 4.7). The backend compares on every read ("unlock_lost").
+    const lostText = (i) => {
+      const w = i.warnings.find((x) => x.code === "unlock_lost");
+      return w ? `${T.warnings.unlock_lost.text(w)} ${T.warnings.unlock_lost.action}` : "";
+    };
     const homeGroups = computed(() => [...INSTANCES].sort((a, b) => (b.id === inst.value.id) - (a.id === inst.value.id)).map((i) => ({
       inst: i,
+      lost: lostText(i),
+      // Two installations of one slicer, e.g. a copy for a test next to the real one: the path tells.
+      twin: INSTANCES.some((x) => x !== i && x.slicer === i.slicer),
       cards: i.models.map((m, idx) => ({ m, idx })).filter(({ m }) => modelShown(i, m)).map(({ m, idx }) => {
         const all = m.printers.map((p) => p.name);
         const active = entriesOf(i, m).filter((e) => ["on", "some"].includes(stateOf(i, e, all))).sort(byName);
@@ -368,6 +381,7 @@ export default {
     });
     function lockedOff(e, ps = printers.value) {
       const i = inst.value;
+      if (e.kind === "user") return ownLocked(i, e, ps);
       if (!usesList(i, e)) return false;
       if (i.snorca) {
         // An empty list means "everything visible" in SnOrca (FINDINGS 4.6).
@@ -377,6 +391,20 @@ export default {
       }
       return ps.some((p) => isOn(i, e, p) && onCount.value[p] <= 1);
     }
+    // An own filament carries its printers in compatible_printers. An empty list means "every
+    // printer" to the slicer (FINDINGS 4.6), so its last printer stays on; "Löschen" removes it.
+    function ownLocked(i, e, ps) {
+      const names = new Set(Object.values(e.slots));
+      let on = 0, leaving = 0;
+      for (const k of store[i.id].bound) {
+        const cut = k.lastIndexOf("|");
+        if (!names.has(k.slice(0, cut))) continue;
+        on++;
+        if (ps.includes(k.slice(cut + 1))) leaving++;
+      }
+      return leaving > 0 && on - leaving < 1;
+    }
+    const lockText = (e) => e.kind === "user" ? F.lastNozzle : F.lastOne;
     function rowOf(e) {
       const i = inst.value, st = stateOf(i, e, printers.value);
       const row = { e, st, hint: null, locked: st === "on" && lockedOff(e), ownCount: ownCounts.value.get(e.id) || 0 };
@@ -446,19 +474,19 @@ export default {
     function toggle(e) {
       if (readOnly.value || e.orphan) return;
       const st = stateOf(inst.value, e, printers.value);
-      if (st === "on" && lockedOff(e)) return flash(F.lastOne);
+      if (st === "on" && lockedOff(e)) return flash(lockText(e));
       setEntry(e, printers.value, st !== "on");
     }
     function switchOn(e, on) {
       if (readOnly.value || e.orphan) return;
-      if (!on && lockedOff(e)) return flash(F.lastOne);
+      if (!on && lockedOff(e)) return flash(lockText(e));
       setEntry(e, printers.value, on);
       flash(F.switched(e.name, on));
     }
     function toggleAt(e, p) {
       if (readOnly.value) return;
       const on = isOn(inst.value, e, p);
-      if (on && lockedOff(e, [p])) return flash(F.lastOne);
+      if (on && lockedOff(e, [p])) return flash(lockText(e));
       setEntry(e, [p], !on);
     }
 
@@ -631,15 +659,23 @@ export default {
       for (let k = 2; nameTaken(name); k++) name = base.replace(/\)$/, " " + k + ")");
       return name;
     }
+    // The profile a new filament on top of tpl inherits (filament_create in ops.js): for a
+    // manufacturer or library entry the one whose values the form showed, for an own one its
+    // template. An own root profile without template is a template itself (FINDINGS 4.5).
+    function baseOf(tpl) {
+      if (tpl.kind !== "user") return templateProfile(tpl).rec?.name || null;
+      return tpl.base || tpl.parent?.profile || tpl.record || null;
+    }
     // A new own filament on top of tpl, switched on for the nozzles in view. On top of an own
     // filament it takes that one's template and copies its own values.
     function createOwn(tpl, name, own) {
       const s = store[inst.value.id];
+      const base = baseOf(tpl);
       const e = {
         uid: ++uid, id: "user:" + name, kind: "user", name, brand: tpl.brand, material: tpl.material,
         colours: null, slots: {}, record: null,
-        parent: tpl.kind === "user" ? tpl.parent : { id: tpl.id, name: tpl.name },
-        orphan: false, template: tpl, fresh: true, own,
+        parent: tpl.kind === "user" ? tpl.parent : { id: tpl.id, name: tpl.name, profile: base },
+        orphan: false, template: tpl, fresh: true, own, base,
       };
       for (const p of Object.keys(tpl.slots)) e.slots[p] = name;
       s.created.push({ model: model.value.model, entry: e });
@@ -775,11 +811,11 @@ export default {
     return {
       T, F, MATERIALS, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText,
       query, materials, closedKinds, panel, dragging, pickQuery,
-      homeGroups, tree, shelf, detail, detailValues, detailPrinters, nozzleSwitches, scopeText, problemText,
+      homeGroups, lostText, tree, shelf, detail, detailValues, detailPrinters, nozzleSwitches, scopeText, problemText,
       templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
-      brandOpen, toggleBrand, toggleKind, toggleMaterial, toggle, switchOn, toggleAt,
+      brandOpen, toggleBrand, toggleKind, toggleMaterial, toggle, switchOn, toggleAt, lockText,
       openPanel, closePanel, openDetails, pickRow, jumpTo, removeOwn,
       dragStart, dragEnd, dragOver, drop, KIND_ICON,
     };
@@ -794,8 +830,10 @@ export default {
           <div class="install-head">
             <h2>{{ g.inst.slicer }}</h2>
             <span class="version">{{ g.inst.version }}</span>
+            <span v-if="g.twin" class="inst-path">{{ g.inst.path }}</span>
             <run-status :inst="g.inst"/>
           </div>
+          <p v-if="g.lost" class="banner">{{ g.lost }}</p>
           <div v-if="g.cards.length" class="cards">
             <a v-for="c in g.cards" :key="c.idx" class="card" :href="hashOf('filamente', g.inst.id, c.idx)"
                @click="go($event, hashOf('filamente', g.inst.id, c.idx))">
@@ -839,6 +877,7 @@ export default {
           <run-status :inst="inst"/>
         </div>
         <p v-if="readOnly" class="banner">{{ T.busy(inst) }} {{ T.closeToChange }}</p>
+        <p v-if="lostText(inst)" class="banner">{{ lostText(inst) }}</p>
 
         <section class="box nozzles" aria-labelledby="nozzle-h">
           <h2 id="nozzle-h">{{ F.nozzle }}</h2>
@@ -869,7 +908,7 @@ export default {
                 <span class="tile-name" :title="r.e.name">{{ shortName(r.e) }}</span>
                 <span class="tile-sub">{{ subOf(r.e) }}<span v-if="r.e.pending" class="tile-changed">{{ F.changedTag }}</span><span v-else-if="r.st === 'some'" class="partly" :title="r.hint.text"> · {{ F.partly }}</span></span>
               </div>
-              <button class="icon-btn tile-off" type="button" :aria-label="F.switchOffLabel(r.e.name)" :title="r.locked ? F.lastOne : F.switchOff"
+              <button class="icon-btn tile-off" type="button" :aria-label="F.switchOffLabel(r.e.name)" :title="r.locked ? lockText(r.e) : F.switchOff"
                       :disabled="readOnly || r.locked" @click="switchOn(r.e, false)"><ui-icon :name="r.locked ? 'lock' : 'close'"/></button>
             </li>
           </ul>
@@ -928,7 +967,7 @@ export default {
                           <span v-if="r.ownCount" class="badge">{{ F.ownCount(r.ownCount) }}</span>
                           <span v-if="r.e.material" class="mat">{{ r.e.material }}</span>
                         </div>
-                        <span v-if="r.locked" class="lock" :title="F.lastOne"><ui-icon name="lock"/></span>
+                        <span v-if="r.locked" class="lock" :title="lockText(r.e)"><ui-icon name="lock"/></span>
                         <button v-if="!r.e.orphan" class="switch" type="button" role="checkbox"
                                 :aria-checked="r.st === 'on' ? 'true' : r.st === 'some' ? 'mixed' : 'false'"
                                 :aria-label="F.activeLabel(r.e.name)" :disabled="readOnly || r.locked" @click="toggle(r.e)"></button>
@@ -988,7 +1027,7 @@ export default {
                           :aria-checked="detail.st === 'on' ? 'true' : detail.st === 'some' ? 'mixed' : 'false'"
                           :aria-label="F.activeLabel(detail.e.name)" :disabled="readOnly || detail.locked || detail.st === 'na'" @click="toggle(detail.e)"></button>
                   <span :class="{ 'ch-on': detail.st === 'on' || detail.st === 'some' }">{{ F.state[detail.st] }}</span>
-                  <span v-if="detail.locked" class="lock" :title="F.lastOne"><ui-icon name="lock"/></span>
+                  <span v-if="detail.locked" class="lock" :title="lockText(detail.e)"><ui-icon name="lock"/></span>
                 </div>
               </div>
             </div>

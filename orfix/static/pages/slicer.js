@@ -3,9 +3,10 @@
 // but every entry says in plain words what it is. It also lists all installations, why one is
 // read-only, account, problems, hints, and adds or removes data directories by hand.
 // Data: instances[].slicer_page and .warnings of GET /api/data; the backend sends codes, their
-// words are in texts.js.
+// words are in texts.js. The one change made here: hiding the list entries that fit no printer
+// (warning visible_without_printer), it goes into the change list (`live` in common.js).
 import {
-  INSTANCES, ui, go, hashOf, flash, fmtSize, plural, generatedText, addDataDir, removeDataDir,
+  INSTANCES, live, ui, go, hashOf, flash, fmtSize, plural, generatedText, addDataDir, removeDataDir, unusedListNames,
 } from "../common.js";
 import { T } from "../texts.js";
 
@@ -116,6 +117,14 @@ export default {
     const hints = computed(() => inst.value.warnings);
     const hintText = (w) => T.warnings[w.code]?.text(w, T) ?? w.code;
     const hintAction = (w) => T.warnings[w.code]?.action ?? "";
+    // "Ausblenden" for the filaments that fit no printer: into the change list, like on the other pages.
+    const canHide = (w) => w.code === "visible_without_printer" && unusedListNames(inst.value).length > 0;
+    const hideQueued = computed(() => !!live[props.instId]?.hideUnused);
+    function hideUnused() {
+      if (inst.value.running || hideQueued.value) return;
+      live[props.instId].hideUnused = true;
+      flash(S.hints.hideQueued);
+    }
     const formatText = (s) => S.systemFormats[s.system_format] || s.system_format;
 
     // ------------------------------------------------------------ data directories added by hand
@@ -196,7 +205,7 @@ export default {
     return {
       T, S, KINDS, LEVEL_ICON, inst, sp, bp, cards, pick, generatedText, open, allOpen, toggleAll, outside,
       usage, usageText, credText, indentText, ownText, packageNote, formatText, hints, hintText, hintAction,
-      newPath, busy, addError, addManual, removeManual, fmtSize, plural,
+      canHide, hideQueued, hideUnused, newPath, busy, addError, addManual, removeManual, fmtSize, plural,
     };
   },
 
@@ -288,6 +297,10 @@ export default {
                 {{ hintText(w) }}
               </p>
               <p class="note">{{ hintAction(w) }}</p>
+              <p v-if="canHide(w)" class="hint-actions">
+                <span v-if="hideQueued" class="row-hint changed">{{ S.hints.hideMarked }}</span>
+                <button v-else class="btn" type="button" :disabled="inst.running" @click="hideUnused"><ui-icon name="minus"/>{{ S.hints.hide }}</button>
+              </p>
               <details v-if="w.names.length > 1" class="more">
                 <summary>{{ S.hints.show(w.names.length) }}</summary>
                 <ul class="file-list"><li v-for="name in w.names" :key="name"><code>{{ name }}</code></li></ul>

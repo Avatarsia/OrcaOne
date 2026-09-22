@@ -71,10 +71,29 @@ export function statusText(inst) {
   return inst.running_reason?.code === "process_unmapped" ? T.status.maybeRunning : T.status.running;
 }
 
-// What the pages "Drucker" and "Sicherungen" change, per installation: own profiles (files in
+// Why Orfix may not write to this installation now: a code of T.blocked, or null. The backend
+// checks the same, in the same order, when it plans and applies (environment_block in
+// orfix/operations.py); checked here as well, so "Übernehmen" is off right away. For now Orfix
+// writes only in data directories added by hand (write_allowed of GET /api/data; without it,
+// source "manual"), the real ones stay read only until the user allows writing there. Then
+// not with a .conf Orfix cannot read, and never while the slicer runs (hard rule 3). A restore
+// writes the whole .conf back, so a broken one does not stop it: it is the way to repair it.
+export function writeBlock(inst, restore = false) {
+  if (!(inst.write_allowed ?? inst.source === "manual")) return "write_not_allowed";
+  if (inst.problems.includes("conf_unreadable") && !restore) return "conf_unreadable";
+  if (inst.running) return inst.running_reason?.code === "process_unmapped" ? "slicer_maybe_running" : "slicer_running";
+  return null;
+}
+
+// Entries of the "filaments" list that fit no printer set up (the 8 × @J1, @Dual … the wizard
+// took along, FINDINGS 4.6), also those without a profile of that name: the backend removes a
+// listed name either way. The page "Slicer" offers to hide them.
+export const unusedListNames = (inst) => inst.without_printer.map((w) => w.name);
+
+// What the pages "Drucker" and "Slicer" change, per installation: own profiles (files in
 // user/), the printer models switched on and the vendor packages in system/, the default
-// printer and the stale "orca_presets" entries (in the .conf), plus the backups to make,
-// restore or delete. Memory only: the change list collects it, nothing is written yet.
+// printer, the stale "orca_presets" entries and the unused "filaments" entries (in the .conf).
+// Memory only: the change list collects it, ops.js turns it into the ops of POST /plan.
 function initialLive(inst) {
   const pp = inst.printers_page;
   const own = new Set(inst.filaments.filter((f) => f.origin_kind === "user").map((f) => f.name));
@@ -86,13 +105,12 @@ function initialLive(inst) {
     packages: new Set(pp.system.map((m) => m.origin)),
     defaultPrinter: pp.default_printer.name,
     dead: pp.dead_entries.map((d) => d.machine),
-    backup: false, restore: null, dropBackups: new Set(),
+    hideUnused: false,
   };
 }
 const copyLive = (s) => ({
   own: new Set(s.own), models: new Set(s.models), packages: new Set(s.packages),
-  defaultPrinter: s.defaultPrinter, dead: [...s.dead],
-  backup: s.backup, restore: s.restore, dropBackups: new Set(s.dropBackups),
+  defaultPrinter: s.defaultPrinter, dead: [...s.dead], hideUnused: s.hideUnused,
 });
 export const live = reactive({});
 
@@ -137,8 +155,9 @@ export function printerText(inst, name) {
   return name;
 }
 
-// Pending changes of the pages "Drucker" and "Sicherungen": where `live` differs from the data.
+// Pending changes of the pages "Drucker" and "Slicer": where `live` differs from the data.
 // The page "Filamente" adds its own (pages/filamente.js); app.js shows both in one list.
+// Backups are no pending change: the page "Sicherungen" makes, restores and deletes them directly.
 export const liveChanges = computed(() => {
   const out = [];
   for (const i of INSTANCES) {
@@ -156,14 +175,26 @@ export const liveChanges = computed(() => {
     if (now.defaultPrinter !== was.defaultPrinter) add("drucker", "default", printerText(i, now.defaultPrinter));
     const cleaned = was.dead.filter((d) => !now.dead.includes(d));
     if (cleaned.length) add("drucker", "clean", plural(cleaned.length, ...T.words.staleEntry), cleaned.join(", "));
-    const backups = i.backups_page.backups;
-    const when = (id) => whenText(new Date(backups.find((b) => b.id === id)?.time));
-    if (now.backup) add("sicherungen", "backup", T.changes.backupName, T.changes.backupByHand);
-    if (now.restore) add("sicherungen", "restore", T.changes.stateOf(when(now.restore)));
-    for (const id of now.dropBackups) add("sicherungen", "dropBackup", T.changes.backupOf(when(id)));
+    if (now.hideUnused) add("slicer", "hide", plural(unusedListNames(i).length, ...T.words.filament), T.changes.withoutPrinter);
   }
   return out;
 });
+
+// ------------------------------------------------------------ backups
+// Backups per installation from GET /api/instances/{id}/backups: the page "Sicherungen" and the
+// main menu show them. Read after every load and after every backup action. `error` holds the
+// code when the list could not be read; the last list read stays then.
+export const BACKUPS = reactive({});
+export async function refreshBackups(instId) {
+  try {
+    const data = await api.backups(instId);
+    BACKUPS[instId] = {
+      backups: data.backups || [], total_size: data.total_size || 0, location: data.location || "", error: null,
+    };
+  } catch (err) {
+    BACKUPS[instId] = { backups: [], total_size: 0, location: "", ...BACKUPS[instId], error: err.code || "unknown" };
+  }
+}
 
 let toastTimer = 0;
 export function flash(text) {
@@ -208,6 +239,8 @@ export async function load() {
     setData(await api.data());
     loadState.error = null;
     loadState.status = "ready";
+    // Not awaited: the pages show while the lists come in.
+    for (const i of INSTANCES) refreshBackups(i.id);
     return true;
   } catch (err) {
     if (!err.code) console.error(err);

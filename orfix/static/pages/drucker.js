@@ -3,7 +3,8 @@
 // filaments and processes that belong to that printer only. Each action opens the side panel
 // with the plan first (hard rule 5); its button puts the plan into the change list (app.js).
 // Data: instances[].printers_page of GET /api/data; the changeable state is `live` in common.js,
-// so what goes here shows up on "Filamente", too.
+// so what goes here shows up on "Filamente", too. ops.js turns it into printer_model_off,
+// printer_delete, filament_delete, default_printer and cleanup_presets.
 // Removing the last model of a vendor can make the slicer delete the whole vendor package at its
 // next start (FINDINGS 4.2); the plan says so and names the own printers that go with it.
 import {
@@ -37,7 +38,9 @@ export default {
           cover: m.cover, printers: m.printers, tag: P.tags.vendor, tagIcon: "factory",
           visible: true, problem: null, package: m.origin, dropsPackage: m.drops_package,
           isDefault: m.printers.some((p) => p.name === s.defaultPrinter),
-          onlyHere: mine(m.only_here), keepsOwn: m.own_printers.filter((n) => s.own.has(n)),
+          // Own processes go only together with an own printer (printer_delete in ops.js), so a
+          // model of a manufacturer offers the own filaments alone.
+          onlyHere: mine(m.only_here).filter((x) => x.kind === "filament"), keepsOwn: m.own_printers.filter((n) => s.own.has(n)),
         });
       }
       for (const p of pp.own) {
