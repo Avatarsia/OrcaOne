@@ -69,10 +69,11 @@ export const T = {
     text: "Die Übersicht der Drucker, Filamente und Prozesse kommt in Phase 1.",
   },
   drafts: {
-    title: "Entwurf für die Übersicht",
+    title: "Entwürfe für die Übersicht",
     hint: "Gewählte Richtung für Phase 1, öffnet sich in einem neuen Tab. Die Daten stammen aus deinen Installationen, eigene Profile sind Beispiele.",
     links: [
       { href: "/prototypes/ui-overview/variante-d.html", label: "D – Nur das Nötigste, Rest in der Seitenleiste" },
+      { href: "/prototypes/ui-overview/variante-e.html", label: "E – Drucker wählen, Düse, Filament-Baum" },
     ],
   },
   list: {

@@ -5,11 +5,15 @@ Reads the real slicer data directories strictly read-only and never starts a
 slicer. The rules are a simplified version of docs/FINDINGS.md 4.6 and 4.7:
 installed system printers from "models", compatibility via compatible_printers,
 the library exclusion by alias, visibility via the "filaments" list.
+Filament colours come from default_filament_colour or, in SnOrca, from the vendor's
+filaments_colours.json; printer pictures are the copies in assets/.
 Standard library only. The .opc files are read with prototypes/opc/opc_read.py.
 
 Usage: python3 make_data.py
 """
+import colorsys
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -25,6 +29,9 @@ LIBRARY = "OrcaFilamentLibrary"
 # Meta keys of a profile JSON; everything else is a setting (FINDINGS 4.4).
 META_KEYS = {"version", "name", "type", "from", "inherits", "instantiation", "setting_id",
              "filament_id", "description", "renamed_from", "url", "is_custom_defined"}
+# Keys a helper profile may carry besides the meta keys: the printer binding and the id the
+# slicer always writes when saving.
+BINDING_KEYS = {"compatible_printers", "compatible_printers_condition", "filament_settings_id"}
 
 # Core values shown per filament: key, label, unit.
 CORE_VALUES = [
@@ -35,6 +42,16 @@ CORE_VALUES = [
     ("filament_density", "Dichte", "g/cm³"),
     ("filament_cost", "Preis", "je kg"),
 ]
+
+# Printer pictures copied unchanged from the Orca resources into assets/ (<model>_cover.png).
+# Orfix itself would read them from the installed slicer; everything else gets the outline.
+COVERS = {
+    "Snapmaker U1": "assets/printer-snapmaker-u1.png",
+    "Generic Klipper Printer": "assets/printer-generic-klipper.png",
+}
+PLACEHOLDER_COVER = "assets/printer-placeholder.png"
+
+HEX_COLOUR = re.compile(r"#[0-9A-Fa-f]{6}")
 
 LABELS = {
     "status": {"visible": "Sichtbar", "hidden": "Ausgeblendet", "displaced": "Verdrängt",
@@ -61,10 +78,7 @@ class Profile:
 
     @property
     def alias(self):
-        # Text before the first "@", right-trimmed (PresetBundle::load_vendor_configs_from_json).
-        pos = self.name.find("@")
-        alias = self.name[:pos].rstrip() if pos >= 0 else ""
-        return alias or self.name
+        return alias_of(self.name)
 
     @property
     def origin_kind(self):
@@ -75,6 +89,13 @@ class Profile:
     @property
     def origin(self):
         return {"user": "Eigenes Profil", "library": "Orca-Bibliothek"}.get(self.origin_kind, self.package)
+
+
+def alias_of(name):
+    # Text before the first "@", right-trimmed (PresetBundle::load_vendor_configs_from_json).
+    pos = name.find("@")
+    alias = name[:pos].rstrip() if pos >= 0 else ""
+    return alias or name
 
 
 def split_list(text):
@@ -112,6 +133,7 @@ class Instance:
     conf: dict
     storage: str
     profiles: dict = field(default_factory=dict)  # (package, kind, name) -> Profile
+    colours: dict = field(default_factory=dict)   # (package, alias) -> [{"hex", "name"}]
 
     def add(self, profile):
         self.profiles[(profile.package, profile.kind, profile.name)] = profile
@@ -141,6 +163,20 @@ def load_json_vendors(inst):
             for item in manifest.get(list_key, []):
                 data = json.loads((folder / item["sub_path"]).read_text(encoding="utf-8"))
                 inst.add(profile_from_json(data, kind, package))
+
+
+def load_colour_files(inst):
+    """system/<Vendor>/filament/filaments_colours.json, only SnOrca ships it (FilamentColorLibrary.cpp).
+    Keyed by alias, because one entry ("Snapmaker ABS @U1") stands for all nozzle profiles."""
+    for path in sorted((inst.path / "system").glob("*/filament/filaments_colours.json")):
+        package = path.parent.parent.name
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for entry in data.get("filaments", []):
+            items = [{"hex": c["filament_color"][0], "name": (c.get("color_name") or {}).get("en", "")}
+                     for c in entry.get("filament_color", [])
+                     if c.get("enabled", True) and c.get("filament_color")]
+            if entry.get("enabled", True) and items:
+                inst.colours.setdefault((package, alias_of(entry.get("filament_name", ""))), items)
 
 
 def load_opc_vendors(inst):
@@ -279,8 +315,43 @@ def example_profiles(u1_printers):
     ]
 
 
+def is_helper(inst, p):
+    """Own profile without own settings on top of a library profile: the helper that unlocks
+    the library in SnOrca (FINDINGS 4.7, way B). The UI shows it as the switched-on library row."""
+    if p.origin_kind != "user" or set(p.values) - BINDING_KEYS:
+        return False
+    parent = find_parent(inst, p)
+    return parent is not None and parent.origin_kind == "library"
+
+
+def lively(hexes):
+    """First colour that is neither near white, black nor grey, so the spools differ at a glance."""
+    for h in hexes:
+        r, g, b = (int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
+        _, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+        if saturation > 0.35 and 0.2 < lightness < 0.85:
+            return h
+    return hexes[0] if hexes else None
+
+
+def colours_of(inst, p, chain):
+    """(colour for the spool, list of known colours). default_filament_colour wins, then the
+    vendor colour file of the first profile in the chain that has an entry there."""
+    known = []
+    for q in [p] + chain:
+        known = inst.colours.get((q.package, q.alias), [])
+        if known:
+            break
+    value = first(lookup(p, chain, "default_filament_colour")[0]) or ""
+    match = HEX_COLOUR.match(value.strip())
+    if match:
+        return match.group(0).upper(), known
+    return lively([c["hex"] for c in known]), known
+
+
 def filament_record(inst, p, in_list):
     chain, complete = chain_of(inst, p)
+    colour, colours = colours_of(inst, p, chain)
     values = {}
     for key, _, _ in CORE_VALUES:
         value, source = lookup(p, chain, key)
@@ -297,7 +368,10 @@ def filament_record(inst, p, in_list):
         "chain": [c.name for c in chain], "chain_complete": complete,
         "compatible_printers": compatible_printers(inst, p) if complete else as_list(p.values.get("compatible_printers")),
         "in_list": in_list, "values": values, "printers": {},
+        "colour": colour,
     }
+    if colours:
+        record["colours"] = colours
     if p.example:
         record["example"] = True
     if not complete:
@@ -323,6 +397,7 @@ def build(key, slicer, path, conf_name, process_names):
     inst = Instance(key, slicer, path, conf, "opc" if has_opc else "json")
     load_json_vendors(inst)
     load_opc_vendors(inst)
+    load_colour_files(inst)
     snorca = key == "snorca"
 
     models = installed_printers(inst)
@@ -345,6 +420,8 @@ def build(key, slicer, path, conf_name, process_names):
     records = {}
     for p in selectable:
         record = filament_record(inst, p, in_list(p) if p.package else True)
+        if snorca and is_helper(inst, p):
+            record["helper"] = True
         if record.get("status") == "orphaned":
             records[p.name] = record
             continue
@@ -396,7 +473,8 @@ def build(key, slicer, path, conf_name, process_names):
                 "counts": counts,
                 "process_count": len(proc_names), "processes": proc_names,
             })
-        out_models.append({"model": m["model"], "origin": m["package"], "printers": variants})
+        out_models.append({"model": m["model"], "origin": m["package"], "printers": variants,
+                           "cover": COVERS.get(m["model"], PLACEHOLDER_COVER)})
 
     without_printer = []
     for name in filament_list:

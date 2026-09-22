@@ -320,6 +320,27 @@ Weg B testet man genauso. Beide Tests stehen noch aus.
 | Was dauerhaft bleibt | **Präzisiert:** Das Öffnen selbst schreibt **nie** nach `user/` und ändert weder `"filaments"` noch `"models"`. Es ändert nur `"presets"`, den Druckereintrag in `"orca_presets"` sowie `app.import_project_action` und `app.project_load_behaviour`. Dateien in `user/` entstehen erst über Speichern-Dialoge. |
 
 - Folge für „Neu seit dem letzten Scan“: Neben Dateien, `"models"` und `"filaments"` auch `"presets"`, `"orca_presets"` und die beiden `app`-Schlüssel vergleichen.
+### Fremde Drucker aus 3MF-Projekten (geprüft am 22.09.2026)
+
+Frage des Nutzers: „Ich hatte extrem oft auf einmal einen Bambu-Drucker in meiner Auswahl.“ Zwei Agenten haben das am Quellcode geprüft, der zweite als Gegenprüfer. Ausprobiert ist nichts davon.
+
+- **Ohne Rückfrage:** Beide Datenordner stehen auf `ask_when_relevant`. Ist die Platte leer, lädt der Slicer eine 3MF **ohne Frage** als ganzes Projekt samt Druckerprofil. Das gilt auch für Drag & Drop und für Strg+I „Importieren“ (Plater.cpp:19777–19786, MainFrame.cpp:672–674). Nur bei belegter Platte fragt er, und dann ist „Als Projekt öffnen“ vorgewählt. Das erklärt das „auf einmal“.
+- **Im Speicher:** Der Drucker heißt dann `"<Name>(<Datei>.3mf)"` und steht nur im Speicher. Ist ein gleichnamiges Systemprofil installiert, wählt der Slicer stattdessen dieses und markiert es als geändert. Geschrieben wird nichts nach `user/`, auch nichts in `"models"` oder `"filaments"`.
+- **Nach „Neues Projekt“ oder Schließen** wählt der Slicer einen Ersatzdrucker und speichert die Auswahl. Übrig bleiben:
+  - ein `"orca_presets"`-Eintrag für den Projektdrucker, der nie gelöscht wird;
+  - vermutlich Anzahl und Farben der Filament-Plätze aus dem Projekt, dann am Ersatzdrucker. Das ist aus dem Code abgeleitet.
+- **`presets.machine` mit `(….3mf)`** bleibt nur nach einem Absturz stehen.
+- **Dauerhaft wird der Drucker nur auf drei Wegen:**
+  1. **Aktiv gespeichert:** Im Speichern-Dialog umbenannt und „Benutzervoreinstellung“ gewählt. Oder, bei installiertem BBL-Paket, im Dialog für ungespeicherte Änderungen „Speichern“ geklickt, dann entsteht `… - Kopie.json`. Zeigt `inherits` auf einen nicht installierten Bambu-Drucker, überspringen beide Slicer die Datei beim Start. Sie ist dann **unsichtbar verwaist**.
+  2. **Wiederherstellen nach Absturz:** beide Slicer, wieder nur im Speicher.
+  3. **Orca mit Cloud-Anmeldung** und `sync_user_preset = true`: Ein Cloud-Profil auf Bambu-Basis installiert das BBL-Paket nach `system/` und ergänzt `"models"` und `"filaments"`. SnOrca hat diesen Weg nicht.
+- **Die aktuellen Datenordner** wurden am 21.09. neu angelegt. Sie enthalten keinen Bambu-Eintrag. Der `orca_presets`-Eintrag „Default Printer“ in SnOrca stammt vom ersten Start vor dem Assistenten.
+
+**Was Orfix erkennt (Seite „Drucker“, Aufräumen):**
+- `"orca_presets"`-Einträge, deren `machine` sich nicht auflösen lässt, mit oder ohne `(….3mf)`.
+- Eigene Profile mit `(….3mf)` im Namen, mit fehlendem Elternprofil (unsichtbar verwaist) oder mit `printer_model` eines nicht installierten Herstellers.
+- In Orca `BBL` in `"models"` ohne eigenen Auftrag.
+
 - Herkunft der 3MF: SnOrca schreibt `Application = Snapmaker_Orca-2.4.0`. Orca erkennt diesen Tag nicht und behandelt die Datei als „fremd“, lädt die Einstellungen laut Code aber trotzdem. Getestet ist das nicht.
 
 ## 4.10 Quellcode-Referenzen
