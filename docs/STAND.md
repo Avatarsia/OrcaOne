@@ -55,6 +55,10 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 
 Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_page` und `editable_fields`. Die Sichtprüfung im Browser macht der Hauptagent, die Agenten starten keinen Browser.
 
+**Danach (Wunsch vom 22.09.):** ein gemeinsamer Test „Was sehe ich in SnOrca, was in Orfix, und kommt eine Änderung richtig an?“, siehe [TEST-VERGLEICH](TEST-VERGLEICH.md).
+- **Teil A** (nur lesen) geht mit dem Entwurf.
+- **Teil B** (Änderungen) braucht echte Schreibfunktionen. Sie kommen als erster Teil von Phase 2: Sicherung, `.conf` ändern, eigenes Profil anlegen. Orfix schreibt dabei nur in von Hand hinzugefügte Ordner, also in eine Kopie, die mit `--datadir` gestartet wird.
+
 ## Offene Fehler und Punkte
 
 - **`geckodriver`-Prozess:** Ein Agent hat einen `geckodriver` übrig gelassen (PID 98327, Snap-Firefox). Ihn darf nur der Nutzer beenden: `kill 98327`.
