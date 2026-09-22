@@ -33,7 +33,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 - **Umgebung:** `.lenv` im Projektordner und `requirements.txt`. Start mit `./orfix.sh` bzw. `orfix.cmd` oder `.lenv/bin/python -m orfix`. Tests mit `.lenv/bin/python -m pytest`.
 - **Zusätzliche Abhängigkeiten** nur nach Rücksprache.
 - **Frontend:** Vue 3 (lokal in `orfix/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
-  - Stil nach Entwurf E (`prototypes/ui-overview/variante-e.html`): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orfix/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
+  - Stil wie die heutige Oberfläche in `orfix/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orfix/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
   - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
   - Satzschreibung, Status immer als Text plus Farbe.
 - **Oberfläche:** drei Seiten.

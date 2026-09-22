@@ -158,7 +158,7 @@ Die Checkliste aus FINDINGS gehen wir gemeinsam im Slicer durch.
 
 ## Designplan
 
-> **Stand 22.09.2026: überholt durch Entwurf E.** Die Oberfläche richtet sich jetzt nach `prototypes/ui-overview/variante-e.html`:
+> **Stand 22.09.2026: überholt durch Entwurf E.** Die Oberfläche richtet sich jetzt nach Entwurf E und E2, umgesetzt in `orfix/static/`. Die Entwürfe liegen nur noch in der Git-Geschichte, zuletzt in `deee0f2` unter `prototypes/ui-overview/`:
 > - **Farben:** von OrcaSlicer (Teal `#009688`, Palette in FINDINGS-Umfeld belegt).
 > - **Schrift:** Inter statt JetBrains Mono und ionpy-Stil.
 > - **Seiten:** Filamente, Drucker, Sicherungen, mit Druckerbildern und Spulen.

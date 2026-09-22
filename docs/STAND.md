@@ -1,6 +1,6 @@
 # Arbeitsstand
 
-Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in [FINDINGS](FINDINGS.md) und [PLAN](PLAN.md).
+Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in [FINDINGS](FINDINGS.md) und [PLAN](PLAN.md).
 
 ## Erledigt
 
@@ -15,7 +15,7 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
   - die versteckte Bibliothek in SnOrca;
   - wie fremde Drucker über 3MF-Projekte in die Auswahl kommen.
 - **Review von Phase 0** mit 10 Agenten, alle bestätigten Funde sind behoben.
-- **Oberflächen-Entwürfe:** A bis C sind verworfen und nur noch in der Git-Geschichte. D war eine Zwischenstufe. **E ist die Richtung:** `prototypes/ui-overview/variante-e.html`.
+- **Oberflächen-Entwürfe:** A bis C sind verworfen. D war eine Zwischenstufe. E und E2 sind die Richtung, E2 ist jetzt die App. Alle Entwürfe liegen nur noch in der Git-Geschichte, zuletzt in `deee0f2` unter `prototypes/ui-overview/`.
 
 ## Entscheidungen
 
@@ -49,27 +49,22 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 5. **Entwürfe** für die Seiten „Drucker“ und „Sicherungen“ im Stil von E. Danach den **Plan für Phase 1** auf Grundlage von E neu schreiben. Der Designplan im PLAN ist als überholt markiert.
 6. **Technische Seite „Slicer“ (neu am 22.09.):** eine Übersicht je Installation (was liegt wo, Verzeichnisse, Größen, Erklärung je Ordner). Sie ist wie die jetzige Startseite, aber schön im Stil von E.
 
-**In Arbeit seit 22.09. 07:45:** Workflow `orfix-draft-e2` baut die Punkte 1, 2, 5 und 6 als mehrteiligen Entwurf in `prototypes/ui-overview/e2/`:
-- `index.html`, `app.js` mit Menü und Hash-Routing;
-- `pages/filamente.js`, `drucker.js`, `sicherungen.js`, `slicer.js`.
+**Erledigt am 22.09. bis 09:20:** Entwurf E2 mit Menü und den Seiten Filamente, Drucker, Sicherungen und Slicer, im Browser geprüft (`754d706`).
 
-Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_page` und `editable_fields`. Die Sichtprüfung im Browser macht der Hauptagent, die Agenten starten keinen Browser.
+**In Arbeit seit 09:25:** Workflow `orfix-e2-into-app` (Run `wf_1844b1d4-b0c`), vier Agenten nacheinander: Backend → Oberfläche → Review → Nachbessern. Nach einem Abbruch fortsetzen mit `Workflow({scriptPath: …/workflows/scripts/orfix-e2-into-app-wf_1844b1d4-b0c.js, resumeFromRunId: "wf_1844b1d4-b0c"})`. Ziel (Wunsch vom 22.09., 08:07): E2 wird die echte App.
+- **Backend: fertig.** `GET /api/data` liefert die Struktur von E2 live aus beiden Installationen, Texte als Codes. Neu sind `orfix/opc.py`, `scanner.py`, `resolver.py` und `overview.py` samt Tests. Gegen `make_data.py` ohne Beispiele gibt es keine Abweichung.
+- **Oberfläche: fertig, noch nicht im Browser geprüft.** Sie besteht aus:
+  - `orfix/static/index.html` und `app.js`, dazu `common.js`, `pages/*.js` und `style.css`;
+  - `texts.js`, darin alle Texte;
+  - `api.js`.
 
-**Stand 22.09., 09:20:** E2 ist fertig und im Browser geprüft (`754d706`). Die drei gemeldeten Fehler sind behoben:
-- Die Ansicht folgt den Klicks.
-- Beispiele sind standardmäßig aus.
-- Tote Einträge werden erkannt.
-
-**In Arbeit seit 09:25:** Workflow `orfix-e2-into-app` (Run `wf_1844b1d4-b0c`), vier Agenten nacheinander: Backend → Oberfläche → Review → Nachbessern. Nach einem Abbruch fortsetzen mit `Workflow({scriptPath: …/workflows/scripts/orfix-e2-into-app-wf_1844b1d4-b0c.js, resumeFromRunId: "wf_1844b1d4-b0c"})`.
-
-**Ziel (Wunsch vom 22.09., 08:07):** E2 wird die echte App.
-- `http://localhost:8765/` zeigt die neue Optik mit Menü.
-- Die Daten kommen live vom Backend, dafür wandert die Logik aus `make_data.py` mit Tests nach `orfix/`.
-- Die bisherige Startseite geht in der Seite „Slicer“ auf.
-- Die Entwurfslinks und der Mount `/prototypes/` fliegen raus, danach wird `prototypes/ui-overview/` gelöscht (bleibt in der Git-Geschichte).
+  Das ersetzt die Startseite von Phase 0, sie geht in der Seite „Slicer“ auf. Die Daten kommen per `fetch('/api/data')`, „Neu einlesen“ holt sie neu. Beispiele und erfundene Sicherungen sind raus. „Datenordner hinzufügen“ und „Entfernen“ laufen über die echte API. Alles Ändernde sammelt sich in einer gemeinsamen Änderungsliste, „Übernehmen“ ist aus („Änderungen speichern kommt mit dem nächsten Schritt“). Nichts schreibt.
+- **Aufgeräumt:** Die Mounts `/prototypes/ui-overview` und `/orfix/static` sind raus aus `orfix/app.py`, `prototypes/ui-overview/` ist gelöscht.
+- 81 Tests sind grün.
+- **Offen:** Review und Nachbessern, danach die Sichtprüfung im Browser durch den Hauptagenten.
 
 **Danach (Wunsch vom 22.09.):** ein gemeinsamer Test „Was sehe ich in SnOrca, was in Orfix, und kommt eine Änderung richtig an?“, siehe [TEST-VERGLEICH](TEST-VERGLEICH.md).
-- **Teil A** (nur lesen) geht mit dem Entwurf.
+- **Teil A** (nur lesen) geht jetzt mit der App.
 - **Teil B** (Änderungen) braucht echte Schreibfunktionen. Sie kommen als erster Teil von Phase 2: Sicherung, `.conf` ändern, eigenes Profil anlegen. Orfix schreibt dabei nur in von Hand hinzugefügte Ordner, also in eine Kopie, die mit `--datadir` gestartet wird.
 
 ## Offene Fehler und Punkte
@@ -78,11 +73,8 @@ Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_pag
 - **Enter-Taste:** Im Formular „Datenordner hinzufügen“ hat die Enter-Taste im Test-Browser der App nicht abgeschickt, nur der Knopf. In einem echten Browser prüfen.
 - **Windows:** nur mit nachgebauter `.conf` getestet. Eine echte Windows-`.conf` fehlt, vorher `devices` bzw. `local_machines` leeren.
 - **Praxistests offen:** „Bibliothek freischalten“ (Weg A und B, mit `--datadir`-Kopie) und Flatpak.
-- **Entwürfe:** `prototypes/ui-overview/data.js` ist nicht im Git. Neu erzeugen mit `python3 prototypes/ui-overview/make_data.py`, das liest nur.
-- **Gemeldet am 22.09., Entwurf E:**
-  1. **„Läuft“ bei geschlossenem SnOrca:** Die Entwürfe zeigen eine Momentaufnahme. `data.js` stammte von 07:37, als SnOrca noch offen war. Die echte App prüft bei jedem „Neu einlesen“ live und zeigt richtig „Geschlossen“. `data.js` ist um 07:46 neu erzeugt. In Phase 1 kommen die Daten live.
-  2. **„Orfix zeigt für SnOrca nur zwei PLA, SnOrca zeigt PLA und ABS“:** Die Daten stimmen. Beim U1 0.4 sichtbar sind `Snapmaker ABS @U1 0.4 nozzle` und `Snapmaker PLA Basic @U1`. Verwirrend sind aber die zwei Beispielprofile „Mein PLA“ und „SUNLU PLA+ für U1“, die es im echten SnOrca nicht gibt. Echter Fehler in E: Ein Klick auf eine Druckerkarte oder eine Düse aktualisiert die Ansicht nicht, der Hash ändert sich, die Anzeige bleibt. Nur ein Neuladen hilft. In E2 prüfen und beheben. Beispiele standardmäßig ausblenden oder deutlich kennzeichnen.
-  3. **Tote `orca_presets`-Einträge:** `make_data.py` meldet 0, obwohl SnOrca einen Eintrag „Default Printer“ hat. Die Erkennung ist fehlerhaft.
+- **Gemeldet am 22.09. zu Entwurf E, alle erledigt:** „Läuft“ bei geschlossenem SnOrca (die Daten kommen jetzt live), die verwirrenden Beispielprofile (entfernt), die Ansicht, die Klicks nicht folgte (in E2 behoben), und die toten `orca_presets`-Einträge („Default Printer“ wird erkannt).
+- **Sicherungen:** Was eine Wiederherstellung zurückbringt und was wegfällt, zeigt die App noch nicht. Das braucht einen Vergleich im Backend, er kommt mit Phase 2.
 
 ## Wo was liegt
 
@@ -90,9 +82,9 @@ Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_pag
 |---|---|
 | `ORFIX_SPEC.md` | Spezifikation mit eingearbeiteten Befunden |
 | `docs/FINDINGS.md` | geprüfte Fakten. Gehen der Spezifikation vor |
-| `docs/PLAN.md` | Plan Phase 0 und 1. Der Designplan ist überholt, Phase 1 wird nach E neu geplant |
-| `orfix/` | App: `conf.py`, `instances.py`, `guard.py`, `app.py`, `static/` |
-| `prototypes/opc/` | `.opc`-Leser (Machbarkeit, in Phase 1 ins Paket übernehmen) |
-| `prototypes/ui-overview/` | Entwürfe D und E, `make_data.py`, Bilder und Symbole |
+| `docs/PLAN.md` | Plan Phase 0 und 1. Der Designplan ist überholt, die Oberfläche folgt E2 |
+| `orfix/` | App: `app.py`, `overview.py`, `scanner.py`, `resolver.py`, `opc.py`, `instances.py`, `guard.py`, `conf.py`, dazu die Oberfläche in `static/` (Seiten in `static/pages/`, Texte in `static/texts.js`) |
+| `prototypes/opc/` | `.opc`-Leser (Machbarkeit, jetzt in `orfix/opc.py`) |
+| `prototypes/U1Cam/` | Kamera des U1, vom Nutzer |
 | `slicer-src/` | Sparse-Clones von SnOrca v2.4.0 und OrcaSlicer main, nicht im Git |
-| `tests/fixtures/snorca/` | anonymisierter Ausschnitt aus der echten SnOrca-Installation |
+| `tests/fixtures/snorca/`, `tests/fixtures/orca/` | anonymisierte Ausschnitte aus den echten Installationen, dazu synthetische eigene Profile |
