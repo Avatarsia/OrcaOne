@@ -55,6 +55,12 @@ Stand 22.09.2026, 07:30. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 
 Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_page` und `editable_fields`. Die Sichtprüfung im Browser macht der Hauptagent, die Agenten starten keinen Browser.
 
+**Danach (Wunsch vom 22.09., 08:07):** E2 wird die echte App.
+- `http://localhost:8765/` zeigt die neue Optik mit Menü.
+- Die Daten kommen live vom Backend, dafür wandert die Logik aus `make_data.py` mit Tests nach `orfix/`.
+- Die bisherige Startseite geht in der Seite „Slicer“ auf.
+- Die Entwurfslinks und der Mount `/prototypes/` fliegen raus, danach wird `prototypes/ui-overview/` gelöscht (bleibt in der Git-Geschichte).
+
 **Danach (Wunsch vom 22.09.):** ein gemeinsamer Test „Was sehe ich in SnOrca, was in Orfix, und kommt eine Änderung richtig an?“, siehe [TEST-VERGLEICH](TEST-VERGLEICH.md).
 - **Teil A** (nur lesen) geht mit dem Entwurf.
 - **Teil B** (Änderungen) braucht echte Schreibfunktionen. Sie kommen als erster Teil von Phase 2: Sicherung, `.conf` ändern, eigenes Profil anlegen. Orfix schreibt dabei nur in von Hand hinzugefügte Ordner, also in eine Kopie, die mit `--datadir` gestartet wird.
