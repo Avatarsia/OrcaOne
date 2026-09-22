@@ -56,6 +56,10 @@ Dazu erweitert er `make_data.py` um `slicer_page`, `printers_page`, `backups_pag
 - **Windows:** nur mit nachgebauter `.conf` getestet. Eine echte Windows-`.conf` fehlt, vorher `devices` bzw. `local_machines` leeren.
 - **Praxistests offen:** „Bibliothek freischalten“ (Weg A und B, mit `--datadir`-Kopie) und Flatpak.
 - **Entwürfe:** `prototypes/ui-overview/data.js` ist nicht im Git. Neu erzeugen mit `python3 prototypes/ui-overview/make_data.py`, das liest nur.
+- **Gemeldet am 22.09., Entwurf E:**
+  1. **„Läuft“ bei geschlossenem SnOrca:** Die Entwürfe zeigen eine Momentaufnahme. `data.js` stammte von 07:37, als SnOrca noch offen war. Die echte App prüft bei jedem „Neu einlesen“ live und zeigt richtig „Geschlossen“. `data.js` ist um 07:46 neu erzeugt. In Phase 1 kommen die Daten live.
+  2. **„Orfix zeigt für SnOrca nur zwei PLA, SnOrca zeigt PLA und ABS“:** Die Daten stimmen. Beim U1 0.4 sichtbar sind `Snapmaker ABS @U1 0.4 nozzle` und `Snapmaker PLA Basic @U1`. Verwirrend sind aber die zwei Beispielprofile „Mein PLA“ und „SUNLU PLA+ für U1“, die es im echten SnOrca nicht gibt. Echter Fehler in E: Ein Klick auf eine Druckerkarte oder eine Düse aktualisiert die Ansicht nicht, der Hash ändert sich, die Anzeige bleibt. Nur ein Neuladen hilft. In E2 prüfen und beheben. Beispiele standardmäßig ausblenden oder deutlich kennzeichnen.
+  3. **Tote `orca_presets`-Einträge:** `make_data.py` meldet 0, obwohl SnOrca einen Eintrag „Default Printer“ hat. Die Erkennung ist fehlerhaft.
 
 ## Wo was liegt
 
