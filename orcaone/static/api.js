@@ -50,6 +50,8 @@ export const api = {
   // (orcaone/camera.py). The picture itself comes as image/jpeg.
   printers: () => request("GET", "/api/printers"),
   setPrinterHost: (model, host) => request("POST", "/api/printers", { model, host }),
+  // About 6 s: Snapmaker printers that answer in the LAN (mDNS, as Snapmaker Orca looks for them).
+  searchPrinters: () => request("POST", "/api/printers/search"),
   cameras: () => request("GET", "/api/cameras"),
   cameraEvery: (id, every) => request("POST", `/api/cameras/${encodeURIComponent(id)}`, { every }),
   wakeCamera: (id) => request("POST", `/api/cameras/${encodeURIComponent(id)}/wake`),

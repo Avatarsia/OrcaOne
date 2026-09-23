@@ -715,6 +715,11 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .card-host.is-missing .link { font-weight: 400; }
 .card-host.is-editing .input { flex: 1 1 140px; min-width: 0; font-family: var(--mono); font-size: 13px; }
 .card-host .field-error { flex-basis: 100%; }
+.card-host .link:disabled { color: var(--muted); text-decoration: none; cursor: wait; }
+.card-found { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.card-found li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.card-found small { color: var(--muted); }
+.card-found-none { color: var(--muted); }
 .card-actions .btn { flex: 1 1 auto; }
 .all-clean { display: flex; align-items: center; gap: 8px; color: var(--label); }
 .all-clean .icon { color: var(--success); }

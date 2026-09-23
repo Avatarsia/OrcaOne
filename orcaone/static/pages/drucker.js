@@ -12,7 +12,7 @@
 // (print_host of an own printer). A U1 with one gets its camera and live values on the pages
 // "Kamera" and "Kalibrieren" (orcaone/camera.py).
 import {
-  INSTANCES, live, flash, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON,
+  INSTANCES, live, flash, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON, U1_MODELS,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
@@ -52,6 +52,26 @@ export default {
       } catch (err) {
         hostError.value = P.address.errors[err.code] || T.errors[err.code] || T.errors.unknown;
       }
+    }
+    // A U1 card can look for Snapmaker printers in the LAN, as Snapmaker Orca does (mDNS, only in
+    // the same LAN, not over a VPN); a hit goes in with one click.
+    const isU1 = (c) => U1_MODELS.includes(c.model);
+    const searching = ref(null);  // card id
+    const found = ref({});        // card id -> printers found
+    async function search(c) {
+      searching.value = c.id;
+      try {
+        found.value = { ...found.value, [c.id]: (await api.searchPrinters()).found };
+      } catch (err) {
+        flash(P.address.errors[err.code] || T.errors[err.code] || T.errors.unknown);
+      } finally {
+        searching.value = null;
+      }
+    }
+    async function take(c, host) {
+      hostDraft.value = host;
+      await saveHost(c);
+      if (!hostError.value) found.value = { ...found.value, [c.id]: undefined };
     }
     onMounted(async () => {
       try {
@@ -239,7 +259,7 @@ export default {
 
     return {
       T, P, KIND_ICON, inst, state, readOnly, cards, locked, nozzlesOf, defaultCard, defaultText,
-      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost,
+      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost, isU1, searching, found, search, take,
       dead, remembered, clean, panel, choice, along, pcard, plan, panelTitle,
       openDefault, setDefault, openRemove, toggleAlong, remove, closePanel,
       go, hashOf, plural, nozzleLabel, printerText, profileSub,
@@ -306,7 +326,17 @@ export default {
                 </template>
                 <span v-else>{{ P.address.none }}</span>
                 <button class="link" type="button" @click="editHost(c)">{{ hostOf(c) ? P.address.change : P.address.add }}</button>
+                <button v-if="isU1(c)" class="link" type="button" :disabled="searching === c.id" @click="search(c)">
+                  {{ searching === c.id ? P.address.searching : P.address.search }}</button>
               </p>
+              <ul v-if="found[c.id]" class="card-found">
+                <li v-for="f in found[c.id]" :key="f.host">
+                  <span class="grow"><strong>{{ f.name }}</strong> <span class="card-host-value">{{ f.host }}</span>
+                    <small v-if="f.machine_type">{{ f.machine_type }}</small></span>
+                  <button class="btn" type="button" @click="take(c, f.host)">{{ P.address.take }}</button>
+                </li>
+                <li v-if="!found[c.id].length" class="card-found-none">{{ P.address.foundNone }}</li>
+              </ul>
             </div>
             <div class="card-actions">
               <button v-if="c.printers.length && !(c.isDefault && c.printers.length < 2)" class="btn" type="button"

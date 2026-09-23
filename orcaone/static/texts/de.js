@@ -53,7 +53,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Hauptmenü",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", kamera: "Kamera", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     technik: "Technik",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -797,6 +797,10 @@ const T = {
       change: "Ändern",
       none: "Keine IP-Adresse",
       fromSlicer: (slicer) => `aus dem Druckerprofil in ${slicer}`,
+      search: "Im LAN suchen",
+      searching: "Suche …",
+      take: "Übernehmen",
+      foundNone: "Kein U1 gefunden. Das geht nur im selben LAN, nicht über VPN.",
       save: "Speichern",
       saved: "IP-Adresse gespeichert",
       removed: "IP-Adresse entfernt",
@@ -804,6 +808,7 @@ const T = {
       errors: {
         camera_host_invalid: "Das ist keine IP-Adresse und kein Rechnername.",
         printer_invalid: "Diesen Drucker kennt OrcaOne nicht. Lies neu ein.",
+        search_failed: "Die Suche im LAN ließ sich nicht starten.",
       },
     },
     safeRestore: { before: "Vorher legt OrcaOne eine Sicherung an. Unter ", after: " stellst du alles wieder her." },

@@ -51,7 +51,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Main menu",
-    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", kamera: "Camera", transfer: "Transfer", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", transfer: "Transfer", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
     technik: "Advanced",
     pending: "queued changes",
     backups: "Backups",
@@ -795,6 +795,10 @@ const T = {
       change: "Change",
       none: "No IP address",
       fromSlicer: (slicer) => `from the printer profile in ${slicer}`,
+      search: "Search the LAN",
+      searching: "Searching …",
+      take: "Take",
+      foundNone: "No U1 found. This only works in the same LAN, not over a VPN.",
       save: "Save",
       saved: "IP address saved",
       removed: "IP address removed",
@@ -802,6 +806,7 @@ const T = {
       errors: {
         camera_host_invalid: "This is neither an IP address nor a host name.",
         printer_invalid: "OrcaOne does not know this printer. Rescan.",
+        search_failed: "The LAN search could not start.",
       },
     },
     safeRestore: { before: "OrcaOne makes a backup first. Under ", after: " you can restore everything." },

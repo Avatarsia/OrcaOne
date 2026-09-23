@@ -121,3 +121,61 @@ def test_wake_speaks_websocket():
     assert camera.wake(f"127.0.0.1:{sock.getsockname()[1]}") == {"state": "ok"}
     thread.join(timeout=5)
     sock.close()
+
+
+# ---------------------------------------------------------------- finding a U1 in the LAN (mDNS)
+
+def _name(text):
+    return b"".join(bytes([len(p)]) + p.encode() for p in text.split(".")) + b"\0"
+
+
+def _record(name: bytes, rtype: int, rdata: bytes) -> bytes:
+    return name + struct.pack(">HHIH", rtype, 1, 120, len(rdata)) + rdata
+
+
+def _answer(txt=(), with_a=True, service="_snapmaker._tcp.local"):
+    """An mDNS answer as a U1 would send it: PTR, then SRV (its name compressed), TXT and A."""
+    head = struct.pack(">6H", 0, 0x8400, 0, 1, 0, 2 + bool(with_a))
+    ptr_name = _name(service)
+    instance = _name(f"lava.{service}")
+    ptr = _record(ptr_name, 12, instance)
+    instance_at = 12 + len(ptr_name) + 10   # where the PTR's data, the instance name, starts
+    pointer = struct.pack(">H", 0xC000 | instance_at)
+    srv = _record(pointer, 33, struct.pack(">HHH", 0, 0, 80) + _name("lava.local"))
+    txt_data = b"".join(bytes([len(t)]) + t.encode() for t in txt) or b"\0"
+    records = ptr + srv + _record(pointer, 16, txt_data)
+    if with_a:
+        records += _record(_name("lava.local"), 1, socket.inet_aton("10.30.40.174"))
+    return head + records
+
+
+def test_the_question_snapmaker_orca_asks():
+    # BonjourRequest::make_PTR: id 0, one question, "_snapmaker._tcp.local", type PTR, class ANY.
+    assert camera._mdns_query("_snapmaker._tcp.local").hex() == \
+        "000000000001000000000000" + "0a5f736e61706d616b6572045f746370056c6f63616c00" + "000c00ff"
+
+
+def test_answers_of_a_u1():
+    fields = ("sn=ABC123", "machine_type=Snapmaker U1", "device_name=Werkstatt", "ip=10.30.40.174", "version=1.6.0")
+    assert camera._parse_answer(_answer(fields), "10.30.40.9") == [
+        {"host": "10.30.40.174", "name": "Werkstatt", "machine_type": "Snapmaker U1", "version": "1.6.0"}]
+    # Without the TXT field "ip": the A record of the SRV target, else the sender.
+    assert camera._parse_answer(_answer(("machine_type=Snapmaker U1",)), "10.0.0.9")[0]["host"] == "10.30.40.174"
+    assert camera._parse_answer(_answer((), with_a=False), "10.0.0.9") == [
+        {"host": "10.0.0.9", "name": "lava", "machine_type": "", "version": ""}]
+    # Another service, a question, or broken data: nothing.
+    assert camera._parse_answer(_answer(fields, service="_http._tcp.local"), "10.0.0.9") == []
+    assert camera._parse_answer(camera._mdns_query("_snapmaker._tcp.local"), "10.0.0.9") == []
+    assert camera._parse_answer(_answer(fields)[:40], "10.0.0.9") == []
+
+
+def test_search_api(server, monkeypatch):
+    found = [{"host": "10.30.40.174", "name": "lava", "machine_type": "Snapmaker U1", "version": "1.6.0"}]
+    monkeypatch.setattr(camera, "search", lambda: found)
+    assert json.loads(call(f"{server}/api/printers/search", "POST")[1]) == {"found": found}
+
+    def refused():
+        raise camera.CameraError("search_failed", "[Errno 98] Address already in use")
+    monkeypatch.setattr(camera, "search", refused)
+    status, body = call(f"{server}/api/printers/search", "POST")
+    assert (status, json.loads(body)) == (500, {"error": "search_failed", "detail": "[Errno 98] Address already in use"})

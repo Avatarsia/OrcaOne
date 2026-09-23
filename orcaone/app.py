@@ -80,7 +80,7 @@ def _backup_error(request: Request, exc: backup.BackupError):
 
 @app.exception_handler(camera.CameraError)
 def _camera_error(request: Request, exc: camera.CameraError):
-    status = {"camera_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400,
+    status = {"camera_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "search_failed": 500,
               "camera_every_invalid": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
@@ -263,6 +263,12 @@ def list_cameras():
 @app.get("/api/printers")
 def list_printers():
     return {"printers": camera.printers()}
+
+
+@app.post("/api/printers/search")
+def search_printers():
+    # About 6 s: Snapmaker printers that answer in the LAN (mDNS, orcaone/camera.py search).
+    return {"found": camera.search()}
 
 
 @app.post("/api/printers")

@@ -8,7 +8,7 @@
 // the state below (`store`) into the ops of POST /plan.
 import {
   INSTANCES, FIELDS, live, ui, flash, go, hashOf, plural, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey,
-  setLeaveGuard, clearLeaveGuard, onReset, DECIMAL,
+  setLeaveGuard, clearLeaveGuard, onReset, DECIMAL, U1_MODELS,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import FilamentEditor, { hexOf, changeText } from "./filament-editor.js";
@@ -609,6 +609,11 @@ export default {
     });
     // The page "Details" with the profile of this entry: for a manufacturer entry the one of the
     // nozzle in view (templateProfile), for an own one its file.
+    // "Kalibrieren (U1)" only for an own filament that fits a U1.
+    const fitsU1 = (e) => {
+      const rec = e.record && inst.value.byName.get(e.record);
+      return !!rec && inst.value.models.some((m) => U1_MODELS.includes(m.model) && m.printers.some((p) => rec.printers[p.name]));
+    };
     function toCalibration(e) {
       ui.calibrateFor = e.record;
       go(null, hashOf("kalibrieren", inst.value.id));
@@ -831,7 +836,7 @@ export default {
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
       brandOpen, toggleBrand, toggleKind, toggleMaterial, switchOn, toggleAt, lockText,
-      openPanel, closePanel, openDetails, pickRow, jumpTo, toDetails, toCalibration, removeOwn,
+      openPanel, closePanel, openDetails, pickRow, jumpTo, toDetails, fitsU1, toCalibration, removeOwn,
       dragStart, dragEnd, dragOver, drop, KIND_ICON,
     };
   },
@@ -1085,7 +1090,7 @@ export default {
             </div>
             <p v-if="!detail.e.fresh" class="details-link">
               <button class="link" type="button" @click="guarded(() => toDetails(detail.e))"><ui-icon name="info"/>{{ T.details.toDetails }}</button>
-              <button v-if="detail.e.kind === 'user' && detail.e.record" class="link" type="button" @click="guarded(() => toCalibration(detail.e))"><ui-icon name="calibrate"/>{{ T.nav.pages.kalibrieren }}</button>
+              <button v-if="detail.e.kind === 'user' && fitsU1(detail.e)" class="link" type="button" @click="guarded(() => toCalibration(detail.e))"><ui-icon name="calibrate"/>{{ T.nav.pages.kalibrieren }}</button>
             </p>
           </template>
         </template>

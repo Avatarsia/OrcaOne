@@ -522,7 +522,7 @@ Anlass: Die Anleitung des Nutzers `prototypes/U1 Filament Kalibrierung.md` wird 
 - die Anfrage: ID 0, eine Frage, Typ PTR, Klasse ANY (`BonjourRequest::make_PTR`);
 - aus der Antwort: Hostname, IPv4 und Port, dazu die TXT-Felder `sn`, `version`, `machine_type`, `link_mode`, `userid`, `device_name`, `ip` und `region`.
 
-Auf diesem Rechner stand die IP in keiner Datei der beiden Slicer (am 23.09. alle Ordner durchsucht, Klartext und UTF-16). Der Grund: Der Rechner erreicht den U1 über WireGuard (`wg0`, 10.30.250.5 → 10.30.40.174), nicht im selben LAN. mDNS ist Link-lokal und geht nicht durch den Tunnel; eine Anfrage genau wie SnOrcas brachte kein einziges fremdes Paket. Von hier findet also auch SnOrca den U1 nicht.
+Auf diesem Rechner stand die IP in keiner Datei der beiden Slicer (am 23.09. alle Ordner durchsucht, Klartext und UTF-16). Der Grund: Der Rechner erreicht den U1 über WireGuard (`wg0`, 10.30.250.5 → 10.30.40.174), nicht im selben LAN. mDNS ist Link-lokal und geht nicht durch den Tunnel; eine Anfrage genau wie SnOrcas brachte kein einziges fremdes Paket. Von hier findet also auch SnOrca den U1 nicht. OrcaOne sucht auf der Karte eines U1 genauso (`camera.search`); geprüft ist das bisher nur gegen nachgebaute Antworten.
 
 **Nicht geprüft:** der genaue Text der Konsolenmeldung („Got pressure advance“ laut Anleitung, „measure k“ laut Forum), die 32 mm³/s des Hotends und der Rat zur 0,2-mm-Düse (die Snapmaker-Wiki zeigt ihren Inhalt nur per JavaScript).
 

@@ -4,7 +4,7 @@
 // ops.js, "Übernehmen"); the ticks go into data/settings.json (orcaone/calibration.py). While the
 // page is visible, OrcaOne reads the U1 every few seconds, read only (camera.status): the spools
 // and the pressure advance the firmware uses.
-import { INSTANCES, ui, flash, go, hashOf, onReset, LOCALE, nozzleLabel } from "../common.js";
+import { INSTANCES, ui, flash, go, hashOf, onReset, LOCALE, nozzleLabel, U1_MODELS } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 
@@ -37,9 +37,8 @@ export const calibrationChanges = computed(() => INSTANCES.flatMap((inst) =>
     inst, page: "kalibrieren", type: "edit", name: plainName(name),
     where: C.changeWhere(Object.keys(values).map((k) => C.keys[k] || k)),
   }))));
-// The steps follow the U1: Flow Calibration at print start, four heads, spools with RFID. Another
-// Klipper printer calibrates differently (orcaone/camera.py knows the same models).
-const U1_MODELS = ["Snapmaker U1"];
+// The steps follow the U1 (U1_MODELS): Flow Calibration at print start, four heads, spools with
+// RFID. Another Klipper printer calibrates differently.
 // The printer and the filament last chosen per installation, for the next visit.
 const lastPrinter = {};
 const lastChosen = {};

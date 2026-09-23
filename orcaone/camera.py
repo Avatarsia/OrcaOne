@@ -24,6 +24,8 @@ import time
 import urllib.request
 from email.utils import parsedate_to_datetime
 
+import psutil
+
 from . import settings
 
 TIMEOUT = 5
@@ -134,6 +136,129 @@ def set_every(camera_id: str, every) -> dict:
 
     settings.change(edit)
     return find(camera_id)
+
+
+# ---------------------------------------------------------------- finding a U1 in the LAN
+
+MDNS_GROUP, MDNS_PORT = "224.0.0.251", 5353
+_IPV4 = re.compile(r"\d{1,3}(?:\.\d{1,3}){3}")
+
+
+def _mdns_query(name: str) -> bytes:
+    """A PTR question as Snapmaker Orca asks it (slic3r/Utils/Bonjour.cpp, BonjourRequest::make_PTR):
+    id 0, one question, type PTR, class ANY."""
+    labels = b"".join(bytes([len(part)]) + part.encode() for part in name.split("."))
+    return struct.pack(">6H", 0, 0, 1, 0, 0, 0) + labels + b"\0" + struct.pack(">HH", 12, 255)
+
+
+def _read_name(data: bytes, pos: int) -> tuple[str, int]:
+    """A DNS name at pos, following compression pointers; also the position after it."""
+    labels, end = [], None
+    for _ in range(64):
+        size = data[pos]
+        if size & 0xC0 == 0xC0:
+            end = end or pos + 2
+            pos = ((size & 0x3F) << 8) | data[pos + 1]
+        elif size == 0:
+            return ".".join(labels), end or pos + 1
+        else:
+            labels.append(data[pos + 1:pos + 1 + size].decode("utf-8", "replace"))
+            pos += 1 + size
+    raise ValueError("name too long or a loop")
+
+
+def _parse_answer(data: bytes, source: str) -> list[dict]:
+    """The Snapmaker printers in one mDNS answer: [{"host", "name", "machine_type", "version"}].
+    The address is the TXT field "ip", else the A record of the SRV target, else the sender;
+    Snapmaker Orca reads the same fields (SSWCP.cpp, sw_StartMachineFind)."""
+    try:
+        flags, questions, answers, authority, additional = struct.unpack(">5H", data[2:12])
+        if not flags & 0x8000:
+            return []   # a question, maybe our own
+        pos = 12
+        for _ in range(questions):
+            pos = _read_name(data, pos)[1] + 4
+        txt, srv, addresses = {}, {}, {}
+        for _ in range(answers + authority + additional):
+            name, pos = _read_name(data, pos)
+            rtype, _, _, size = struct.unpack(">HHIH", data[pos:pos + 10])
+            pos += 10
+            if rtype == 16:
+                i, fields = pos, {}
+                while i < pos + size:
+                    entry = data[i + 1:i + 1 + data[i]].decode("utf-8", "replace")
+                    key, _, value = entry.partition("=")
+                    fields[key.lower()] = value
+                    i += 1 + data[i]
+                txt[name.lower()] = fields
+            elif rtype == 33:
+                srv[name.lower()] = _read_name(data, pos + 6)[0].lower()
+            elif rtype == 1 and size == 4:
+                addresses[name.lower()] = socket.inet_ntoa(data[pos:pos + 4])
+            pos += size
+    except (IndexError, struct.error, ValueError):
+        return []
+    found = []
+    for instance in set(txt) | set(srv):
+        if not instance.endswith("._snapmaker._tcp.local"):
+            continue
+        fields = txt.get(instance, {})
+        ip = fields.get("ip", "")
+        host = normalize(ip if _IPV4.fullmatch(ip) else addresses.get(srv.get(instance, ""), source))
+        found.append({"host": host, "name": fields.get("device_name") or instance.split("._snapmaker")[0],
+                      "machine_type": fields.get("machine_type", ""), "version": fields.get("version", "")})
+    return [p for p in found if p["host"]]
+
+
+def search(seconds: float = 6.0) -> list[dict]:
+    """Snapmaker printers in the LAN, found as Snapmaker Orca finds them (SSWCP.cpp, sw_WakeupFind
+    and sw_StartMachineFind): on port 5353 in the group 224.0.0.251 of every IPv4 interface, first
+    the DNS-SD question that makes access points forward multicast, then _snapmaker._tcp.local every
+    2 s. Only in the same LAN: mDNS passes neither routers nor a VPN (docs/FINDINGS.md)."""
+    interfaces = [a.address for addrs in psutil.net_if_addrs().values() for a in addrs
+                  if a.family == socket.AF_INET and not a.address.startswith("127.")]
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        sock.bind(("", MDNS_PORT))
+    except OSError as exc:
+        sock.close()
+        raise CameraError("search_failed", str(exc)) from None
+    joined = []
+    for address in interfaces:
+        try:
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, socket.inet_aton(MDNS_GROUP) + socket.inet_aton(address))
+            joined.append(address)
+        except OSError:
+            pass   # a network without multicast, e.g. a VPN
+
+    def ask(name: str) -> None:
+        for address in joined:
+            try:
+                sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(address))
+                sock.sendto(_mdns_query(name), (MDNS_GROUP, MDNS_PORT))
+            except OSError:
+                pass
+
+    found = {}
+    with sock:
+        sock.settimeout(0.3)
+        ask("_services._dns-sd._udp.local")
+        ask("_snapmaker._tcp.local")
+        deadline, next_ask = time.time() + seconds, time.time() + 2
+        while time.time() < deadline:
+            if time.time() >= next_ask:
+                ask("_snapmaker._tcp.local")
+                next_ask += 2
+            try:
+                data, (source, _) = sock.recvfrom(9000)
+            except socket.timeout:
+                continue
+            for printer in _parse_answer(data, source):
+                found.setdefault(printer["host"], printer)
+    return sorted(found.values(), key=lambda p: p["host"])
 
 
 HEADS = ["extruder", "extruder1", "extruder2", "extruder3"]

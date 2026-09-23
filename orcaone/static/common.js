@@ -28,6 +28,9 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 export const PAGE_IDS = ["filamente", "kalibrieren", "transfer", "prozesse", "drucker", "kamera", "sicherungen", "slicer", "details", "logs"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
+// The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
+// search in the LAN are for them only (orcaone/camera.py, U1_MODELS).
+export const U1_MODELS = ["Snapmaker U1"];
 
 export function parseHash(hash) {
   const [page, instId, idx] = hash.replace(/^#\/?/, "").split("/");
