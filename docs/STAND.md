@@ -38,6 +38,7 @@ Stand 23.09.2026. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in
 - **3MF bereinigen: eigene Seite im Menü** (Wunsch des Nutzers: „Quicktool … Datei reinziehen und man kriegt bereinigt die Datei als Download wieder. KISS“; Anlass: Öffnen legt den Bambu-Drucker vorübergehend an und hinterlässt ihn in `orca_presets`).
   - `pages/bereinigen.js`, ohne Installation wie „Kamera“; `importer.clean_3mf`, `POST /api/clean-3mf`. Download „<Name> (bereinigt).3mf“ ohne `project_settings.config`, eingebettete Profile, `slice_info.config` und G-Code; alles andere Byte für Byte gleich. Ist nichts davon drin: `nothing_to_clean`.
   - Geprüft: Tests, die echte Datei (es fielen nur `project_settings.config` und `slice_info.config` weg), die Seite im Browser, und vom Nutzer in Snapmaker Orca: Die bereinigte Datei öffnet mit dem U1, ohne neuen Eintrag in `orca_presets`.
+- **Ideen des Nutzers festgehalten** in [IDEEN](IDEEN.md), noch nicht beauftragt: Druck in 3D und Dateien auf dem U1. Dafür am U1 nur lesend geprüft, was Moonraker anbietet.
 - **Als Nächstes, beim Import (Übersicht, Reihenfolge des Nutzers offen):** G-Code-Dateien und Drucke direkt vom U1, `user_backup-v*` und andere Benutzerordner, die Orca-Bibliothek auf GitHub, „An Zielprofil hängen“.
 - **Als Nächstes, in dieser Reihenfolge:**
 - **Beim Nutzer:** „Im LAN suchen“ zu Hause testen, die Prüfliste auf dem Windows-Rechner (unten, „Windows-Durchsicht“).

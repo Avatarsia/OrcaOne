@@ -152,6 +152,7 @@ Die Checkliste aus FINDINGS gehen wir gemeinsam im Slicer durch.
   - Import der Material4Print-ZIP, Export als Bundle.
 - **Phase 4:** 3MF-Inspektor.
 - **Ideen für später:**
+  - Seit 23.09.2026 in [IDEEN](IDEEN.md): Druck in 3D (Ersatz für den G-Code-Viewer von Mainsail, mit Farben) und ein Datei-Browser für den U1.
   - Die Kamera des U1 abfragen und aktivieren. Außerhalb des bisherigen Umfangs, weil das eine Geräteverbindung braucht.
   - Spoolman nur lesend anbinden. OrcaOne zeigt je Spule das passende Profil, blendet Filamente ohne Spule aus und legt aus einer neuen Spule ein eigenes Profil an. Weder SnOrca 2.4 noch OrcaSlicer main haben das eingebaut.
 
