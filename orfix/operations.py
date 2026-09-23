@@ -25,7 +25,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from . import backup, guard, instances, overview, scanner
+from . import backup, guard, instances, overview, scanner, transfer
 from .conf import ConfFile, dump_conf, loads, parse_conf
 from .model import Instance
 from .resolver import DEFAULT_NAMES, EDITABLE_DEFAULTS, Resolver, as_list
@@ -380,6 +380,7 @@ class Planner:
         self.unlock_add, self.unlock_remove = set(), set()
         self.gone = set()  # printers the slicer no longer lists after the changes so far
         self._excluded = None
+        self._sources = {}  # installations profiles are copied from: id -> (instance, resolver)
 
     def _load(self, p) -> Own:
         path = self.instance.data_dir / p.file
@@ -623,8 +624,8 @@ class Planner:
     def new_own(self, kind: str, name: str, data: dict, parent, base_id: str) -> Own:
         full = {**data, "name": name, "from": "User", "version": self.version, SETTINGS_ID[kind]:
                 [name] if kind == "filament" else name}
-        if parent is not None:
-            full["inherits"] = parent.name
+        # A root profile says so with an empty "inherits", as the slicer saves one (Preset::save).
+        full["inherits"] = parent.name if parent is not None else ""
         folder = f"{self.folder}/{kind}" + ("" if parent is not None else "/base")
         own = Own(name=name, kind=kind, rel=f"{folder}/{name}.json", orig_rel=None, data=full, orig_data=None, raw=None,
                   info={"sync_info": "", "user_id": "", "setting_id": "", "base_id": base_id or ""},
@@ -752,6 +753,58 @@ class Planner:
         own.deleted = True
         self.drop_references({name})
         self.sync_warning([name])
+
+    def source(self, instance_id: str):
+        """Another installation to copy from, read once per plan. Its slicer may run: it is only read."""
+        if instance_id == self.instance.id:
+            raise Blocked("same_installation")
+        if instance_id not in self._sources:
+            try:
+                instance = find_instance(instance_id)[0]
+            except OperationError:
+                raise Blocked("source_not_found") from None
+            self._sources[instance_id] = (instance, Resolver(scanner.scan(instance.data_dir, instance.slicer)))
+        return self._sources[instance_id]
+
+    def free_name(self, kind: str, name: str) -> str:
+        """name, or with " (2)", " (3)" … before its "@" part if a profile has it already."""
+        stem, at, rest = name.partition(" @")
+        for n in range(1, 100):
+            candidate = name if n == 1 else f"{stem} ({n}){at}{rest}"
+            try:
+                self.check_new_name(kind, candidate)
+                return candidate
+            except Blocked as exc:
+                if exc.code != "name_taken":
+                    raise
+        raise Blocked("name_taken", name=name)
+
+    def op_profile_copy(self, c: dict, i: int) -> None:
+        """A profile of another installation as a new own one here (orfix/transfer.py)."""
+        source_id = _field(c, "from", i, str)
+        kind = _field(c, "kind", i, str)
+        name = _field(c, "name", i, str)
+        if kind not in transfer.KINDS:
+            raise InvalidChange(i, "kind")
+        source, res = self.source(source_id)
+        try:
+            copy = transfer.convert(res, source.slicer, self.res, self.instance.slicer, kind, name)
+        except transfer.TransferError as exc:
+            raise Blocked(exc.code, **exc.params) from None
+        new_name = self.free_name(kind, copy.name)
+        if kind == "filament" and copy.parent is None:
+            # Snapmaker Orca's own filament dialogs find an own root filament by its id: one of its
+            # own, never that of a system profile (FINDINGS, "Übertragung"). Unique per name.
+            copy.data["filament_id"] = "P" + hashlib.md5(new_name.encode("utf-8")).hexdigest()[:7]
+        self.new_own(kind, new_name, copy.data, copy.parent, copy.base_id)
+        source_name = overview.SLICERS[source.slicer]["name"]
+        self.warnings.append({"code": "transfer_from", "name": new_name, "source": name, "slicer": source_name})
+        if copy.dropped:
+            self.warnings.append({"code": "transfer_dropped", "name": new_name, "keys": copy.dropped})
+        if copy.cut:
+            self.warnings.append({"code": "transfer_first_value", "name": new_name, "keys": copy.cut})
+        if copy.printers_left:
+            self.warnings.append({"code": "transfer_printers_left", "name": new_name, "printers": copy.printers_left})
 
     def op_default_printer(self, c: dict, i: int) -> None:
         printer = _field(c, "printer", i, str)

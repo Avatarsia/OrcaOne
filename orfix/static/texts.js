@@ -135,6 +135,9 @@ export const T = {
     name_invalid: (inst, d) => `${d.name ? `Der Name ${q(d.name)}` : "Ein Name"} enthält Zeichen, die der Slicer nicht annimmt. Ändere ihn unter „Filamente“.`,
     name_too_long: () => "Ein Name ist zu lang, erlaubt sind höchstens 120 Zeichen. Kürze ihn unter „Filamente“.",
     bundle_profile: (inst, d) => `${d.name ? q(plainName(d.name)) : "Dieses Profil"} stammt aus einem Profilpaket. Pakete ändert nur ${inst.slicer} selbst.`,
+    same_installation: () => "Quelle und Ziel sind dieselbe Installation. Wähle rechts eine andere.",
+    source_not_found: () => "Die Installation, aus der kopiert werden soll, gibt es nicht mehr. Lies neu ein.",
+    no_target_printer: (inst, d) => `${d.name ? q(plainName(d.name)) : "Dieses Profil"} gehört zu Druckern, die ${inst.slicer} nicht hat. Richte dort erst einen passenden Drucker ein.`,
     not_own_profile: (inst, d) => `${d.name ? q(d.name) + " ist kein eigenes Profil." : "Das ist kein eigenes Profil."} Orfix ändert nur eigene Profile. Lies neu ein und versuche es erneut.`,
     parent_not_selectable: (inst, d) => `${d.name ? `Die Vorlage ${q(d.name)}` : "Diese Vorlage"} nimmt der Slicer nicht an. Lege das Filament auf einer anderen Vorlage an.`,
     unknown_profile: (inst, d) => `${d.name ? q(d.name) : "Ein Profil aus der Liste"} gibt es nicht mehr. Lies neu ein und versuche es erneut.`,
@@ -256,6 +259,11 @@ export const T = {
     nothing_changed: (w) => `Bei ${q(w.name)} ändert sich nichts.`,
     package_removed: (w) => `Beim nächsten Start löscht der Slicer das Paket ${q(w.package)}. Richtest du wieder einen Drucker davon ein, holt er es zurück.`,
     no_printer_left: () => "Danach ist kein Drucker vom Hersteller mehr eingerichtet.",
+    // Copies from the page "Übertragen" (orfix/transfer.py).
+    transfer_from: (w) => `${q(plainName(w.name))} ist eine Kopie von ${q(plainName(w.source))} aus ${w.slicer}.`,
+    transfer_dropped: (w) => `${q(plainName(w.name))}: ${n(w.keys.length)} ${w.keys.length === 1 ? "Einstellung kennt" : "Einstellungen kennt"} das Ziel nicht, ${w.keys.length === 1 ? "sie bleibt" : "sie bleiben"} weg: ${w.keys.join(", ")}.`,
+    transfer_first_value: (w) => `${q(plainName(w.name))}: Bei ${w.keys.join(", ")} gibt es im Ziel nur einen Wert. Übernommen wird der erste, also der für das Standard-Hotend.`,
+    transfer_printers_left: (w) => `${q(plainName(w.name))}: Diese Drucker gibt es im Ziel nicht, sie fehlen in der Druckerliste: ${w.printers.map(plainName).join(", ")}.`,
     default_materials_back: (w, names) => `Bei ${(w.printers || []).map(names.printer).join(", ")} bleibt kein Filament an. Beim nächsten Start schaltet der Slicer dort wieder ein: ${(w.names || []).map((x) => q(names.filament(x))).join(", ")}.`,
     // After writing (POST /apply).
     slicer_started: () => "Der Slicer wurde gestartet, während Orfix schrieb. Schließe ihn. Stimmt danach etwas nicht, stelle unter „Sicherungen“ die Sicherung von eben wieder her.",
