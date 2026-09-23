@@ -290,3 +290,10 @@ def test_opc_profiles_name_their_cache_file(orca):
     assert details["file"] == "system/OrcaFilamentLibrary.opc"
     assert all(c["file"] == "system/OrcaFilamentLibrary.opc" for c in details["chain"])
 
+
+def test_high_flow_is_marked(snorca):
+    """Snapmaker Orca declares the variants a profile has values for (FINDINGS 4.4)."""
+    records = {r["name"]: r for r in snorca["processes"]}
+    assert records["0.20mm Standard @Snapmaker U1 (0.4 nozzle)"].get("high_flow") is True
+    assert "high_flow" not in records["0.08mm Standard @Snapmaker U1 (0.4 nozzle)"]
+

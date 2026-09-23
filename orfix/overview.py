@@ -125,6 +125,9 @@ def _filament_record(res: Resolver, p, in_list: bool) -> dict:
         record["colours"] = colours
     if p.bundle:
         record["bundle"] = res.scan.bundles.get(p.bundle, "")
+    if "high_flow" in strings(res.value(p, "filament_flow_support")):
+        # Snapmaker Orca: own values for the high-flow hotend (FINDINGS 4.4).
+        record["high_flow"] = True
     if not p.package:
         state = res.state(p)
         record["file"] = p.file
@@ -216,6 +219,8 @@ def _process_record(res: Resolver, p) -> dict:
         record["template"] = parent.name if parent else None
     if p.bundle:
         record["bundle"] = res.scan.bundles.get(p.bundle, "")
+    if "high_flow" in strings(res.value(p, "process_flow_support")):
+        record["high_flow"] = True
     return record
 
 

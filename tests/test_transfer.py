@@ -126,4 +126,6 @@ def test_values_are_shaped_for_the_target():
     assert data == {"z": ["nil"], "e": "1", "s": "a", "wall_infill_order": "inner wall/outer wall/infill"}
     assert (dropped, cut) == (["gone", "n"], ["s"])
     assert transfer._adapt({"n": ["1", "2"]}, target, "process", same_app=True)[0] == {"n": ["1", "2"]}
+    # Two equal values: nothing is lost, nothing to name.
+    assert transfer._adapt({"n": ["90", "90"]}, target, "process", same_app=False)[1:] == ([], [])
 

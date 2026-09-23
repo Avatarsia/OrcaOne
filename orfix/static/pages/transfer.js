@@ -5,6 +5,7 @@
 // Queued copies go into the common change list like every other change (ops.js, profile_copy).
 import { INSTANCES, ui, flash, onReset, originGroup, writeBlock } from "../common.js";
 import { T, plainName } from "../texts.js";
+import { materialSpool } from "./filamente.js";
 
 const { ref, reactive, computed, watch } = Vue;
 const X = T.transfer;
@@ -24,6 +25,7 @@ const matchKey = (name) => plainName(name).replace(/\s+@.*$/, "").replace(/(\s+\
 const fmt = (v) => isNaN(Number(v)) ? String(v) : Number(v).toFixed(2).replace(".", ",");
 // "@System" says nothing in the list, the heading tells where a profile comes from.
 const shownName = (name) => plainName(name).replace(/ @(System|base)$/, "");
+const GROUP_ICON = { user: "user", bundle: "package", vendor: "factory", library: "books" };
 
 export default {
   name: "TransferPage",
@@ -53,9 +55,14 @@ export default {
     const profilesOf = (inst) => !inst ? [] : kind.value === "filament"
       ? inst.filaments.filter((f) => !f.status && !f.helper)
       : inst.processes;
-    const keysOf = (inst) => new Set(profilesOf(inst).map((p) => matchKey(p.name)));
+    // The profile of the other side each match key stands for, named in the tooltip.
+    const namesOf = (inst) => {
+      const map = new Map();
+      for (const p of profilesOf(inst)) if (!map.has(matchKey(p.name))) map.set(matchKey(p.name), shownName(p.name));
+      return map;
+    };
     function side(inst, otherInst, key) {
-      const there = keysOf(otherInst);
+      const there = namesOf(otherInst);
       const words = query.value.toLowerCase().split(/\s+/).filter(Boolean);
       const map = new Map();
       for (const p of profilesOf(inst)) {
@@ -64,11 +71,14 @@ export default {
         const hay = `${p.name} ${p.vendor || ""} ${p.material || ""}`.toLowerCase();
         if (!words.every((w) => hay.includes(w))) continue;
         const g = originGroup(p);
-        if (!map.has(g.key)) map.set(g.key, { ...g, rows: [] });
+        if (!map.has(g.key)) map.set(g.key, { ...g, icon: GROUP_ICON[p.origin_kind], rows: [] });
         const q = queued.find((x) => x.from === inst.id && x.kind === kind.value && x.name === p.name);
+        const filament = kind.value === "filament";
         map.get(g.key).rows.push({
-          p, name: shownName(p.name), exists, queued: q ? INSTANCES.find((i) => i.id === q.to) : null,
-          sub: kind.value === "filament" ? p.material || "" : fmt(p.layer_height) + " mm",
+          p, name: shownName(p.name), twin: exists ? there.get(matchKey(p.name)) : "",
+          queued: q ? INSTANCES.find((i) => i.id === q.to) : null,
+          colour: filament ? materialSpool(p.material) : null, layer: filament ? "" : fmt(p.layer_height),
+          sub: filament ? [p.vendor, p.material].filter(Boolean).join(" · ") : "",
         });
       }
       const groups = [...map.values()].sort((a, b) => a.key.localeCompare(b.key, "de"));
@@ -128,69 +138,97 @@ export default {
       <template v-else>
         <section class="box xfer-pick">
           <label class="xfer-inst">
-            <span class="combo-label">{{ X.left }}</span>
+            <span class="combo-label">{{ X.from }}</span>
             <select v-model="leftId" class="input">
               <option v-for="i in INSTANCES" :key="i.id" :value="i.id">{{ i.slicer }} {{ i.version }} · {{ i.path }}</option>
             </select>
           </label>
-          <button class="icon-btn xfer-swap" type="button" :title="X.swap" :aria-label="X.swap" @click="swap"><ui-icon name="transfer"/></button>
+          <button class="xfer-swap" type="button" :title="X.swap" :aria-label="X.swap" @click="swap"><ui-icon name="transfer" :size="22"/></button>
           <label class="xfer-inst">
-            <span class="combo-label">{{ X.right }}</span>
+            <span class="combo-label">{{ X.to }}</span>
             <select v-model="rightId" class="input">
               <option v-for="i in INSTANCES" :key="i.id" :value="i.id">{{ i.slicer }} {{ i.version }} · {{ i.path }}</option>
             </select>
           </label>
         </section>
 
-        <div class="toolbar">
+        <div class="toolbar xfer-tools">
           <div class="chips" role="group" :aria-label="X.kindLabel">
-            <button v-for="k in ['filament', 'process']" :key="k" type="button" class="chip" :aria-pressed="kind === k" @click="kind = k">{{ X.kinds[k] }}</button>
+            <button v-for="k in ['filament', 'process']" :key="k" type="button" class="chip" :aria-pressed="kind === k" @click="kind = k">
+              <ui-icon :name="k === 'filament' ? 'spool' : 'layers'" :size="16"/>{{ X.kinds[k] }}
+            </button>
           </div>
           <label class="search">
             <ui-icon name="search"/>
             <input v-model="query" class="input" type="search" autocomplete="off" :placeholder="X.search" :aria-label="X.search">
           </label>
-          <label class="xfer-missing"><input v-model="onlyMissing" type="checkbox"> {{ X.onlyMissing }}</label>
+          <button type="button" class="xfer-toggle" role="switch" :aria-checked="onlyMissing ? 'true' : 'false'" @click="onlyMissing = !onlyMissing">
+            <span class="switch" aria-hidden="true"></span>{{ X.onlyMissing }}
+          </button>
         </div>
 
         <div class="xfer-cols">
           <template v-for="(s, n) in sides" :key="s.key">
             <section class="xfer-side" :aria-label="s.inst.slicer">
               <div class="xfer-side-head">
-                <strong>{{ s.inst.slicer }}</strong><span class="version">{{ s.inst.version }}</span>
-                <span class="sub">{{ X.shown(s.count) }}</span>
+                <div class="xfer-side-title"><strong>{{ s.inst.slicer }}</strong><span class="version">{{ s.inst.version }}</span></div>
+                <run-status :inst="s.inst"/>
               </div>
+              <p class="xfer-side-sub">{{ onlyMissing ? X.missingThere(s.count) : X.shown(s.count) }}</p>
               <div class="xfer-list">
                 <template v-for="g in s.groups" :key="g.key">
-                  <div class="combo-head xfer-group">
+                  <div class="xfer-group">
                     <input type="checkbox" :checked="groupState(s.key, g) === 'true'" :indeterminate="groupState(s.key, g) === 'mixed'"
-                           :aria-label="X.allOf(g.label)" @change="toggleGroup(s.key, g)">
-                    <span>{{ g.label }}</span>
+                           :aria-label="X.allOf(g.label)" :title="X.allOf(g.label)" @change="toggleGroup(s.key, g)">
+                    <span class="xfer-group-icon"><ui-icon :name="g.icon" :size="16"/></span>
+                    <span class="xfer-group-label">{{ g.label }}</span>
+                    <span class="xfer-group-count">{{ g.rows.length }}</span>
                   </div>
-                  <label v-for="r in g.rows" :key="r.p.name" :class="['xfer-row', { 'is-chosen': chosen[s.key].has(r.p.name) }]">
+                  <label v-for="r in g.rows" :key="r.p.name" :class="['xfer-row', { 'is-chosen': chosen[s.key].has(r.p.name), 'is-queued': r.queued }]">
                     <input type="checkbox" :checked="chosen[s.key].has(r.p.name)" :disabled="!!r.queued" @change="toggle(s.key, r.p.name)">
-                    <span class="xfer-name" :title="r.p.name">{{ r.name }}</span>
-                    <button v-if="r.queued" class="tag tag-queued" type="button" :title="X.queuedFor(r.queued.slicer)" @click.prevent="unqueue(s.inst, r.p.name)">{{ X.queued }}</button>
-                    <small v-else-if="r.exists" class="xfer-there">{{ X.there }}</small>
-                    <small class="xfer-sub">{{ r.sub }}</small>
+                    <spool-icon v-if="r.colour" :colour="r.colour" :size="26"/>
+                    <span v-else class="xfer-layer">{{ r.layer }}<small>mm</small></span>
+                    <span class="xfer-text">
+                      <span class="xfer-name" :title="r.p.name">{{ r.name }}</span>
+                      <span v-if="r.sub" class="xfer-sub">{{ r.sub }}</span>
+                    </span>
+                    <span class="xfer-badges">
+                      <span v-if="r.p.high_flow" class="xfer-hf" :title="X.highFlow"><ui-icon name="bolt" :size="13"/>HF</span>
+                      <span v-if="r.twin" class="xfer-there" :title="X.thereAs(r.twin)"><ui-icon name="checkCircle" :size="18"/></span>
+                      <button v-if="r.queued" class="xfer-queued" type="button" :title="X.queuedFor(r.queued.slicer)" @click.prevent="unqueue(s.inst, r.p.name)">
+                        <ui-icon :name="s.key === 'left' ? 'arrowRight' : 'arrowLeft'" :size="14"/>{{ X.queued }}
+                      </button>
+                    </span>
                   </label>
                 </template>
-                <p v-if="!s.count" class="combo-none">{{ onlyMissing ? X.nothingMissing : X.none }}</p>
+                <div v-if="!s.count" class="xfer-empty">
+                  <ui-icon :name="onlyMissing ? 'checkCircle' : 'search'" :size="30"/>
+                  <p>{{ onlyMissing ? X.nothingMissing : X.none }}</p>
+                </div>
               </div>
             </section>
             <div v-if="n === 0" class="xfer-mid">
-              <button class="btn btn-primary" type="button" :disabled="!chosen.left.size || !!blockOf(right)"
-                      :title="blockText(right) || null" @click="push(left, right, 'left')">
-                {{ X.toRight(chosen.left.size) }}<ui-icon name="chevron"/>
+              <button class="xfer-arrow" type="button" :disabled="!chosen.left.size || !!blockOf(right)"
+                      :title="blockText(right) || X.pushTo(right.slicer)" :aria-label="X.pushTo(right.slicer)" @click="push(left, right, 'left')">
+                <ui-icon name="arrowRight" :size="26"/>
+                <span v-if="chosen.left.size" class="xfer-count">{{ chosen.left.size }}</span>
               </button>
-              <button class="btn btn-primary" type="button" :disabled="!chosen.right.size || !!blockOf(left)"
-                      :title="blockText(left) || null" @click="push(right, left, 'right')">
-                <ui-icon name="back"/>{{ X.toLeft(chosen.right.size) }}
+              <span class="xfer-arrow-label">{{ X.toSlicer(right.slicer) }}</span>
+              <button class="xfer-arrow" type="button" :disabled="!chosen.right.size || !!blockOf(left)"
+                      :title="blockText(left) || X.pushTo(left.slicer)" :aria-label="X.pushTo(left.slicer)" @click="push(right, left, 'right')">
+                <ui-icon name="arrowLeft" :size="26"/>
+                <span v-if="chosen.right.size" class="xfer-count">{{ chosen.right.size }}</span>
               </button>
+              <span class="xfer-arrow-label">{{ X.toSlicer(left.slicer) }}</span>
             </div>
           </template>
         </div>
-        <p class="quiet-note"><ui-icon name="info"/>{{ X.note }}</p>
+
+        <div class="xfer-legend">
+          <span><ui-icon name="checkCircle" :size="16" class="xfer-there"/>{{ X.legendThere }}</span>
+          <span><span class="xfer-hf"><ui-icon name="bolt" :size="13"/>HF</span>{{ X.legendHf }}</span>
+          <span><ui-icon name="info" :size="16"/>{{ X.note }}</span>
+        </div>
       </template>
     </div>
   `,

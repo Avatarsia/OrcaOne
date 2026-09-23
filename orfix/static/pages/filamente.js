@@ -39,6 +39,7 @@ const KIND_ICON = { user: "user", bundle: "package", vendor: "factory", library:
 const ALL_PRINTERS = "*";  // a list profile of the Orca library counts for every printer
 
 const materialGroup = (m) => MATERIALS.find((g) => g.test(m || ""));
+export const materialSpool = (m) => materialGroup(m).colour;
 const byName = (a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" });
 const fmt = (v) => String(v).replace(".", ",");
 const key = (profile, printer) => profile + "|" + printer;

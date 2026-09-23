@@ -73,8 +73,10 @@ def _adapt(values: dict, target: dict, kind: str, same_app: bool) -> tuple:
             dropped.append(key)
             continue
         if not same_app and len(items) > 1:
+            # Only worth a word if the second value differed from the first.
+            if len(set(items)) > 1:
+                cut.append(key)
             items = items[:1]
-            cut.append(key)
         if spec is None:
             out[key] = items if isinstance(value, list) else items[0]
         elif "nil" in items and not spec["nullable"]:
