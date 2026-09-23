@@ -3,8 +3,8 @@ import json
 import pytest
 
 from conftest import BUNDLE, FIXTURES, add_bundle, copy_fixture
-from orfix import instances, overview
-from orfix.guard import SlicerProcess
+from orcaone import instances, overview
+from orcaone.guard import SlicerProcess
 from test_opc import patched
 
 U1_02, U1_04 = "Snapmaker U1 (0.2 nozzle)", "Snapmaker U1 (0.4 nozzle)"
@@ -17,7 +17,7 @@ def build(path, processes=()):
 
 @pytest.fixture
 def snorca(fake_home):
-    # fake_home keeps the web view folders and Orfix' own folder out of the real home.
+    # fake_home keeps the web view folders and OrcaOne's own folder out of the real home.
     return build(FIXTURES / "snorca")
 
 
@@ -112,7 +112,7 @@ def test_snorca_slicer_and_backups_page(snorca, fake_home):
     backups = snorca["backups_page"]
     assert (backups["backups"], backups["count"], backups["total_size"]) == ([], 0, 0)
     assert backups["now"]["files"] == page["totals"]["backup_files"] > 0
-    assert backups["location"].startswith("~/.local/share/orfix/backups/")
+    assert backups["location"].startswith("~/.local/share/orcaone/backups/")
 
 
 def test_snorca_top_level(snorca):
@@ -161,7 +161,7 @@ def test_unknown_opc_version_is_a_warning(fake_home, tmp_path):
 
 
 def test_profiles_on_an_unreadable_package_are_unresolved_not_orphaned(fake_home, tmp_path):
-    """FINDINGS, .opc rules: with a package Orfix cannot read, own profiles whose parent is not
+    """FINDINGS, .opc rules: with a package OrcaOne cannot read, own profiles whose parent is not
     found are "nicht auflösbar". They must not look orphaned and land in the clean-up."""
     data_dir = copy_fixture("orca", tmp_path / "orca")
     cache = data_dir / "system" / "Snapmaker.opc"
@@ -207,7 +207,7 @@ def test_one_unreadable_installation_does_not_hide_the_others(fake_home, monkeyp
 
     def build_instance(instance, *args, **kwargs):
         if instance.slicer == "OrcaSlicer":
-            raise TypeError("a bug in Orfix")
+            raise TypeError("a bug in OrcaOne")
         return real(instance, *args, **kwargs)
 
     monkeypatch.setattr(overview, "build_instance", build_instance)
@@ -248,7 +248,7 @@ def test_bundle_profiles_are_marked(fake_home, tmp_path):
     printer = next(p for p in data["printers_page"]["own"] if p["name"] == f"{BUNDLE}/Paket U1")
     assert (printer["origin"], printer["bundle"], printer["visible"]) == ("bundle", "Mein Paket", True)
     assert next(m for m in data["models"] if m["model"] == f"{BUNDLE}/Paket U1")["bundle"] == "Mein Paket"
-    # Removing the U1 does not offer the bundle filament for deleting along: Orfix never deletes it.
+    # Removing the U1 does not offer the bundle filament for deleting along: OrcaOne never deletes it.
     u1 = next(m for m in data["printers_page"]["system"] if m["model"] == "Snapmaker U1")
     assert all(x["name"] != f"{BUNDLE}/Paket PLA" for x in u1["only_here"])
 

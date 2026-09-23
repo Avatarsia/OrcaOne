@@ -1,4 +1,4 @@
-"""Copying profiles between two installations (orfix/transfer.py, op profile_copy): copies of
+"""Copying profiles between two installations (orcaone/transfer.py, op profile_copy): copies of
 tests/fixtures/snorca and tests/fixtures/orca at the default places of a fake home."""
 
 import json
@@ -6,8 +6,8 @@ import json
 import pytest
 
 from conftest import copy_fixture
-from orfix import guard, instances, operations, scanner, transfer
-from orfix.resolver import Resolver
+from orcaone import guard, instances, operations, scanner, transfer
+from orcaone.resolver import Resolver
 
 U1_04 = "Snapmaker U1 (0.4 nozzle)"
 BASE = "user/default/filament/base"

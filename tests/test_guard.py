@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from orfix import guard
-from orfix.guard import SlicerProcess, process_data_dir, run_state
-from orfix.model import Instance
+from orcaone import guard
+from orcaone.guard import SlicerProcess, process_data_dir, run_state
+from orcaone.model import Instance
 
 # Takes the same kind of lock as the slicer: a POSIX write lock on byte 0.
 HOLD_LOCK = """

@@ -9,16 +9,16 @@ from pathlib import Path
 import pytest
 import uvicorn
 
-from orfix import guard, instances
-from orfix.__main__ import free_port
-from orfix.app import app
+from orcaone import guard, instances
+from orcaone.__main__ import free_port
+from orcaone.app import app
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture
 def fake_home(tmp_path, monkeypatch):
-    """An empty home directory; every location Orfix looks at points into it.
+    """An empty home directory; every location OrcaOne looks at points into it.
 
     Tests never read the real slicer directories (hard rule 1)."""
     home = tmp_path / "home"

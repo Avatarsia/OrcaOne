@@ -8,7 +8,7 @@ import zipfile
 import pytest
 
 from conftest import copy_fixture
-from orfix import backup, instances
+from orcaone import backup, instances
 
 
 @pytest.fixture
@@ -48,7 +48,7 @@ def test_backup_holds_everything_but_the_excluded(snorca):
     assert "user/default/filament/Mein PLA.json" in manifest["files"]
     assert len(manifest["files"]) == made["files"]
     assert made["name"].endswith("_manual") and made["size"] == zip_path.stat().st_size
-    assert zip_path.parent == instances.orfix_data_dir() / "backups" / snorca.id
+    assert zip_path.parent == instances.orcaone_data_dir() / "backups" / snorca.id
     if os.name == "posix":
         assert zip_path.stat().st_mode & 0o777 == 0o600
         assert zip_path.parent.stat().st_mode & 0o777 == 0o700
@@ -131,3 +131,21 @@ def test_unreadable_folder_fails_the_backup(snorca):
         os.chmod(locked, 0o755)
     assert err.value.code == "backup_failed"
     assert backup.list_backups(snorca.id) == []
+
+
+def test_backups_made_as_orfix_stay_readable(snorca):
+    made = backup.create(snorca, "manual")
+    path = backup.backup_path(snorca.id, made["name"])
+    # The same ZIP as the app wrote it under its old name.
+    with zipfile.ZipFile(path) as zf:
+        items = [(i, zf.read(i)) for i in zf.infolist()]
+    with zipfile.ZipFile(path, "w") as zf:
+        for info, data in items:
+            if info.filename == backup.MANIFEST:
+                info.filename = backup.OLD_MANIFEST
+            zf.writestr(info, data)
+    listed = [b for b in backup.list_backups(snorca.id) if b["name"] == made["name"]][0]
+    assert "error" not in listed and listed["reason"] == "manual" and listed["files"] == made["files"]
+    files, _ = backup.restorable(snorca, made["name"])
+    assert "Snapmaker_Orca.conf" in files
+

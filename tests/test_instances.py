@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from orfix import instances
-from orfix.instances import add_manual_path, candidate_dirs, discover, load_instance, manual_paths, remove_manual_path
+from orcaone import instances
+from orcaone.instances import add_manual_path, candidate_dirs, discover, load_instance, manual_paths, remove_manual_path
 
 
 def make_data_dir(path: Path, key="Snapmaker_Orca", header="Snapmaker Orca 2.4.0", preset_folder="") -> Path:
@@ -54,11 +54,11 @@ def test_windows_and_macos_locations(tmp_path):
     assert (tmp_path / "Library" / "Application Support" / "OrcaSlicer", "auto") in found
 
 
-def test_orfix_data_dir(tmp_path):
-    assert instances.orfix_data_dir("Linux", {}, tmp_path) == tmp_path / ".local" / "share" / "orfix"
-    assert instances.orfix_data_dir("Linux", {"XDG_DATA_HOME": "/data"}, tmp_path) == Path("/data/orfix")
-    assert instances.orfix_data_dir("Windows", {"LOCALAPPDATA": "/local"}, tmp_path) == Path("/local/orfix")
-    assert instances.orfix_data_dir("Darwin", {}, tmp_path) == tmp_path / "Library" / "Application Support" / "orfix"
+def test_orcaone_data_dir(tmp_path):
+    assert instances.orcaone_data_dir("Linux", {}, tmp_path) == tmp_path / ".local" / "share" / "orcaone"
+    assert instances.orcaone_data_dir("Linux", {"XDG_DATA_HOME": "/data"}, tmp_path) == Path("/data/orcaone")
+    assert instances.orcaone_data_dir("Windows", {"LOCALAPPDATA": "/local"}, tmp_path) == Path("/local/orcaone")
+    assert instances.orcaone_data_dir("Darwin", {}, tmp_path) == tmp_path / "Library" / "Application Support" / "orcaone"
 
 
 def test_load_instance_reads_the_basic_facts(tmp_path):
@@ -122,7 +122,7 @@ def test_load_instance_ignores_folders_without_conf(tmp_path):
 
 def test_load_instance_while_the_slicer_saves_its_conf(tmp_path, monkeypatch):
     """The slicer deletes the .conf right before it renames <key>.conf.<pid> into place
-    (FINDINGS 4.3). Orfix looks once more instead of losing the installation."""
+    (FINDINGS 4.3). OrcaOne looks once more instead of losing the installation."""
     data_dir = tmp_path / "Snapmaker_Orca"
     data_dir.mkdir()
     pending = data_dir / "Snapmaker_Orca.conf.4711"
@@ -165,7 +165,7 @@ def test_manual_path_errors(fake_home):
     with pytest.raises(ValueError, match="not_a_data_dir"):
         add_manual_path(str(fake_home))
     with pytest.raises(ValueError, match="path_not_found"):
-        add_manual_path("~nosuchuser_orfix/OrcaSlicer")
+        add_manual_path("~nosuchuser_orcaone/OrcaSlicer")
     with pytest.raises(ValueError, match="not_listed"):
         remove_manual_path("/never/added")
 
@@ -176,3 +176,18 @@ def test_manual_path_already_found_automatically(fake_home, monkeypatch):
     with pytest.raises(ValueError, match="already_listed"):
         add_manual_path(str(data_dir))
     assert manual_paths() == []
+
+
+def test_the_folder_of_orfix_moves_over_once(fake_home, monkeypatch):
+    monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
+    old = fake_home / ".local" / "share" / "orfix"
+    (old / "backups" / "abc").mkdir(parents=True)
+    (old / "backups" / "abc" / "2026-09-23_070418_before_change.zip").write_bytes(b"zip")
+    instances.move_old_data_dir()
+    new = instances.orcaone_data_dir()
+    assert not old.exists() and (new / "backups" / "abc" / "2026-09-23_070418_before_change.zip").read_bytes() == b"zip"
+    # Both there: nothing moves, nothing is overwritten.
+    old.mkdir()
+    instances.move_old_data_dir()
+    assert old.is_dir() and new.is_dir()
+

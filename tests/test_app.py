@@ -99,7 +99,7 @@ def test_serves_every_module_the_ui_imports(server):
 
 def test_no_draft_routes(server):
     assert call(f"{server}/prototypes/ui-overview/variante-e.html")[0] == 404
-    assert call(f"{server}/orfix/static/style.css")[0] == 404
+    assert call(f"{server}/orcaone/static/style.css")[0] == 404
 
 
 def test_rejects_foreign_hosts_and_origins(server):
@@ -124,7 +124,7 @@ def test_refuses_to_be_framed(server):
 
 
 def test_change_backup_and_restore_through_the_api(server, fake_home):
-    data_dir = copy_fixture("snorca", fake_home / "orfix-test" / "Snapmaker_Orca")
+    data_dir = copy_fixture("snorca", fake_home / "orcaone-test" / "Snapmaker_Orca")
     call(f"{server}/api/instances/manual", "POST", {"path": str(data_dir)})
     inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
     base = f"{server}/api/instances/{inst['id']}"
@@ -143,7 +143,7 @@ def test_change_backup_and_restore_through_the_api(server, fake_home):
     listed = json.loads(call(f"{base}/backups")[1])
     assert [b["reason"] for b in listed["backups"]] == ["manual", "before_change"]
     assert listed["total_size"] == sum(b["size"] for b in listed["backups"])
-    assert listed["location"].startswith("~/.local/share/orfix/backups/")
+    assert listed["location"].startswith("~/.local/share/orcaone/backups/")
     page = json.loads(call(f"{server}/api/data")[1])["instances"][0]["backups_page"]
     assert page["count"] == 2 and page["backups"] == listed["backups"]
 

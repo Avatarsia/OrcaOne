@@ -2,11 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "orfix",
+      "name": "orcaone",
       "runtimeExecutable": ".lenv/bin/python",
       "runtimeArgs": [
         "-m",
-        "orfix",
+        "orcaone",
         "--port",
         "8765",
         "--no-browser"

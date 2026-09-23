@@ -1,4 +1,4 @@
-"""The backend sends codes, orfix/static/texts.js has their words. Every code needs a text there,
+"""The backend sends codes, orcaone/static/texts.js has their words. Every code needs a text there,
 else the page shows nothing or stops."""
 import re
 from pathlib import Path
@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 
 from conftest import FIXTURES
-from orfix import scanner
-from orfix.resolver import STATUS_OF_PROBLEM
+from orcaone import scanner
+from orcaone.resolver import STATUS_OF_PROBLEM
 from test_overview import build
 
-TEXTS = (Path(__file__).parent.parent / "orfix" / "static" / "texts.js").read_text(encoding="utf-8")
-OPERATIONS = (Path(__file__).parent.parent / "orfix" / "operations.py").read_text(encoding="utf-8")
+TEXTS = (Path(__file__).parent.parent / "orcaone" / "static" / "texts.js").read_text(encoding="utf-8")
+OPERATIONS = (Path(__file__).parent.parent / "orcaone" / "operations.py").read_text(encoding="utf-8")
 
 
 def section(name: str) -> str:
@@ -63,16 +63,16 @@ def test_every_code_the_backend_knows_has_a_text():
     assert notes <= keys("notes")
     assert set(STATUS_OF_PROBLEM) <= keys("profileProblems") & keys("ignoredShort")
     assert set(STATUS_OF_PROBLEM.values()) <= keys("warnings")
-    assert {"scan_failed"} <= keys("failed")  # failed[] of orfix/overview.py build_all
+    assert {"scan_failed"} <= keys("failed")  # failed[] of orcaone/overview.py build_all
     assert set(scanner.CATEGORY_ORDER) <= keys("category")
     assert {"auto", "flatpak", "flatpak_legacy", "appimage_portable", "process", "manual"} <= keys("sources")
-    # orfix/app.py and orfix/instances.py, plus "network" and "unknown" from api.js
+    # orcaone/app.py and orcaone/instances.py, plus "network" and "unknown" from api.js
     assert {"path_not_found", "not_a_data_dir", "already_listed", "not_listed", "save_failed", "forbidden",
             "network", "unknown"} <= keys("errors")
 
 
 def test_every_code_of_plans_and_writes_has_a_text():
-    # POST /plan, /apply, /restore-plan and the backup API (orfix/operations.py, orfix/backup.py)
+    # POST /plan, /apply, /restore-plan and the backup API (orcaone/operations.py, orcaone/backup.py)
     problems = set(re.findall(r'(?:Blocked|OperationError)\("(\w+)"', OPERATIONS))
     problems |= {"slicer_running", "slicer_maybe_running", "conf_unreadable", "name_invalid",
                  "name_too_long", "path_outside_backup", "backup_unreadable", "backup_failed", "backup_not_found",

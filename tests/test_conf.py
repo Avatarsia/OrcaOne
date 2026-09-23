@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from orfix import conf as conf_module
-from orfix.conf import dump_conf, parse_conf, read_conf
+from orcaone import conf as conf_module
+from orcaone.conf import dump_conf, parse_conf, read_conf
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CONF_FILES = [

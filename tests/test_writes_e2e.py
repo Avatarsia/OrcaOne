@@ -1,12 +1,12 @@
 """Part B of docs/TEST-VERGLEICH.md end to end over HTTP: the real server in a thread, a copy of
 tests/fixtures/snorca at the default location of a fake home, and every step the way the page
-sends it (orfix/static/ops.js): POST /plan, POST /apply, then GET /api/data as the page reads it.
+sends it (orcaone/static/ops.js): POST /plan, POST /apply, then GET /api/data as the page reads it.
 At the end the backup from before the first step brings the copy back byte for byte."""
 
 import json
 
 from conftest import call, copy_fixture
-from orfix.conf import dump_conf, parse_conf
+from orcaone.conf import dump_conf, parse_conf
 
 U1 = [f"Snapmaker U1 ({d} nozzle)" for d in ("0.2", "0.4", "0.6", "0.8")]
 U1_04 = U1[1]

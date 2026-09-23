@@ -4,7 +4,7 @@ import zlib
 import pytest
 
 from conftest import FIXTURES
-from orfix import opc
+from orcaone import opc
 
 SYSTEM = FIXTURES / "orca" / "system"
 

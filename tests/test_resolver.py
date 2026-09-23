@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 
 from conftest import FIXTURES, copy_fixture
-from orfix import scanner
-from orfix.resolver import Resolver
-from orfix.scanner import LIBRARY, Profile, Scan
+from orcaone import scanner
+from orcaone.resolver import Resolver
+from orcaone.scanner import LIBRARY, Profile, Scan
 from test_scanner import write_profile
 
 U1_02, U1_04 = "Snapmaker U1 (0.2 nozzle)", "Snapmaker U1 (0.4 nozzle)"

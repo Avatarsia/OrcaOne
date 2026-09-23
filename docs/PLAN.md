@@ -1,6 +1,6 @@
 # Plan für Phase 0 und Phase 1
 
-Stand 21.09.2026, freigegeben am selben Tag. Grundlage: [Spezifikation](../ORFIX_SPEC.md), [Befunde](FINDINGS.md) und die Wünsche aus dem Gespräch vom 21.09.
+Stand 21.09.2026, freigegeben am selben Tag. Grundlage: [Spezifikation](../ORCAONE_SPEC.md), [Befunde](FINDINGS.md) und die Wünsche aus dem Gespräch vom 21.09.
 
 ## Leitlinien aus dem Gespräch
 
@@ -8,8 +8,8 @@ Stand 21.09.2026, freigegeben am selben Tag. Grundlage: [Spezifikation](../ORFIX
 - **Der Kern ist das Filament-Handling.** Es soll klar sein, was zu welchem Drucker gehört, worauf ein Profil aufbaut und wie neue Filamente wie SUNLU nach SnOrca kommen. Außerdem sollen U1-Profile in beide Richtungen zwischen SnOrca und Orca wandern können.
 - **Unterstützte Slicer:** SnOrca 2.4 sowie OrcaSlicer stabil (2.4.x, JSON) **und** Nightly (2.5.0-dev, `.opc`).
 - **Plattformen:** Linux und Windows gleichwertig. macOS läuft über die Pfaderkennung mit, wird aber nicht getestet.
-- **Stil:** Orfix lehnt sich am ionpy-Styleguide an. Alle nötigen Dateien werden **kopiert**, Orfix läuft eigenständig ohne ionpy und ohne CDN.
-- **Name:** Orfix. Paket `orfix/`, Start mit `python -m orfix`, eigener Datenordner `~/.local/share/orfix` bzw. `%LOCALAPPDATA%\orfix`.
+- **Stil:** OrcaOne lehnt sich am ionpy-Styleguide an. Alle nötigen Dateien werden **kopiert**, OrcaOne läuft eigenständig ohne ionpy und ohne CDN.
+- **Name:** OrcaOne. Paket `orcaone/`, Start mit `python -m orcaone`, eigener Datenordner `~/.local/share/orcaone` bzw. `%LOCALAPPDATA%\orcaone`.
 - **Python-Umgebung:** `.lenv` im Projektordner, Abhängigkeiten in `requirements.txt`.
 
 ## Abweichungen von der Spezifikation
@@ -17,10 +17,10 @@ Stand 21.09.2026, freigegeben am selben Tag. Grundlage: [Spezifikation](../ORFIX
 Das hier folgt aus den Befunden oder aus dem Gespräch. Am 21.09.2026 in die Spezifikation eingearbeitet.
 
 1. **Regel 6:** Die `.conf` wird im Format der vorgefundenen Datei geschrieben: Einrückung (4 Leerzeichen oder Tab), `sort_keys=True`, UTF-8 roh, `\n` am Ende. OrcaSlicer ab 2.4.0 nutzt Tab, 4 Leerzeichen stimmen nur für SnOrca.
-2. **Regel 4 (Backup):** Das Backup lässt außer `log/` und Caches auch `web/`, `hms/`, `ota/`, `user/Temp/`, `user/*/temp/` und `user_backup-v*/` weg. Backups enthalten Zugangsdaten aus der `.conf` und gelten als vertraulich. Sie liegen im Orfix-Datenordner und werden nie weitergegeben.
-3. **Regel 7:** Alles, was Orfix nach `user/` schreibt, wird vorher geparst und geprüft. Fehlerhafte Profile löscht der Slicer sonst samt `.info`.
-4. **4.2 „rekursiv scannen“:** Orfix scannt rekursiv, markiert aber, welche Dateien der Slicer wirklich lädt: `<typ>/*.json`, `<typ>/base/`, bei Orca main zusätzlich `_local/` und `_subscribed/`.
-5. **Abschnitt 6:** In zwei Punkten weicht Orfix vom ionpy-Stil ab: Satzschreibung statt Großbuchstaben und Status immer als Text plus Farbe (siehe Designplan).
+2. **Regel 4 (Backup):** Das Backup lässt außer `log/` und Caches auch `web/`, `hms/`, `ota/`, `user/Temp/`, `user/*/temp/` und `user_backup-v*/` weg. Backups enthalten Zugangsdaten aus der `.conf` und gelten als vertraulich. Sie liegen im OrcaOne-Datenordner und werden nie weitergegeben.
+3. **Regel 7:** Alles, was OrcaOne nach `user/` schreibt, wird vorher geparst und geprüft. Fehlerhafte Profile löscht der Slicer sonst samt `.info`.
+4. **4.2 „rekursiv scannen“:** OrcaOne scannt rekursiv, markiert aber, welche Dateien der Slicer wirklich lädt: `<typ>/*.json`, `<typ>/base/`, bei Orca main zusätzlich `_local/` und `_subscribed/`.
+5. **Abschnitt 6:** In zwei Punkten weicht OrcaOne vom ionpy-Stil ab: Satzschreibung statt Großbuchstaben und Status immer als Text plus Farbe (siehe Designplan).
 6. **Offener Punkt „Vue lokal oder CDN“:** erledigt, Vue wird lokal kopiert.
 
 ---
@@ -34,15 +34,15 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 - `git init`.
 - Umbenennen: `ORCIX_SPEC.md` → `ORFIX_SPEC.md`, Name im Text ersetzt.
 - `requirements.txt`: fastapi, uvicorn, pytest, ggf. psutil (siehe Entscheidungen).
-- Startskripte `orfix.sh` und `orfix.cmd`: legen `.lenv` an, falls sie fehlt, installieren die Abhängigkeiten und starten Orfix.
-- `python -m orfix` sucht einen freien Port, lauscht nur auf 127.0.0.1 und öffnet den Browser.
-- `.claude/launch.json` zeigt dann auf Orfix statt auf den ionpy-Styleguide.
+- Startskripte `orcaone.sh` und `orcaone.cmd`: legen `.lenv` an, falls sie fehlt, installieren die Abhängigkeiten und starten OrcaOne.
+- `python -m orcaone` sucht einen freien Port, lauscht nur auf 127.0.0.1 und öffnet den Browser.
+- `.claude/launch.json` zeigt dann auf OrcaOne statt auf den ionpy-Styleguide.
 
 **0.2 Instanzen erkennen** (`instances.py`)
 
 - **Linux:** `$XDG_CONFIG_HOME` bzw. `~/.config`, die Flatpak-Pfade für `io.github.Snapmaker.Snapmaker_Orca`, `com.orcaslicer.OrcaSlicer` und die alte ID `io.github.softfever.OrcaSlicer` (als „veraltete Kopie“) sowie `<AppImage>.config/<Key>` neben gefundenen AppImages.
 - **Windows:** `%APPDATA%\<Key>`. **macOS:** `~/Library/Application Support/<Key>`.
-- **Manuelle Pfade** für portable Installationen oder `--datadir`. Sie werden in `<orfix-daten>/instances.json` gespeichert.
+- **Manuelle Pfade** für portable Installationen oder `--datadir`. Sie werden in `<orcaone-daten>/instances.json` gespeichert.
 - **Je Instanz:** Slicer (aus dem Namen der `.conf`), Version aus `header`, Formate (JSON, `.opc`), Benutzerordner, und ob ein Konto angemeldet ist (`preset_folder` ≠ `""`).
 
 **0.3 Laufprüfung** (`guard.py`)
@@ -66,7 +66,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 - Eine Orca-Variante mit Tab-Einrückung.
 - Eine Windows-`.conf` mit Prüfsummenzeile.
 - `OrcaFilamentLibrary.opc` aus der Nightly (210 KB).
-- **Eigene Profile:** In deiner Installation gibt es noch keine. Deshalb baut Orfix sie im Format von `Preset::save` nach und kennzeichnet sie als synthetisch. Das geschieht in Phase 1, zusammen mit dem Resolver. Die `.opc`-Fixture kommt ebenfalls in Phase 1, mit dem `.opc`-Leser.
+- **Eigene Profile:** In deiner Installation gibt es noch keine. Deshalb baut OrcaOne sie im Format von `Preset::save` nach und kennzeichnet sie als synthetisch. Das geschieht in Phase 1, zusammen mit dem Resolver. Die `.opc`-Fixture kommt ebenfalls in Phase 1, mit dem `.opc`-Leser.
 
 **0.6 Tests**
 
@@ -74,7 +74,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 - Laufprüfung mit einer Datei, die ein Hilfsprozess sperrt.
 - `.conf` lesen und unverändert zurückschreiben: Das Ergebnis muss byte-identisch sein, für 4 Leerzeichen, Tab und Windows mit Prüfsumme.
 
-**Ende von Phase 0:** Orfix startet, zeigt die gefundenen Instanzen und sagt, ob der Slicer läuft. README mit Start, Neuerungen und Testschritten.
+**Ende von Phase 0:** OrcaOne startet, zeigt die gefundenen Instanzen und sagt, ob der Slicer läuft. README mit Start, Neuerungen und Testschritten.
 
 ---
 
@@ -103,7 +103,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 
 **1.4 Schnappschuss** („Neu seit dem letzten Scan“)
 
-- **Gespeichert** wird je Instanz in `<orfix-daten>/snapshots/`: Pfad, Größe, Änderungszeit und SHA-256 je Datei, dazu `models`, `filaments`, `presets`, `orca_presets` und die Projekt-Einstellungen aus `app`.
+- **Gespeichert** wird je Instanz in `<orcaone-daten>/snapshots/`: Pfad, Größe, Änderungszeit und SHA-256 je Datei, dazu `models`, `filaments`, `presets`, `orca_presets` und die Projekt-Einstellungen aus `app`.
 - **„Als gesehen markieren“** aktualisiert den Schnappschuss.
 - **Änderungen durch den Slicer** (siehe FINDINGS 4.4) werden als solche erklärt.
 
@@ -114,7 +114,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 - `GET /api/instances/{id}/profiles/{kind}/{name}`
 - `GET /api/instances/{id}/files`
 - `GET /api/instances/{id}/changes`
-- `POST /api/instances/{id}/changes/seen`: der einzige schreibende Aufruf, er schreibt nur in den Orfix-Datenordner.
+- `POST /api/instances/{id}/changes/seen`: der einzige schreibende Aufruf, er schreibt nur in den OrcaOne-Datenordner.
 
 **1.6 Seite „Übersicht“**
 
@@ -147,18 +147,18 @@ Die Checkliste aus FINDINGS gehen wir gemeinsam im Slicer durch.
   - Eigene Filamente Druckern zuordnen.
   - Backups verwalten.
 - **Phase 3 – Übertragen, Import, Export:**
-  - U1-Drucker und -Profile SnOrca ↔ Orca. Die Druckernamen sind gleich, die Filamentnamen oft nicht. Orfix schlägt eine Zuordnung vor.
+  - U1-Drucker und -Profile SnOrca ↔ Orca. Die Druckernamen sind gleich, die Filamentnamen oft nicht. OrcaOne schlägt eine Zuordnung vor.
   - Import der Material4Print-ZIP, Export als Bundle.
 - **Phase 4:** 3MF-Inspektor.
 - **Ideen für später:**
   - Die Kamera des U1 abfragen und aktivieren. Außerhalb des bisherigen Umfangs, weil das eine Geräteverbindung braucht.
-  - Spoolman nur lesend anbinden. Orfix zeigt je Spule das passende Profil, blendet Filamente ohne Spule aus und legt aus einer neuen Spule ein eigenes Profil an. Weder SnOrca 2.4 noch OrcaSlicer main haben das eingebaut.
+  - Spoolman nur lesend anbinden. OrcaOne zeigt je Spule das passende Profil, blendet Filamente ohne Spule aus und legt aus einer neuen Spule ein eigenes Profil an. Weder SnOrca 2.4 noch OrcaSlicer main haben das eingebaut.
 
 ---
 
 ## Designplan
 
-> **Stand 22.09.2026: überholt durch Entwurf E.** Die Oberfläche richtet sich jetzt nach Entwurf E und E2, umgesetzt in `orfix/static/`. Die Entwürfe liegen nur noch in der Git-Geschichte, zuletzt in `deee0f2` unter `prototypes/ui-overview/`:
+> **Stand 22.09.2026: überholt durch Entwurf E.** Die Oberfläche richtet sich jetzt nach Entwurf E und E2, umgesetzt in `orcaone/static/`. Die Entwürfe liegen nur noch in der Git-Geschichte, zuletzt in `deee0f2` unter `prototypes/ui-overview/`:
 > - **Farben:** von OrcaSlicer (Teal `#009688`, Palette in FINDINGS-Umfeld belegt).
 > - **Schrift:** Inter statt JetBrains Mono und ionpy-Stil.
 > - **Seiten:** Filamente, Drucker, Sicherungen, mit Druckerbildern und Spulen.
@@ -194,7 +194,7 @@ Er beruht auf dem ionpy-Styleguide (`~/dev/ionpy/static/dev/styleguide/`): dunke
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────┐
-│ Orfix   [Snapmaker Orca 2.4.0 · ~/.config/Snapmaker_Orca ▾]   ● Läuft – nur lesen│
+│ OrcaOne   [Snapmaker Orca 2.4.0 · ~/.config/Snapmaker_Orca ▾]   ● Läuft – nur lesen│
 │ Übersicht | Verwalten                                                           │
 ├────────────────────────────────────────────────────────────────────────────────┤
 │ ⚠ 3 Änderungen seit dem letzten Scan  [Ansehen] [Als gesehen markieren]        │
@@ -227,6 +227,6 @@ Die Tabelle nutzt die volle Breite, das Seitenpanel ist fest 320 px breit. Unter
 
 1. Plan freigegeben.
 2. `psutil`: ja.
-3. Fixtures: anonymisiert aus SnOrca kopieren (erledigt, `tests/fixtures/snorca`). Eigene Profile baut Orfix im Format von `Preset::save` nach (für Phase 1).
+3. Fixtures: anonymisiert aus SnOrca kopieren (erledigt, `tests/fixtures/snorca`). Eigene Profile baut OrcaOne im Format von `Preset::save` nach (für Phase 1).
 4. Ein Windows-Rechner für Tests ist vorhanden.
-5. Spezifikation in `ORFIX_SPEC.md` umbenannt, Abweichungen eingearbeitet.
+5. Spezifikation in `ORCAONE_SPEC.md` umbenannt, Abweichungen eingearbeitet.

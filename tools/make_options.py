@@ -1,4 +1,4 @@
-"""Writes orfix/options.json: the settings each slicer knows per profile kind, with their shape.
+"""Writes orcaone/options.json: the settings each slicer knows per profile kind, with their shape.
 
 Transferring a profile to the other slicer needs to know which keys the target takes, whether a
 value is one string or a list, whether "nil" is allowed and which choices an enum has. A key the
@@ -110,7 +110,7 @@ def build() -> dict:
 
 if __name__ == "__main__":
     data = build()
-    target = ROOT / "orfix" / "options.json"
+    target = ROOT / "orcaone" / "options.json"
     target.write_text(json.dumps(data, indent=1, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
     for app_key, entry in data.items():
         print(app_key, {kind: len(keys) for kind, keys in entry["options"].items()})

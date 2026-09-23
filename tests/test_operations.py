@@ -1,5 +1,5 @@
-"""Changes planned and written by orfix/operations.py, always on a copy of a fixture in tmp_path
-that is registered as added by hand (hard rule 1). Each result is read back with Orfix' own
+"""Changes planned and written by orcaone/operations.py, always on a copy of a fixture in tmp_path
+that is registered as added by hand (hard rule 1). Each result is read back with OrcaOne's own
 scanner and resolver, the way the page shows it."""
 
 import json
@@ -9,9 +9,9 @@ import sys
 import pytest
 
 from conftest import BUNDLE, FIXTURES, add_bundle, copy_fixture
-from orfix import backup, guard, instances, operations, overview
-from orfix.conf import ConfFile, dump_conf, parse_conf
-from orfix.guard import SlicerProcess
+from orcaone import backup, guard, instances, operations, overview
+from orcaone.conf import ConfFile, dump_conf, parse_conf
+from orcaone.guard import SlicerProcess
 
 U1 = [f"Snapmaker U1 ({d} nozzle)" for d in ("0.2", "0.4", "0.6", "0.8")]
 U1_02, U1_04 = U1[0], U1[1]
@@ -121,7 +121,7 @@ def test_unlock_library_filament_way_a(snorca):
 
 
 def test_the_wizard_drops_an_unlock(snorca):
-    """TEST-VERGLEICH B6: the wizard rewrites "filaments", Orfix reports the lost unlock."""
+    """TEST-VERGLEICH B6: the wizard rewrites "filaments", OrcaOne reports the lost unlock."""
     run(snorca, {"op": "filament_visible", "name": "SUNLU PLA+ @System", "visible": True})
     edit_conf(snorca, lambda c: c["filaments"].remove("SUNLU PLA+ @System"))
     lost = next(w for w in view(snorca)["warnings"] if w["code"] == "unlock_lost")
@@ -302,7 +302,7 @@ def test_create_in_orcaslicer_with_tabs(orca):
 def test_update_keeps_unknown_keys_and_saves_differences_only(snorca):
     path = snorca.data_dir / FOLDER / "Mein PLA.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["x_orfix_test"] = "bleibt"
+    data["x_orcaone_test"] = "bleibt"
     path.write_text(json.dumps(data, indent=4, sort_keys=True) + "\n", encoding="utf-8")
     other = (snorca.data_dir / FOLDER / "Altes PETG.json").stat().st_mtime_ns
     # 220 is the inherited temperature: the own value goes.
@@ -311,7 +311,7 @@ def test_update_keeps_unknown_keys_and_saves_differences_only(snorca):
     assert [o["params"].get("keys") for o in made["ops"]] == [["filament_cost", "nozzle_temperature"], None]
     saved = json.loads(path.read_text(encoding="utf-8"))
     assert "nozzle_temperature" not in saved
-    assert (saved["filament_cost"], saved["x_orfix_test"]) == (["25"], "bleibt")
+    assert (saved["filament_cost"], saved["x_orcaone_test"]) == (["25"], "bleibt")
     assert (snorca.data_dir / FOLDER / "Altes PETG.json").stat().st_mtime_ns == other
     run(snorca, {"op": "filament_update", "name": "Mein PLA", "reset": ["filament_cost"]})
     assert "filament_cost" not in json.loads(path.read_text(encoding="utf-8"))
@@ -612,7 +612,7 @@ def test_long_names_are_written(snorca):
 
 @pytest.mark.skipif(os.name != "posix", reason="symlinks need extra rights on Windows")
 def test_no_writes_through_a_symlink(snorca, tmp_path):
-    """The backup leaves symlinks out (backup.walk): whatever Orfix changed behind one could not be
+    """The backup leaves symlinks out (backup.walk): whatever OrcaOne changed behind one could not be
     restored, and it would write outside the data directory (hard rules 2 and 4)."""
     folder = snorca.data_dir / FOLDER
     synced = tmp_path / "synced"

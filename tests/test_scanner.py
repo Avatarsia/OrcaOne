@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from conftest import FIXTURES, copy_fixture
-from orfix import scanner
+from orcaone import scanner
 from test_opc import patched
 
 SNORCA = FIXTURES / "snorca"

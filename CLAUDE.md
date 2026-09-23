@@ -1,8 +1,8 @@
-# Orfix
+# OrcaOne
 
 Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Profile von OrcaSlicer und Snapmaker Orca (SnOrca).
 
-- Spezifikation: [ORFIX_SPEC.md](ORFIX_SPEC.md)
+- Spezifikation: [ORCAONE_SPEC.md](ORCAONE_SPEC.md)
 - Geprüfte Fakten, gehen der Spezifikation vor: [docs/FINDINGS.md](docs/FINDINGS.md)
 - Plan und Designplan: [docs/PLAN.md](docs/PLAN.md)
 - Quellcode der Slicer zum Nachlesen (nur lesen, nicht im Git): `slicer-src/snorca-v2.4.0` (Snapmaker Orca, Tag v2.4.0) und `slicer-src/orcaslicer-main` (OrcaSlicer main). Befehle zum Neuanlegen stehen in FINDINGS unter „Quellen“. Keine Quellen woanders ablegen.
@@ -14,12 +14,12 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 
 ## Harte Regeln (Vorrang vor allem anderen)
 
-1. Automatische Tests laufen nur gegen Fixtures im Repo oder Kopien in einem temporären Verzeichnis, nie gegen echte Slicer-Datenverzeichnisse (`~/.config/Snapmaker_Orca`, `~/.config/OrcaSlicer`, Flatpak-Pfade unter `~/.var/app/`, `%APPDATA%\…`). Auf dem Entwicklungsrechner sind SnOrca und OrcaSlicer nur Testinstallationen: Beim Ausprobieren schreibt Orfix direkt in die echten Ordner, abgesichert durch seine Sicherungen (Entscheidung vom 23.09.2026). Keinen Slicer starten oder beenden.
-2. Orfix schreibt ausschließlich in `user/**` und in die `<APP_KEY>.conf` eines Datenverzeichnisses. Nie in `system/`, Programmressourcen, Logs oder Caches.
+1. Automatische Tests laufen nur gegen Fixtures im Repo oder Kopien in einem temporären Verzeichnis, nie gegen echte Slicer-Datenverzeichnisse (`~/.config/Snapmaker_Orca`, `~/.config/OrcaSlicer`, Flatpak-Pfade unter `~/.var/app/`, `%APPDATA%\…`). Auf dem Entwicklungsrechner sind SnOrca und OrcaSlicer nur Testinstallationen: Beim Ausprobieren schreibt OrcaOne direkt in die echten Ordner, abgesichert durch seine Sicherungen (Entscheidung vom 23.09.2026). Keinen Slicer starten oder beenden.
+2. OrcaOne schreibt ausschließlich in `user/**` und in die `<APP_KEY>.conf` eines Datenverzeichnisses. Nie in `system/`, Programmressourcen, Logs oder Caches.
 3. Schreiben nur, wenn der betroffene Slicer nicht läuft, also weder sein Prozess noch seine AppImage-Runtime existiert. Sonst die Instanz schreibgeschützt anzeigen und den Grund nennen. Die Sperrdatei in `cache/` nie selbst setzen.
 4. Vor jedem Schreibvorgang ein vollständiges ZIP-Backup des Datenverzeichnisses, ohne `log/`, `cache/`, `web/`, `hms/`, `ota/`, `user/Temp/`, `user/*/temp/` und `user_backup-v*/`. Backups sind vertraulich, weil sie Zugangsdaten enthalten. Jedes Backup lässt sich in der Oberfläche wiederherstellen.
 5. Jede Änderung in zwei Schritten: Plan (alle Dateioperationen plus Diff der .conf, Zugangsdaten maskiert) → Bestätigung → Ausführung → erneuter Scan zur Kontrolle.
-6. Die .conf lesen, nur einzelne Schlüssel ändern, vollständig zurückschreiben, und zwar im vorgefundenen Format (`orfix/conf.py`):
+6. Die .conf lesen, nur einzelne Schlüssel ändern, vollständig zurückschreiben, und zwar im vorgefundenen Format (`orcaone/conf.py`):
    - Einrückung 4 Leerzeichen (SnOrca) oder Tab (Orca ab 2.4.0);
    - `sort_keys=True`, UTF-8 roh, `\n` am Ende;
    - unter Windows die MD5-Zeile neu berechnen;
@@ -30,10 +30,10 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 ## Stack und Konventionen
 
 - **Backend:** Python ≥ 3.11, FastAPI mit uvicorn, Dataclasses, sonst Standardbibliothek. Einzige Zusatzabhängigkeit ist `psutil`. Keine Pydantic-Modelle, kein ORM, keine Datenbank. Das Dateisystem ist die einzige Quelle der Wahrheit.
-- **Umgebung:** `.lenv` im Projektordner und `requirements.txt`. Start mit `./orfix.sh` bzw. `orfix.cmd` oder `.lenv/bin/python -m orfix`. Tests mit `.lenv/bin/python -m pytest`.
+- **Umgebung:** `.lenv` im Projektordner und `requirements.txt`. Start mit `./orcaone.sh` bzw. `orcaone.cmd` oder `.lenv/bin/python -m orcaone`. Tests mit `.lenv/bin/python -m pytest`.
 - **Zusätzliche Abhängigkeiten** nur nach Rücksprache.
-- **Frontend:** Vue 3 (lokal in `orfix/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
-  - Stil wie die heutige Oberfläche in `orfix/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orfix/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
+- **Frontend:** Vue 3 (lokal in `orcaone/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
+  - Stil wie die heutige Oberfläche in `orcaone/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orcaone/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
   - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
   - Satzschreibung, Status immer als Text plus Farbe.
 - **Oberfläche:**
@@ -46,7 +46,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 
   Details nur auf Anforderung im Seitenpanel. Kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos.
 - **Plattformen:** Linux und Windows gleichwertig. Pfade nur mit `pathlib`.
-- **Sprache:** Code, Bezeichner und Kommentare auf Englisch. UI-Texte auf Deutsch, zentral in `orfix/static/texts.js`. Das Backend liefert Fehlercodes, keine Texte.
+- **Sprache:** Code, Bezeichner und Kommentare auf Englisch. UI-Texte auf Deutsch, zentral in `orcaone/static/texts.js`. Das Backend liefert Fehlercodes, keine Texte.
 - **KISS:** wenige Schichten, keine Abstraktionen auf Vorrat. Keine Platzhalter, jede Datei ist nach jedem Schritt vollständig und lauffähig.
 - **Tests:** pytest. Resolver und alle Schreiboperationen brauchen Tests gegen Fixtures. Fixtures entstehen mit `tests/fixtures/make_snorca_fixture.py`, anonymisiert.
 - **Commits:** kleine Commits pro abgeschlossenem Schritt, aber nur auf Auftrag.
