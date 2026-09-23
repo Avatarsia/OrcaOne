@@ -65,8 +65,9 @@ export function go(ev, hash) {
 
 // ------------------------------------------------------------ shared state
 // The chosen installation follows the address (app.js).
-// detailsFor: a filament the page "Details" opens with (from the page "Filamente").
-export const ui = reactive({ instId: null, toast: "", detailsFor: null });
+// detailsFor: a filament the page "Details" opens with (from the page "Filamente"), and
+// filamentFocus the other way round: the page "Filamente" shows that filament's row and panel.
+export const ui = reactive({ instId: null, toast: "", detailsFor: null, filamentFocus: null });
 
 // One word per state on every page.
 export function statusText(inst) {

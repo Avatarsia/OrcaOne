@@ -820,6 +820,14 @@ export default {
       else if (panel.value) requestClose();
     };
     onMounted(() => window.addEventListener("keydown", onKey));
+    // Opened from the page "Details" for one filament: its row, opened, with the side panel. A
+    // helper profile of way B shows as its library row (baseEntries).
+    if (ui.filamentFocus && model.value) {
+      const f = inst.value.byName.get(ui.filamentFocus);
+      ui.filamentFocus = null;
+      const shown = f && f.helper ? inst.value.byName.get(f.chain[0]) : f;
+      if (shown) onMounted(() => jumpTo(shown.origin_kind === "user" ? "user:" + shown.name : shown.origin_kind + ":" + shown.alias));
+    }
     onUnmounted(() => window.removeEventListener("keydown", onKey));
     const activate = (ev, fn) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); fn(); } };
     const panelTitle = computed(() => {

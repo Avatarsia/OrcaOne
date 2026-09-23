@@ -492,6 +492,7 @@ export const T = {
     filter: "Wert suchen",
     setHere: "in diesem Profil",
     toDetails: "Alle Details",
+    toFilaments: "Auf der Seite „Filamente“ zeigen",
   },
 
   // ---------------------------------------------------------------- page "Drucker"

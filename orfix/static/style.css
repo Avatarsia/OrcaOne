@@ -286,7 +286,7 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 
 /* Catalogue: search, filters and the tree */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.search { position: relative; flex: 1 1 200px; }
+.search { position: relative; display: block; flex: 1 1 200px; }
 .search .icon { position: absolute; top: 7px; left: 9px; color: var(--icon); }
 .search input { width: 100%; padding-left: 34px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -413,7 +413,6 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .field { display: flex; flex-direction: column; gap: 4px; margin-top: 16px; }
 .picker { min-width: 0; margin: 0; padding: 0; border: 0; }
 .picker legend { padding: 0; font-size: 16px; font-weight: 700; }
-.picker .search { display: block; }
 .pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
 .pick-hits { margin-top: 8px; }
 .pick {
@@ -820,7 +819,7 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 /* Page "Details" */
 .details-page h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
 .details-page > .note { margin-bottom: 16px; }
-.details-page .search { display: block; flex: none; }
+.details-page .search { flex: none; }
 /* The pick list of the page "Details": search field, list with small headings below it */
 .combo { position: relative; }
 .combo-label { display: block; margin-bottom: 4px; color: var(--label); font-size: 13px; font-weight: 700; }
@@ -840,7 +839,7 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .combo-name { overflow-wrap: anywhere; }
 .combo-opt small { margin-left: auto; color: var(--muted); font-size: 12px; text-align: right; }
 .combo-none { padding: 10px 12px; color: var(--muted); }
-.details-filter { display: block; margin-bottom: 8px; }
+.details-filter { margin-bottom: 8px; }
 .details-link { margin-top: 16px; }
 .details-link .link { display: inline-flex; align-items: center; gap: 6px; }
 .status-text { flex: none; font-weight: 700; }
@@ -854,4 +853,5 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .chain-name { font-weight: 700; overflow-wrap: anywhere; }
 .chain-missing .chain-name { color: var(--error); }
 .chain-this .chain-name { color: var(--accent-text); }
+.chain-link { display: inline-flex; align-items: center; gap: 2px; font-size: inherit; text-align: left; }
 

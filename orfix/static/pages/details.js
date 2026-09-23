@@ -5,7 +5,7 @@
 // Data: GET /api/data for the status per printer, GET /api/instances/{id}/profile for chain,
 // files and values. The side panel of the page "Filamente" opens this page for one filament
 // (detailsFor in common.js).
-import { INSTANCES, ui, nozzleLabel, printerShortName, whenText } from "../common.js";
+import { INSTANCES, ui, go, hashOf, modelShown, nozzleLabel, printerShortName, whenText } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 import { problemText } from "../plan.js";
@@ -162,6 +162,25 @@ export default {
     });
     const nowhere = computed(() => chosen.value && !printerRows.value.length);
 
+    // The printer on the page "Filamente" that shows the filament: the one the slicer starts
+    // with if it fits, else the first. An own profile the slicer does not load shows under the
+    // printers of its list there, or under any.
+    const filamentHash = computed(() => {
+      const i = inst.value, f = chosen.value;
+      if (!f) return null;
+      const models = i.models.map((m, idx) => ({ m, idx })).filter(({ m }) => modelShown(i, m));
+      const fits = ({ m }) => m.printers.some((p) => f.printers[p.name] && f.printers[p.name].status !== "displaced");
+      let hit = models.find((x) => x.m.printers.some((p) => p.selected) && fits(x)) || models.find(fits);
+      if (!hit && f.origin_kind === "user") {
+        hit = models.find(({ m }) => m.printers.some((p) => f.compatible_printers.includes(p.name))) || models[0];
+      }
+      return hit ? hashOf("filamente", i.id, hit.idx) : null;
+    });
+    function toFilaments() {
+      ui.filamentFocus = chosen.value.name;
+      go(null, filamentHash.value);
+    }
+
     // ------------------------------------------------------------ chain and files
     // From the base profile at the top down to this one; a template the slicer cannot find on top.
     const chain = computed(() => details.value ? [...details.value.chain].reverse().concat([details.value]) : []);
@@ -208,7 +227,7 @@ export default {
 
     return {
       T, D, F, inst, query, open, active, chosen, details, error, filter, choose, originText, groups, flat,
-      onFocus, onClick, closeList, pick, onKey, onInput, printerRows, nowhere, chain, missing, original, files, info,
+      onFocus, onClick, closeList, pick, onKey, onInput, filamentHash, toFilaments, printerRows, nowhere, chain, missing, original, files, info,
       problem, values, plainName,
     };
   },
@@ -290,7 +309,9 @@ export default {
                 <small>{{ D.missing }}</small>
               </li>
               <li v-for="(c, n) in chain" :key="c.name + n" :class="{ 'chain-this': n === chain.length - 1 }">
-                <span class="chain-name">{{ plainName(c.name) }}</span>
+                <button v-if="n === chain.length - 1 && filamentHash" class="link chain-name chain-link" type="button"
+                        :title="D.toFilaments" @click="toFilaments">{{ plainName(c.name) }}<ui-icon name="chevron"/></button>
+                <span v-else class="chain-name">{{ plainName(c.name) }}</span>
                 <small>{{ n === chain.length - 1 ? D.thisProfile : c.abstract ? D.abstract : D.template }}<template v-if="c.package"> · {{ c.package }}</template></small>
               </li>
             </ol>
