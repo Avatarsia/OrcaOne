@@ -20,7 +20,7 @@
   --font: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
   --panel-w: 380px;
-  --nav-w: 200px;           /* layout only, like --panel-w */
+  --nav-w: 212px;           /* layout only, like --panel-w; "Import/Export" with its count fits */
 
   --accent: #009688;        /* fills: primary button, switch */
   --accent-hover: #26A69A;
@@ -1074,6 +1074,39 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .news-group summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 700; cursor: pointer; }
 .news-group summary .news-note { font-weight: 400; }
 .news-names { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 0; font-size: 13px; }
+
+/* Page "Import/Export": a file read and analysed, own profiles out as a ZIP (importer.py) */
+.imp-drop { position: relative; display: grid; justify-items: center; gap: 4px; padding: 20px 16px; border: 2px dashed var(--line-input); border-radius: 8px; color: var(--muted); text-align: center; cursor: pointer; }
+.imp-drop:hover, .imp-drop.is-over, .imp-drop:focus-within { border-color: var(--accent-line); background: var(--focus-bg); }
+.imp-drop .icon, .imp-drop strong { color: var(--accent-text); }
+.imp-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.imp-found { margin: 14px 0 4px; }
+.imp-project { margin: 8px 0 4px; }
+.imp-uses { display: grid; gap: 4px; margin: 6px 0; padding: 0; list-style: none; font-size: 13px; }
+.imp-uses li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.imp-uses .icon { color: var(--accent-text); }
+.imp-note { color: var(--muted); font-size: 12px; }
+.imp-where { color: var(--muted); font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.imp-values { font-size: 12px; }
+.imp-group { margin-top: 14px; }
+.imp-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 14px; }
+.imp-group h3 .icon { color: var(--accent-text); }
+.imp-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.imp-list li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--line-box); border-radius: 6px; }
+.imp-list li.is-off { opacity: .8; }
+.imp-list input[type="checkbox"] { margin-top: 3px; }
+.imp-main { display: grid; gap: 2px; min-width: 0; }
+.imp-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.imp-tag { padding: 0 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 11px; font-weight: 700; line-height: 18px; }
+.imp-tag.is-new { color: var(--success); }
+.imp-tag.is-same { color: var(--muted); }
+.imp-tag.is-choice { color: var(--warn); }
+.imp-tag.is-no { color: var(--error); }
+.imp-choice { width: auto; height: 26px; padding: 0 6px; font-size: 12px; }
+.imp-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 16px; margin-top: 14px; }
+.imp-all { margin-left: 4px; font-size: 12px; font-weight: 400; }
+.imp-export { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 10px; }
+.imp-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 
 /* Page "Logs": the entries in a box of their own that scrolls */
 .log-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-bottom: 12px; }

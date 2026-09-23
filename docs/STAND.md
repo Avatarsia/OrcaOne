@@ -23,8 +23,17 @@ Stand 23.09.2026. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in
   - Was OrcaOne schreibt, zählt als gesehen: `operations.apply` merkt sich den Stand vor dem Schreiben und übernimmt danach nur die Einträge, die sich dabei geändert haben (`snapshot.accept`). Offene Änderungen von außen bleiben sichtbar.
   - Ist die `.conf` gerade nicht lesbar (der Slicer löscht sie beim Speichern kurz), vergleicht OrcaOne nicht (`conf_unreadable`).
   - Geprüft: 7 Tests auf einer Kopie der Fixture und die Seite im Browser mit einem Beispiel aus 14 bzw. 16 Änderungen. Auf diesem Rechner stehen die ersten Schnappschüsse seit 23.09., 13:07.
+- **Import/Export: erste Runde gebaut** (unter „Filamente“, `orcaone/importer.py`, `pages/import.js`). Auf Wunsch des Nutzers nach der Übersicht [IMPORT-QUELLEN](IMPORT-QUELLEN.md): Quellen 1 bis 4 und 7 (JSON, ZIP, `.orca_*`, Sicherungen und Datenordner-ZIPs, 3MF) und der Export.
+  - Ablauf: `POST /import` mit der Datei als Body liest und wertet aus, ohne zu schreiben. Die Seite merkt Angehaktes vor (`profile_import` in `ops.js`), „Übernehmen“ schreibt mit Plan und Sicherung. `op_profile_import` wandelt erneut um, für den dann aktuellen Stand.
+  - Umwandlung (`importer.convert`, nach `transfer.convert`): Kind des Elternprofils, wenn es das hier wählbar gibt. Sonst ein Wurzelprofil, dabei gehen die Werte einer Vorlage (`fdm_filament_pla`) ein. Elternprofile aus derselben Datei gehen ins Kind ein. Werte im Format des Ziels (`transfer.adapt`), Drucker ohne Adresse und Zugangsdaten.
+  - Auswertung: neu, schon da (gleiche Werte, nur was ein Import schreiben würde), Name vergeben (als Kopie „(2)“ oder ersetzen), Name eines Systemprofils, Elternprofil fehlt, kein passender Drucker, Vorlage.
+  - 3MF: eingebettete Profile vollständig; dazu die ungespeicherten Änderungen an Systemprofilen aus `project_settings.config` als eigenes Profil „<Name> (<Datei>)“.
+  - Geprüft: 5 Tests und im Browser gegen die echte Snapmaker-Orca-Installation (nur ausgewertet und Plan angesehen, nichts übernommen); Export mit echten Profilen über die API.
+  - Menü 212 statt 200 px breit, sonst schnitt es „Import/Export“ ab.
+  - Test des Nutzers mit `prototypes/m3Sorter_04_mini.3mf` (Bambu Studio 1.8.4, A1 mini): „kein Profil“ war richtig, aber zu knapp. Jetzt zeigt die Seite bei einem 3MF Herkunft und genutzte Profile samt „gibt es hier“ bzw. „gibt es hier nicht“ (FINDINGS 4.8). Aus den 335 Werten solcher Projekte eigene Profile zu machen, wäre ein weiterer Schritt; für den U1 bräuchte es dafür „An Zielprofil hängen“.
+  - Zweiter Test des Nutzers mit `prototypes/Happy_Shark_3MF.3mf` (Bambu Studio 1.9.3, A1): Die Herkunft fehlte, weil das Modell 11 MB groß ist und OrcaOne Einträge über 8 MB übersprang. Jetzt liest es vom Modell nur den Anfang.
+- **Als Nächstes, beim Import (Übersicht, Reihenfolge des Nutzers offen):** G-Code-Dateien und Drucke direkt vom U1, `user_backup-v*` und andere Benutzerordner, die Orca-Bibliothek auf GitHub, „An Zielprofil hängen“.
 - **Als Nächstes, in dieser Reihenfolge:**
-  1. **Importieren und Exportieren:** unter „Filamente“. Eigene Profile als Datei exportieren und Herstellerpakete wie das ZIP von Material4Print für den U1 importieren, beides über Plan und Bestätigung.
 - **Beim Nutzer:** „Im LAN suchen“ zu Hause testen, die Prüfliste auf dem Windows-Rechner (unten, „Windows-Durchsicht“).
 
 ## Erledigt

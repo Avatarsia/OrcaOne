@@ -9,8 +9,11 @@ from urllib.parse import urlparse
 from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
-from . import __version__, backup, calibration, camera, guard, instances, logs, operations, overview, settings, snapshot
+from . import (__version__, backup, calibration, camera, guard, importer, instances, logs, operations, overview, scanner,
+               settings, snapshot)
+from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -98,6 +101,12 @@ def _log_error(request: Request, exc: logs.LogError):
 @app.exception_handler(snapshot.SnapshotError)
 def _snapshot_error(request: Request, exc: snapshot.SnapshotError):
     return _error(exc.code, 409)
+
+
+@app.exception_handler(importer.ImportFailed)
+def _import_error(request: Request, exc: importer.ImportFailed):
+    status = {"file_too_big": 413, "unknown_profile": 404, "profile_invalid": 409}.get(exc.code, 400)
+    return _error(exc.code, status, **exc.params)
 
 
 @app.get("/api/instances")
@@ -253,6 +262,41 @@ def news(instance_id: str):
 def news_seen(instance_id: str):
     # Writes only into OrcaOne's own folder data/, no plan needed (PLAN 1.5).
     return snapshot.seen(operations.find_instance(instance_id)[0])
+
+
+# ---------------------------------------------------------------- page "Import/Export" (orcaone/importer.py)
+
+def _read_file(instance_id: str, raw: bytes, name: str) -> dict:
+    instance = operations.find_instance(instance_id)[0]
+    source = importer.read(raw, name)
+    res = Resolver(scanner.scan(instance.data_dir, instance.slicer))
+    project = {"application": source["project"]["application"], "uses": importer.uses(source, res)} if source.get("project") else None
+    return {"file": name, "format": source["format"], "skipped": source["skipped"], "project": project,
+            "profiles": importer.analyse(source, res, instance.slicer)}
+
+
+@app.post("/api/instances/{instance_id}/import")
+async def import_read(instance_id: str, request: Request, name: str = ""):
+    """What a file holds and what an import would do; writes nothing. The file is the body itself,
+    no multipart and so no further package (docs/IMPORT-QUELLEN.md)."""
+    if int(request.headers.get("content-length") or 0) > importer.MAX_FILE:
+        raise importer.ImportFailed("file_too_big")
+    raw = await request.body()
+    # A 3MF of many megabytes takes a moment: not on the server's event loop.
+    return await run_in_threadpool(_read_file, instance_id, raw, name or "import")
+
+
+@app.post("/api/instances/{instance_id}/export")
+def export(instance_id: str, payload: dict = Body(...)):
+    wanted = payload.get("profiles")
+    if not isinstance(wanted, list) or not wanted or not all(
+            isinstance(p, dict) and p.get("kind") in importer.KINDS and isinstance(p.get("name"), str) for p in wanted):
+        return _error("export_invalid")
+    instance = operations.find_instance(instance_id)[0]
+    res = Resolver(scanner.scan(instance.data_dir, instance.slicer))
+    data = importer.export(res, [(p["kind"], p["name"]) for p in wanted], payload.get("flat") is True)
+    return Response(content=data, media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="OrcaOne-Export.zip"'})
 
 
 # ---------------------------------------------------------------- page "Kalibrieren" (orcaone/calibration.py)

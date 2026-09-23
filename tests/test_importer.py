@@ -1,0 +1,209 @@
+"""The page "Import/Export" (orcaone/importer.py): every file kind built here in memory, analysed
+and imported into a copy of tests/fixtures/snorca, never a real data directory."""
+
+import io
+import json
+import urllib.error
+import urllib.request
+import zipfile
+
+import pytest
+
+from conftest import call, copy_fixture
+from orcaone import importer, scanner
+from orcaone.resolver import Resolver
+
+U1_04 = "Snapmaker U1 (0.4 nozzle)"
+BASIC = "Snapmaker PLA Basic @U1"
+MINE = json.loads((copy_fixture.__globals__["FIXTURES"] / "snorca/user/default/filament/Mein PLA.json").read_text(encoding="utf-8"))
+
+
+def zip_of(files: dict) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, content in files.items():
+            archive.writestr(name, content if isinstance(content, (str, bytes)) else json.dumps(content))
+    return buffer.getvalue()
+
+
+def filament(name, **values):
+    return {"name": name, "filament_settings_id": [name], "version": "2.3.0.0", "from": "User", **values}
+
+
+PROJECT = {  # a 3MF of Snapmaker Orca: the process changed without saving, filament 1 an own profile
+    "print_settings_id": "0.20mm Standard @Snapmaker U1 (0.4 nozzle)", "filament_settings_id": ["Projekt PLA"],
+    "printer_settings_id": U1_04, "inherits_group": ["", BASIC, ""],
+    "different_settings_to_system": ["sparse_infill_density;wall_loops", "nozzle_temperature", ""],
+    "sparse_infill_density": "25%", "wall_loops": "3", "nozzle_temperature": ["225"],
+}
+
+
+@pytest.fixture
+def target(tmp_path):
+    data_dir = copy_fixture("snorca", tmp_path / "Snapmaker_Orca")
+    return Resolver(scanner.scan(data_dir, "Snapmaker_Orca"))
+
+
+def test_reads_every_kind_of_file():
+    got = importer.read(json.dumps(MINE).encode(), "Mein PLA.json")
+    assert got["format"] == "json" and [(f.kind, f.name) for f in got["profiles"]] == [("filament", "Mein PLA")]
+
+    # The slicers' export dialog, a vendor pack: the manifest and a stray JSON are no profiles.
+    got = importer.read(zip_of({"filament/A.json": filament("A", inherits=BASIC), "process/B.json": {"name": "B", "print_settings_id": "B"},
+                                "Vendor.json": {"name": "Vendor", "filament_list": []}, "notes.json": {"x": 1}}), "Filament presets.zip")
+    assert got["format"] == "zip" and [f.name for f in got["profiles"]] == ["A", "B"]
+    assert got["skipped"] == [{"where": "notes.json", "code": "not_a_profile"}]
+
+    bundle = {"bundle_structure.json": {"bundle_type": "filament config bundle", "filament_name": "SUNLU PLA+"},
+              "Snapmaker/SUNLU PLA+ @U1.json": filament("SUNLU PLA+ @U1", inherits=BASIC)}
+    assert importer.read(zip_of(bundle), "SUNLU PLA+.orca_filament")["format"] == "bundle"
+
+    # A backup of OrcaOne: the own profiles of every user folder, nothing of system/.
+    backup = {"orcaone-backup.json": {"reason": "manual"}, "Snapmaker_Orca.conf": "{}",
+              "user/default/filament/Mein PLA.json": MINE, "system/Snapmaker/filament/X.json": filament("X")}
+    got = importer.read(zip_of(backup), "2026-09-23_manual.zip")
+    assert got["format"] == "backup" and [f.where for f in got["profiles"]] == ["user/default/filament/Mein PLA.json"]
+
+    # A 3MF: the own profile it embeds, complete, and the process it changed without saving.
+    project = {"3D/3dmodel.model": "<model/>", "Metadata/project_settings.config": PROJECT,
+               "Metadata/filament_settings_1.config": filament("Projekt PLA", inherits=BASIC, nozzle_temperature=["225"], **{"from": "project"})}
+    got = importer.read(zip_of(project), "Benchy.3mf")
+    assert got["format"] == "3mf" and got["project"]["uses"] == [
+        {"kind": "process", "name": "0.20mm Standard @Snapmaker U1 (0.4 nozzle)"}, {"kind": "filament", "name": "Projekt PLA"},
+        {"kind": "machine", "name": U1_04}]
+    assert [(f.kind, f.name, f.full) for f in got["profiles"]] == [
+        ("filament", "Projekt PLA", True), ("process", "0.20mm Standard @Snapmaker U1 (0.4 nozzle) (Benchy)", False)]
+    assert got["profiles"][1].data == {"name": "0.20mm Standard @Snapmaker U1 (0.4 nozzle) (Benchy)",
+                                       "inherits": "0.20mm Standard @Snapmaker U1 (0.4 nozzle)", "sparse_infill_density": "25%", "wall_loops": "3"}
+
+    # Bambu Studio 1.8 writes no inherits_group: system profiles only, nothing to take.
+    older = {"3D/3dmodel.model": '<model><metadata name="Application">BambuStudio-01.08.04.51</metadata></model>',
+             "Metadata/project_settings.config": {"print_settings_id": "0.16mm Optimal @BBL A1M", "printer_settings_id": "Bambu Lab A1 mini 0.4 nozzle",
+                                                  "filament_settings_id": ["Generic PLA @BBL A1M"] * 4, "layer_height": "0.16"}}
+    got = importer.read(zip_of(older), "m3Sorter.3mf")
+    assert got["profiles"] == [] and got["project"]["application"] == "BambuStudio 01.08.04.51"
+    assert [u["name"] for u in got["project"]["uses"]] == ["0.16mm Optimal @BBL A1M", "Generic PLA @BBL A1M", "Bambu Lab A1 mini 0.4 nozzle"]
+
+    with pytest.raises(importer.ImportFailed) as err:
+        importer.read(b"hello", "hello.txt")
+    assert err.value.code == "file_unknown"
+
+
+def test_an_entry_too_big_is_left_out(monkeypatch):
+    monkeypatch.setattr(importer, "MAX_ENTRY", 50)
+    got = importer.read(zip_of({"a.json": filament("A" * 80)}), "a.zip")
+    assert got["profiles"] == [] and got["skipped"] == [{"where": "a.json", "code": "too_big"}]
+
+    # The model of a 3MF carries the meshes, megabytes (Happy Shark: 11 MB); its head names the application.
+    model = '<model><metadata name="Application">BambuStudio-01.09.03.50</metadata>' + "<vertex/>" * 20 + "</model>"
+    got = importer.read(zip_of({"3D/3dmodel.model": model, "Metadata/project_settings.config": {"print_settings_id": "P"}}), "shark.3mf")
+    assert got["project"]["application"] == "BambuStudio 01.09.03.50"
+
+
+def test_analysis_against_the_installation(target):
+    files = {
+        "Fremdes PLA.json": filament("Fremdes PLA", inherits=BASIC, nozzle_temperature=["230"]),
+        "Mein PLA.json": MINE,                                                        # the same file as there
+        "Mein PLA 2.json": {**MINE, "nozzle_temperature": ["199"], "name": "Mein PLA"},   # twice in one file
+        "Kaputt.json": filament("Kaputt", inherits="Gibt es nicht @X"),
+        "Bambu.json": filament("Bambu PLA", compatible_printers=["Bambu Lab X1 Carbon 0.4 nozzle"]),
+        # A vendor pack: its base profile builds on a template, which cannot be a parent.
+        "M4P base.json": filament("M4P PLA @base", inherits="fdm_filament_pla", instantiation="false", filament_vendor=["Material4Print"]),
+        "M4P.json": filament("M4P Orange", inherits="M4P PLA @base", compatible_printers=[U1_04]),
+    }
+    source = importer.read(zip_of(files), "mixed.zip")
+    assert source["skipped"] == [{"where": "Mein PLA 2.json", "code": "twice", "name": "Mein PLA"}]
+    got = {e["name"]: e for e in importer.analyse(source, target, "Snapmaker_Orca")}
+    assert (got["Fremdes PLA"]["status"], got["Fremdes PLA"]["parent"], got["Fremdes PLA"]["values"]["nozzle_temperature"]) == (
+        "new", BASIC, "230")
+    assert got["Mein PLA"]["status"] == "same"
+    assert (got["Kaputt"]["status"], got["Kaputt"]["params"]) == ("parent_missing", {"parent": "Gibt es nicht @X"})
+    assert got["Bambu PLA"]["status"] == "no_target_printer"
+    assert got["M4P PLA @base"]["status"] == "template"
+    m4p = got["M4P Orange"]
+    assert (m4p["status"], m4p["parent"], m4p["from_file"], m4p["printers"]) == ("new", None, ["M4P PLA @base"], [U1_04])
+    assert m4p["values"]["filament_vendor"] == "Material4Print" and m4p["values"]["filament_type"] == "PLA"
+
+    # Another value under a name there: renamed or replaced on the page's choice.
+    other = importer.read(json.dumps({**MINE, "nozzle_temperature": ["199"]}).encode(), "Mein PLA.json")
+    assert importer.analyse(other, target, "Snapmaker_Orca")[0]["status"] == "name_taken"
+    system = importer.read(json.dumps(filament(BASIC, inherits=BASIC)).encode(), "x.json")
+    assert importer.analyse(system, target, "Snapmaker_Orca")[0]["status"] == "system_name"
+    # Complete, from a 3MF: lands even without its parent, as a root profile.
+    alone = {"Metadata/filament_settings_1.config": filament("Alleine", inherits="Fehlt @X", nozzle_temperature=["210"], filament_type=["PLA"])}
+    entry = importer.analyse(importer.read(zip_of(alone), "p.3mf"), target, "Snapmaker_Orca")[0]
+    assert (entry["status"], entry["parent"]) == ("new", None)
+
+
+def upload(server, inst_id, raw, name):
+    request = urllib.request.Request(f"{server}/api/instances/{inst_id}/import?name={urllib.request.quote(name)}", data=raw,
+                                     method="POST", headers={"Content-Type": "application/octet-stream"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as err:
+        return err.code, json.loads(err.read())
+
+
+def apply(server, base, changes):
+    plan = json.loads(call(f"{base}/plan", "POST", {"changes": changes})[1])["plan"]
+    assert plan["blocked"] is None, plan
+    status, body = call(f"{base}/apply", "POST", {"plan_id": plan["id"]})
+    assert status == 200, body
+    return plan
+
+
+def test_import_through_the_plan(server, fake_home):
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    base = f"{server}/api/instances/{inst['id']}"
+    files = {"Fremdes PLA.json": filament("Fremdes PLA", inherits=BASIC, nozzle_temperature=["230"], filament_type=["PLA"]),
+             "Mein PLA.json": {**MINE, "nozzle_temperature": ["199"]}}
+    status, got = upload(server, inst["id"], zip_of(files), "Geteilt.zip")
+    assert status == 200 and got["file"] == "Geteilt.zip" and [p["status"] for p in got["profiles"]] == ["new", "name_taken"]
+    op = lambda p, **extra: {"op": "profile_import", "kind": p["kind"], "profile": p["profile"], "parents": p["parents"],
+                             "full": p["full"], "source": got["file"], **extra}
+    fresh, taken = got["profiles"]
+    plan = apply(server, base, [op(fresh), op(taken)])
+    assert {w["code"] for w in plan["warnings"]} >= {"import_from"}
+    folder = data_dir / "user" / "default" / "filament"
+    written = json.loads((folder / "Fremdes PLA.json").read_text(encoding="utf-8"))
+    # A child keeps only what differs from its parent: filament_type is the parent's already.
+    assert (written["inherits"], written["nozzle_temperature"], "filament_type" in written) == (BASIC, ["230"], False)
+    assert json.loads((folder / "Mein PLA (2).json").read_text(encoding="utf-8"))["nozzle_temperature"] == ["199"]
+    # Replacing keeps the name.
+    apply(server, base, [op(taken, replace=True)])
+    assert json.loads((folder / "Mein PLA.json").read_text(encoding="utf-8"))["nozzle_temperature"] == ["199"]
+    # What OrcaOne wrote counts as seen on the page "Änderungen".
+    assert json.loads(call(f"{base}/news")[1])["count"] == 0
+    assert upload(server, inst["id"], b"kein Profil", "x.txt") == (400, {"error": "file_unknown"})
+
+
+def test_export(server, fake_home):
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    printer = data_dir / "user" / "default" / "machine" / "Mein U1.json"
+    printer.write_text(json.dumps({**json.loads(printer.read_text(encoding="utf-8")), "print_host": "10.0.0.5",
+                                   "printhost_apikey": "geheim"}), encoding="utf-8")
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    base = f"{server}/api/instances/{inst['id']}"
+
+    def export(flat):
+        request = urllib.request.Request(f"{base}/export", method="POST", headers={"Content-Type": "application/json"},
+                                         data=json.dumps({"profiles": [{"kind": "filament", "name": "Mein PLA"},
+                                                                       {"kind": "machine", "name": "Mein U1"}], "flat": flat}).encode())
+        with urllib.request.urlopen(request, timeout=10) as response:
+            assert response.headers["Content-Type"] == "application/zip"
+            with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
+                return {n: json.loads(archive.read(n)) for n in archive.namelist()}
+
+    got = export(False)
+    assert got["filament/Mein PLA.json"] == MINE
+    assert "print_host" not in got["machine/Mein U1.json"] and "printhost_apikey" not in got["machine/Mein U1.json"]
+    flat = export(True)["filament/base/Mein PLA.json"]
+    assert (flat["inherits"], flat["nozzle_temperature"], flat["filament_type"]) == ("", ["215"], ["PLA"])
+    assert flat["filament_id"].startswith("P") and "setting_id" not in flat
+    # Read in again, the flat copy is the same filament as the one there.
+    status, again = upload(server, inst["id"], zip_of({"Mein PLA.json": flat}), "OrcaOne-Export.zip")
+    assert status == 200 and again["profiles"][0]["status"] == "same"
+    status, body = call(f"{base}/export", "POST", {"profiles": [{"kind": "filament", "name": "Gibt es nicht"}]})
+    assert (status, json.loads(body)) == (404, {"error": "unknown_profile", "name": "Gibt es nicht"})

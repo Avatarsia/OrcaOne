@@ -43,6 +43,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
     - **Kalibrieren:** nur für den U1: U1 und Düse wählen, dann ein passendes eigenes Filament; die Kalibrieranleitung des Nutzers als Liste zum Abhaken, liest den U1 live und nur lesend.
     - **Übertragen:** Profile zwischen zwei Installationen in beide Richtungen kopieren.
     - **Vergleichen:** zwei Filamente nebeneinander, auch aus zwei Installationen; welche Werte sich unterscheiden und woher sie kommen. Nur zum Ansehen.
+    - **Import/Export:** Profile aus Dateien holen (JSON, ZIP, `.orca_*`, Sicherungen, 3MF), vorher auswerten, auswählen, über die Änderungsliste schreiben; eigene Profile als ZIP exportieren.
   - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
   - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen, `print_host` aus dem Slicer oder beim U1 im LAN gesucht).
     - **Kamera:** Bild jedes U1 mit IP-Adresse samt Druckstatus (Fortschritt, Schicht, Restzeit, Temperaturen), in der Seite, fensterfüllend oder im Vollbild.

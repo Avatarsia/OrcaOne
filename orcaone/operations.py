@@ -26,7 +26,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from . import backup, guard, instances, overview, scanner, snapshot, transfer
+from . import backup, guard, importer, instances, overview, scanner, snapshot, transfer
 from .conf import ConfFile, dump_conf, loads, parse_conf
 from .model import Instance
 from .resolver import DEFAULT_NAMES, EDITABLE_DEFAULTS, Resolver, as_list
@@ -817,6 +817,47 @@ class Planner:
             self.warnings.append({"code": "transfer_first_value", "name": new_name, "keys": copy.cut})
         if copy.printers_left:
             self.warnings.append({"code": "transfer_printers_left", "name": new_name, "printers": copy.printers_left})
+
+    def op_profile_import(self, c: dict, i: int) -> None:
+        """A profile from a file (orcaone/importer.py) as a new own one, or in place of the own
+        one of that name. profile, parents and full as importer.analyse gave them to the page;
+        converted again here, for the installation as it is now."""
+        kind = _field(c, "kind", i, str)
+        profile = _field(c, "profile", i, dict)
+        parents = _field(c, "parents", i, list, required=False) or []
+        full = _field(c, "full", i, bool, required=False) or False
+        replace = _field(c, "replace", i, bool, required=False) or False
+        source = _field(c, "source", i, str, required=False) or ""
+        if kind not in importer.KINDS:
+            raise InvalidChange(i, "kind")
+        if not all(isinstance(p, dict) for p in parents):
+            raise InvalidChange(i, "parents")
+        try:
+            copy = importer.convert(self.res, self.instance.slicer, kind, profile, parents, full)
+        except importer.ImportFailed as exc:
+            raise Blocked(exc.code, **exc.params) from None
+        data = {}
+        self.set_values(data, copy.data, copy.parent, kind)
+        if replace:
+            own = self.find_own(kind, copy.name)
+            name = own.name
+            own.data = {**data, "name": name, "from": "User", "version": self.version,
+                        SETTINGS_ID[kind]: [name] if kind == "filament" else name,
+                        "inherits": copy.parent.name if copy.parent is not None else ""}
+            if kind == "filament" and copy.parent is None:
+                own.data["filament_id"] = importer.filament_id(name)
+            own.parent, own.touched = copy.parent, True
+            own.info = {"sync_info": "", "user_id": "", "setting_id": "", **(own.info or {}), "base_id": copy.base_id or ""}
+        else:
+            name = self.free_name(kind, copy.name)
+            if kind == "filament" and copy.parent is None:
+                data["filament_id"] = importer.filament_id(name)
+            self.new_own(kind, name, data, copy.parent, copy.base_id)
+        self.warnings.append({"code": "import_from", "name": name, "source": source, "replaced": replace})
+        if copy.dropped:
+            self.warnings.append({"code": "transfer_dropped", "name": name, "keys": copy.dropped})
+        if copy.printers_left:
+            self.warnings.append({"code": "transfer_printers_left", "name": name, "printers": copy.printers_left})
 
     def op_default_printer(self, c: dict, i: int) -> None:
         printer = _field(c, "printer", i, str)

@@ -35,8 +35,8 @@ OPTIONS = json.loads((Path(__file__).parent / "options.json").read_text(encoding
 KINDS = ("filament", "process")
 # Written by the planner, or not copied: the list of processes a filament fits names processes
 # of the source, and FINDINGS 4.6 found no slicer using it.
-_OWN_KEYS = META_KEYS | {"filament_settings_id", "print_settings_id", "printer_settings_id",
-                         "compatible_printers", "compatible_prints", "compatible_prints_condition"}
+OWN_KEYS = META_KEYS | {"filament_settings_id", "print_settings_id", "printer_settings_id",
+                        "compatible_printers", "compatible_prints", "compatible_prints_condition"}
 SHORT = {"Snapmaker_Orca": "SnOrca", "OrcaSlicer": "Orca"}
 
 
@@ -57,11 +57,11 @@ class TransferError(Exception):
         self.code, self.params = code, params
 
 
-def _target_printers(res: Resolver) -> set:
+def target_printers(res: Resolver) -> set:
     return set(res.collection["machine"]) | {p.name for p in res.own_profiles("machine") if res.loaded(p)}
 
 
-def _adapt(values: dict, target: dict, kind: str, same_app: bool) -> tuple:
+def adapt(values: dict, target: dict, kind: str, same_app: bool) -> tuple:
     """values as the target reads them; the keys that had to go, and those cut to one value.
     target: the entry of the target slicer in orcaone/options.json."""
     specs, legacy = target["options"][kind], set(target["legacy"])
@@ -101,7 +101,7 @@ def convert(source_res: Resolver, source_app: str, target_res: Resolver, target_
 
     # Printers of the target by the source's names.
     wanted = source_res.compatible_printers(p)
-    have = _target_printers(target_res)
+    have = target_printers(target_res)
     printers = [n for n in wanted if n in have]
     if wanted and not printers:
         raise TransferError("no_target_printer", name=name)
@@ -115,8 +115,8 @@ def convert(source_res: Resolver, source_app: str, target_res: Resolver, target_
         target_parent, values = None, {}
         for q in reversed([p] + chain):
             values.update(q.values)
-    data, dropped, cut = _adapt({k: v for k, v in values.items() if k not in _OWN_KEYS},
-                                OPTIONS[target_app], kind, same_app)
+    data, dropped, cut = adapt({k: v for k, v in values.items() if k not in OWN_KEYS},
+                               OPTIONS[target_app], kind, same_app)
     # A root profile names its printers; a child only if the source child did.
     if target_parent is None or "compatible_printers" in p.values:
         data["compatible_printers"] = printers

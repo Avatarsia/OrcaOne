@@ -19,6 +19,7 @@ import ProzessePage from "./pages/prozesse.js";
 import DetailsPage from "./pages/details.js";
 import TransferPage, { transferChanges } from "./pages/transfer.js";
 import VergleichenPage from "./pages/vergleichen.js";
+import ImportPage, { importChanges } from "./pages/import.js";
 import AenderungenPage from "./pages/aenderungen.js";
 import KameraPage from "./pages/kamera.js";
 import LogsPage from "./pages/logs.js";
@@ -29,7 +30,7 @@ const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmoun
 document.documentElement.lang = LANG;
 
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
-// sub: a page about the one above, set in a little under it: Kalibrieren, Übertragen and Vergleichen
+// sub: a page about the one above, set in a little under it: Kalibrieren, Übertragen, Vergleichen and Import/Export
 // work on filament profiles, the camera belongs to the printer (its address is on the printer's card),
 // "Änderungen" sits under "Drucker" as the user suggested.
 const PAGES = [
@@ -37,6 +38,7 @@ const PAGES = [
   { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
   { id: "transfer", icon: "transfer", component: TransferPage, sub: true },
   { id: "vergleichen", icon: "compare", component: VergleichenPage, sub: true },
+  { id: "import", icon: "import", component: ImportPage, sub: true },
   { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Needs no slicer data: shows at once and stays through "Neu einlesen".
@@ -55,7 +57,7 @@ const CHANGE = {
   rename: { icon: "pencil", cls: "ch-rename" }, edit: { icon: "pencil", cls: "ch-edit" },
   remove: { icon: "minus", cls: "ch-off" }, default: { icon: "star", cls: "ch-on" },
   clean: { icon: "broom", cls: "ch-off" }, hide: { icon: "minus", cls: "ch-off" },
-  copy: { icon: "transfer", cls: "ch-new" },
+  copy: { icon: "transfer", cls: "ch-new" }, import: { icon: "import", cls: "ch-new" },
 };
 
 const app = createApp({
@@ -78,7 +80,7 @@ const app = createApp({
     // All pages, all installations. Each installation is planned and written on its own, with
     // its own backup. "Übernehmen" is off where OrcaOne may not write (writeBlock in common.js);
     // the plan can still refuse, then it says why.
-    const changes = computed(() => [...filamentChanges.value, ...calibrationChanges.value, ...liveChanges.value, ...transferChanges.value]);
+    const changes = computed(() => [...filamentChanges.value, ...calibrationChanges.value, ...liveChanges.value, ...transferChanges.value, ...importChanges.value]);
     const changeGroups = computed(() => INSTANCES.map((i) => {
       const block = writeBlock(i);
       return { inst: i, items: changes.value.filter((c) => c.inst === i), block: block ? problemText(block, i) : "" };

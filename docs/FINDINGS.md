@@ -311,6 +311,12 @@ Weg B testet man genauso. Beide Tests stehen noch aus.
 
 **Muster „Flach“:** „Filament erstellen“ legt je Drucker ein flaches Profil an: `<Hersteller> <Typ> <Serie> @<Druckername>`, `compatible_printers = [<Drucker>]`, abgelegt in `filament/base/`. Nach diesem Muster kann OrcaOne die Strategie „Flach“ umsetzen.
 
+**Profile in Projekten und Drucken (geprüft 23.09.2026, für den Import, docs/IMPORT-QUELLEN.md):**
+- **3MF:** Eigene Profile, die ein Projekt nutzt, bettet der Slicer vollständig ein, als `Metadata/{machine,filament,process}_settings_N.config`. Er schreibt sie mit `save_to_json(…, "project", version)` (`bbs_3mf.cpp`), also mit allen Werten, `inherits` und `"from": "project"`. Den Namen nimmt er beim Lesen aus `*_settings_id`. Systemprofile stehen nur mit Namen in `Metadata/project_settings.config`. Dort zeigen `inherits_group` (Prozess, Filament 1…n, Drucker) und `different_settings_to_system`, was abweicht.
+- **G-Code:** Jeder Druck trägt die ganze Konfiguration als `; Schlüssel = Wert` zwischen `; CONFIG_BLOCK_START` und `; CONFIG_BLOCK_END`, bei Bambu-Druckern am Anfang, sonst am Ende (`GCode.cpp`). Am U1 enthält die Datei des letzten Drucks 564 Werte, darunter `filament_settings_id = "M4P Orange";…`, `filament_vendor = Material4Print`, `inherits_group = ;"Snapmaker PLA Basic @U1";…` und `different_settings_to_system`. Orcas `PresetBundle::load_config_file` liest Einstellungen nur aus G-Code.
+- **3MF aus Bambu Studio:** Zwei Projekte des Nutzers, aus Bambu Studio 1.8.4 (`prototypes/m3Sorter_04_mini.3mf`, Bambu Lab A1 mini) und 1.9.3 (`prototypes/Happy_Shark_3MF.3mf`, Bambu Lab A1), haben in `project_settings.config` alle Werte (335 bzw. 355) und die Namen der Profile, aber weder `inherits_group` noch `different_settings_to_system` und keine eingebetteten Profile. Sie nutzen nur Systemprofile; ob Werte davon abweichen, steht nicht darin. OrcaOne nennt dann Herkunft (`Application` in `3D/3dmodel.model`) und die genutzten Profile. Das Modell trägt die Netze und kann groß sein (Happy Shark: 11 MB), die Metadaten stehen an seinem Anfang.
+- **„Import Configs“** (`MainFrame::load_config_file`, in beiden Slicern gleich) nimmt `.json`, `.zip`, `.orca_printer`, `.orca_bundle` und `.orca_filament` und importiert alles auf einmal, ohne Vorschau und ohne Auswahl. 3MF-Projekte nimmt er nicht.
+
 ## 4.9 3MF-Projekte
 
 | Spezifikation | Befund |
@@ -544,6 +550,6 @@ Auf dem Entwicklungsrechner laufen diese Tests direkt im echten Datenverzeichnis
 - [ ] Windows: Hat die `.conf` auf der Platte CRLF? Sind die MD5-Ziffern Großbuchstaben? Dafür braucht es eine echte Windows-Datei.
 - [ ] Flatpak: Zeigt `/proc/<pid>/cwd` bzw. `F_GETLK` aus Sicht des Hosts dasselbe wie bei der AppImage?
 - [ ] Was steht in `"version"` eines Bundles, das SnOrca ohne Anmeldung exportiert?
-- [ ] Wie sieht die Material4Print-U1-ZIP aus: Ordner, `version`, `*_settings_id`, `inherits`? Die Datei liegt lokal nicht vor.
+- [ ] Wie sieht die Material4Print-U1-ZIP aus: Ordner, `version`, `*_settings_id`, `inherits`? Die Datei liegt lokal nicht vor. Teilantwort vom 23.09.: Ein Druck am U1 zeigt „M4P Orange“ mit `filament_vendor` Material4Print auf „Snapmaker PLA Basic @U1“.
 - [ ] Cloud-Sync bei angemeldetem Konto: Bekommen importierte Profile eine `setting_id`? Kommen gelöschte Profile zurück? Auf diesem Rechner ist `sync_user_preset = false`.
 - [ ] Orca main: Werden installierte Hersteller bei `enable_ota = false` nach einem Programmupdate wirklich nie erneuert?

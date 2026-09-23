@@ -25,6 +25,32 @@ async function request(method, url, body) {
   return data;
 }
 
+// A file as the body itself (page "Import/Export"), and a ZIP back as a Blob.
+async function upload(url, file) {
+  let response;
+  try {
+    response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+  } catch {
+    throw new ApiError("network");
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(data.error || "unknown", data);
+  return data;
+}
+async function download(url, body) {
+  let response;
+  try {
+    response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch {
+    throw new ApiError("network");
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new ApiError(data.error || "unknown", data);
+  }
+  return response.blob();
+}
+
 const instUrl = (id) => `/api/instances/${encodeURIComponent(id)}`;
 const backupUrl = (id, name) => `${instUrl(id)}/backups/${encodeURIComponent(name)}`;
 
@@ -60,6 +86,9 @@ export const api = {
   calibration: (id) => request("GET", `${instUrl(id)}/calibration`),
   markCalibration: (id, filament, step, done, temp) => request("POST", `${instUrl(id)}/calibration`, { filament, step, done, temp }),
   deleteBackup: (id, name) => request("DELETE", backupUrl(id, name)),
+  // Page "Import/Export" (orcaone/importer.py): what a file holds, and own profiles as a ZIP.
+  importFile: (id, file, name) => upload(`${instUrl(id)}/import?name=${encodeURIComponent(name)}`, file),
+  exportProfiles: (id, profiles, flat) => download(`${instUrl(id)}/export`, { profiles, flat }),
   // Page "Änderungen": what changed since the installation was last marked seen (orcaone/snapshot.py).
   news: (id) => request("GET", `${instUrl(id)}/news`),
   newsSeen: (id) => request("POST", `${instUrl(id)}/news/seen`),

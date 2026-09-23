@@ -7,10 +7,11 @@
 import { FIELDS, live, profileInfo, unusedListNames } from "./common.js";
 import { store, initialOf, sameValue } from "./pages/filamente.js";
 import { queued } from "./pages/transfer.js";
+import { importQueue } from "./pages/import.js";
 import { pending as calibrated } from "./pages/kalibrieren.js";
 
 const ORDER = [
-  "profile_copy", "filament_create", "filament_bind", "filament_update", "filament_rename", "filament_visible",
+  "profile_copy", "profile_import", "filament_create", "filament_bind", "filament_update", "filament_rename", "filament_visible",
   "filament_delete", "printer_model_off", "printer_delete", "default_printer", "cleanup_presets",
 ];
 
@@ -230,6 +231,11 @@ export function changesOf(inst) {
 
   // ---------------------------------------------------------- page "Übertragen"
   for (const q of queued) if (q.to === inst.id) add({ op: "profile_copy", from: q.from, kind: q.kind, name: q.name });
+
+  // ---------------------------------------------------------- page "Import/Export"
+  for (const q of importQueue) {
+    if (q.to === inst.id) add({ op: "profile_import", kind: q.kind, profile: q.profile, parents: q.parents, full: q.full, replace: q.replace, source: q.source });
+  }
 
   // Array.prototype.sort is stable: the order within one kind of op stays.
   return out.sort((a, b) => ORDER.indexOf(a.op) - ORDER.indexOf(b.op));
