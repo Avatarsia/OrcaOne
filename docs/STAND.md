@@ -122,3 +122,13 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Profilpakete von Orca 2.5 (23.09.):** eigene Herkunft `bundle`, auf „Filamente“ unter „Aus Paketen“ nach Paketname, auf „Drucker“ mit dem Paketnamen als Etikett. Ändern, Löschen und „Neues Filament daraus“ sperrt Orfix (Code `bundle_profile`). Drucker aus Paketen lassen sich als Standard wählen und an eigene Filamente binden. Im Browser mit einem Beispielpaket geprüft.
 - **Danach:** Seite „Prozesse“ **nur zum Anzeigen**, ohne Bearbeiten. Das hat der Nutzer am 22.09. entschieden: „klingt fast wie ein Slicer-Nachbau … Overkill“.
   - Gezeigt werden die eingestellten Werte in den Gruppen Qualität, Stabilität, Geschwindigkeit, Stützen und Haftung, dazu „Alle Werte“ aufklappbar.
+
+## Nächste Schritte (23.09.2026)
+
+1. **Teil B zu Ende testen** (Nutzer, im echten Ordner), Abweichungen beheben.
+2. **Seite „Prozesse“**, nur zum Anzeigen.
+3. **Übertragung OrcaSlicer → SnOrca** (Phase 3, vom Nutzer gewünscht):
+   - Zuerst Filamente aus der Orca-Bibliothek, die SnOrca fehlen. Die Bibliothek in OrcaSlicer 2.5 (2.4.0.8) hat 286 Einträge, die in SnOrca 2.4.0 (02.03.01.10) 142. Neu sind elf Marken, vor allem FilAr, Elegoo, Eolas Prints, COEX 3D und FILL3D.
+   - Vorher im Quellcode klären, wie ein übertragenes Profil in SnOrca aussehen muss: alle Werte ausgeschrieben oder auf einem SnOrca-Profil aufbauend, High-Flow-Werte, Schlüssel, die SnOrca nicht kennt, `compatible_printers`. Dann ein Praxistest mit einem einzelnen Profil.
+   - Danach Druckerprofile (U1) in beide Richtungen.
+4. **Kleinkram:** eine echte Windows-`.conf`, Flatpak, `version` neuer Profile am Slicer prüfen, PLAN.md und STAND aufräumen.
