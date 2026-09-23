@@ -186,9 +186,10 @@ function baseEntries(inst, model) {
       if (!cps.length || cps.some((p) => printers.includes(p))) map.set(e.id, e);
       continue;
     }
-    // An own profile can be switched on wherever its template exists (concept 4d).
+    // An own profile can be switched on wherever its template exists (concept 4d); one without a
+    // template, e.g. a copy from the other slicer, at every nozzle.
     for (const p of printers) {
-      if (f.printers[p] || (parent ? parent.printers[p] : !f.compatible_printers.length)) e.slots[p] = f.name;
+      if (f.printers[p] || (parent ? parent.printers[p] : true)) e.slots[p] = f.name;
     }
     if (Object.keys(e.slots).length) map.set(e.id, e);
   }
@@ -390,7 +391,7 @@ export default {
     });
     function lockedOff(e, ps = printers.value) {
       const i = inst.value;
-      if (e.kind === "user") return ownLocked(i, e, ps);
+      if (e.kind === "user") return false;
       if (!usesList(i, e)) return false;
       if (i.snorca) {
         // An empty list means "everything visible" in SnOrca (FINDINGS 4.6).
@@ -400,20 +401,7 @@ export default {
       }
       return ps.some((p) => isOn(i, e, p) && onCount.value[p] <= 1);
     }
-    // An own filament carries its printers in compatible_printers. An empty list means "every
-    // printer" to the slicer (FINDINGS 4.6), so its last printer stays on; "Löschen" removes it.
-    function ownLocked(i, e, ps) {
-      const names = new Set(Object.values(e.slots));
-      let on = 0, leaving = 0;
-      for (const k of store[i.id].bound) {
-        const cut = k.lastIndexOf("|");
-        if (!names.has(k.slice(0, cut))) continue;
-        on++;
-        if (ps.includes(k.slice(cut + 1))) leaving++;
-      }
-      return leaving > 0 && on - leaving < 1;
-    }
-    const lockText = (e) => e.kind === "bundle" ? F.bundleLocked : e.kind === "user" ? F.lastNozzle : F.lastOne;
+    const lockText = (e) => e.kind === "bundle" ? F.bundleLocked : F.lastOne;
     function rowOf(e) {
       const i = inst.value, st = stateOf(i, e, printers.value);
       const locked = e.kind === "bundle" || (st === "on" && lockedOff(e));
@@ -483,12 +471,6 @@ export default {
         if (usesList(i, e)) on ? s.listed.add(profile) : s.listed.delete(profile);
         else on ? s.bound.add(key(profile, p)) : s.bound.delete(key(profile, p));
       }
-    }
-    function toggle(e) {
-      if (readOnly.value || fixed(e)) return;
-      const st = stateOf(inst.value, e, printers.value);
-      if (st === "on" && lockedOff(e)) return flash(lockText(e));
-      setEntry(e, printers.value, st !== "on");
     }
     function switchOn(e, on) {
       if (readOnly.value || fixed(e)) return;
@@ -611,18 +593,18 @@ export default {
     });
     const detailPrinters = computed(() => detail.value
       ? model.value.printers.filter((p) => detail.value.e.slots[p.name]) : []);
-    // Buttons per nozzle only where one nozzle can really be switched alone: own profiles and
-    // the SnOrca library bind per printer, list profiles only if each nozzle has its own profile.
-    const nozzleSwitches = computed(() => {
-      if (!detail.value || fixed(detail.value.e)) return false;
-      const e = detail.value.e, ps = detailPrinters.value;
-      return ps.length > 1 && (!usesList(inst.value, e) || new Set(ps.map((p) => e.slots[p.name])).size === ps.length);
-    });
+    // The nozzles are the switches: one button each, also for a single nozzle. Nozzles that share
+    // one list profile go on and off together, the note below says so.
+    const nozzleSwitches = computed(() => !!detail.value && !fixed(detail.value.e) && detailPrinters.value.length > 0);
     const scopeText = computed(() => {
       const ps = detailPrinters.value;
-      if (!detail.value || nozzleSwitches.value || !ps.length) return "";
+      if (!detail.value || !ps.length) return "";
       const e = detail.value.e;
       if (e.kind === "library" && usesList(inst.value, e)) return F.scope.everywhere;
+      if (nozzleSwitches.value) {
+        const shared = usesList(inst.value, e) && new Set(ps.map((p) => e.slots[p.name])).size < ps.length;
+        return shared ? F.scope.together : "";
+      }
       return ps.length === model.value.printers.length ? F.scope.allNozzles : F.scope.only(labelsOf(ps.map((p) => p.name)));
     });
     // The page "Details" with the profile of this entry: for a manufacturer entry the one of the
@@ -844,7 +826,7 @@ export default {
       templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
-      brandOpen, toggleBrand, toggleKind, toggleMaterial, toggle, switchOn, toggleAt, lockText,
+      brandOpen, toggleBrand, toggleKind, toggleMaterial, switchOn, toggleAt, lockText,
       openPanel, closePanel, openDetails, pickRow, jumpTo, toDetails, removeOwn,
       dragStart, dragEnd, dragOver, drop, KIND_ICON,
     };
@@ -996,11 +978,11 @@ export default {
                           <span v-if="r.ownCount" class="badge">{{ F.ownCount(r.ownCount) }}</span>
                           <span v-if="r.e.material" class="mat">{{ r.e.material }}</span>
                         </div>
-                        <span v-if="r.locked" class="lock" :title="lockText(r.e)"><ui-icon name="lock"/></span>
-                        <button v-if="!r.e.orphan" class="switch" type="button" role="checkbox"
-                                :aria-checked="r.st === 'on' ? 'true' : r.st === 'some' ? 'mixed' : 'false'"
-                                :aria-label="F.activeLabel(r.e.name)" :disabled="readOnly || r.locked" @click="toggle(r.e)"></button>
-                        <span v-else class="switch-gap"></span>
+                        <span :class="['row-state', 'is-' + r.st]" :title="F.state[r.st]">
+                          <ui-icon v-if="r.st === 'on'" name="checkCircle" :size="20"/>
+                          <ui-icon v-else-if="r.st === 'some'" name="halfCircle" :size="20"/>
+                          <span class="sr-only">{{ F.state[r.st] }}</span>
+                        </span>
                       </li>
                     </ul>
                   </div>
@@ -1051,13 +1033,9 @@ export default {
                   <span class="mat">{{ detail.e.material || '–' }}</span>
                 </p>
                 <p class="kind-chip"><ui-icon :name="KIND_ICON[detail.e.kind]"/>{{ kindTitle(detail.e.kind) }}</p>
-                <div v-if="!detail.e.orphan" class="hero-switch">
-                  <button class="switch" type="button" role="checkbox"
-                          :aria-checked="detail.st === 'on' ? 'true' : detail.st === 'some' ? 'mixed' : 'false'"
-                          :aria-label="F.activeLabel(detail.e.name)" :disabled="readOnly || detail.locked || detail.st === 'na'" @click="toggle(detail.e)"></button>
-                  <span :class="{ 'ch-on': detail.st === 'on' || detail.st === 'some' }">{{ F.state[detail.st] }}</span>
-                  <span v-if="detail.locked" class="lock" :title="lockText(detail.e)"><ui-icon name="lock"/></span>
-                </div>
+                <p v-if="!detail.e.orphan" :class="['hero-state', 'is-' + detail.st]">
+                  <ui-icon :name="detail.st === 'on' ? 'checkCircle' : detail.st === 'some' ? 'halfCircle' : 'box'" :size="18"/>{{ F.state[detail.st] }}
+                </p>
               </div>
             </div>
             <p v-if="detail.e.orphan" class="alert">{{ problemText(detail.e) }}</p>
@@ -1089,6 +1067,7 @@ export default {
                   <ui-icon :name="isOn(inst, detail.e, p.name) ? 'check' : 'box'"/>{{ nozzleLabel(p.variant) }} mm
                 </button>
               </div>
+              <p v-if="scopeText" class="scope"><nozzle-icon :sizes="[0.4]" :height="20"/>{{ scopeText }}</p>
             </template>
             <p v-else-if="scopeText" class="scope"><nozzle-icon :sizes="[0.4]" :height="20"/>{{ scopeText }}</p>
 

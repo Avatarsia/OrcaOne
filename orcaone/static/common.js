@@ -358,6 +358,7 @@ export const ICONS = {
   arrowRight: '<path d="M4 12h15.5M13.5 6l6 6-6 6"/>',
   arrowLeft: '<path d="M20 12H4.5M10.5 6l-6 6 6 6"/>',
   bolt: '<path d="M13.5 3 5.5 13.5h6L10.5 21l8-10.5h-6z"/>',
+  halfCircle: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
   checkCircle: '<circle cx="12" cy="12" r="8.5"/><path d="m8.3 12.2 2.5 2.5 4.9-5.1"/>',
   books: '<rect x="3.5" y="4.5" width="4" height="15.5" rx="1"/><rect x="9" y="4.5" width="4" height="15.5" rx="1"/><path d="m14.7 6.2 3.8-1 3 14.4-3.8 1z"/>',
   temp: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>',

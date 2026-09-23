@@ -829,3 +829,22 @@ def test_bundle_profiles_are_never_changed(orca):
     assert json.loads(conf_path(orca).read_text(encoding="utf-8"))["presets"]["machine"] == u1
     assert json.loads((orca.data_dir / FOLDER / "Mein PLA.json").read_text(encoding="utf-8"))["compatible_printers"] == [u1]
     assert files() == before
+
+
+def test_own_filament_off_everywhere_is_hidden(snorca):
+    """No printer left would mean every printer (FINDINGS 4.6): the profile is hidden instead,
+    its printer list stays for when it comes back."""
+    made, _ = run(snorca, {"op": "filament_update", "name": "Mein PLA", "values": {}, "hidden": True})
+    assert {"code": "filament_hidden", "name": "Mein PLA"} in made["warnings"]
+    data = json.loads((snorca.data_dir / FOLDER / "Mein PLA.json").read_text(encoding="utf-8"))
+    # Its printers still come from the template, nothing else changed.
+    assert data["instantiation"] == "false" and "compatible_printers" not in data
+    record = next(f for f in view(snorca)["filaments"] if f["name"] == "Mein PLA")
+    assert record["hidden"] is True and record["printers"][U1_04]["status"] == "hidden"
+    run(snorca, {"op": "filament_update", "name": "Mein PLA", "values": {"compatible_printers": [U1_02, U1_04]},
+                 "hidden": False})
+    data = json.loads((snorca.data_dir / FOLDER / "Mein PLA.json").read_text(encoding="utf-8"))
+    assert "instantiation" not in data and data["compatible_printers"] == [U1_02, U1_04]
+    record = next(f for f in view(snorca)["filaments"] if f["name"] == "Mein PLA")
+    assert "hidden" not in record and record["printers"][U1_02]["status"] == "visible"
+

@@ -167,3 +167,9 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Für den Nutzer offen:** den Projektordner `~/dev/orfix` in `~/dev/orcaone` umbenennen. Das Gedächtnis liegt schon unter `-home-dominiks-dev-orcaone`. `.lenv` zieht mit um, `./orcaone.sh` läuft weiter (es ruft Python mit `-m` auf).
 - **Nächste Schritte:** U1-Kamera (`prototypes/U1Cam/u1cam.py`), eine Seite „Logs“ unter „Technik“ (die Slicer schreiben nach `<Datenordner>/log/`), Drucker übertragen zurückgestellt.
 
+## Filamente ohne Schalter (23.09.2026)
+
+- **Wunsch des Nutzers:** Der Schalter war verwirrend, bei eigenen Filamenten mit Schloss. Jetzt zeigt jede Zeile ihren Zustand (ausgegraut, halber Kreis für „teilweise“, Haken für „an“), die Düsen im Seitenpanel sind die Bedienung, dazu Ziehen nach „Aktiv“ und das ✕ an den Kacheln.
+- **Eigene Filamente bei keiner Düse an:** ausgeblendet mit `instantiation: "false"` (`filament_update` mit `hidden`), die Druckerliste bleibt. Eine Düse anwählen blendet es wieder ein, dann gilt nur diese Düse. Ein eigenes Filament ohne Vorlage (etwa eine Kopie aus dem anderen Slicer) lässt sich bei jeder Düse anwählen.
+- **Offen:** Praxistest im Slicer, ob beide das Profil wirklich ausblenden (FINDINGS, Offen-Liste).
+

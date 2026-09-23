@@ -35,7 +35,7 @@ Optionen: `--port 8765` für einen festen Port, `--no-browser`, wenn der Browser
 
 Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“.
 
-- **Filamente:** erst die Drucker als Bilder, dann je Drucker die Düse, die aktiven Filamente als Spulen und der Baum aus „Eigene“, „Vom Hersteller“ und „Orca-Bibliothek“. Ein- und ausschalten per Schalter oder Ziehen, dazu „Bearbeiten“ und „Neues Filament“.
+- **Filamente:** erst die Drucker als Bilder, dann je Drucker die Düse, die aktiven Filamente als Spulen und der Baum aus „Eigene“, „Vom Hersteller“ und „Orca-Bibliothek“. Jede Zeile zeigt ihren Zustand: ausgegraut, teilweise an (halber Kreis) oder an (Haken). Ein- und ausschalten per Düse im Seitenpanel oder per Ziehen nach „Aktiv“, dazu „Bearbeiten“ und „Neues Filament“. Ein eigenes Filament, das bei keiner Düse mehr an ist, blendet OrcaOne im Slicer aus (`instantiation: "false"`), die Datei bleibt.
 - **Prozesse:** dieselbe Druckerwahl, dann je Düse die Prozesse als Kacheln mit Schichthöhe und Art, der zuletzt im Slicer gewählte ist markiert. Ein Klick zeigt die wichtigsten Werte in fünf Gruppen, dazu „Alle Werte“. Nur zum Ansehen.
 - **Übertragen:** zwei Installationen nebeneinander, links und rechts je eine Liste mit Suche und dem Schalter „Nur was drüben fehlt“. Filamente und Prozesse auswählen, auch mehrere oder eine ganze Gruppe, und mit dem Pfeil hinüberschieben. OrcaOne legt sie drüben als eigene Profile mit allen Werten an. Was nicht mitkommt, nennt „Das passiert“.
 - **Drucker:** den Drucker festlegen, mit dem der Slicer startet, Drucker entfernen und dabei Filamente mitlöschen, die nur zu ihm gehören, veraltete Einträge der `.conf` aufräumen.

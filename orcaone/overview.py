@@ -506,11 +506,15 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
     selected = _dict(conf.get("presets")).get("machine", "")
     selected = selected if isinstance(selected, str) else ""
 
-    candidates = sorted(system_filaments + [p for p in res.own_profiles("filament") if p.selectable],
+    # Own filaments hidden with instantiation "false" come along: the page shows them switched off.
+    candidates = sorted(system_filaments + res.own_profiles("filament"),
                         key=lambda p: (p.origin_kind != "user", p.name.lower()))
     records = {}
     for p in candidates:
         record = _filament_record(res, p, res.in_list(p, list_names) if p.package else True)
+        hidden = not p.package and not p.selectable
+        if hidden:
+            record["hidden"] = True
         if snorca and res.is_helper(p):
             record["helper"] = True
         if record.get("status"):
@@ -523,6 +527,8 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
             by = res.displaced_by(excluded, p, printer)
             if by:
                 entry = {"status": "displaced", "displaced_by": by}
+            elif hidden:
+                entry = {"status": "hidden"}
             elif record["in_list"]:
                 entry = {"status": "visible"}
             else:

@@ -339,6 +339,11 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .is-off .row-name { color: var(--muted); }
 .is-off .spool, .dim { filter: grayscale(1); opacity: .45; }
 .row-hint { color: var(--muted); font-size: 12px; }
+/* The state at the end of a row: a check when on at every nozzle in view, half when at some. */
+.row-state { display: grid; place-items: center; flex: none; width: 28px; color: var(--accent); }
+.hero-state { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-weight: 700; }
+.hero-state.is-on, .hero-state.is-some { color: var(--accent-text); }
+.hero-state.is-off, .hero-state.is-na { color: var(--muted); }
 .row-hint.on { color: var(--accent-text); }
 .row-hint.bad { color: var(--error); }
 /* Pending edit: text plus the orange dot of Orca's "value changed" */

@@ -712,12 +712,22 @@ class Planner:
         name = _field(c, "name", i, str)
         values = _values(c, i)
         reset = _field(c, "reset", i, "strings", required=False) or []
+        # Off at every nozzle: an empty printer list would mean "every printer" (FINDINGS 4.6), so
+        # the profile is hidden instead. Both slicers load it and keep it out of their lists
+        # (instantiation "false", Preset.cpp load_presets); its printer list stays for later.
+        hidden = _field(c, "hidden", i, bool, required=False)
         if any(k in META_KEYS or k in SETTINGS_ID.values() for k in reset):
             raise InvalidChange(i, "reset")
         own = self.find_own("filament", name)
         data = dict(own.data)
         for key in reset:
             data.pop(key, None)
+        if hidden is True and data.get("instantiation") != "false":
+            data["instantiation"] = "false"
+            self.warnings.append({"code": "filament_hidden", "name": name})
+        elif hidden is False and "instantiation" in data:
+            data.pop("instantiation")
+            self.warnings.append({"code": "filament_shown", "name": name})
         self.set_values(data, values, own.parent if data.get("inherits") else None, "filament")
         if data == own.data:
             self.warnings.append({"code": "nothing_changed", "name": name})

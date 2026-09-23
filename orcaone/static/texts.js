@@ -261,6 +261,8 @@ export const T = {
     nothing_changed: (w) => `Bei ${q(w.name)} ändert sich nichts.`,
     package_removed: (w) => `Beim nächsten Start löscht der Slicer das Paket ${q(w.package)}. Richtest du wieder einen Drucker davon ein, holt er es zurück.`,
     no_printer_left: () => "Danach ist kein Drucker vom Hersteller mehr eingerichtet.",
+    filament_hidden: (w, names) => `${q(names.filament(w.name))} ist dann bei keiner Düse an und im Slicer ausgeblendet. Die Datei bleibt, eine Düse anwählen holt es zurück.`,
+    filament_shown: (w, names) => `${q(names.filament(w.name))} ist wieder im Slicer zu sehen.`,
     // Copies from the page "Übertragen" (orcaone/transfer.py).
     transfer_from: (w) => `${q(plainName(w.name))} ist eine Kopie von ${q(plainName(w.source))} aus ${w.slicer}.`,
     transfer_dropped: (w) => `${q(plainName(w.name))}: ${n(w.keys.length)} ${w.keys.length === 1 ? "Einstellung kennt" : "Einstellungen kennt"} das Ziel nicht, ${w.keys.length === 1 ? "sie bleibt" : "sie bleiben"} weg: ${w.keys.join(", ")}.`,
@@ -295,9 +297,7 @@ export const T = {
     partly: "teilweise",
     switchOff: "Ausschalten",
     switchOffLabel: (name) => `${name} ausschalten`,
-    activeLabel: (name) => `${name} aktiv`,
     lastOne: "Mindestens ein Filament bleibt an.",
-    lastNozzle: "Ein eigenes Filament bleibt bei mindestens einer Düse an. Zum Entfernen löschen.",
     allFilaments: "Alle Filamente",
     search: "Filament suchen",
     newFilament: "Neues Filament",
@@ -363,6 +363,7 @@ export const T = {
     state: { on: "An", some: "Teilweise an", off: "Aus", na: "Für diese Düse nicht da" },
     scope: {
       everywhere: "Gilt für alle Düsen und alle Drucker.",
+      together: "Diese Düsen teilen sich ein Profil und gehen zusammen an und aus.",
       allNozzles: "Gilt für alle Düsen.",
       only: (labels) => `Nur für Düse ${labels} mm.`,
     },

@@ -41,7 +41,8 @@ const visibleAt = (f) => Object.keys(f.printers).filter((p) => f.printers[p].sta
 // through its parent, which can be the printer that goes off (FINDINGS 4.6, rule 3). Printers
 // that are not set up stay in the list.
 function printerList(f, off, on) {
-  const list = new Set(f.compatible_printers.length ? f.compatible_printers : visibleAt(f));
+  // A hidden one shows nowhere: only the printers switched on now count.
+  const list = new Set(f.hidden ? [] : f.compatible_printers.length ? f.compatible_printers : visibleAt(f));
   off.forEach((p) => list.delete(p));
   on.forEach((p) => list.add(p));
   return [...list].sort();
@@ -115,6 +116,7 @@ export function changesOf(inst) {
   const deleted = new Set();      // own profiles that go, by their name on disk
   const gone = new Set();         // printers that go
   const printersOf = new Map();   // own profile -> its new compatible_printers
+  const hideOf = new Map();       // own profile -> hidden (off everywhere) or shown again
 
   // ---------------------------------------------------------- pages "Drucker" and "Slicer"
   const pp = inst.printers_page;
@@ -172,9 +174,13 @@ export function changesOf(inst) {
     }
     if (f.origin_kind !== "user") continue;
     const before = boundAt(s.base.bound, n), after = boundAt(s.bound, n);
-    const list = printerList(f, [...before].filter((p) => !after.has(p)), after);
-    // The page keeps one printer on (pages/filamente.js); an empty list would mean "every printer".
-    if (list.length) printersOf.set(n, list);
+    // Off everywhere: hidden, as an empty list would mean "every printer" (operations.py).
+    if (!after.size) {
+      if (!f.hidden) hideOf.set(n, true);
+      continue;
+    }
+    printersOf.set(n, printerList(f, [...before].filter((p) => !after.has(p)), after));
+    if (f.hidden) hideOf.set(n, false);
   }
 
   // New own filaments. They inherit the template's printer list (printers null) while their
@@ -194,7 +200,7 @@ export function changesOf(inst) {
 
   // Changed own filaments on disk: values, the printer list from the switches, then the new name.
   const createdIds = new Set(s.created.map((c) => c.entry.id));
-  const changed = new Set(printersOf.keys());
+  const changed = new Set([...printersOf.keys(), ...hideOf.keys()]);
   for (const id of Object.keys(s.edits)) if (!createdIds.has(id)) changed.add(id.slice("user:".length));
   for (const n of changed) {
     if (deleted.has(n)) continue;
@@ -210,7 +216,9 @@ export function changesOf(inst) {
       }
     }
     if (printersOf.has(n)) values.compatible_printers = printersOf.get(n);
-    if (Object.keys(values).length || reset.length) add({ op: "filament_update", name: n, values, reset });
+    if (Object.keys(values).length || reset.length || hideOf.has(n)) {
+      add({ op: "filament_update", name: n, values, reset, ...(hideOf.has(n) && { hidden: hideOf.get(n) }) });
+    }
     if (ed && ed.name !== init.name) add({ op: "filament_rename", name: n, new_name: ed.name });
   }
   for (const [name, on] of visible) add({ op: "filament_visible", name, visible: on });

@@ -57,7 +57,7 @@ Offen ist nur die Spalte „SnOrca“.
 1. „Filamente“ → Karte „Snapmaker U1“ bei Snapmaker Orca.
 2. Unter „Düse“ die Kachel „Alle“ wählen, sie ist schon voreingestellt.
 3. Unter „Alle Filamente“ ins Suchfeld „Filament suchen“ `SUNLU` tippen. Unter „Orca-Bibliothek“ klappt „SUNLU“ auf.
-4. Den Schalter rechts neben „PLA+“ einschalten. Oben unter „Aktiv“ steht jetzt „PLA+“ mit „SUNLU“ darunter.
+4. Die Zeile „PLA+“ anklicken und im Seitenpanel unter „Aktiv bei Düse“ alle Düsen anwählen. Oben unter „Aktiv“ steht jetzt „PLA+“ mit „SUNLU“ darunter. (Bis 23.09. hatte jede Zeile einen Schalter.)
 5. Übernehmen wie oben. „Das passiert“ zeigt:
    - `Snapmaker_Orca.conf` wird geändert;
    - „SUNLU PLA+ wird sichtbar“;
@@ -66,7 +66,7 @@ Offen ist nur die Spalte „SnOrca“.
 **B2 – SUNLU PLA Matte nur für 0,4 mm (Weg B)**
 
 1. „Filamente“ → „Snapmaker U1“ → Kachel „0,4 mm“.
-2. Ins Suchfeld `SUNLU` tippen und den Schalter neben „PLA Matte“ einschalten.
+2. Ins Suchfeld `SUNLU` tippen, die Zeile „PLA Matte“ anklicken und im Seitenpanel die Düse 0,4 anwählen.
 3. Übernehmen. „Das passiert“ zeigt:
    - `SUNLU PLA Matte @Snapmaker U1.json` wird neu angelegt;
    - Zusatz: baut auf „SUNLU PLA Matte @System“ auf, Werte: Druckerliste, dazu die `.info`.
@@ -82,7 +82,7 @@ Offen ist nur die Spalte „SnOrca“.
 **B4 – „Mein PLA“ mit 215 °C**
 
 1. „Filamente“ → „Snapmaker U1“ → Kachel „0,4 mm“.
-2. Unter „Von Snapmaker“ → „Snapmaker“ die Zeile „PLA Basic“ anklicken, nicht den Schalter. Rechts öffnen sich die Details.
+2. Unter „Von Snapmaker“ → „Snapmaker“ die Zeile „PLA Basic“ anklicken. Rechts öffnen sich die Details.
 3. „Bearbeiten“ klicken. Das Formular sagt: „Wird als eigenes Filament gespeichert – das Original bleibt.“
 4. Den Namen „Snapmaker PLA Basic (eigen)“ durch `Mein PLA` ersetzen, bei „Düse“ `215` eintragen und „Fertig“ klicken.
 5. Übernehmen. „Das passiert“ zeigt:
