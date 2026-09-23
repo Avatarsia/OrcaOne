@@ -4,3 +4,5 @@ __pycache__/
 .claude/settings.local.json
 slicer-src/
 data/
+build/
+dist/

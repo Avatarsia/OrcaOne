@@ -29,7 +29,9 @@ Ohne Skript geht es so:
 .lenv/bin/python -m orcaone
 ```
 
-Optionen: `--port 8765` für einen festen Port, `--no-browser`, wenn der Browser nicht aufgehen soll.
+Optionen: `--port 8765` für einen festen Port, `--no-browser`, wenn der Browser nicht aufgehen soll. Beim Start öffnet OrcaOne die Seite in einem neuen Fenster des Standardbrowsers.
+
+Per Symbol starten und OrcaOne selbst zu einem Programm bauen, das ohne Python läuft (Windows, Linux, macOS): [docs/STARTEN-UND-BAUEN.md](docs/STARTEN-UND-BAUEN.md).
 
 ## Eigene Daten
 
@@ -123,6 +125,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | Pfad | Inhalt |
 |---|---|
 | `orcaone/__main__.py` | Start: freier Port, Server, Browser |
+| `orcaone/browser.py` | die Seite in einem neuen Fenster des Standardbrowsers |
 | `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Logs über `/api/instances/{id}/logs`, Häkchen der Kalibrierung über `/api/instances/{id}/calibration`, IP-Adressen über `/api/printers` (Suche im LAN: `POST /api/printers/search`), Kameras und der Status des U1 über `/api/cameras`, Einstellungen wie die Sprache über `/api/settings` |
 | `orcaone/operations.py` | Änderungen planen und schreiben (harte Regeln 2 bis 7): Plan mit Dateioperationen, Diff der `.conf` mit maskierten Zugangsdaten und Fingerabdruck von `.conf` und `user/` vor dem Planen; ein anderer Plan, der inzwischen lief, macht ihn veraltet. Beim Ausführen: Laufprüfung, Sicherung, erneute Laufprüfung, atomar schreiben und neu prüfen (sonst zurück auf die Sicherung), neu einlesen |
 | `orcaone/transfer.py` | Profile in eine andere Installation übertragen: Werte ans Ziel anpassen nach `orcaone/options.json` (erzeugt aus dem Quellcode der Slicer mit `tools/make_options.py`) |
@@ -140,6 +143,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `orcaone/conf.py` | `.conf` byte-genau lesen und schreiben |
 | `orcaone/model.py` | Dataclasses |
 | `orcaone/static/` | Oberfläche: Vue 3 ohne Build-Schritt. `app.js` (Rahmen, Menü, Änderungsliste), `common.js` (Daten, Zustand, Symbole), `ops.js` (macht aus der Änderungsliste die `changes` für den Plan), `plan.js` („Das passiert“), `pages/` (eine Datei je Seite), `texts.js` (wählt die Sprache), `texts/de.js` und `texts/en.js` (alle Texte), `style.css`, Druckerbilder in `assets/` |
+| `tools/build.py` | OrcaOne mit PyInstaller zu einem Programm ohne Python bauen |
 | `prototypes/opc/` | Prototyp für das `.opc`-Format, jetzt in `orcaone/opc.py` |
 | `prototypes/U1Cam/` | Skript des Nutzers, Vorlage für die Seite „Kamera“ |
 | `docs/` | Befunde (`FINDINGS.md`), Plan (`PLAN.md`), Arbeitsstand (`STAND.md`) |

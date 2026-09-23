@@ -1,14 +1,14 @@
-"""Start OrcaOne: pick a free port on 127.0.0.1, run the server, open the browser."""
+"""Start OrcaOne: pick a free port on 127.0.0.1, run the server, open the page in a new window of
+the default browser (browser.py)."""
 
 import argparse
 import socket
 import threading
 import time
-import webbrowser
 
 import uvicorn
 
-from . import settings
+from . import browser, settings
 from .app import app
 
 
@@ -21,7 +21,7 @@ def free_port() -> int:
 def _open_when_ready(server: uvicorn.Server, url: str) -> None:
     while not server.started:
         time.sleep(0.05)
-    webbrowser.open(url)
+    browser.open_window(url)
 
 
 def main(argv: list[str] | None = None) -> None:

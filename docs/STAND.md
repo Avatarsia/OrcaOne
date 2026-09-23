@@ -230,3 +230,9 @@ Auf Wunsch des Nutzers geprüft, ob alles unter Windows läuft; ohne Windows-Rec
 - **Geprüft, passt:** Programmnamen `snapmaker-orca.exe` und `orca-slicer.exe` (GUI-Hülle mit `OUTPUT_NAME`, `src/CMakeLists.txt`); `fcntl` nur unter POSIX; Pfade über `pathlib`; Rechte (`chmod`) nur unter POSIX; Logs lesen, während der Slicer schreibt (MSVC öffnet sie ohne Schreibsperre für andere); alter Datenordner `%LOCALAPPDATA%\orcaone`; `SO_REUSEPORT` gibt es unter Windows nicht und wird dort übersprungen.
 - **Hinweise im README:** OrcaOne ins eigene Benutzerprofil, nicht unter `C:\Programme` und nicht in OneDrive (Sicherungen mit Zugangsdaten in `data/`; unter Windows setzt OrcaOne keine Rechte); die Firewall-Frage bei „Im LAN suchen“ zulassen.
 - **Prüfliste für den Windows-Rechner:** `orcaone.cmd` starten; alte Daten aus `%LOCALAPPDATA%\orcaone` ziehen nach `data/` um; Sprache umschalten; eine Änderung mit Sicherung und Wiederherstellen; „Logs“ bei laufendem Slicer; IP beim U1 eintragen, dann Kamera (Vollbild) und „Kalibrieren“; „Im LAN suchen“ im selben LAN.
+
+## Starten per Symbol, selbst bauen (23.09.2026)
+
+- **Dokument** `docs/STARTEN-UND-BAUEN.md` für Windows, Linux und macOS: per Symbol mit `.lenv` starten (Verknüpfung, `.desktop`, `.command`/Automator) und mit `tools/build.py` selbst bauen.
+- **Neues Browserfenster:** `browser.py` fragt beim Start den Standardbrowser beim System ab und gibt Firefox und der Chromium-Familie `--new-window` mit; sonst wie bisher. Unter Linux geprüft (hier Firefox als Snap), Windows und macOS nur nach Registry und LaunchServices.
+- **Bauen:** `tools/build.py` (PyInstaller, Ordner statt Einzeldatei); im gebauten Programm liegt `data/` neben der Programmdatei (`settings.DATA_DIR`). Probe-Bau unter Linux: PyInstaller 6.22.3, 18 s, 34 MB; das Programm startet ohne venv, liest beide Installationen und legt `data/settings.json` neben sich an. Windows und macOS nicht gebaut.

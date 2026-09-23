@@ -1,5 +1,5 @@
 """OrcaOne's own data, all in one place: the folder data/ in the OrcaOne folder, next to
-orcaone.sh (the user's wish of 23.09.2026). In it:
+orcaone.sh, or next to the program file of a build (the user's wish of 23.09.2026). In it:
 - settings.json: everything OrcaOne remembers, one section each:
   "manual_paths": data directories added by hand (instances.py);
   "unlocks": per installation, the library filaments OrcaOne switched on in Snapmaker Orca, to
@@ -15,11 +15,15 @@ import json
 import os
 import platform
 import shutil
+import sys
 import threading
 import time
 from pathlib import Path
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# Built into a program of its own (tools/build.py, PyInstaller), data/ sits next to that program;
+# its code lives in a folder the build may replace, or in a temporary one.
+DATA_DIR = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+            else Path(__file__).resolve().parent.parent) / "data"
 # Reads, too: on Windows a file open for reading cannot be replaced (Python opens it without
 # FILE_SHARE_DELETE), and the pages read the settings every few seconds (camera.py).
 _lock = threading.RLock()
