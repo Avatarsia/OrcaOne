@@ -4,19 +4,70 @@
 // picture the printer wrote last; the browser never talks to the printer itself.
 // Three views, as on YouTube: in the page, filling the browser window, and the whole screen
 // (Fullscreen API). In the two big ones the bar hides after a few seconds without a mouse move,
-// so a spare screen shows the picture only; Esc goes back.
+// so a spare screen shows the picture and how far the print is; Esc goes back.
 import { flash, go, hashOf, loadState } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const K = T.camera;
-const WAKE_EVERY = 10000;  // ms, as u1cam.py does
+const U1 = T.u1;
+const WAKE_EVERY = 10000;   // ms, as u1cam.py does
+const STATUS_EVERY = 5000;  // ms, as on the page "Kalibrieren"
 const EVERY = [1, 2, 3, 5, 10];
-const IDLE = 3000;         // ms without a mouse move before the bar of a big view hides
+const IDLE = 3000;          // ms without a mouse move before the bar of a big view hides
+
+// ------------------------------------------------------------ how far a print is (camera.py, status)
+const running = (p) => !!p && (p.state === "printing" || p.state === "paused");
+const percent = (p) => Math.round(Math.min(1, Math.max(0, p.progress || 0)) * 100);
+// The colours of the picture's state line: status always as text plus colour.
+const jobClass = (p) => ({ printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" })[p.state] || "wait";
+const hasLayer = (p) => !!p.layers && p.layer != null;
+function time(seconds) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return K.print.duration(Math.floor(minutes / 60), minutes % 60);
+}
+const degrees = (x) => K.print.temp(Math.round(x.temp), Math.round(x.target || 0));
+// The big views have room for one line only.
+function printFacts(p) {
+  if (!running(p)) return p.file || "";
+  const head = p.heads.findIndex((h) => h.extruder === p.active);
+  return [`${percent(p)} %`, hasLayer(p) && K.print.layer(p.layer, p.layers), p.left != null && K.print.left(time(p.left)),
+    head >= 0 && `${U1.head(head + 1)} ${degrees(p.heads[head])}`, p.bed.temp != null && `${K.print.bed} ${degrees(p.bed)}`,
+  ].filter(Boolean).join(" · ");
+}
+
+const PrintStatus = {
+  name: "PrintStatus",
+  props: { p: { type: Object, required: true } },
+  setup: () => ({ K, U1, running, percent, jobClass, hasLayer, time, degrees }),
+  template: `
+    <div class="cam-print">
+      <div class="cam-job">
+        <span :class="['cam-status', 'is-' + jobClass(p)]"><span class="cam-dot"></span>{{ U1.states[p.state] || p.state }}</span>
+        <span v-if="p.file && p.state !== 'standby'" class="cam-file" :title="p.file">{{ p.file }}</span>
+        <strong v-if="running(p)" class="cam-percent">{{ percent(p) }} %</strong>
+      </div>
+      <div v-if="running(p)" class="cam-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="percent(p)">
+        <span :style="{ width: percent(p) + '%' }"></span>
+      </div>
+      <div v-if="p.state !== 'standby'" class="cam-facts">
+        <span v-if="hasLayer(p)">{{ K.print.layer(p.layer, p.layers) }}</span>
+        <span v-if="running(p) && p.left != null">{{ K.print.left(time(p.left)) }}</span>
+        <span v-if="p.printed">{{ K.print.printed(time(p.printed)) }}</span>
+      </div>
+      <div class="cam-temps">
+        <span v-for="(h, i) in p.heads" :key="h.extruder" :class="{ 'is-heating': h.target > 0, 'is-active': running(p) && h.extruder === p.active }">{{ U1.head(i + 1) }} {{ degrees(h) }}</span>
+        <span v-if="p.bed.temp != null" :class="{ 'is-heating': p.bed.target > 0 }">{{ K.print.bed }} {{ degrees(p.bed) }}</span>
+        <span v-if="p.cavity != null">{{ K.print.cavity }} {{ degrees({ temp: p.cavity }) }}</span>
+      </div>
+    </div>
+  `,
+};
 
 export default {
   name: "KameraPage",
+  components: { PrintStatus },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -30,7 +81,7 @@ export default {
     const errorText = (code) => K.errors[code] || T.errors[code] || T.errors.unknown;
     // Created once, then always read through the reactive object, so changes show.
     const stateOf = (id) => {
-      if (!live[id]) live[id] = { url: "", at: 0, every: 3, wakeOk: null, wakeDetail: "", error: "", errorDetail: "", fetching: false };
+      if (!live[id]) live[id] = { url: "", at: 0, every: 3, wakeOk: null, wakeDetail: "", error: "", errorDetail: "", fetching: false, print: null };
       return live[id];
     };
 
@@ -67,6 +118,14 @@ export default {
         Object.assign(s, { wakeOk: false, wakeDetail: err.data?.detail || errorText(err.code) });
       }
     }
+    async function readStatus(c) {
+      if (document.hidden) return;
+      try {
+        stateOf(c.id).print = await api.printerStatus(c.id);
+      } catch {
+        stateOf(c.id).print = null;  // the picture's state line says why
+      }
+    }
     function start() {
       stop();
       for (const c of list.value || []) {
@@ -74,8 +133,10 @@ export default {
         // The last picture right away, however old; a fresh one once the camera is awake.
         fetchImage(c);
         wake(c).then(() => setTimeout(() => fetchImage(c), 1500));
+        readStatus(c);
         timers.push(setInterval(() => wake(c), WAKE_EVERY));
         timers.push(setInterval(() => fetchImage(c), s.every * 1000));
+        timers.push(setInterval(() => readStatus(c), STATUS_EVERY));
       }
       timers.push(setInterval(() => { now.value = Date.now(); }, 1000));
     }
@@ -153,7 +214,9 @@ export default {
       }
     };
     const onKey = (ev) => { if (ev.key === "Escape" && view.value === "window") back(); };
-    const onVisible = () => { if (!document.hidden) (list.value || []).forEach((c) => fetchImage(c)); };
+    const onVisible = () => {
+      if (!document.hidden) (list.value || []).forEach((c) => { fetchImage(c); readStatus(c); });
+    };
 
     // The page shows before the slicers are read; an address from a printer profile comes with
     // that read (overview.build_all), so the list is asked again after every one.
@@ -175,7 +238,8 @@ export default {
     });
 
     return {
-      T, K, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
+      T, K, U1, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
+      running, percent, jobClass, printFacts,
     };
   },
 
@@ -200,6 +264,7 @@ export default {
             <img v-if="stateOf(c.id).url" :src="stateOf(c.id).url" :alt="K.alt(c.model)" :title="K.views.window" @click="showBig(c, 'window')">
             <div v-else class="cam-empty"><ui-icon name="camera" :size="40"/><span>{{ K.waking }}</span></div>
           </div>
+          <print-status v-if="stateOf(c.id).print?.state" :p="stateOf(c.id).print"/>
           <div class="cam-foot">
             <label class="cam-every">{{ K.every }}
               <select class="input" :value="stateOf(c.id).every" @change="setEvery(c, Number($event.target.value))">
@@ -220,6 +285,11 @@ export default {
            role="dialog" :aria-label="K.alt(big.model)" @mousemove="stir" @click="stir">
         <img v-if="stateOf(big.id).url" :src="stateOf(big.id).url" :alt="K.alt(big.model)">
         <div v-else class="cam-empty"><ui-icon name="camera" :size="56"/><span>{{ K.waking }}</span></div>
+        <div v-if="stateOf(big.id).print?.state && stateOf(big.id).print.state !== 'standby'" class="cam-overlay-print">
+          <span :class="['cam-status', 'is-' + jobClass(stateOf(big.id).print)]"><span class="cam-dot"></span>{{ U1.states[stateOf(big.id).print.state] || stateOf(big.id).print.state }}</span>
+          <span>{{ printFacts(stateOf(big.id).print) }}</span>
+        </div>
+        <div v-if="running(stateOf(big.id).print)" class="cam-overlay-progress"><span :style="{ width: percent(stateOf(big.id).print) + '%' }"></span></div>
         <div class="cam-overlay-bar">
           <strong>{{ big.model }}</strong>
           <span :class="['cam-status', 'is-' + status(big).cls]"><span class="cam-dot"></span>{{ status(big).text }}</span>

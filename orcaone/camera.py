@@ -1,7 +1,7 @@
 """Printers in the network: the address of a printer, typed in at its card on the page "Drucker",
 and what OrcaOne does with it for a Snapmaker U1 with its stock firmware: the camera (page
-"Kamera", after the user's prototypes/U1Cam/u1cam.py) and the status the page "Kalibrieren" reads
-(status()).
+"Kamera", after the user's prototypes/U1Cam/u1cam.py) and the status the pages "Kamera" and
+"Kalibrieren" read (status()).
 
 The camera sleeps until Moonraker's JSON-RPC method camera.start_monitor wakes it, sent over the
 printer's WebSocket as its own web page does. Then the printer writes
@@ -21,6 +21,7 @@ import re
 import socket
 import struct
 import time
+import urllib.parse
 import urllib.request
 from email.utils import parsedate_to_datetime
 
@@ -274,14 +275,52 @@ def _at(values, i: int):
     return values[i] if isinstance(values, list) and i < len(values) else None
 
 
+def _part(found: dict, name: str) -> dict:
+    return found.get(name) if isinstance(found.get(name), dict) else {}
+
+
+# The slicer's print time for a whole file, by (host, file): it never changes for a file.
+_estimates: dict = {}
+
+
+def _estimate(host: str, file: str) -> float | None:
+    """estimated_time from Moonraker's metadata of the file, which the slicer wrote into it."""
+    if (host, file) not in _estimates:
+        url = f"http://{host}/server/files/metadata?filename={urllib.parse.quote(file)}"
+        with _direct.open(url, timeout=TIMEOUT) as response:
+            estimate = json.loads(response.read())["result"].get("estimated_time")
+        _estimates[(host, file)] = estimate if isinstance(estimate, (int, float)) and estimate > 0 else None
+    return _estimates[(host, file)]
+
+
+def _left(host: str, stats: dict, progress) -> float | None:
+    """Seconds left in a print: the slicer's time for the file minus the time printed so far.
+    Klipper's print_duration leaves out the heating before the first extrusion and pauses; on the
+    U1 a print of 5289 s by the slicer took 5333 s. Without a slicer time: from the progress."""
+    printed, file = stats.get("print_duration"), stats.get("filename")
+    if stats.get("state") not in ("printing", "paused") or not file or not isinstance(printed, (int, float)):
+        return None
+    try:
+        estimate = _estimate(host, file)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        estimate = None   # not kept, asked again with the next status
+    if estimate:
+        return max(0.0, estimate - printed)
+    if isinstance(progress, (int, float)) and progress > 0:
+        return printed / progress - printed
+    return None
+
+
 def status(host: str) -> dict:
     """Read only, one query to Moonraker (checked on the U1 on 23.09.2026): per head the spool the
     printer knows (print_task_config; with RFID also its data from filament_detect) and the
     pressure advance the firmware uses now. A value the Flow Calibration at print start measured
     is not round (0.017665), one from the slicer or the firmware is (0.02). Plus what the printer
-    is doing and whether the job calibrates."""
+    is doing: the job, whether it calibrates, layer, time printed and left, the temperatures of
+    heads, bed and inside the printer."""
     objects = [f"{h}=pressure_advance,temperature,target" for h in HEADS]
-    objects += ["print_stats=state,filename", "display_status=progress", "toolhead=extruder", "print_task_config", "filament_detect"]
+    objects += ["print_stats", "display_status=progress", "toolhead=extruder", "heater_bed=temperature,target",
+                "temperature_sensor%20cavity=temperature", "print_task_config", "filament_detect"]
     try:
         with _direct.open(f"http://{host}/printer/objects/query?{'&'.join(objects)}", timeout=TIMEOUT) as response:
             found = json.loads(response.read())["result"]["status"]
@@ -289,8 +328,8 @@ def status(host: str) -> dict:
             raise ValueError("no status")
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise CameraError("camera_unreachable", str(exc)) from None
-    task = found.get("print_task_config") if isinstance(found.get("print_task_config"), dict) else {}
-    rfid = (found.get("filament_detect") or {}).get("info") if isinstance(found.get("filament_detect"), dict) else None
+    task = _part(found, "print_task_config")
+    rfid = _part(found, "filament_detect").get("info")
     heads = []
     for i, name in enumerate(HEADS):
         extruder = found.get(name)
@@ -311,11 +350,16 @@ def status(host: str) -> dict:
         heads.append({"extruder": name, "pa": extruder.get("pressure_advance"), "temp": extruder.get("temperature"),
                       "target": extruder.get("target"), "calibrate": bool(_at(task.get("flow_calib_extruders"), i)),
                       "spool": spool})
-    stats = found.get("print_stats") if isinstance(found.get("print_stats"), dict) else {}
-    return {"state": stats.get("state"), "file": stats.get("filename") or None,
-            "progress": (found.get("display_status") or {}).get("progress"),
-            "active": (found.get("toolhead") or {}).get("extruder"),
-            "flow_calibrate": bool(task.get("flow_calibrate")), "heads": heads}
+    stats, bed = _part(found, "print_stats"), _part(found, "heater_bed")
+    info = stats.get("info") if isinstance(stats.get("info"), dict) else {}
+    progress = _part(found, "display_status").get("progress")
+    return {"state": stats.get("state"), "file": stats.get("filename") or None, "progress": progress,
+            "active": _part(found, "toolhead").get("extruder"),
+            "flow_calibrate": bool(task.get("flow_calibrate")), "heads": heads,
+            "layer": info.get("current_layer"), "layers": info.get("total_layer"),
+            "printed": stats.get("print_duration"), "left": _left(host, stats, progress),
+            "bed": {"temp": bed.get("temperature"), "target": bed.get("target")},
+            "cavity": _part(found, "temperature_sensor cavity").get("temperature")}
 
 
 def image(host: str) -> tuple[bytes, float | None]:

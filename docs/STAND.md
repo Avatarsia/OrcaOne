@@ -15,14 +15,11 @@ Stand 23.09.2026. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in
   - `browser.py`: Chrome, Chromium, Edge, Brave und Vivaldi bekommen `--app=<Adresse>`, Firefox und Opera `--new-window`.
   - Unterstützung, geprüft am 23.09.: Chrome, Edge, Brave und Chromium installieren Web-Apps unter Windows, Linux und macOS. Safari kann das ab macOS 14 („Zum Dock hinzufügen“). Firefox kann es ab 143 nur unter Windows, unter Linux ist es abgeschaltet und geht nur ohne Sandbox oder als Flatpak, unter macOS gar nicht ([Firefox-Doku](https://firefox-source-docs.mozilla.org/browser/components/taskbartabs/docs/index.html)).
   - Auf diesem Rechner ist Firefox als Snap der Standard, dort bleibt es beim neuen Fenster. Brave ist installiert. Brave ohne Fenster (`--headless --screenshot`) blieb als Snap hängen und ließ sich weder von Claude noch aus dem Terminal-Panel beenden, nur mit `snap run --shell brave -c "kill …"`.
+- **Druckstatus zur Kamera: gebaut.** Unter dem Bild: Zustand (Text und Farbe), Datei, Fortschritt als Balken, Schicht x von y, Restzeit, Druckzeit, Temperaturen der vier Köpfe (heizende in Teal, der aktive fett), Bett und Bauraum. In den großen Ansichten eine Zeile unten links und ein dünner Balken am Rand, beide bleiben stehen. Die Seite liest `GET /api/cameras/{id}/status` alle 5 s; `camera.status` fragt dafür zusätzlich `print_stats` ganz, `heater_bed` und `temperature_sensor cavity` ab. Restzeit: `estimated_time` aus den Metadaten der Datei (einmal je Datei gemerkt) minus `print_duration`, sonst aus dem Fortschritt. Zustände und Kopfnamen stehen jetzt in `T.u1` (für „Kamera“ und „Kalibrieren“). Einen laufenden Druck gab es beim Bauen nicht: geprüft mit dem ruhenden U1 („Fertig“) und einem im Browser gestellten Druck.
 - **Als Nächstes, in dieser Reihenfolge:**
-  1. **Druckstatus zur Kamera:** Fortschritt, Schicht, Restzeit und Temperaturen neben dem Bild. Moonraker liefert dafür, am U1 am 23.09. nur gelesen:
-     - `print_stats` mit `state`, `filename`, `print_duration`, `total_duration`, `filament_used`, `info.current_layer` und `info.total_layer`;
-     - `virtual_sdcard.progress` und `display_status.progress`;
-     - `heater_bed` und die vier Extruder.
-  2. **Zwei Profile vergleichen:** neue Seite, eingerückt unter „Filamente“.
-  3. **„Neu seit dem letzten Mal“:** unter „Drucker“, Schnappschuss nach PLAN 1.4 in `data/snapshots/`.
-  4. **Importieren und Exportieren:** unter „Filamente“. Eigene Profile als Datei exportieren und Herstellerpakete wie das ZIP von Material4Print für den U1 importieren, beides über Plan und Bestätigung.
+  1. **Zwei Profile vergleichen:** neue Seite, eingerückt unter „Filamente“.
+  2. **„Neu seit dem letzten Mal“:** unter „Drucker“, Schnappschuss nach PLAN 1.4 in `data/snapshots/`.
+  3. **Importieren und Exportieren:** unter „Filamente“. Eigene Profile als Datei exportieren und Herstellerpakete wie das ZIP von Material4Print für den U1 importieren, beides über Plan und Bestätigung.
 - **Beim Nutzer:** „Im LAN suchen“ zu Hause testen, die Prüfliste auf dem Windows-Rechner (unten, „Windows-Durchsicht“).
 
 ## Erledigt

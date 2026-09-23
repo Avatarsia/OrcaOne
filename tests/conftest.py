@@ -24,6 +24,7 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "DATA_DIR", folder)
     # What the last scan found in the slicers' printer profiles (overview.build_all).
     monkeypatch.setattr(camera, "_slicer_hosts", {})
+    monkeypatch.setattr(camera, "_estimates", {})
     return folder
 
 

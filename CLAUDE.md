@@ -44,7 +44,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
     - **Übertragen:** Profile zwischen zwei Installationen in beide Richtungen kopieren.
   - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
   - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen, `print_host` aus dem Slicer oder beim U1 im LAN gesucht).
-    - **Kamera:** Bild jedes U1 mit IP-Adresse, in der Seite, fensterfüllend oder im Vollbild.
+    - **Kamera:** Bild jedes U1 mit IP-Adresse samt Druckstatus (Fortschritt, Schicht, Restzeit, Temperaturen), in der Seite, fensterfüllend oder im Vollbild.
   - **Sicherungen.**
   - Unter „Technik“: **Slicer** (Datenordner), **Details** (alles zu einem Filament) und **Logs** (Logdateien der Slicer, nur lesen).
 

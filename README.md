@@ -59,7 +59,7 @@ Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“. Un
 - **Übertragen** (unter „Filamente“): zwei Installationen nebeneinander, links und rechts je eine Liste mit Suche und dem Schalter „Nur was drüben fehlt“. Filamente und Prozesse auswählen, auch mehrere oder eine ganze Gruppe, und mit dem Pfeil hinüberschieben. OrcaOne legt sie drüben als eigene Profile mit allen Werten an. Was nicht mitkommt, nennt „Das passiert“.
 - **Prozesse:** dieselbe Druckerwahl, dann je Düse die Prozesse als Kacheln mit Schichthöhe und Art, der zuletzt im Slicer gewählte ist markiert. Ein Klick zeigt die wichtigsten Werte in fünf Gruppen, dazu „Alle Werte“. Nur zum Ansehen.
 - **Drucker:** den Drucker festlegen, mit dem der Slicer startet, Drucker entfernen und dabei Filamente mitlöschen, die nur zu ihm gehören, veraltete Einträge der `.conf` aufräumen. Auf jeder Karte die IP-Adresse des Druckers: selbst eingetragen oder aus dem Dialog „Physischer Drucker“ des Slicers (`print_host` eines eigenen Druckerprofils); fehlt sie, steht dort „Keine IP-Adresse“. Die Karte eines U1 kann ihn auch im LAN suchen, wie Snapmaker Orca es tut (mDNS, etwa 6 Sekunden, nur im selben LAN, nicht über VPN); ein Treffer geht mit „Übernehmen“ hinein. Kamera und Kalibrieren nehmen die Adresse von hier.
-- **Kamera** (unter „Drucker“): das Bild jedes Snapmaker U1 mit Originalfirmware, der unter „Drucker“ eine IP-Adresse hat. Solange die Seite offen und sichtbar ist, weckt OrcaOne die Kamera alle 10 Sekunden und holt das Bild alle 1 bis 10 Sekunden; der Takt wird gemerkt. Drei Ansichten wie bei YouTube: in der Seite, fensterfüllend und Vollbild. In den großen blendet sich die Leiste nach 3 Sekunden ohne Mausbewegung aus, Esc führt zurück.
+- **Kamera** (unter „Drucker“): das Bild jedes Snapmaker U1 mit Originalfirmware, der unter „Drucker“ eine IP-Adresse hat. Solange die Seite offen und sichtbar ist, weckt OrcaOne die Kamera alle 10 Sekunden und holt das Bild alle 1 bis 10 Sekunden; der Takt wird gemerkt. Unter dem Bild steht alle 5 Sekunden der Druckstatus: Zustand, Datei, Fortschritt, Schicht, Restzeit (Schätzung des Slicers minus bisherige Druckzeit) und die Temperaturen von vier Köpfen, Bett und Bauraum. Drei Ansichten wie bei YouTube: in der Seite, fensterfüllend und Vollbild. In den großen blendet sich die Leiste nach 3 Sekunden ohne Mausbewegung aus, die Zeile mit dem Druckstatus und der Fortschrittsbalken unten bleiben. Esc führt zurück.
 - **Sicherungen:** alle Sicherungen mit Größe, Anlass und Gesamtgröße.
   - „Jetzt sichern“ legt sofort eine an.
   - „Löschen …“ fragt vorher nach.
@@ -144,7 +144,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `orcaone/opc.py` | Leser für das `.opc`-Format der OrcaSlicer-Nightly |
 | `orcaone/instances.py` | Installationen finden, manuelle Pfade |
 | `orcaone/settings.py` | der Ordner `data/`: `settings.json` lesen und schreiben, alte Daten einmal umziehen |
-| `orcaone/camera.py` | Der U1 im Netz: Kamera wecken über Moonrakers WebSocket, Bild holen, Spulen und Pressure Advance lesen |
+| `orcaone/camera.py` | Der U1 im Netz: Kamera wecken über Moonrakers WebSocket, Bild holen, Druckstatus, Spulen und Pressure Advance lesen |
 | `orcaone/calibration.py` | Häkchen der Seite „Kalibrieren“ |
 | `orcaone/logs.py` | Logdateien der Slicer lesen, zählen und filtern (nur lesend) |
 | `orcaone/guard.py` | Prüfen, ob ein Slicer läuft (nur lesend) |

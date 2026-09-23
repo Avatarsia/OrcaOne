@@ -524,6 +524,11 @@ Anlass: Die Anleitung des Nutzers `prototypes/U1 Filament Kalibrierung.md` wird 
 
 Auf diesem Rechner stand die IP in keiner Datei der beiden Slicer (am 23.09. alle Ordner durchsucht, Klartext und UTF-16). Der Grund: Der Rechner erreicht den U1 über WireGuard (`wg0`, 10.30.250.5 → 10.30.40.174), nicht im selben LAN. mDNS ist Link-lokal und geht nicht durch den Tunnel; eine Anfrage genau wie SnOrcas brachte kein einziges fremdes Paket. Von hier findet also auch SnOrca den U1 nicht. OrcaOne sucht auf der Karte eines U1 genauso (`camera.search`); geprüft ist das bisher nur gegen nachgebaute Antworten.
 
+**Druckstatus für die Seite „Kamera“ (23.09., am U1 nur gelesen):**
+- `print_stats` liefert `state`, `filename`, `print_duration`, `total_duration`, `filament_used` und `info` mit `current_layer` und `total_layer`; die Schichten setzt der G-Code mit `SET_PRINT_STATS_INFO`. `print_duration` zählt laut Klipper ohne das Aufheizen vor der ersten Extrusion und ohne Pausen.
+- Weitere Temperaturen: `heater_bed` und `temperature_sensor cavity` (Bauraum). `printer/objects/list` nennt außerdem `machine_state_manager`, `timelapse`, `defect_detection` und `purifier`; OrcaOne nutzt sie nicht.
+- `/server/files/metadata?filename=…` liefert die Schätzung des Slicers als `estimated_time`, dazu `layer_count`, `filament_weight_total`, die Filamentnamen und Vorschaubilder. Beim letzten Druck schätzte SnOrca 2.3.6 5289 s, `print_duration` am Ende betrug 5333 s. Die Restzeit in OrcaOne ist deshalb `estimated_time` minus `print_duration`, ohne Schätzung rechnet sie aus dem Fortschritt (`camera._left`).
+
 **Nicht geprüft:** der genaue Text der Konsolenmeldung („Got pressure advance“ laut Anleitung, „measure k“ laut Forum), die 32 mm³/s des Hotends und der Rat zur 0,2-mm-Düse (die Snapmaker-Wiki zeigt ihren Inhalt nur per JavaScript).
 
 ## Offen: nur am laufenden Slicer prüfbar

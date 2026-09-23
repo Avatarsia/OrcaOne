@@ -234,7 +234,7 @@ export default {
         printerError.value = err.code === "camera_unreachable" ? C.printer.unreachable : errorText(err.code);
       }
     }
-    const headName = (i) => C.printer.head(i + 1);
+    const headName = (i) => T.u1.head(i + 1);
     const spoolText = (h) => h.spool
       ? [h.spool.type, h.spool.subtype, h.spool.maker || h.spool.vendor].filter((x) => x && x !== "NONE").join(" · ")
       : C.printer.empty;
@@ -242,7 +242,7 @@ export default {
     const stateText = computed(() => {
       const p = printer.value;
       if (!p) return "";
-      const parts = [C.printer.states[p.state] || p.state];
+      const parts = [T.u1.states[p.state] || p.state];
       if (p.file && p.state !== "standby") parts.push(p.file);
       if (p.state === "printing" && typeof p.progress === "number") parts.push(`${show(p.progress * 100, 0)} %`);
       if (p.flow_calibrate && p.state === "printing") parts.push(C.printer.calibrates);

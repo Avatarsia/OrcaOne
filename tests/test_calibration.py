@@ -17,8 +17,11 @@ TAG = {"VENDOR": "Snapmaker", "MANUFACTURER": "Polymaker", "MAIN_TYPE": "PLA", "
 STATUS = {
     **{name: {"pressure_advance": 0.02, "temperature": 22.0, "target": 0.0} for name in camera.HEADS[:3]},
     "extruder3": {"pressure_advance": 0.017665, "temperature": 22.0, "target": 0.0},
-    "print_stats": {"state": "complete", "filename": "Puzzel_Schwarz_PLA_1h28m.gcode"},
+    "print_stats": {"state": "complete", "filename": "Puzzel_Schwarz_PLA_1h28m.gcode", "print_duration": 5333.19,
+                    "total_duration": 5556.51, "info": {"total_layer": 19, "current_layer": 19}},
     "display_status": {"progress": 1.0},
+    "heater_bed": {"temperature": 20.0, "target": 0.0},
+    "temperature_sensor cavity": {"temperature": 24.0},
     "toolhead": {"extruder": "extruder"},
     "print_task_config": {
         "filament_vendor": ["Snapmaker"] * 4, "filament_type": ["PLA"] * 4,
@@ -28,18 +31,25 @@ STATUS = {
     },
     "filament_detect": {"info": [TAG, TAG, TAG, {"VENDOR": "NONE", "HOTEND_MIN_TEMP": 0}]},
 }
+# Trimmed from /server/files/metadata of that print: the slicer's time for the whole file.
+METADATA = {"slicer": "SnapmakerOrca", "estimated_time": 5289, "layer_count": 19}
 
 
 @pytest.fixture
 def moonraker():
-    """Answers /printer/objects/query with STATUS; the paths asked for land in `asked`."""
+    """Answers /printer/objects/query with STATUS and /server/files/metadata with METADATA, a file
+    called Fehlt.gcode with 404; the paths asked for land in `asked`."""
     asked = []
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             asked.append(self.path)
-            body = json.dumps({"result": {"eventtime": 1.0, "status": STATUS}}).encode()
-            self.send_response(200)
+            if self.path.startswith("/server/files/metadata"):
+                result = None if "Fehlt" in self.path else METADATA
+            else:
+                result = {"eventtime": 1.0, "status": STATUS}
+            body = json.dumps({"result": result}).encode()
+            self.send_response(200 if result else 404)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -66,6 +76,28 @@ def test_status_of_the_printer(moonraker):
     # Without a tag the spool is what was typed in at the printer, nothing more.
     assert last["spool"] == {"vendor": "Snapmaker", "type": "PLA", "subtype": "Basic", "colour": "#F78E0E", "rfid": False}
     assert (last["extruder"], last["pa"], last["calibrate"]) == ("extruder3", 0.017665, True)
+
+
+def test_print_progress(moonraker, monkeypatch):
+    """What the page "Kamera" shows about a print: layer, time printed and left, temperatures."""
+    host, asked = moonraker
+    got = camera.status(host)
+    assert (got["layer"], got["layers"], got["printed"], got["left"]) == (19, 19, 5333.19, None)   # done, nothing left
+    assert got["bed"] == {"temp": 20.0, "target": 0.0} and got["cavity"] == 24.0
+
+    running = {"state": "printing", "filename": "Puzzel.gcode", "print_duration": 1289.0, "info": {"total_layer": 19, "current_layer": 5}}
+    monkeypatch.setitem(STATUS, "print_stats", running)
+    monkeypatch.setitem(STATUS, "display_status", {"progress": 0.25})
+    asked.clear()
+    assert camera.status(host)["left"] == camera.status(host)["left"] == 4000   # 5289 by the slicer minus 1289 printed
+    assert [p for p in asked if p.startswith("/server/files/metadata")] == ["/server/files/metadata?filename=Puzzel.gcode"]
+    # A file without the slicer's time, or one Moonraker does not know: from the progress.
+    monkeypatch.setitem(STATUS, "print_stats", {**running, "filename": "Fehlt.gcode"})
+    assert camera.status(host)["left"] == 1289 / 0.25 - 1289
+    monkeypatch.delitem(METADATA, "estimated_time")
+    monkeypatch.setitem(STATUS, "print_stats", {**running, "filename": "Ohne Zeit.gcode"})
+    assert camera.status(host)["left"] == 1289 / 0.25 - 1289
+    assert asked[-1] == "/server/files/metadata?filename=Ohne%20Zeit.gcode"
 
 
 def test_status_of_an_unreachable_printer():

@@ -1001,8 +1001,19 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .cam-wake { color: var(--warn); font-size: 13px; font-weight: 700; }
 .cam-detail { overflow: hidden; max-width: 40ch; color: var(--muted); font-family: var(--mono); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .cam-views { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+/* How far a print is, below the picture (PrintStatus in kamera.js) */
+.cam-print { display: grid; gap: 6px; font-size: 13px; }
+.cam-job { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cam-job .cam-status { flex: none; margin-left: 0; font-weight: 700; }
+.cam-file { overflow: hidden; min-width: 0; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.cam-percent { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
+.cam-bar { height: 6px; overflow: hidden; border-radius: 3px; background: var(--surface-2); }
+.cam-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s; }
+.cam-facts, .cam-temps { display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cam-temps .is-heating { color: var(--accent-text); }
+.cam-temps .is-active { color: var(--text); font-weight: 700; }
 /* The big views: the whole browser window, or the whole screen (the same element in full screen).
-   The bar hides after a few seconds without a mouse move (is-idle). */
+   The bar hides after a few seconds without a mouse move (is-idle); the print line stays. */
 .cam-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #000; }
 .cam-overlay img { width: 100%; height: 100%; object-fit: contain; }
 .cam-overlay .cam-empty { color: #b8b6ae; }
@@ -1015,6 +1026,13 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .cam-overlay-hint { margin-left: auto; color: #c8c8c8; font-size: 12px; }
 .cam-overlay-btn { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer; }
 .cam-overlay-btn:hover { background: rgba(255, 255, 255, .25); }
+.cam-overlay-print {
+  position: absolute; bottom: 16px; left: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; max-width: calc(100% - 32px);
+  padding: 6px 12px; border-radius: 6px; background: rgba(0, 0, 0, .6); color: #f2f2f2; font-size: 14px; font-variant-numeric: tabular-nums;
+}
+.cam-overlay-print .cam-status { margin-left: 0; font-weight: 700; }
+.cam-overlay-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 4px; background: rgba(255, 255, 255, .15); }
+.cam-overlay-progress > span { display: block; height: 100%; background: #26A69A; transition: width .5s; }
 .cam-overlay.is-idle { cursor: none; }
 .cam-overlay.is-idle .cam-overlay-bar { opacity: 0; }
 @media (min-width: 1400px) { .cam-grid { grid-template-columns: repeat(auto-fill, minmax(640px, 1fr)); } }

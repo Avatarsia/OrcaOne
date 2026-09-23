@@ -509,9 +509,7 @@ const T = {
       none: "Trage die IP-Adresse deines U1 auf der Seite „Drucker“ ein. Dann zeigt OrcaOne hier live die Spulen und die Pressure-Advance-Werte.",
       toPrinters: "Zur Seite „Drucker“",
       unreachable: "Der Drucker ist gerade nicht erreichbar.",
-      states: { standby: "Bereit", printing: "Druckt", paused: "Pausiert", complete: "Fertig", cancelled: "Abgebrochen", error: "Fehler" },
       calibrates: "mit Flow Calibration",
-      head: (i) => `Kopf ${i}`,
       empty: "leer",
       measured: "gemessen",
       round: "rund",
@@ -638,6 +636,13 @@ const T = {
     errors: { calibration_invalid: "Diesen Schritt kennt OrcaOne nicht. Lade die Seite neu." },
   },
 
+  // ---------------------------------------------------------------- the Snapmaker U1, read live (pages "Kamera" and "Kalibrieren")
+  u1: {
+    // print_stats.state of Klipper
+    states: { standby: "Bereit", printing: "Druckt", paused: "Pausiert", complete: "Fertig", cancelled: "Abgebrochen", error: "Fehler" },
+    head: (i) => `Kopf ${i}`,
+  },
+
   // ---------------------------------------------------------------- page "Kamera"
   camera: {
     title: "Kamera",
@@ -653,6 +658,16 @@ const T = {
     // The three views: in the page, filling the browser window, the whole screen.
     views: { window: "Fensterfüllend", screen: "Vollbild", normal: "Zurück zur Seite" },
     back: "Esc führt zurück",
+    // How far a print is (orcaone/camera.py, status).
+    print: {
+      layer: (i, total) => `Schicht ${n(i)} von ${n(total)}`,
+      left: (time) => `noch ${time}`,
+      printed: (time) => `Druckzeit ${time}`,
+      duration: (h, m) => h ? `${n(h)} h ${m} min` : `${m} min`,
+      temp: (now, target) => target ? `${now} / ${target} °C` : `${now} °C`,
+      bed: "Bett",
+      cavity: "Bauraum",
+    },
     errors: {
       camera_unreachable: "Drucker nicht erreichbar. Ist er an und im selben Netz?",
       camera_refused: "Der Drucker lehnt das Wecken der Kamera ab.",
