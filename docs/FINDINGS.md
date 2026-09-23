@@ -497,7 +497,8 @@ Anlass: Die Bibliothek der Orca-Nightly (`OrcaFilamentLibrary.opc` 2.4.0.8) hat 
 Auf dem Entwicklungsrechner laufen diese Tests direkt im echten Datenverzeichnis, weil die Slicer dort nur Testinstallationen sind (23.09.2026). Vor jeder Änderung legt Orfix eine Sicherung an.
 
 - [ ] „Bibliothek freischalten“, Weg A und Weg B, mit `SUNLU PLA+ @System` (4.7). Weg B: SnOrca lädt das Hilfsprofil (23.09., siehe Übertragung).
-- [ ] Übertragung Orca → SnOrca: Lädt SnOrca ein Wurzelprofil wie „Elegoo PLA @U1“ bei allen vier Düsen, ohne die Datei neu zu schreiben? Nimmt der G-Code mit High-Flow-Düse die Standardwerte? Erscheint es im Assistenten unter „Eigene Filamente“?
+- [x] Übertragung Orca → SnOrca (23.09., Nutzer: „geht“): „COEX ABS (Orca)“ aus der Orca-Bibliothek lädt in SnOrca bei den Düsen seiner Druckerliste (U1 0,2, 0,4, 0,6). SnOrca hat die Datei danach selbst neu gespeichert: `version "2.4.0.0"` statt „2.4.0“, 111 statt der geschriebenen Einstellungen, weil es bei Wurzelprofilen den vollständigen Satz schreibt.
+- [ ] Noch offen: Nimmt der G-Code mit High-Flow-Düse die Standardwerte? Erscheint ein übertragenes Filament im Assistenten unter „Eigene Filamente“? Gegenrichtung SnOrca → Orca im Slicer.
 - [ ] SnOrca mit fehlendem bzw. `null`-`"filaments"`: Sind wirklich alle Systemfilamente sichtbar?
 - [ ] Windows: Hat die `.conf` auf der Platte CRLF? Sind die MD5-Ziffern Großbuchstaben? Dafür braucht es eine echte Windows-Datei.
 - [ ] Flatpak: Zeigt `/proc/<pid>/cwd` bzw. `F_GETLK` aus Sicht des Hosts dasselbe wie bei der AppImage?
