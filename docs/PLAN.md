@@ -106,6 +106,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 - **Gespeichert** wird je Instanz in `data/snapshots/`: Pfad, Größe, Änderungszeit und SHA-256 je Datei, dazu `models`, `filaments`, `presets`, `orca_presets` und die Projekt-Einstellungen aus `app`.
 - **„Als gesehen markieren“** aktualisiert den Schnappschuss.
 - **Änderungen durch den Slicer** (siehe FINDINGS 4.4) werden als solche erklärt.
+- **Umgesetzt am 23.09.2026** als Seite „Änderungen“ unter „Drucker“ (`orcaone/snapshot.py`), aber je Profil statt je Datei: OrcaSlicer 2.5 hat alle Systemprofile in wenigen `.opc`-Dateien, und ein Profilname sagt mehr als ein Dateiname. `presets` und `orca_presets` (die Auswahl im Slicer) vergleicht OrcaOne nicht, dafür den Benutzerordner aus `app` (Anmeldung). Was OrcaOne selbst schreibt, zählt als gesehen.
 
 **1.5 API** (`app.py`)
 

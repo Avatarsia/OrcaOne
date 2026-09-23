@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["filamente", "kalibrieren", "transfer", "vergleichen", "prozesse", "drucker", "kamera", "sicherungen", "slicer", "details", "logs"];
+export const PAGE_IDS = ["filamente", "kalibrieren", "transfer", "vergleichen", "prozesse", "drucker", "kamera", "aenderungen", "sicherungen", "slicer", "details", "logs"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -229,6 +229,10 @@ export async function refreshBackups(instId) {
   }
 }
 
+// Changes per installation since it was last marked seen (page "Änderungen"), for the menu:
+// from GET /api/data, the page updates it.
+export const NEWS = reactive({});
+
 let toastTimer = 0;
 export function flash(text) {
   ui.toast = text;
@@ -257,6 +261,8 @@ function pickInstance() {
 function setData(data) {
   FIELDS.splice(0, FIELDS.length, ...data.editable_fields.map((f) => ({ ...f, ...(T.fields[f.key] || { label: f.key, unit: "" }) })));
   INSTANCES.splice(0, INSTANCES.length, ...data.instances.map(enrich));
+  for (const id of Object.keys(NEWS)) delete NEWS[id];
+  for (const i of data.instances) NEWS[i.id] = i.news || 0;
   FAILED.splice(0, FAILED.length, ...(data.failed || []));
   loadState.generated = data.generated;
   resetChanges();
@@ -366,6 +372,7 @@ export const ICONS = {
   fullscreen: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
   shrink: '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>',
   calibrate: '<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="m3.8 6.5 1.4 1.4 2.6-2.8M3.8 12l1.4 1.4 2.6-2.8M3.8 17.5l1.4 1.4 2.6-2.8"/>',
+  diff: '<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4M9 11h4M11 9v4M9 16.5h4"/>',
   transfer: '<path d="M4 8.5h14.5M15 5l3.5 3.5L15 12M20 15.5H5.5M9 12l-3.5 3.5L9 19"/>',
   compare: '<rect x="3.5" y="4.5" width="7" height="15" rx="1.5"/><rect x="13.5" y="4.5" width="7" height="15" rx="1.5"/><path d="M6 9h2M6 12.5h2M16 9h2M16 12.5h2"/>',
   arrowRight: '<path d="M4 12h15.5M13.5 6l6 6-6 6"/>',

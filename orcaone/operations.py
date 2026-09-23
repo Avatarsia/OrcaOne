@@ -17,6 +17,7 @@ touched files go back to the backup) -> run check -> scan again.
 import copy
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -25,7 +26,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from . import backup, guard, instances, overview, scanner, transfer
+from . import backup, guard, instances, overview, scanner, snapshot, transfer
 from .conf import ConfFile, dump_conf, loads, parse_conf
 from .model import Instance
 from .resolver import DEFAULT_NAMES, EDITABLE_DEFAULTS, Resolver, as_list
@@ -47,6 +48,7 @@ MAX_NAME = 120
 
 _plans: dict = {}
 _lock = threading.Lock()
+log = logging.getLogger(__name__)
 
 
 class OperationError(Exception):
@@ -1222,6 +1224,10 @@ def apply(instance_id: str, plan_id) -> dict:
             raise OperationError(block, backup=made)
         _plans.pop(plan.id, None)
         try:
+            before = snapshot.current(instance)
+        except snapshot.SnapshotError:
+            before = None
+        try:
             _execute(instance.data_dir, plan.steps)
             written = _verify(instance.data_dir, plan.steps)
         except OSError:
@@ -1239,6 +1245,12 @@ def apply(instance_id: str, plan_id) -> dict:
         if scan.conf_file is None:
             warnings.append({"code": "conf_unreadable"})
         res = Resolver(scan)
+        if before is not None and scan.conf_file is not None:
+            # The page "Änderungen" shows what others changed, not what OrcaOne just wrote.
+            try:
+                snapshot.accept(instance, before, snapshot.items(scan, res))
+            except OSError:
+                log.exception("Snapshot of %s not updated", instance.data_dir)
         for kind, name in plan.expect_loaded:
             p = next((q for q in scan.own if q.kind == kind and q.name == name and not q.bundle), None)
             problem = "missing" if p is None else res.state(p).problem

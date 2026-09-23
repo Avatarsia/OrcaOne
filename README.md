@@ -46,7 +46,8 @@ Per Symbol starten, als App installieren und OrcaOne selbst zu einem Programm ba
 Alles, was OrcaOne selbst ablegt, liegt im Ordner `data/` im OrcaOne-Ordner:
 
 - `settings.json`: alle Einstellungen, also von Hand hinzugefügte Datenordner, die IP-Adressen der Drucker samt Bildtakt der Kamera, die Bibliotheksfilamente, die OrcaOne in Snapmaker Orca freigeschaltet hat, die Sprache und die Häkchen der Seite „Kalibrieren“;
-- `backups/<id>/`: die Sicherungen, nur für den Nutzer lesbar.
+- `backups/<id>/`: die Sicherungen, nur für den Nutzer lesbar;
+- `snapshots/<id>.json`: je Installation der Stand, mit dem die Seite „Änderungen“ vergleicht. Zugangsdaten stehen darin nur als Prüfsumme.
 
 `data/` steht nicht im Git, denn die Sicherungen enthalten Zugangsdaten. Wer OrcaOne verschiebt, nimmt den Ordner mit. Daten älterer Versionen aus `~/.local/share/orcaone` bzw. `%LOCALAPPDATA%\orcaone` holt OrcaOne beim Start einmal hierher.
 
@@ -61,6 +62,7 @@ Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“. Un
 - **Prozesse:** dieselbe Druckerwahl, dann je Düse die Prozesse als Kacheln mit Schichthöhe und Art, der zuletzt im Slicer gewählte ist markiert. Ein Klick zeigt die wichtigsten Werte in fünf Gruppen, dazu „Alle Werte“. Nur zum Ansehen.
 - **Drucker:** den Drucker festlegen, mit dem der Slicer startet, Drucker entfernen und dabei Filamente mitlöschen, die nur zu ihm gehören, veraltete Einträge der `.conf` aufräumen. Auf jeder Karte die IP-Adresse des Druckers: selbst eingetragen oder aus dem Dialog „Physischer Drucker“ des Slicers (`print_host` eines eigenen Druckerprofils); fehlt sie, steht dort „Keine IP-Adresse“. Die Karte eines U1 kann ihn auch im LAN suchen, wie Snapmaker Orca es tut (mDNS, etwa 6 Sekunden, nur im selben LAN, nicht über VPN); ein Treffer geht mit „Übernehmen“ hinein. Kamera und Kalibrieren nehmen die Adresse von hier.
 - **Kamera** (unter „Drucker“): das Bild jedes Snapmaker U1 mit Originalfirmware, der unter „Drucker“ eine IP-Adresse hat. Solange die Seite offen und sichtbar ist, weckt OrcaOne die Kamera alle 10 Sekunden und holt das Bild alle 1 bis 10 Sekunden; der Takt wird gemerkt. Unter dem Bild steht alle 5 Sekunden der Druckstatus: Zustand, Datei, Fortschritt, Schicht, Restzeit (Schätzung des Slicers minus bisherige Druckzeit) und die Temperaturen von vier Köpfen, Bett und Bauraum. Drei Ansichten wie bei YouTube: in der Seite, fensterfüllend und Vollbild. In den großen blendet sich die Leiste nach 3 Sekunden ohne Mausbewegung aus, die Zeile mit dem Druckstatus und der Fortschrittsbalken unten bleiben. Esc führt zurück.
+- **Änderungen** (unter „Drucker“): was sich in der gewählten Installation geändert hat, seit du zuletzt „Als gesehen markieren“ gewählt hast. Etwa ein Update des Slicers, eine Anmeldung (dann liest der Slicer eigene Profile aus einem anderen Ordner), ein Cloud-Abgleich oder Speichern im Slicer. Die Seite zeigt eigene Profile (neu, geändert mit den geänderten Werten, entfernt), Drucker in der Auswahl, die Liste der sichtbaren Filamente, Herstellerpakete und Herstellerprofile. Änderungen, die der Slicer von sich aus macht, erklärt sie, etwa „nur die Versionsnummer“. Was OrcaOne selbst schreibt, zählt als gesehen. Die Zahl im Menü nennt die Änderungen. Den ersten Stand legt OrcaOne an, wenn es eine Installation zum ersten Mal einliest.
 - **Sicherungen:** alle Sicherungen mit Größe, Anlass und Gesamtgröße.
   - „Jetzt sichern“ legt sofort eine an.
   - „Löschen …“ fragt vorher nach.
@@ -135,7 +137,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 |---|---|
 | `orcaone/__main__.py` | Start: Port 4711, Server, Browser; ein zweiter Start öffnet nur ein Fenster |
 | `orcaone/browser.py` | die Seite als App-Fenster bzw. neues Fenster des Standardbrowsers |
-| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Logs über `/api/instances/{id}/logs`, Häkchen der Kalibrierung über `/api/instances/{id}/calibration`, IP-Adressen über `/api/printers` (Suche im LAN: `POST /api/printers/search`), Kameras und der Status des U1 über `/api/cameras`, Einstellungen wie die Sprache über `/api/settings` |
+| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Logs über `/api/instances/{id}/logs`, Häkchen der Kalibrierung über `/api/instances/{id}/calibration`, IP-Adressen über `/api/printers` (Suche im LAN: `POST /api/printers/search`), Kameras und der Status des U1 über `/api/cameras`, „Änderungen“ über `/api/instances/{id}/news` (`…/news/seen` merkt den Stand), Einstellungen wie die Sprache über `/api/settings` |
 | `orcaone/operations.py` | Änderungen planen und schreiben (harte Regeln 2 bis 7): Plan mit Dateioperationen, Diff der `.conf` mit maskierten Zugangsdaten und Fingerabdruck von `.conf` und `user/` vor dem Planen; ein anderer Plan, der inzwischen lief, macht ihn veraltet. Beim Ausführen: Laufprüfung, Sicherung, erneute Laufprüfung, atomar schreiben und neu prüfen (sonst zurück auf die Sicherung), neu einlesen |
 | `orcaone/transfer.py` | Profile in eine andere Installation übertragen: Werte ans Ziel anpassen nach `orcaone/options.json` (erzeugt aus dem Quellcode der Slicer mit `tools/make_options.py`) |
 | `orcaone/backup.py` | ZIP-Sicherungen ohne `log/`, `cache/` usw., Liste, Löschen und was ein Wiederherstellen zurückschreibt |
@@ -146,6 +148,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `orcaone/instances.py` | Installationen finden, manuelle Pfade |
 | `orcaone/settings.py` | der Ordner `data/`: `settings.json` lesen und schreiben, alte Daten einmal umziehen |
 | `orcaone/camera.py` | Der U1 im Netz: Kamera wecken über Moonrakers WebSocket, Bild holen, Druckstatus, Spulen und Pressure Advance lesen |
+| `orcaone/snapshot.py` | Seite „Änderungen“: Schnappschuss je Installation in `data/snapshots/`, Vergleich je Profil |
 | `orcaone/calibration.py` | Häkchen der Seite „Kalibrieren“ |
 | `orcaone/logs.py` | Logdateien der Slicer lesen, zählen und filtern (nur lesend) |
 | `orcaone/guard.py` | Prüfen, ob ein Slicer läuft (nur lesend) |

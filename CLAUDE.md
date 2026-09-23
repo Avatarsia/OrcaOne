@@ -32,7 +32,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 - **Backend:** Python ≥ 3.11, FastAPI mit uvicorn, Dataclasses, sonst Standardbibliothek. Einzige Zusatzabhängigkeit ist `psutil`. Keine Pydantic-Modelle, kein ORM, keine Datenbank. Das Dateisystem ist die einzige Quelle der Wahrheit.
 - **Umgebung:** `.lenv` im Projektordner und `requirements.txt`. Start mit `./orcaone.sh` bzw. `orcaone.cmd` oder `.lenv/bin/python -m orcaone`. Tests mit `.lenv/bin/python -m pytest`.
 - **Zusätzliche Abhängigkeiten** nur nach Rücksprache.
-- **Eigene Daten** nur im Ordner `data/` im OrcaOne-Ordner (nicht im Git): alle Einstellungen in der einen Datei `data/settings.json` (`orcaone/settings.py`), dazu `data/backups/`. Keine weiteren Dateien oder Orte.
+- **Eigene Daten** nur im Ordner `data/` im OrcaOne-Ordner (nicht im Git): alle Einstellungen in der einen Datei `data/settings.json` (`orcaone/settings.py`), dazu `data/backups/` und `data/snapshots/` (Seite „Änderungen“). Keine weiteren Dateien oder Orte.
 - **Frontend:** Vue 3 (lokal in `orcaone/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
   - Stil wie die heutige Oberfläche in `orcaone/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orcaone/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
   - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
@@ -46,6 +46,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
   - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
   - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen, `print_host` aus dem Slicer oder beim U1 im LAN gesucht).
     - **Kamera:** Bild jedes U1 mit IP-Adresse samt Druckstatus (Fortschritt, Schicht, Restzeit, Temperaturen), in der Seite, fensterfüllend oder im Vollbild.
+    - **Änderungen:** was sich seit dem letzten „Als gesehen markieren“ geändert hat (Update, Anmeldung, Cloud-Abgleich), je Profil; was OrcaOne selbst schreibt, zählt als gesehen.
   - **Sicherungen.**
   - Unter „Technik“: **Slicer** (Datenordner), **Details** (alles zu einem Filament) und **Logs** (Logdateien der Slicer, nur lesen).
 

@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from . import backup, camera, guard, instances, scanner
+from . import backup, camera, guard, instances, scanner, snapshot
 from .model import SLICERS, Instance
 from .resolver import CORE_VALUES, EDITABLE_FIELDS, STATUS_OF_PROBLEM, VALUE_KEYS, Resolver, first, strings
 from .scanner import LIBRARY, KINDS
@@ -618,6 +618,8 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
         "processes": [_process_record(res, p) for p in processes_all],
         "without_printer": without_printer,
         "warnings": warnings,
+        # Changes since the user last marked the installation seen, for the menu (page "Änderungen").
+        "news": snapshot.count(instance, scan, res),
         "stats": {
             "models": len(out_models), "printers": len(all_printers),
             "system_filaments_selectable": len(system_filaments),

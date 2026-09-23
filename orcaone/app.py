@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, backup, calibration, camera, guard, instances, logs, operations, overview, settings
+from . import __version__, backup, calibration, camera, guard, instances, logs, operations, overview, settings, snapshot
 
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -93,6 +93,11 @@ def _calibration_error(request: Request, exc: calibration.CalibrationError):
 @app.exception_handler(logs.LogError)
 def _log_error(request: Request, exc: logs.LogError):
     return _error(str(exc), 404 if str(exc) == "log_not_found" else 400)
+
+
+@app.exception_handler(snapshot.SnapshotError)
+def _snapshot_error(request: Request, exc: snapshot.SnapshotError):
+    return _error(exc.code, 409)
 
 
 @app.get("/api/instances")
@@ -235,6 +240,19 @@ def list_logs(instance_id: str):
 def read_log(instance_id: str, name: str, show: str = "all", q: str = ""):
     instance, _ = operations.find_instance(instance_id)
     return logs.read(instance.data_dir, name, show, q)
+
+
+# ---------------------------------------------------------------- page "Änderungen" (orcaone/snapshot.py)
+
+@app.get("/api/instances/{instance_id}/news")
+def news(instance_id: str):
+    return snapshot.news(operations.find_instance(instance_id)[0])
+
+
+@app.post("/api/instances/{instance_id}/news/seen")
+def news_seen(instance_id: str):
+    # Writes only into OrcaOne's own folder data/, no plan needed (PLAN 1.5).
+    return snapshot.seen(operations.find_instance(instance_id)[0])
 
 
 # ---------------------------------------------------------------- page "Kalibrieren" (orcaone/calibration.py)

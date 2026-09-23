@@ -60,5 +60,8 @@ export const api = {
   calibration: (id) => request("GET", `${instUrl(id)}/calibration`),
   markCalibration: (id, filament, step, done, temp) => request("POST", `${instUrl(id)}/calibration`, { filament, step, done, temp }),
   deleteBackup: (id, name) => request("DELETE", backupUrl(id, name)),
+  // Page "Änderungen": what changed since the installation was last marked seen (orcaone/snapshot.py).
+  news: (id) => request("GET", `${instUrl(id)}/news`),
+  newsSeen: (id) => request("POST", `${instUrl(id)}/news/seen`),
   restorePlan: (id, name) => request("POST", `${backupUrl(id, name)}/restore-plan`),
 };

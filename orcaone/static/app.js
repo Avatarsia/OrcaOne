@@ -4,7 +4,7 @@
 // its "Übernehmen" sends POST /apply; the backend backs up first, then the data is read again. What
 // the backend's check after writing reports stays in the panel (DoneView).
 import {
-  INSTANCES, FAILED, BACKUPS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
+  INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon,
 } from "./common.js";
 import { T, LANG, LANGUAGES } from "./texts.js";
@@ -19,6 +19,7 @@ import ProzessePage from "./pages/prozesse.js";
 import DetailsPage from "./pages/details.js";
 import TransferPage, { transferChanges } from "./pages/transfer.js";
 import VergleichenPage from "./pages/vergleichen.js";
+import AenderungenPage from "./pages/aenderungen.js";
 import KameraPage from "./pages/kamera.js";
 import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
@@ -29,7 +30,8 @@ document.documentElement.lang = LANG;
 
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
 // sub: a page about the one above, set in a little under it: Kalibrieren, Übertragen and Vergleichen
-// work on filament profiles, the camera belongs to the printer (its address is on the printer's card).
+// work on filament profiles, the camera belongs to the printer (its address is on the printer's card),
+// "Änderungen" sits under "Drucker" as the user suggested.
 const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
   { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
@@ -39,6 +41,7 @@ const PAGES = [
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Needs no slicer data: shows at once and stays through "Neu einlesen".
   { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true },
+  { id: "aenderungen", icon: "diff", component: AenderungenPage, sub: true },
   { id: "sicherungen", icon: "backup", component: SicherungenPage },
   { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
   { id: "details", icon: "info", component: DetailsPage },
@@ -203,6 +206,8 @@ const app = createApp({
         const n = changes.value.filter((c) => c.page === p.id).length;
         if (n) out[p.id] = { n, text: T.nav.pending, changed: true };
       }
+      const news = inst.value ? NEWS[inst.value.id] || 0 : 0;
+      if (!out.aenderungen && news) out.aenderungen = { n: news, text: T.nav.news, changed: false };
       const backups = inst.value ? BACKUPS[inst.value.id]?.backups.length || 0 : 0;
       if (!out.sicherungen && backups) out.sicherungen = { n: backups, text: T.nav.backups, changed: false };
       return out;

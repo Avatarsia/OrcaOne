@@ -9,6 +9,7 @@ orcaone.sh, or next to the program file of a build (the user's wish of 23.09.202
   "language": the language of the page, "de" or "en" (app.py); missing: the browser's;
   "calibration": the ticks of the page "Kalibrieren" (calibration.py).
 - backups/: the backups (backup.py). They hold credentials, so data/ is not in Git.
+- snapshots/: per installation the state the page "Änderungen" compares with (snapshot.py).
 """
 
 import json
@@ -61,15 +62,20 @@ def change(edit) -> None:
         file.parent.mkdir(parents=True, exist_ok=True)
         tmp = file.with_name(file.name + ".tmp")
         tmp.write_text(json.dumps(data, indent=4, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
-        for attempt in range(3):
-            try:
-                os.replace(tmp, file)
-                break
-            except PermissionError:
-                # Windows: another program (a virus scanner, a backup tool) has it open for a moment.
-                if attempt == 2:
-                    raise
-                time.sleep(0.1)
+        replace(tmp, file)
+
+
+def replace(tmp: Path, file: Path) -> None:
+    """os.replace, tried three times: on Windows another program (a virus scanner, a backup tool)
+    may have the file open for a moment."""
+    for attempt in range(3):
+        try:
+            os.replace(tmp, file)
+            return
+        except PermissionError:
+            if attempt == 2:
+                raise
+            time.sleep(0.1)
 
 
 # ---------------------------------------------------------------- data up to 23.09.2026

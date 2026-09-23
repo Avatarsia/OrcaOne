@@ -1056,6 +1056,25 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .compare-table .compare-mark.st-warn { color: var(--warn); }
 .compare-table tr.is-same td { color: var(--muted); }
 
+/* Page "Änderungen": changes since the last "Als gesehen markieren" (snapshot.py) */
+.news-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.news-head .btn { margin-left: auto; }
+.news-note { color: var(--muted); font-size: 12px; }
+.news-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.news-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.news-list .icon { color: var(--accent-text); }
+.news-tag { flex: none; padding: 0 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 11px; font-weight: 700; line-height: 18px; }
+.news-tag.is-added { color: var(--success); }
+.news-tag.is-changed { color: var(--warn); }
+.news-tag.is-removed { color: var(--error); }
+.news-keys { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 2px 12px; width: 100%; margin: 2px 0 0 30px; font-size: 12px; }
+.news-keys dt { color: var(--label); font-family: var(--mono); overflow-wrap: anywhere; }
+.news-keys dd { margin: 0; overflow-wrap: anywhere; }
+.news-group + .news-group { margin-top: 8px; }
+.news-group summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 700; cursor: pointer; }
+.news-group summary .news-note { font-weight: 400; }
+.news-names { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 0; font-size: 13px; }
+
 /* Page "Logs": the entries in a box of their own that scrolls */
 .log-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-bottom: 12px; }
 .log-file { display: flex; flex: 1 1 280px; flex-direction: column; gap: 4px; }
