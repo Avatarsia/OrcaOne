@@ -2,9 +2,9 @@
 
 A backup holds the whole data directory except log/, cache/, web/, hms/, ota/, user/Temp/,
 user/*/temp/ and user_backup-v*/ (scanner.in_backup), plus orcaone-backup.json with time, reason,
-slicer, version, data directory and the file list. It lives in
-<orcaone_data_dir>/backups/<instance_id>/<YYYY-MM-DD_HHMMSS>_<reason>.zip, readable by the owner
-only: the .conf holds credentials (FINDINGS 4.3).
+slicer, version, data directory and the file list. It lives in OrcaOne's folder data/ (settings.py)
+as backups/<instance_id>/<YYYY-MM-DD_HHMMSS>_<reason>.zip, readable by the owner only: the .conf
+holds credentials (FINDINGS 4.3).
 
 A restore writes back the .conf and user/** only (hard rule 2); what it changes is planned and
 written by orcaone/operations.py like any other change.
@@ -18,7 +18,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from . import __version__, instances
+from . import __version__, settings
 from .model import SLICERS, Instance
 from .scanner import in_backup
 
@@ -71,7 +71,7 @@ def _display(text: str) -> str:
 
 
 def backup_dir(instance_id: str) -> Path:
-    return instances.orcaone_data_dir() / "backups" / instance_id
+    return settings.DATA_DIR / "backups" / instance_id
 
 
 def _private_dir(path: Path) -> None:

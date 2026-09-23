@@ -1,0 +1,82 @@
+import json
+import os
+
+from orcaone import camera, instances, settings
+
+
+def test_one_file_for_all_settings(data_dir):
+    instances._save_manual_paths(["/portable/OrcaSlicer"])
+    instances.save_unlocks("inst1", ["B @System", "A @System", "A @System"])
+    camera.add("10.0.0.5", "U1")
+    data = json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))
+    assert list(data) == ["cameras", "manual_paths", "unlocks"]
+    assert data["manual_paths"] == ["/portable/OrcaSlicer"] and data["unlocks"] == {"inst1": ["A @System", "B @System"]}
+    assert instances.load_unlocks("inst1") == ["A @System", "B @System"] and instances.load_unlocks("inst2") == []
+    assert [c["host"] for c in camera.cameras()] == ["10.0.0.5"]
+    # A section OrcaOne does not know, e.g. from a newer version, stays.
+    settings.change(lambda data: data.update(future={"x": 1}))
+    instances._save_manual_paths([])
+    assert settings.load()["future"] == {"x": 1} and instances.manual_paths() == []
+    assert [p.name for p in data_dir.iterdir()] == ["settings.json"]
+
+
+def test_a_broken_file_reads_as_empty(data_dir):
+    data_dir.mkdir()
+    (data_dir / "settings.json").write_text("[1, 2", encoding="utf-8")
+    assert settings.load() == {} and instances.manual_paths() == [] and camera.cameras() == []
+    (data_dir / "settings.json").write_text('{"manual_paths": "x", "unlocks": [], "cameras": {}}', encoding="utf-8")
+    assert instances.manual_paths() == [] and instances.load_unlocks("inst1") == [] and camera.cameras() == []
+
+
+def test_the_old_folders_move_into_data_once(fake_home, data_dir, monkeypatch):
+    monkeypatch.setattr(settings.platform, "system", lambda: "Linux")
+    share = fake_home / ".local" / "share"
+    old = share / "orcaone"
+    (old / "backups" / "abc").mkdir(parents=True)
+    zip_path = old / "backups" / "abc" / "2026-09-23_070418_before_change.zip"
+    zip_path.write_bytes(b"zip")
+    os.chmod(zip_path, 0o600)
+    (old / "instances.json").write_text(json.dumps({"manual": ["/portable/OrcaSlicer"]}), encoding="utf-8")
+    cam = {"id": "c1", "host": "10.0.0.5", "name": "U1", "every": 5}
+    (old / "cameras.json").write_text(json.dumps({"cameras": [cam]}), encoding="utf-8")
+    (old / "unlocks").mkdir()
+    (old / "unlocks" / "inst1.json").write_text(json.dumps({"names": ["SUNLU PLA+ @System"]}), encoding="utf-8")
+    # Up to the rename the folder was called orfix; its backups come along as well.
+    (share / "orfix" / "backups" / "def").mkdir(parents=True)
+    (share / "orfix" / "backups" / "def" / "2026-09-22_120000_manual.zip").write_bytes(b"old")
+
+    settings.migrate()
+    assert not old.exists() and not (share / "orfix").exists()
+    moved = data_dir / "backups" / "abc" / zip_path.name
+    assert moved.read_bytes() == b"zip"
+    assert (data_dir / "backups" / "def" / "2026-09-22_120000_manual.zip").read_bytes() == b"old"
+    assert instances.manual_paths() == ["/portable/OrcaSlicer"]
+    assert instances.load_unlocks("inst1") == ["SUNLU PLA+ @System"]
+    assert camera.cameras() == [cam]
+    if os.name == "posix":
+        assert moved.stat().st_mode & 0o777 == 0o600
+        assert (data_dir / "backups").stat().st_mode & 0o777 == 0o700
+        assert moved.parent.stat().st_mode & 0o777 == 0o700
+
+    # Nothing left to move: nothing changes.
+    before = (data_dir / "settings.json").read_bytes()
+    settings.migrate()
+    assert (data_dir / "settings.json").read_bytes() == before
+
+
+def test_the_move_loses_nothing(fake_home, data_dir, monkeypatch):
+    """A section already in settings.json wins, and a backup already there under its name stays;
+    what did not move stays in the old folder."""
+    monkeypatch.setattr(settings.platform, "system", lambda: "Linux")
+    instances._save_manual_paths(["/new"])
+    old = fake_home / ".local" / "share" / "orcaone"
+    (old / "backups" / "abc").mkdir(parents=True)
+    (old / "backups" / "abc" / "same.zip").write_bytes(b"old")
+    (data_dir / "backups" / "abc").mkdir(parents=True)
+    (data_dir / "backups" / "abc" / "same.zip").write_bytes(b"new")
+    (old / "instances.json").write_text(json.dumps({"manual": ["/old"]}), encoding="utf-8")
+
+    settings.migrate()
+    assert instances.manual_paths() == ["/new"] and (old / "instances.json").is_file()
+    assert (old / "backups" / "abc" / "same.zip").read_bytes() == b"old"
+    assert (data_dir / "backups" / "abc" / "same.zip").read_bytes() == b"new"

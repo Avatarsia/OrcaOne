@@ -8,7 +8,7 @@ import zipfile
 import pytest
 
 from conftest import copy_fixture
-from orcaone import backup, instances
+from orcaone import backup, instances, settings
 
 
 @pytest.fixture
@@ -48,7 +48,7 @@ def test_backup_holds_everything_but_the_excluded(snorca):
     assert "user/default/filament/Mein PLA.json" in manifest["files"]
     assert len(manifest["files"]) == made["files"]
     assert made["name"].endswith("_manual") and made["size"] == zip_path.stat().st_size
-    assert zip_path.parent == instances.orcaone_data_dir() / "backups" / snorca.id
+    assert zip_path.parent == settings.DATA_DIR / "backups" / snorca.id
     if os.name == "posix":
         assert zip_path.stat().st_mode & 0o777 == 0o600
         assert zip_path.parent.stat().st_mode & 0o777 == 0o700

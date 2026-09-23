@@ -3,7 +3,7 @@ import json
 import pytest
 
 from conftest import BUNDLE, FIXTURES, add_bundle, copy_fixture
-from orcaone import instances, overview
+from orcaone import instances, overview, settings
 from orcaone.guard import SlicerProcess
 from test_opc import patched
 
@@ -17,7 +17,7 @@ def build(path, processes=()):
 
 @pytest.fixture
 def snorca(fake_home):
-    # fake_home keeps the web view folders and OrcaOne's own folder out of the real home.
+    # fake_home keeps the web view folders out of the real home.
     return build(FIXTURES / "snorca")
 
 
@@ -112,7 +112,7 @@ def test_snorca_slicer_and_backups_page(snorca, fake_home):
     backups = snorca["backups_page"]
     assert (backups["backups"], backups["count"], backups["total_size"]) == ([], 0, 0)
     assert backups["now"]["files"] == page["totals"]["backup_files"] > 0
-    assert backups["location"].startswith("~/.local/share/orcaone/backups/")
+    assert backups["location"] == str(settings.DATA_DIR / "backups" / snorca["id"])
 
 
 def test_snorca_top_level(snorca):

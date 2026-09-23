@@ -236,7 +236,7 @@ Jede Phase endet mit einer lauffähigen App, grünen Tests, aktualisierter READM
 - Prozesse: einfache Liste mit Kompatibilität.
 - Dateien: Baum des Datenverzeichnisses mit Erklärung je Ordner, Anzahl und Größe; je Datei erkannter Typ und Status; unbekannte Dateien markiert.
 - „Neu seit dem letzten Scan": OrcaOne speichert einen Schnappschuss (Pfad, Größe, Änderungszeit, Hash) und zeigt hinzugekommene, geänderte und entfernte Dateien sowie Änderungen an `"models"` und `"filaments"`. Der Schnappschuss wird nur auf Wunsch aktualisiert („Als gesehen markieren").
-- Eigenes Datenverzeichnis von OrcaOne für Schnappschüsse und Backups: Linux `$XDG_DATA_HOME/orcaone` (Standard `~/.local/share/orcaone`), Windows `%LOCALAPPDATA%\orcaone`, macOS `~/Library/Application Support/orcaone`.
+- Eigenes Datenverzeichnis von OrcaOne für Einstellungen, Schnappschüsse und Backups: der Ordner `data/` im OrcaOne-Ordner, auf allen Plattformen gleich (geändert am 23.09.2026, vorher `~/.local/share/orcaone` bzw. `%LOCALAPPDATA%\orcaone`).
 
 ### Phase 2 – Aufräumen
 

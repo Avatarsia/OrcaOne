@@ -6,13 +6,13 @@ slicer puts its data directory is documented in docs/FINDINGS.md, section 4.1.
 """
 
 import hashlib
-import json
 import os
 import platform
 import re
 import time
 from pathlib import Path
 
+from . import settings
 from .conf import RETRY_DELAY, read_conf
 from .model import SLICERS, Instance
 
@@ -35,29 +35,6 @@ APPIMAGE_DIRS = ["Applications", "AppImages", "Apps", "Downloads", "Desktop", "b
 _NOT_USER_FOLDERS = {"Temp"}
 
 _VERSION = re.compile(r"(\d+\.\d+\.\d+\S*)\s*$")
-
-
-def orcaone_data_dir(system: str | None = None, env=None, home: Path | None = None) -> Path:
-    """OrcaOne's own folder for manual paths, snapshots and backups."""
-    system = system or platform.system()
-    env = os.environ if env is None else env
-    home = home or Path.home()
-    if system == "Windows":
-        base = Path(env["LOCALAPPDATA"]) if env.get("LOCALAPPDATA") else home / "AppData" / "Local"
-    elif system == "Darwin":
-        base = home / "Library" / "Application Support"
-    else:
-        base = Path(env["XDG_DATA_HOME"]) if env.get("XDG_DATA_HOME") else home / ".local" / "share"
-    return base / "orcaone"
-
-
-def move_old_data_dir() -> None:
-    """Up to 23.09.2026 the app was called Orfix: its folder, with the backups, moves over once.
-    Next to the new one, so a rename, never a copy."""
-    new = orcaone_data_dir()
-    old = new.with_name("orfix")
-    if old.is_dir() and not new.exists():
-        old.rename(new)
 
 
 def candidate_dirs(system: str, env, home: Path) -> list[tuple[Path, str]]:
@@ -176,30 +153,18 @@ def discover(process_dirs: list[Path] | None = None) -> list[Instance]:
     return instances
 
 
-def _manual_file() -> Path:
-    return orcaone_data_dir() / "instances.json"
-
-
 def manual_paths() -> list[str]:
-    try:
-        data = json.loads(_manual_file().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    paths = data.get("manual") if isinstance(data, dict) else None
+    paths = settings.load().get("manual_paths")
     return [p for p in paths if isinstance(p, str)] if isinstance(paths, list) else []
 
 
 def _save_manual_paths(paths: list[str]) -> None:
-    file = _manual_file()
-    file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = file.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"manual": paths}, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
-    os.replace(tmp, file)
+    settings.change(lambda data: data.update(manual_paths=paths))
 
 
 def add_manual_path(raw: str) -> Instance:
     """Remember a data directory. Raises ValueError with an error code,
-    OSError if OrcaOne's own folder cannot be written."""
+    OSError if OrcaOne's settings cannot be written."""
     # File managers copy paths with quotes ("Copy as path" on Windows).
     raw = raw.strip().strip('"').strip()
     try:
@@ -235,25 +200,18 @@ def remove_manual_path(raw: str) -> None:
 
 # ---------------------------------------------------------------- unlocked library filaments
 
-def _unlocks_file(instance_id: str) -> Path:
-    return orcaone_data_dir() / "unlocks" / f"{instance_id}.json"
-
-
 def load_unlocks(instance_id: str) -> list[str]:
     """Library filaments OrcaOne put into "filaments" (way A, FINDINGS 4.7). The wizard and a few
     dialogs rewrite that list and drop them; overview.py compares on every scan."""
-    try:
-        data = json.loads(_unlocks_file(instance_id).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    names = data.get("names") if isinstance(data, dict) else None
+    unlocks = settings.load().get("unlocks")
+    names = unlocks.get(instance_id) if isinstance(unlocks, dict) else None
     return [n for n in names if isinstance(n, str)] if isinstance(names, list) else []
 
 
 def save_unlocks(instance_id: str, names: list[str]) -> None:
-    file = _unlocks_file(instance_id)
-    file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = file.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"names": sorted(set(names))}, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
-    os.replace(tmp, file)
+    def edit(data):
+        unlocks = data.get("unlocks") if isinstance(data.get("unlocks"), dict) else {}
+        unlocks[instance_id] = sorted(set(names))
+        data["unlocks"] = unlocks
 
+    settings.change(edit)

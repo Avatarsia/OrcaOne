@@ -31,6 +31,15 @@ Ohne Skript geht es so:
 
 Optionen: `--port 8765` für einen festen Port, `--no-browser`, wenn der Browser nicht aufgehen soll.
 
+## Eigene Daten
+
+Alles, was OrcaOne selbst ablegt, liegt im Ordner `data/` im OrcaOne-Ordner:
+
+- `settings.json`: alle Einstellungen, also von Hand hinzugefügte Datenordner, die Kameras samt Bildtakt und die Bibliotheksfilamente, die OrcaOne in Snapmaker Orca freigeschaltet hat;
+- `backups/<id>/`: die Sicherungen, nur für den Nutzer lesbar.
+
+`data/` steht nicht im Git, denn die Sicherungen enthalten Zugangsdaten. Wer OrcaOne verschiebt, nimmt den Ordner mit. Daten älterer Versionen aus `~/.local/share/orcaone` bzw. `%LOCALAPPDATA%\orcaone` holt OrcaOne beim Start einmal hierher.
+
 ## Seiten
 
 Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“.
@@ -66,7 +75,7 @@ Eine Liste der Änderungen kommt nur dazwischen, wenn Änderungen an mehreren In
   - Windows: `%APPDATA%`;
   - macOS: `~/Library/Application Support`;
   - dazu Slicer, die gerade mit `--datadir` laufen.
-- Datenordner von Hand hinzufügen und wieder entfernen. Die Liste liegt in `~/.local/share/orcaone/instances.json` bzw. `%LOCALAPPDATA%\orcaone\instances.json`.
+- Datenordner von Hand hinzufügen und wieder entfernen. Die Liste steht in `data/settings.json`.
 - Herstellerpakete aus JSON und aus `.opc` (OrcaSlicer-Nightly) lesen, eigene Profile samt `.info`, die Bundles von OrcaSlicer main.
 - Vererbung, Sichtbarkeit und Kompatibilität so auflösen wie der Slicer. Dazu gehört auch, welche Bibliotheksprofile ein Herstellerprofil verdrängt.
 - Hinweise geben, etwa zu verwaisten eigenen Profilen, zu versteckten Bibliotheksprofilen in Snapmaker Orca und zu toten Einträgen in `orca_presets`.
@@ -76,7 +85,7 @@ Eine Liste der Änderungen kommt nur dazwischen, wenn Änderungen an mehreren In
   - Bibliotheksfilamente in Snapmaker Orca für alle Düsen (Weg A) oder für einzelne Düsen über ein eigenes Hilfsprofil (Weg B, FINDINGS 4.7);
   - eigene Filamente anlegen, ändern, umbenennen (samt `inherits` der Kinder und `orca_presets`) und löschen;
   - Standarddrucker festlegen, Drucker entfernen, tote `orca_presets`-Einträge aufräumen.
-- Vor jedem Schreiben eine ZIP-Sicherung in `~/.local/share/orcaone/backups/<id>/` bzw. `%LOCALAPPDATA%\orcaone\backups\<id>\`, nur für den Nutzer lesbar. Lässt sich ein Ordner nicht lesen, legt OrcaOne keine Sicherung an und schreibt nichts. Wiederherstellen schreibt `.conf` und `user/` zurück, vorher sichert OrcaOne den jetzigen Stand. Das geht auch, wenn die `.conf` beschädigt ist; alle anderen Änderungen sperrt OrcaOne dann.
+- Vor jedem Schreiben eine ZIP-Sicherung in `data/backups/<id>/`, nur für den Nutzer lesbar. Lässt sich ein Ordner nicht lesen, legt OrcaOne keine Sicherung an und schreibt nichts. Wiederherstellen schreibt `.conf` und `user/` zurück, vorher sichert OrcaOne den jetzigen Stand. Das geht auch, wenn die `.conf` beschädigt ist; alle anderen Änderungen sperrt OrcaOne dann.
 - Nie über Symlinks schreiben: Ein Ordner in `user/`, der ein Symlink ist, fehlt in der Sicherung. Änderungen dort sperrt OrcaOne (`path_outside_backup`).
 - Profilpakete von OrcaSlicer 2.5 (`_local/`, `_subscribed/`) stehen unter „Aus Paketen“, gruppiert nach Paket und ohne den internen Vorsatz `_local/<id>/`. Ändern, löschen oder als Vorlage nehmen lassen sie sich nicht, das bleibt OrcaSlicer vorbehalten. Einen Drucker aus einem Paket kann man als Standard wählen.
 - Meldet, wenn der Einrichtungsassistent ein freigeschaltetes Bibliotheksfilament wieder ausgeblendet hat („Freischaltung verloren“), auf „Filamente“ und unter „Slicer“ → „Hinweise“.
@@ -121,6 +130,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `orcaone/resolver.py` | Vererbung, Sichtbarkeit, Kompatibilität, Bibliotheks-Ausschluss |
 | `orcaone/opc.py` | Leser für das `.opc`-Format der OrcaSlicer-Nightly |
 | `orcaone/instances.py` | Installationen finden, manuelle Pfade |
+| `orcaone/settings.py` | der Ordner `data/`: `settings.json` lesen und schreiben, alte Daten einmal umziehen |
 | `orcaone/camera.py` | Kamera des U1: wecken über Moonrakers WebSocket, Bild holen |
 | `orcaone/guard.py` | Prüfen, ob ein Slicer läuft (nur lesend) |
 | `orcaone/conf.py` | `.conf` byte-genau lesen und schreiben |

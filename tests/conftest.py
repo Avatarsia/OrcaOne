@@ -9,11 +9,20 @@ from pathlib import Path
 import pytest
 import uvicorn
 
-from orcaone import guard, instances
+from orcaone import guard, instances, settings
 from orcaone.__main__ import free_port
 from orcaone.app import app
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def data_dir(tmp_path, monkeypatch):
+    """OrcaOne's own folder data/ (settings, backups) in the test's temporary folder, never the
+    real one next to orcaone.sh."""
+    folder = tmp_path / "orcaone-data"
+    monkeypatch.setattr(settings, "DATA_DIR", folder)
+    return folder
 
 
 @pytest.fixture

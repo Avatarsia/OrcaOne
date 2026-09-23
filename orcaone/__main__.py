@@ -8,7 +8,7 @@ import webbrowser
 
 import uvicorn
 
-from . import instances
+from . import settings
 from .app import app
 
 
@@ -30,7 +30,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--no-browser", action="store_true", help="Browser nicht öffnen")
     args = parser.parse_args(argv)
 
-    instances.move_old_data_dir()
+    settings.migrate()
     port = args.port or free_port()
     url = f"http://127.0.0.1:{port}/"
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))

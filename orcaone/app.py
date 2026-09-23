@@ -93,7 +93,6 @@ def list_instances():
     manual = set(instances.manual_paths())
     return {
         "version": __version__,
-        "orcaone_data_dir": str(instances.orcaone_data_dir()),
         "instances": [
             {
                 **asdict(instance),

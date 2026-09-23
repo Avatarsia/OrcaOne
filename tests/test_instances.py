@@ -54,13 +54,6 @@ def test_windows_and_macos_locations(tmp_path):
     assert (tmp_path / "Library" / "Application Support" / "OrcaSlicer", "auto") in found
 
 
-def test_orcaone_data_dir(tmp_path):
-    assert instances.orcaone_data_dir("Linux", {}, tmp_path) == tmp_path / ".local" / "share" / "orcaone"
-    assert instances.orcaone_data_dir("Linux", {"XDG_DATA_HOME": "/data"}, tmp_path) == Path("/data/orcaone")
-    assert instances.orcaone_data_dir("Windows", {"LOCALAPPDATA": "/local"}, tmp_path) == Path("/local/orcaone")
-    assert instances.orcaone_data_dir("Darwin", {}, tmp_path) == tmp_path / "Library" / "Application Support" / "orcaone"
-
-
 def test_load_instance_reads_the_basic_facts(tmp_path):
     data_dir = make_data_dir(tmp_path / "Snapmaker_Orca", preset_folder="1234567")
     for folder in ("default", "1234567", "Temp"):
@@ -176,18 +169,3 @@ def test_manual_path_already_found_automatically(fake_home, monkeypatch):
     with pytest.raises(ValueError, match="already_listed"):
         add_manual_path(str(data_dir))
     assert manual_paths() == []
-
-
-def test_the_folder_of_orfix_moves_over_once(fake_home, monkeypatch):
-    monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
-    old = fake_home / ".local" / "share" / "orfix"
-    (old / "backups" / "abc").mkdir(parents=True)
-    (old / "backups" / "abc" / "2026-09-23_070418_before_change.zip").write_bytes(b"zip")
-    instances.move_old_data_dir()
-    new = instances.orcaone_data_dir()
-    assert not old.exists() and (new / "backups" / "abc" / "2026-09-23_070418_before_change.zip").read_bytes() == b"zip"
-    # Both there: nothing moves, nothing is overwritten.
-    old.mkdir()
-    instances.move_old_data_dir()
-    assert old.is_dir() and new.is_dir()
-

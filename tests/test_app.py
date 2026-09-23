@@ -9,6 +9,7 @@ import urllib.request
 import pytest
 
 from conftest import call, copy_fixture
+from orcaone import settings
 
 
 def test_lists_instances_and_adds_a_manual_path(server, fake_home):
@@ -143,7 +144,7 @@ def test_change_backup_and_restore_through_the_api(server, fake_home):
     listed = json.loads(call(f"{base}/backups")[1])
     assert [b["reason"] for b in listed["backups"]] == ["manual", "before_change"]
     assert listed["total_size"] == sum(b["size"] for b in listed["backups"])
-    assert listed["location"].startswith("~/.local/share/orcaone/backups/")
+    assert listed["location"] == str(settings.DATA_DIR / "backups" / inst["id"])
     page = json.loads(call(f"{server}/api/data")[1])["instances"][0]["backups_page"]
     assert page["count"] == 2 and page["backups"] == listed["backups"]
 

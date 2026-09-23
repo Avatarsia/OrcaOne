@@ -9,7 +9,7 @@ Stand 21.09.2026, freigegeben am selben Tag. Grundlage: [Spezifikation](../ORCAO
 - **Unterstützte Slicer:** SnOrca 2.4 sowie OrcaSlicer stabil (2.4.x, JSON) **und** Nightly (2.5.0-dev, `.opc`).
 - **Plattformen:** Linux und Windows gleichwertig. macOS läuft über die Pfaderkennung mit, wird aber nicht getestet.
 - **Stil:** OrcaOne lehnt sich am ionpy-Styleguide an. Alle nötigen Dateien werden **kopiert**, OrcaOne läuft eigenständig ohne ionpy und ohne CDN.
-- **Name:** OrcaOne. Paket `orcaone/`, Start mit `python -m orcaone`, eigener Datenordner `~/.local/share/orcaone` bzw. `%LOCALAPPDATA%\orcaone`.
+- **Name:** OrcaOne. Paket `orcaone/`, Start mit `python -m orcaone`, eigene Daten nur im Ordner `data/` im OrcaOne-Ordner: `settings.json` für alle Einstellungen und `backups/` (Wunsch des Nutzers vom 23.09.2026).
 - **Python-Umgebung:** `.lenv` im Projektordner, Abhängigkeiten in `requirements.txt`.
 
 ## Abweichungen von der Spezifikation
@@ -42,7 +42,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 
 - **Linux:** `$XDG_CONFIG_HOME` bzw. `~/.config`, die Flatpak-Pfade für `io.github.Snapmaker.Snapmaker_Orca`, `com.orcaslicer.OrcaSlicer` und die alte ID `io.github.softfever.OrcaSlicer` (als „veraltete Kopie“) sowie `<AppImage>.config/<Key>` neben gefundenen AppImages.
 - **Windows:** `%APPDATA%\<Key>`. **macOS:** `~/Library/Application Support/<Key>`.
-- **Manuelle Pfade** für portable Installationen oder `--datadir`. Sie werden in `<orcaone-daten>/instances.json` gespeichert.
+- **Manuelle Pfade** für portable Installationen oder `--datadir`. Sie werden in `data/settings.json` gespeichert.
 - **Je Instanz:** Slicer (aus dem Namen der `.conf`), Version aus `header`, Formate (JSON, `.opc`), Benutzerordner, und ob ein Konto angemeldet ist (`preset_folder` ≠ `""`).
 
 **0.3 Laufprüfung** (`guard.py`)
@@ -103,7 +103,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 
 **1.4 Schnappschuss** („Neu seit dem letzten Scan“)
 
-- **Gespeichert** wird je Instanz in `<orcaone-daten>/snapshots/`: Pfad, Größe, Änderungszeit und SHA-256 je Datei, dazu `models`, `filaments`, `presets`, `orca_presets` und die Projekt-Einstellungen aus `app`.
+- **Gespeichert** wird je Instanz in `data/snapshots/`: Pfad, Größe, Änderungszeit und SHA-256 je Datei, dazu `models`, `filaments`, `presets`, `orca_presets` und die Projekt-Einstellungen aus `app`.
 - **„Als gesehen markieren“** aktualisiert den Schnappschuss.
 - **Änderungen durch den Slicer** (siehe FINDINGS 4.4) werden als solche erklärt.
 

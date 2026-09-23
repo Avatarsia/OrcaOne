@@ -163,7 +163,7 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 
 - **Name:** OrcaOne = Orca + U1 („One“), vom Nutzer gewählt; Kunstwörter ohne Bezug hat er verworfen. Auf PyPI und GitHub frei (geprüft 23.09.).
 - **Umbenannt:** Paket `orcaone/`, `orcaone.sh`/`orcaone.cmd`, `ORCAONE_SPEC.md`, alle Texte und die Doku, `.claude/launch.json` (Konfiguration „orcaone“). Nur die historische Zeile in PLAN.md zur ersten Umbenennung bleibt.
-- **Bestehende Daten:** Beim Start zieht OrcaOne `~/.local/share/orfix` einmal nach `~/.local/share/orcaone` um (`instances.move_old_data_dir`); am 23.09. auf diesem Rechner geschehen, alle 6 Sicherungen sind da. Sicherungen mit `orfix-backup.json` bleiben lesbar und wiederherstellbar.
+- **Bestehende Daten:** Beim Start zieht OrcaOne `~/.local/share/orfix` einmal nach `~/.local/share/orcaone` um (`instances.move_old_data_dir`); am 23.09. auf diesem Rechner geschehen, alle 6 Sicherungen sind da. Seit dem Datenordner (unten) übernimmt `settings.migrate` diesen Umzug. Sicherungen mit `orfix-backup.json` bleiben lesbar und wiederherstellbar.
 - **Für den Nutzer offen:** den Projektordner `~/dev/orfix` in `~/dev/orcaone` umbenennen. Das Gedächtnis liegt schon unter `-home-dominiks-dev-orcaone`. `.lenv` zieht mit um, `./orcaone.sh` läuft weiter (es ruft Python mit `-m` auf).
 - **Nächste Schritte:** U1-Kamera (`prototypes/U1Cam/u1cam.py`), eine Seite „Logs“ unter „Technik“ (die Slicer schreiben nach `<Datenordner>/log/`), Drucker übertragen zurückgestellt.
 
@@ -179,3 +179,10 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Ablauf wie `prototypes/U1Cam/u1cam.py`:** Solange die Seite sichtbar ist, schickt OrcaOne alle 10 s `camera.start_monitor` über Moonrakers WebSocket und reicht `monitor.jpg` durch. Der Browser spricht nie selbst mit dem Drucker. Das Alter des Bilds rechnet OrcaOne mit der Uhr des Druckers (Date minus Last-Modified). Ist die Seite verdeckt, pausiert sie.
 - **Sicherheit:** Die Seite nennt Kameras nur über ihre ID, nie über eine Adresse; OrcaOne fragt also nur Drucker, die der Nutzer eingetragen hat.
 - **Am echten U1 geprüft (10.30.40.174):** Moonraker 1.6.0, Wecken antwortet in 185 ms mit „success“, Bild 117 KB. Tests mit einem nachgebauten Moonraker in `tests/test_camera.py`.
+
+## Ein Datenordner (23.09.2026)
+
+- **Wunsch des Nutzers:** keine über die Platte verteilten Daten. Alles, was OrcaOne ablegt, liegt jetzt in `data/` im OrcaOne-Ordner: `settings.json` für alle Einstellungen (von Hand hinzugefügte Datenordner, Kameras, freigeschaltete Bibliotheksfilamente) und `backups/`. Künftige Einstellungen kommen als weiterer Abschnitt in dieselbe Datei.
+- **Umzug:** Beim Start holt `settings.migrate` Sicherungen und Einstellungsdateien aus `~/.local/share/orcaone` und `~/.local/share/orfix` (Windows `%LOCALAPPDATA%`) und löscht die leeren alten Ordner. Was schon da ist, gewinnt; was nicht umziehen konnte, bleibt am alten Ort.
+- **Git:** `data/` steht in `.gitignore`, weil die Sicherungen Zugangsdaten enthalten.
+- **Tests:** Eine automatische Fixture in `tests/conftest.py` legt `data/` in den temporären Ordner des Tests.

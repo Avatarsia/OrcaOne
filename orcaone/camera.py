@@ -6,8 +6,8 @@ printer's WebSocket as its own web page does. Then the printer writes
 /server/files/camera/monitor.jpg every few seconds. OrcaOne wakes it while the page shows the
 picture and passes the picture through, so the browser needs no access of its own to the printer.
 
-Only printers the user added are asked (cameras.json in OrcaOne's own folder): the page names a
-camera by its id, never by an address, so no other page can make OrcaOne fetch from elsewhere.
+Only printers the user added are asked (section "cameras" of OrcaOne's settings): the page names
+a camera by its id, never by an address, so no other page can make OrcaOne fetch from elsewhere.
 Standard library only.
 """
 
@@ -21,9 +21,8 @@ import struct
 import time
 import urllib.request
 from email.utils import parsedate_to_datetime
-from pathlib import Path
 
-from . import instances
+from . import settings
 
 TIMEOUT = 5
 # A host name or IPv4 address with an optional port: nothing that could become a path.
@@ -38,27 +37,15 @@ class CameraError(Exception):
         self.code, self.detail = code, detail
 
 
-def _file() -> Path:
-    return instances.orcaone_data_dir() / "cameras.json"
-
-
 def cameras() -> list[dict]:
     """[{"id", "host", "name", "every"?}] as added; every: seconds between two pictures."""
-    try:
-        data = json.loads(_file().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    items = data.get("cameras") if isinstance(data, dict) else None
+    items = settings.load().get("cameras")
     return [c for c in items if isinstance(c, dict) and isinstance(c.get("host"), str) and isinstance(c.get("id"), str)] \
         if isinstance(items, list) else []
 
 
 def _save(items: list[dict]) -> None:
-    file = _file()
-    file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = file.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"cameras": items}, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
-    os.replace(tmp, file)
+    settings.change(lambda data: data.update(cameras=items))
 
 
 def normalize(raw: str) -> str | None:
