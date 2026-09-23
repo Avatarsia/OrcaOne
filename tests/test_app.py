@@ -94,7 +94,7 @@ def test_serves_every_module_the_ui_imports(server):
         assert status == 200, path
         for rel in re.findall(r'from "(\.{1,2}/[^"]+)"', body.decode("utf-8")):
             todo.append(posixpath.normpath(posixpath.join(posixpath.dirname(path), rel)))
-    assert {"common.js", "api.js", "texts.js", "texts/de.js", "texts/en.js", "texts/names.js", "pages/filamente.js",
+    assert {"common.js", "api.js", "texts.js", "texts/de.js", "texts/en.js", "texts/names.js", "pages/kalibrieren.js", "pages/filamente.js",
             "pages/filament-editor.js", "pages/drucker.js", "pages/sicherungen.js", "pages/slicer.js"} <= seen
 
 

@@ -53,7 +53,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Hauptmenü",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", drucker: "Drucker", kamera: "Kamera", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", kamera: "Kamera", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     technik: "Technik",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -469,6 +469,169 @@ const T = {
         spiralinset: "Spirale nach innen", hilbertcurve: "Hilbertkurve", archimedeanchords: "Archimedische Sehnen", octagramspiral: "Oktagrammspirale",
       },
     },
+  },
+
+  // ---------------------------------------------------------------- page "Kalibrieren"
+  // After the user's guide prototypes/U1 Filament Kalibrierung.md, as checked in docs/FINDINGS.md
+  // (section "Kalibrierung").
+  calibration: {
+    title: "Filament kalibrieren",
+    lead: "Schritt für Schritt zum Abhaken, Pflicht sind nur Flow und Pressure Advance. Die Werte trägt OrcaOne in dein eigenes Filament ein und liest dabei live vom U1 mit.",
+    filament: "Filament",
+    noOwn: "Noch kein eigenes Filament. Kalibriert wird immer eine eigene Kopie, die Profile vom Hersteller bleiben unverändert.",
+    toFilaments: "Unter „Filamente“ eine Kopie anlegen",
+    progress: (done, total) => `${n(done)} von ${n(total)} Schritten erledigt`,
+    required: "Pflicht",
+    optional: "Bei Bedarf",
+    doneOn: (date) => `erledigt am ${date}`,
+    tick: (title) => `${title} abhaken`,
+    inProfile: "Im Filament:",
+    notSet: "nicht gesetzt",
+    on: "an",
+    off: "aus",
+    queuedValue: (v) => `Vorgemerkt: ${v}. Kommt mit „Übernehmen“ ins Filament.`,
+    undo: "Zurücknehmen",
+    redo: (from, to) => `Die Temperatur ist seit dem Abhaken anders (${from} → ${to} °C): neu kalibrieren.`,
+    enter: (v) => `${v} eintragen`,
+    queued: (name) => `Für ${q(name)} vorgemerkt`,
+    changeWhere: (labels) => labels.join(", "),
+    keys: {
+      nozzle_temperature: "Temperatur", filament_flow_ratio: "Flow", pressure_advance: "Pressure Advance",
+      enable_pressure_advance: "Pressure Advance an", filament_max_volumetric_speed: "Max. Durchfluss",
+      filament_retraction_length: "Retraction", filament_shrink: "Shrinkage",
+    },
+    // The U1, read live over Moonraker (orcaone/camera.py, status).
+    printer: {
+      title: "U1 live",
+      none: "Trage deinen U1 unter „Kamera“ ein. Dann zeigt OrcaOne hier live die Spulen und die Pressure-Advance-Werte.",
+      toCamera: "Zur Seite „Kamera“",
+      unreachable: "Der Drucker ist gerade nicht erreichbar.",
+      states: { standby: "Bereit", printing: "Druckt", paused: "Pausiert", complete: "Fertig", cancelled: "Abgebrochen", error: "Fehler" },
+      calibrates: "mit Flow Calibration",
+      head: (i) => `Kopf ${i}`,
+      empty: "leer",
+      measured: "gemessen",
+      round: "rund",
+      measuredTitle: "Krumme Zahl: Diesen Wert hat die Flow Calibration beim Druckstart gemessen.",
+      roundTitle: "Glatte Zahl: ein Wert aus dem Slicer oder der Firmware, nicht gemessen.",
+      paLabel: "Pressure Advance",
+    },
+    printerSteps: "Einmal pro Drucker",
+    filamentSteps: "Für dieses Filament",
+    steps: {
+      connect: {
+        title: "U1 in OrcaOne eintragen",
+        points: ["Dann liest OrcaOne Spulen und Pressure Advance direkt vom Drucker, ohne Fluidd."],
+        connected: (name, host) => `Eingetragen: ${name} (${host})`,
+      },
+      spread: {
+        title: "Vierer-Spread-Test",
+        points: [
+          "Dasselbe Filament auf alle vier Köpfe laden, das Modell „4 Colour Flowrate Calibration“ drucken und den Flow je Kopf ausrechnen.",
+          "Alle innerhalb von ±1–2 %: Ein Profil je Filament reicht dauerhaft.",
+          "Ein Kopf weicht deutlich ab: Spulen auf ihrem Stamm-Kopf kalibrieren und den Kopf in den Namen schreiben, etwa „eSun PLA+ T2“.",
+        ],
+        link: "Modell auf Printables",
+      },
+      machine: {
+        title: "Maschinenkalibrierung aktuell",
+        points: [
+          "Vibrationskompensation, Bett-Leveling und 4-Kopf-Offset am Drucker laufen lassen, bevor du Filamente kalibrierst. Pressure Advance hängt von der Beschleunigung ab.",
+          "Nach Transport, Düsenwechsel oder größeren Firmware-Updates wiederholen.",
+        ],
+      },
+      dry: {
+        title: "Trocknen",
+        points: [
+          "PLA frisch aus der Vakuumverpackung: direkt drucken.",
+          "Pflicht bei PVA, bei PETG und TPU nach offener Lagerung. Der U1 trocknet nicht selbst.",
+          "Anzeichen für Feuchte: Knistern an der Düse, plötzlich Fäden, matte, raue Oberflächen.",
+        ],
+        spool: (head, what, temp, hours) => `${head}, ${what}: ${temp} °C, ${hours} h laut Spule`,
+      },
+      temp: {
+        title: "Temperatur festlegen",
+        points: [
+          "Bekannte Marke: die Mitte des Bereichs vom Hersteller, ohne Kalibriertest.",
+          "Kühler gibt schönere Oberflächen und weniger Fäden, heißer bessere Haftung, Festigkeit und Reserve für Tempo.",
+          "Den Temperaturturm (Kalibrierung → Temperature) nur bei unbekannten Herstellern oder Problemen. Er stellt die Düsentemperatur im Slicer vorübergehend um, das nicht in die Kopie speichern.",
+        ],
+        profileRange: (lo, hi) => `Bereich im Filament: ${lo}–${hi} °C`,
+        fromHead: (head, lo, hi) => `${head}: ${lo}–${hi} °C`,
+        rangeFrom: "Bereich von",
+        rangeTo: "bis",
+        valueLabel: "Temperatur",
+        middle: (t) => `Mitte: ${t} °C`,
+        warn: "Danach die Temperatur nicht mehr ändern, sonst Flow und Pressure Advance neu.",
+      },
+      flow: {
+        title: "Flow Ratio",
+        points: [
+          "In Snapmaker Orca: Kalibrierung → Flow Rate → YOLO (Recommended). Es testet ±0,05 in 0,01er-Schritten, „Perfectionist“ in 0,005er-Schritten.",
+          "Das beste Feld suchen und seinen Wert eintragen. Er zählt zum jetzigen Wert dazu, zurücksetzen auf 1,0 ist nicht nötig.",
+          "Danach im Slicer ein neues Projekt anlegen und die Änderungen am Filament verwerfen.",
+        ],
+        fieldLabel: "Wert auf dem besten Feld",
+        fieldHint: "z. B. -0,02",
+        result: (cur, next) => `${cur} → ${next}`,
+        edge: "Das beste Feld liegt am Rand. Mit dem neuen Wert den Test noch einmal drucken.",
+      },
+      pa: {
+        title: "Pressure Advance",
+        points: [
+          "Der U1 misst Pressure Advance selbst: Beim ersten richtigen Druck mit dem Filament im Sendedialog „Flow Calibration“ anhaken, am Drucker heißt es „Dynamic Flow Calibration“. Den Messwert übernimmst du unten.",
+          "Bei PLA passt der Messwert meist direkt. Bei PETG und technischen Materialien ist er nur ein Startpunkt, dann einmal mit dem PA-Linientest aus dem Slicer gegenprüfen.",
+          "Mit der 0,2-mm-Düse misst der U1 unzuverlässig, dort nur den PA-Linientest nehmen.",
+          "Den PA-Linientest ohne „Flow Calibration“ senden. Sonst misst der Drucker selbst und übergeht die Werte, die der Test durchprobiert.",
+        ],
+        off: "Im Filament ist Pressure Advance aus, der Slicer nutzt den Wert also gar nicht. Beim Eintragen schaltet OrcaOne es ein.",
+        valueLabel: "Pressure-Advance-Wert",
+        takeFrom: "Vom Drucker übernehmen:",
+        enter: (v) => `${v} eintragen und einschalten`,
+        noPrinter: "Ohne eingetragenen U1: den Wert in Fluidd in der Konsole ablesen.",
+      },
+      mvs: {
+        title: "Max. Durchfluss",
+        points: [
+          "Nur für schnelle Profile. Wer langsam druckt, erreicht die Grenze nie.",
+          "Kalibrierung → Max flowrate. Voreinstellung 5 bis 20 mm³/s in 0,5er-Schritten, für schnelles PLA das Ende auf etwa 30 setzen.",
+          "Die Höhe messen, ab der die Qualität einbricht.",
+        ],
+        start: "Start (mm³/s)", step: "Schritt (mm³/s)", height: "Höhe (mm)", margin: "Abstand (%)",
+        result: (limit, safe) => `Grenze ${limit} mm³/s, mit Sicherheitsabstand ${safe} mm³/s`,
+      },
+      retraction: {
+        title: "Retraction",
+        points: [
+          "Nur wenn trotz trockenem Filament und richtigem Pressure Advance noch Fäden bleiben.",
+          "Kalibrierung → Retraction test. Voreinstellung 0 bis 2 mm in 0,1er-Schritten.",
+          "Die niedrigste Höhe ohne Fäden messen und den kleinsten fadenfreien Wert nehmen. TPU verträgt kaum Retraction.",
+        ],
+        start: "Start (mm)", step: "Schritt (mm)", height: "Höhe (mm)",
+        result: (len) => `Länge ${len} mm, als eigener Wert des Filaments`,
+        formula: "Die Länge steigt je vollem Millimeter, ab 0,4 mm Höhe.",
+        fromPrinter: "vom Drucker",
+      },
+      shrink: {
+        title: "Shrinkage",
+        points: [
+          "Nur für Teile, die passen müssen. Ganz am Ende, es ändert nichts an den anderen Schritten.",
+          "Das Modell drucken, ganz abkühlen lassen (ABS und ASA etwa eine Stunde), dann X und Y messen.",
+          "Zu kleine Löcher sind etwas anderes: dafür „X-Y hole compensation“ im Prozess.",
+        ],
+        link: "Modelle auf Printables",
+        target: "Soll (mm)", measuredX: "Ist X (mm)", measuredY: "Ist Y (mm)",
+        result: (pct) => `Shrinkage ${pct} %`,
+      },
+    },
+    rulesTitle: "Grundregeln",
+    rules: [
+      "Temperatur später geändert: Flow und Pressure Advance neu, alles andere bleibt.",
+      "Neue Werte wirken erst nach neuem Slicen, auch ein Nachdruck vom Display nutzt die alten.",
+      "Nach jedem Kalibriertest im Slicer ein neues Projekt anlegen und die Änderungen verwerfen.",
+      "Einen Weg fahren: feste Werte im Filament (Pressure Advance an) oder Voll-Automatik (aus, und vor jedem neuen Filament kalibrieren).",
+    ],
+    errors: { calibration_invalid: "Diesen Schritt kennt OrcaOne nicht. Lade die Seite neu." },
   },
 
   // ---------------------------------------------------------------- page "Kamera"

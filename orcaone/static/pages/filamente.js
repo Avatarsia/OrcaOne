@@ -609,6 +609,10 @@ export default {
     });
     // The page "Details" with the profile of this entry: for a manufacturer entry the one of the
     // nozzle in view (templateProfile), for an own one its file.
+    function toCalibration(e) {
+      ui.calibrateFor = e.record;
+      go(null, hashOf("kalibrieren", inst.value.id));
+    }
     function toDetails(e) {
       const rec = e.record ? inst.value.byName.get(e.record) : templateProfile(e).rec;
       if (!rec) return;
@@ -827,7 +831,7 @@ export default {
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
       brandOpen, toggleBrand, toggleKind, toggleMaterial, switchOn, toggleAt, lockText,
-      openPanel, closePanel, openDetails, pickRow, jumpTo, toDetails, removeOwn,
+      openPanel, closePanel, openDetails, pickRow, jumpTo, toDetails, toCalibration, removeOwn,
       dragStart, dragEnd, dragOver, drop, KIND_ICON,
     };
   },
@@ -1081,6 +1085,7 @@ export default {
             </div>
             <p v-if="!detail.e.fresh" class="details-link">
               <button class="link" type="button" @click="guarded(() => toDetails(detail.e))"><ui-icon name="info"/>{{ T.details.toDetails }}</button>
+              <button v-if="detail.e.kind === 'user' && detail.e.record" class="link" type="button" @click="guarded(() => toCalibration(detail.e))"><ui-icon name="calibrate"/>{{ T.nav.pages.kalibrieren }}</button>
             </p>
           </template>
         </template>

@@ -20,6 +20,7 @@ import DetailsPage from "./pages/details.js";
 import TransferPage, { transferChanges } from "./pages/transfer.js";
 import KameraPage from "./pages/kamera.js";
 import LogsPage from "./pages/logs.js";
+import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -29,6 +30,7 @@ document.documentElement.lang = LANG;
 const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
   { id: "prozesse", icon: "layers", component: ProzessePage },
+  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage },
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Needs no slicer data: shows at once and stays through "Neu einlesen".
   { id: "kamera", icon: "camera", component: KameraPage, standalone: true },
@@ -69,7 +71,7 @@ const app = createApp({
     // All pages, all installations. Each installation is planned and written on its own, with
     // its own backup. "Übernehmen" is off where OrcaOne may not write (writeBlock in common.js);
     // the plan can still refuse, then it says why.
-    const changes = computed(() => [...filamentChanges.value, ...liveChanges.value, ...transferChanges.value]);
+    const changes = computed(() => [...filamentChanges.value, ...calibrationChanges.value, ...liveChanges.value, ...transferChanges.value]);
     const changeGroups = computed(() => INSTANCES.map((i) => {
       const block = writeBlock(i);
       return { inst: i, items: changes.value.filter((c) => c.inst === i), block: block ? problemText(block, i) : "" };

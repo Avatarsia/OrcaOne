@@ -5,7 +5,8 @@ orcaone.sh (the user's wish of 23.09.2026). In it:
   "unlocks": per installation, the library filaments OrcaOne switched on in Snapmaker Orca, to
   notice when the setup wizard switches them off again (instances.py, FINDINGS 4.7);
   "cameras": the printers of the page "Kamera" (camera.py);
-  "language": the language of the page, "de" or "en" (app.py); missing: the browser's.
+  "language": the language of the page, "de" or "en" (app.py); missing: the browser's;
+  "calibration": the ticks of the page "Kalibrieren" (calibration.py).
 - backups/: the backups (backup.py). They hold credentials, so data/ is not in Git.
 """
 

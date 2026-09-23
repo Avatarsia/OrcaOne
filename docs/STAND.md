@@ -201,3 +201,11 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Aufbau:** `texts/de.js` (die bisherigen Texte) und `texts/en.js` mit denselben 1051 Schlüsseln, im Browser verglichen. `texts.js` wählt die Sprache per `GET /api/settings`; fehlt ein englischer Text, zeigt es den deutschen. Zahlen, Daten und Dezimalzeichen folgen der Sprache (`LOCALE`, `DECIMAL` in `common.js`, bisher fest „de-DE“ und Komma an fünf Stellen).
 - **Tests:** `tests/test_texts.py` prüft die Codes des Backends in beiden Dateien, `tests/test_app.py` die Einstellung.
 - **Offen:** Die Meldungen im Terminal (`__main__.py`, `orcaone.sh`) bleiben deutsch.
+
+## Kalibrieren (23.09.2026)
+
+- **Wunsch des Nutzers:** seine Anleitung `prototypes/U1 Filament Kalibrierung.md` gegenprüfen und als Wizard zum Abhaken einbauen, am besten mit Verbindung zum Drucker. Die Prüfung steht in FINDINGS unter „Kalibrierung am U1“; die Seite folgt der korrigierten Fassung (Retraction-Formel, Pressure Advance ab Werk aus, Testdrucke ändern Einstellungen vorübergehend, Flow nicht auf 1,0 zurücksetzen).
+- **Seite „Kalibrieren“** nach „Prozesse“: eigenes Filament wählen, sieben Schritte (Pflicht: Flow und Pressure Advance) mit Rechenhilfen, dazu drei Schritte einmal pro Drucker. „Eintragen“ merkt Werte vor (`pending` in `pages/kalibrieren.js`), `ops.js` legt sie in dasselbe `filament_update` wie „Bearbeiten“. Häkchen in `data/settings.json` (`calibration.py`), mit der Düsentemperatur beim Abhaken.
+- **U1 live:** `GET /api/cameras/{id}/status` liest in einer Anfrage Spulen (RFID und von Hand), Pressure Advance je Kopf und den Druckstatus, alle 5 s solange die Seite sichtbar ist. OrcaOne sendet dem Drucker dabei nichts.
+- **Im Browser geprüft:** Rechenwege (0,926 − 0,02 = 0,906; 5 + 20 × 0,5 = 15, minus 15 % = 12,7; ⌊7,8 − 0,4⌋ × 0,1 = 0,7; 99,5 %), Übernahme des gemessenen PA von Kopf 4, der Plan „COEX ABS (Orca).json ändern · Flussrate“ (nicht ausgeführt, danach verworfen), Deutsch und Englisch.
+- **Offen:** Einen Druck mit Flow Calibration von Anfang bis Ende im Wizard begleiten. Umbenannte Filamente verlieren ihre Häkchen.

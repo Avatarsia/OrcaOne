@@ -51,7 +51,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Main menu",
-    pages: { filamente: "Filaments", prozesse: "Processes", drucker: "Printers", kamera: "Camera", transfer: "Transfer", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", kamera: "Camera", transfer: "Transfer", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
     technik: "Advanced",
     pending: "queued changes",
     backups: "Backups",
@@ -467,6 +467,169 @@ const T = {
         spiralinset: "Spiral inset", hilbertcurve: "Hilbert curve", archimedeanchords: "Archimedean chords", octagramspiral: "Octagram spiral",
       },
     },
+  },
+
+  // ---------------------------------------------------------------- page "Kalibrieren"
+  // After the user's guide prototypes/U1 Filament Kalibrierung.md, as checked in docs/FINDINGS.md
+  // (section "Kalibrierung").
+  calibration: {
+    title: "Calibrate a filament",
+    lead: "Step by step to tick off; only flow and pressure advance are required. OrcaOne writes the values into your own filament and reads the U1 live along the way.",
+    filament: "Filament",
+    noOwn: "No own filament yet. Calibration always happens on an own copy; the vendor profiles stay as they are.",
+    toFilaments: "Create a copy under “Filaments”",
+    progress: (done, total) => `${n(done)} of ${n(total)} steps done`,
+    required: "Required",
+    optional: "As needed",
+    doneOn: (date) => `done on ${date}`,
+    tick: (title) => `Tick off ${title}`,
+    inProfile: "In the filament:",
+    notSet: "not set",
+    on: "on",
+    off: "off",
+    queuedValue: (v) => `Queued: ${v}. Goes into the filament with “Apply”.`,
+    undo: "Take back",
+    redo: (from, to) => `The temperature changed since ticking (${from} → ${to} °C): calibrate again.`,
+    enter: (v) => `Enter ${v}`,
+    queued: (name) => `Queued for ${q(name)}`,
+    changeWhere: (labels) => labels.join(", "),
+    keys: {
+      nozzle_temperature: "temperature", filament_flow_ratio: "flow", pressure_advance: "pressure advance",
+      enable_pressure_advance: "pressure advance on", filament_max_volumetric_speed: "max. flow",
+      filament_retraction_length: "retraction", filament_shrink: "shrinkage",
+    },
+    // The U1, read live over Moonraker (orcaone/camera.py, status).
+    printer: {
+      title: "U1 live",
+      none: "Add your U1 under “Camera”. Then OrcaOne shows the spools and pressure advance values here live.",
+      toCamera: "To the page “Camera”",
+      unreachable: "The printer cannot be reached right now.",
+      states: { standby: "Ready", printing: "Printing", paused: "Paused", complete: "Done", cancelled: "Cancelled", error: "Error" },
+      calibrates: "with Flow Calibration",
+      head: (i) => `Head ${i}`,
+      empty: "empty",
+      measured: "measured",
+      round: "round",
+      measuredTitle: "An odd number: the Flow Calibration measured this value at print start.",
+      roundTitle: "A round number: a value from the slicer or the firmware, not measured.",
+      paLabel: "Pressure advance",
+    },
+    printerSteps: "Once per printer",
+    filamentSteps: "For this filament",
+    steps: {
+      connect: {
+        title: "Add the U1 to OrcaOne",
+        points: ["Then OrcaOne reads spools and pressure advance straight from the printer, without Fluidd."],
+        connected: (name, host) => `Added: ${name} (${host})`,
+      },
+      spread: {
+        title: "Four-head spread test",
+        points: [
+          "Load the same filament on all four heads, print the model “4 Colour Flowrate Calibration” and work out the flow per head.",
+          "All within ±1–2 %: one profile per filament is enough for good.",
+          "One head is clearly off: calibrate spools on their home head and put the head into the name, e.g. “eSun PLA+ T2”.",
+        ],
+        link: "Model on Printables",
+      },
+      machine: {
+        title: "Machine calibration up to date",
+        points: [
+          "Run vibration compensation, bed levelling and the 4-head offset on the printer before calibrating filaments. Pressure advance depends on the acceleration.",
+          "Repeat after transport, a nozzle change or bigger firmware updates.",
+        ],
+      },
+      dry: {
+        title: "Drying",
+        points: [
+          "PLA fresh from the vacuum bag: print right away.",
+          "Required for PVA, for PETG and TPU after open storage. The U1 does not dry by itself.",
+          "Signs of moisture: crackling at the nozzle, sudden stringing, matte, rough surfaces.",
+        ],
+        spool: (head, what, temp, hours) => `${head}, ${what}: ${temp} °C, ${hours} h according to the spool`,
+      },
+      temp: {
+        title: "Set the temperature",
+        points: [
+          "Known brand: the middle of the vendor’s range, no calibration test.",
+          "Cooler gives nicer surfaces and less stringing, hotter better adhesion, strength and headroom for speed.",
+          "The temperature tower (Calibration → Temperature) only for unknown vendors or problems. It changes the nozzle temperature in the slicer for the test; do not save that into the copy.",
+        ],
+        profileRange: (lo, hi) => `Range in the filament: ${lo}–${hi} °C`,
+        fromHead: (head, lo, hi) => `${head}: ${lo}–${hi} °C`,
+        rangeFrom: "Range from",
+        rangeTo: "to",
+        valueLabel: "Temperature",
+        middle: (t) => `Middle: ${t} °C`,
+        warn: "Do not change the temperature afterwards, or flow and pressure advance need doing again.",
+      },
+      flow: {
+        title: "Flow ratio",
+        points: [
+          "In Snapmaker Orca: Calibration → Flow Rate → YOLO (Recommended). It tests ±0.05 in steps of 0.01, “Perfectionist” in steps of 0.005.",
+          "Find the best field and enter its value. It is added to the current value; resetting to 1.0 is not needed.",
+          "Afterwards start a new project in the slicer and discard the changes to the filament.",
+        ],
+        fieldLabel: "Value on the best field",
+        fieldHint: "e.g. -0.02",
+        result: (cur, next) => `${cur} → ${next}`,
+        edge: "The best field is at the edge. Print the test once more with the new value.",
+      },
+      pa: {
+        title: "Pressure advance",
+        points: [
+          "The U1 measures pressure advance by itself: on the first real print with the filament, tick “Flow Calibration” in the send dialog; on the printer it is called “Dynamic Flow Calibration”. You take the measured value below.",
+          "For PLA the measured value usually fits as it is. For PETG and technical materials it is only a starting point; check it once with the slicer’s PA line test.",
+          "With the 0.2 mm nozzle the U1 measures unreliably; use only the PA line test there.",
+          "Send the PA line test without “Flow Calibration”. Otherwise the printer measures by itself and overrides the values the test tries out.",
+        ],
+        off: "Pressure advance is off in the filament, so the slicer does not use the value at all. OrcaOne turns it on when entering.",
+        valueLabel: "Pressure advance value",
+        takeFrom: "Take from the printer:",
+        enter: (v) => `Enter ${v} and turn on`,
+        noPrinter: "Without an added U1: read the value in Fluidd’s console.",
+      },
+      mvs: {
+        title: "Max. flow",
+        points: [
+          "For fast profiles only. If you print slowly, you never reach the limit.",
+          "Calibration → Max flowrate. Default 5 to 20 mm³/s in steps of 0.5; for fast PLA set the end to about 30.",
+          "Measure the height where the quality breaks down.",
+        ],
+        start: "Start (mm³/s)", step: "Step (mm³/s)", height: "Height (mm)", margin: "Margin (%)",
+        result: (limit, safe) => `Limit ${limit} mm³/s, with safety margin ${safe} mm³/s`,
+      },
+      retraction: {
+        title: "Retraction",
+        points: [
+          "Only if strings remain despite dry filament and correct pressure advance.",
+          "Calibration → Retraction test. Default 0 to 2 mm in steps of 0.1.",
+          "Measure the lowest height without strings and take the smallest string-free value. TPU hardly tolerates retraction.",
+        ],
+        start: "Start (mm)", step: "Step (mm)", height: "Height (mm)",
+        result: (len) => `Length ${len} mm, as the filament’s own value`,
+        formula: "The length rises per full millimetre, from 0.4 mm height on.",
+        fromPrinter: "from the printer",
+      },
+      shrink: {
+        title: "Shrinkage",
+        points: [
+          "Only for parts that have to fit. At the very end; it changes nothing about the other steps.",
+          "Print the model, let it cool down completely (ABS and ASA about an hour), then measure X and Y.",
+          "Holes that come out too small are something else: use “X-Y hole compensation” in the process for that.",
+        ],
+        link: "Models on Printables",
+        target: "Target (mm)", measuredX: "Actual X (mm)", measuredY: "Actual Y (mm)",
+        result: (pct) => `Shrinkage ${pct} %`,
+      },
+    },
+    rulesTitle: "Ground rules",
+    rules: [
+      "Temperature changed later: flow and pressure advance again, everything else stays.",
+      "New values only take effect after slicing again; a reprint from the display uses the old ones.",
+      "After every calibration test, start a new project in the slicer and discard the changes.",
+      "Stick to one way: fixed values in the filament (pressure advance on) or full automatic (off, and calibrate before every new filament).",
+    ],
+    errors: { calibration_invalid: "OrcaOne does not know this step. Reload the page." },
   },
 
   // ---------------------------------------------------------------- page "Kamera"

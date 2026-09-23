@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, backup, camera, guard, instances, logs, operations, overview, settings
+from . import __version__, backup, calibration, camera, guard, instances, logs, operations, overview, settings
 
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -83,6 +83,11 @@ def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "camera_host_invalid": 400, "camera_already_listed": 400,
               "camera_every_invalid": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
+
+
+@app.exception_handler(calibration.CalibrationError)
+def _calibration_error(request: Request, exc: calibration.CalibrationError):
+    return _error(str(exc))
 
 
 @app.exception_handler(logs.LogError)
@@ -232,6 +237,22 @@ def read_log(instance_id: str, name: str, show: str = "all", q: str = ""):
     return logs.read(instance.data_dir, name, show, q)
 
 
+# ---------------------------------------------------------------- page "Kalibrieren" (orcaone/calibration.py)
+
+@app.get("/api/instances/{instance_id}/calibration")
+def get_calibration(instance_id: str):
+    return calibration.state(instance_id)
+
+
+@app.post("/api/instances/{instance_id}/calibration")
+def mark_calibration(instance_id: str, payload: dict = Body(...)):
+    operations.find_instance(instance_id)
+    try:
+        return calibration.mark(instance_id, payload.get("filament"), payload.get("step"), payload.get("done"), payload.get("temp"))
+    except OSError:
+        return _error("save_failed", 500)
+
+
 # ---------------------------------------------------------------- camera of the U1 (orcaone/camera.py)
 
 @app.get("/api/cameras")
@@ -268,6 +289,12 @@ def update_camera(camera_id: str, payload: dict = Body(...)):
 @app.post("/api/cameras/{camera_id}/wake")
 def wake_camera(camera_id: str):
     return {"result": camera.wake(camera.find(camera_id)["host"])}
+
+
+@app.get("/api/cameras/{camera_id}/status")
+def camera_status(camera_id: str):
+    # Read only: spools, pressure advance and print state for the page "Kalibrieren".
+    return camera.status(camera.find(camera_id)["host"])
 
 
 @app.get("/api/cameras/{camera_id}/image")

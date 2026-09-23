@@ -492,6 +492,32 @@ Anlass: Die Bibliothek der Orca-Nightly (`OrcaFilamentLibrary.opc` 2.4.0.8) hat 
 
 **Nebenbefund aus Teil B:** SnOrca hat OrcaOnes Hilfsprofil `SUNLU PLA+ (DS)` (Weg B, Kind eines Bibliotheksprofils) geladen, auch mit der Farbe als einzelnem String. „Speichern unter“ machte daraus `SUNLU PLA+ (1DS)` mit `version "2.4.0.0"` und `sync_info = create`.
 
+## Kalibrierung am U1 (geprüft 23.09.2026)
+
+Anlass: Die Anleitung des Nutzers `prototypes/U1 Filament Kalibrierung.md` wird zur Seite „Kalibrieren“. Geprüft gegen SnOrca 2.4.0 (Pfade unter `src/`), die OrcaSlicer-Wiki und den U1 des Nutzers (nur lesend über Moonraker).
+
+**Kalibriertests in SnOrca:**
+- YOLO: Jedes Testfeld bekommt `print_flow_ratio = (Flow + Feldwert) / Flow`, gedruckt wird also mit Flow + Feldwert (`slic3r/GUI/Plater.cpp`, `adjust_settings_for_flowrate_calib`). Der neue Wert ist der jetzige plus der Wert des besten Felds, ein Zurücksetzen auf 1,0 ist nicht nötig. „Recommended“: −0,05 bis +0,05 in 0,01er-Schritten; „Perfectionist“: −0,04 bis +0,035 in 0,005er-Schritten (Menütexte in `MainFrame.cpp`, OrcaSlicer-Wiki).
+- Max flowrate: Voreinstellung 5 bis 20 mm³/s, Schritt 0,5 (`calib_dlg.cpp`). Durchfluss in Höhe z = Start + z × Schritt (`libslic3r/GCode.cpp`, `Calib_Vol_speed_Tower`).
+- Retraction test: Voreinstellung 0 bis 2 mm, Schritt 0,1. Länge in Höhe z = Start + ⌊z − 0,4⌋ × Schritt, sie steigt also je vollem Millimeter ab 0,4 mm (`GCode.cpp`, `Calib_Retraction_tower`). Die Formel „Start + Höhe × Schritt“ der Anleitung ist zu grob.
+- Die Tests ändern die bearbeiteten Voreinstellungen: Der Temperaturturm setzt `nozzle_temperature` im Filament auf den Startwert (`Plater::calib_temp`), der Retraction-Test schaltet `use_firmware_retraction` aus. Der Kalibriermodus bleibt, bis ein Modell geladen wird (`Plater::priv::load_files`). Die OrcaSlicer-Wiki rät deshalb, danach ein neues Projekt anzulegen; die geänderten Voreinstellungen dabei verwerfen, nicht in die Kopie speichern.
+- Reihenfolge laut OrcaSlicer-Wiki: Temperatur → Max. Volumengeschwindigkeit → Pressure Advance → Flow → Retraction.
+
+**Werte im Filament:**
+- `enable_pressure_advance`: „auto calibration result will be overwritten once enabled“. In den U1-Profilen von SnOrca ist es aus (Generic PLA @U1: `0`, `pressure_advance` 0,02, Flow 0,98). SnOrca schreibt bei Klipper `SET_PRESSURE_ADVANCE ADVANCE=…` ohne `EXTRUDER` (`libslic3r/GCodeWriter.cpp:348`).
+- `filament_shrink` („Shrinkage (XY)“): 94 % bei 94 statt 100 mm. Daneben gibt es `filament_shrinkage_compensation_z`. Löcher: `xy_hole_compensation` im Prozess.
+- `filament_retraction_length` ist der Filament-Override der Retraction.
+
+**Sendedialog:** Den Druck an den U1 schickt SnOrcas Web-Oberfläche (`<Datenordner>/web/flutter_web`). Sie übergibt unter anderem `flow_calibrate`, `flow_calib_extruders`, `shaper_calibrate` und `auto_bed_leveling`; der Text heißt „Flow Calibration“.
+
+**Der U1 selbst (Moonraker, Klipper 1.6.0.267):**
+- Die Köpfe heißen `extruder`, `extruder1`, `extruder2`, `extruder3`. Ihr Status liefert `pressure_advance` und `smooth_time` (0,04).
+- `print_task_config`: je Kopf Hersteller, Typ, Untertyp und Farbe der Spule (auch von Hand eingegeben), dazu `flow_calibrate` und `flow_calib_extruders` des Auftrags. `filament_detect.info[]`: die RFID-Daten, etwa Temperaturbereich 190–230 °C, Drucktemperatur 220 °C, Trocknen 55 °C für 6 h. Ohne Etikett steht dort überall „NONE“.
+- Kopf 4 steht nach dem letzten Druck auf 0,017665, die anderen auf 0,02. Der letzte Druck nutzte Kopf 4 nicht; bei den anderen setzte der G-Code beim Werkzeugwechsel 0,02 („// pressure_advance: 0.020000“ in der Konsole). Eine krumme Zahl ist also ein Messwert, und er bleibt in der Firmware, bis ein Druck den Kopf mit einem anderen Wert belegt. OrcaOne liest das über `printer/objects/query`, ohne etwas an den Drucker zu senden.
+- Laut Snapmaker-Forum gilt der Messwert für den Kalibrierdruck; danach setzt ein eingeschalteter Slicer-Wert ihn wieder.
+
+**Nicht geprüft:** der genaue Text der Konsolenmeldung („Got pressure advance“ laut Anleitung, „measure k“ laut Forum), die 32 mm³/s des Hotends und der Rat zur 0,2-mm-Düse (die Snapmaker-Wiki zeigt ihren Inhalt nur per JavaScript).
+
 ## Offen: nur am laufenden Slicer prüfbar
 
 Auf dem Entwicklungsrechner laufen diese Tests direkt im echten Datenverzeichnis, weil die Slicer dort nur Testinstallationen sind (23.09.2026). Vor jeder Änderung legt OrcaOne eine Sicherung an.

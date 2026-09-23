@@ -7,6 +7,7 @@
 import { FIELDS, live, profileInfo, unusedListNames } from "./common.js";
 import { store, initialOf, sameValue } from "./pages/filamente.js";
 import { queued } from "./pages/transfer.js";
+import { pending as calibrated } from "./pages/kalibrieren.js";
 
 const ORDER = [
   "profile_copy", "filament_create", "filament_bind", "filament_update", "filament_rename", "filament_visible",
@@ -202,6 +203,9 @@ export function changesOf(inst) {
   const createdIds = new Set(s.created.map((c) => c.entry.id));
   const changed = new Set([...printersOf.keys(), ...hideOf.keys()]);
   for (const id of Object.keys(s.edits)) if (!createdIds.has(id)) changed.add(id.slice("user:".length));
+  // Results of the page "Kalibrieren": in the same filament_update, over what "Bearbeiten" set.
+  const calibration = calibrated[inst.id] || {};
+  for (const n of Object.keys(calibration)) changed.add(n);
   for (const n of changed) {
     if (deleted.has(n)) continue;
     const init = initialOf(inst, "user:" + n), ed = s.edits["user:" + n];
@@ -215,6 +219,7 @@ export function changesOf(inst) {
         else reset.push(f.key);
       }
     }
+    Object.assign(values, calibration[n] || {});
     if (printersOf.has(n)) values.compatible_printers = printersOf.get(n);
     if (Object.keys(values).length || reset.length || hideOf.has(n)) {
       add({ op: "filament_update", name: n, values, reset, ...(hideOf.has(n) && { hidden: hideOf.get(n) }) });

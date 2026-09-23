@@ -1,5 +1,5 @@
 """Camera of the Snapmaker U1 with its stock firmware (page "Kamera"), after the user's
-prototypes/U1Cam/u1cam.py.
+prototypes/U1Cam/u1cam.py, and what the page "Kalibrieren" reads from the printer (status()).
 
 The camera sleeps until Moonraker's JSON-RPC method camera.start_monitor wakes it, sent over the
 printer's WebSocket as its own web page does. Then the printer writes
@@ -91,6 +91,58 @@ def find(camera_id: str) -> dict:
     if camera is None:
         raise CameraError("camera_not_found")
     return camera
+
+
+HEADS = ["extruder", "extruder1", "extruder2", "extruder3"]
+_COLOUR = re.compile(r"[0-9A-Fa-f]{6}")
+
+
+def _at(values, i: int):
+    return values[i] if isinstance(values, list) and i < len(values) else None
+
+
+def status(host: str) -> dict:
+    """Read only, one query to Moonraker (checked on the U1 on 23.09.2026): per head the spool the
+    printer knows (print_task_config; with RFID also its data from filament_detect) and the
+    pressure advance the firmware uses now. A value the Flow Calibration at print start measured
+    is not round (0.017665), one from the slicer or the firmware is (0.02). Plus what the printer
+    is doing and whether the job calibrates."""
+    objects = [f"{h}=pressure_advance,temperature,target" for h in HEADS]
+    objects += ["print_stats=state,filename", "display_status=progress", "toolhead=extruder", "print_task_config", "filament_detect"]
+    try:
+        with urllib.request.urlopen(f"http://{host}/printer/objects/query?{'&'.join(objects)}", timeout=TIMEOUT) as response:
+            found = json.loads(response.read())["result"]["status"]
+        if not isinstance(found, dict):
+            raise ValueError("no status")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise CameraError("camera_unreachable", str(exc)) from None
+    task = found.get("print_task_config") if isinstance(found.get("print_task_config"), dict) else {}
+    rfid = (found.get("filament_detect") or {}).get("info") if isinstance(found.get("filament_detect"), dict) else None
+    heads = []
+    for i, name in enumerate(HEADS):
+        extruder = found.get(name)
+        if not isinstance(extruder, dict):
+            continue
+        spool = None
+        if _at(task.get("filament_exist"), i):
+            colour = str(_at(task.get("filament_color_rgba"), i) or "")[:6]
+            spool = {"vendor": _at(task.get("filament_vendor"), i), "type": _at(task.get("filament_type"), i),
+                     "subtype": _at(task.get("filament_sub_type"), i),
+                     "colour": "#" + colour.upper() if _COLOUR.fullmatch(colour) else None, "rfid": False}
+            tag = _at(rfid, i)
+            # A spool without a tag reads "NONE" everywhere; its data was typed in at the printer.
+            if isinstance(tag, dict) and tag.get("VENDOR") not in (None, "", "NONE"):
+                spool.update(rfid=True, maker=tag.get("MANUFACTURER"), temp_min=tag.get("HOTEND_MIN_TEMP"),
+                             temp_max=tag.get("HOTEND_MAX_TEMP"), temp=tag.get("OTHER_LAYER_TEMP"),
+                             dry_temp=tag.get("DRYING_TEMP"), dry_hours=tag.get("DRYING_TIME"))
+        heads.append({"extruder": name, "pa": extruder.get("pressure_advance"), "temp": extruder.get("temperature"),
+                      "target": extruder.get("target"), "calibrate": bool(_at(task.get("flow_calib_extruders"), i)),
+                      "spool": spool})
+    stats = found.get("print_stats") if isinstance(found.get("print_stats"), dict) else {}
+    return {"state": stats.get("state"), "file": stats.get("filename") or None,
+            "progress": (found.get("display_status") or {}).get("progress"),
+            "active": (found.get("toolhead") or {}).get("extruder"),
+            "flow_calibrate": bool(task.get("flow_calibrate")), "heads": heads}
 
 
 def image(host: str) -> tuple[bytes, float | None]:

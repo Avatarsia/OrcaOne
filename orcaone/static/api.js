@@ -52,6 +52,10 @@ export const api = {
   removeCamera: (id) => request("DELETE", `/api/cameras/${encodeURIComponent(id)}`),
   cameraEvery: (id, every) => request("POST", `/api/cameras/${encodeURIComponent(id)}`, { every }),
   wakeCamera: (id) => request("POST", `/api/cameras/${encodeURIComponent(id)}/wake`),
+  // Page "Kalibrieren": the printer read live (spools, pressure advance), and the ticks.
+  printerStatus: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/status`),
+  calibration: (id) => request("GET", `${instUrl(id)}/calibration`),
+  markCalibration: (id, filament, step, done, temp) => request("POST", `${instUrl(id)}/calibration`, { filament, step, done, temp }),
   deleteBackup: (id, name) => request("DELETE", backupUrl(id, name)),
   restorePlan: (id, name) => request("POST", `${backupUrl(id, name)}/restore-plan`),
 };
