@@ -147,3 +147,13 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - Beispiel `Elegoo PLA @U1.json` und die Skripte der Prüfung liegen im Scratchpad der Sitzung vom 23.09., nicht im Repo.
 - **Nächster Schritt, wenn der Nutzer zustimmt:** Übertragung als Schreibfunktion mit Plan und Sicherung bauen. Oberfläche: In SnOrca stehen unter „Orca-Bibliothek“ die fehlenden Filamente ausgegraut mit „nur in OrcaSlicer“; Einschalten legt das eigene Profil an. Danach Praxistest im Slicer (offene Punkte in FINDINGS).
 
+## Seite „Übertragen“ (23.09.2026)
+
+- **Wunsch des Nutzers:** Übertragen in beide Richtungen, zwei Installationen nebeneinander, beliebige Profile und mehrere auf einmal, etwa Profile aus Orca nach SnOrca und fertige eigene Profile von SnOrca nach Orca.
+- **Gebaut:** Filamente und Prozesse. Drucker kommen später, dort ist mehr zu prüfen (FINDINGS, Übertragung, Stichpunkte).
+  - Backend: Änderung `profile_copy` in `operations.py`, Umwandlung in `orfix/transfer.py`, Einstellungen je Slicer in `orfix/options.json`, erzeugt aus dem Quellcode mit `tools/make_options.py`.
+  - Zwischen verschiedenen Slicern ein Wurzelprofil mit allen Werten der Kette, innerhalb desselben Slicers bleibt ein eigenes Profil Kind seiner Vorlage. Name mit Herkunft in Klammern, etwa „Elegoo PLA (Orca)“, bei Doppelten „(2)“.
+  - Werte: Was das Ziel kennt, im Format des Ziels. Alte Namen, die das Ziel beim Laden übersetzt (`handle_legacy`), unverändert. Was es nicht kennt oder als veraltet ignoriert, bleibt weg, der Plan nennt es. Zwei Werte in einem Feld (High Flow, Extruder-Varianten): nur der erste.
+  - Probelauf ohne Schreiben mit allen echten Profilen: Orca-Bibliothek → SnOrca 145 von 166 ohne Verlust, 21 abgelehnt (Drucker fehlen in SnOrca). SnOrca → Orca: alle 222 Filamente und 85 Prozesse, weg fallen nur SnOrca- oder Bambu-eigene Einstellungen.
+- **Offen:** Praxistest im Slicer (lädt das Ziel die Kopie, stimmen die Werte), Drucker übertragen.
+

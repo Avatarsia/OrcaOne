@@ -5,13 +5,16 @@ The rules follow FINDINGS, "Übertragung OrcaSlicer → SnOrca":
   no template. The target may lack the templates, or have other values under their names, and a
   copy must not change when the target's templates change. Between two installations of the same
   slicer an own profile stays the child of its template, if the target has it.
-- Every value the target knows for this kind (orfix/options.json), as a string or a list as the
-  target defines them. Some keys hold two values in one list: standard and high-flow hotend in
-  Snapmaker Orca (["265", "280"]), extruder variants in OrcaSlicer 2.5. The other slicer has no
-  place for the second one, so between different slicers such a key keeps its first value, the
-  plan names it; Snapmaker Orca then takes that value for both hotends. "nil" only where the
-  target allows it, an enum choice only if the target has it; otherwise the key goes and the
-  target takes its default. A value the target cannot read would make it delete the profile.
+- Every value the target can take (orfix/options.json): a key it knows for this kind, as a string
+  or a list as the target defines it, since a value it cannot read makes it delete the profile;
+  and an old name it translates while loading (handle_legacy, e.g. wall_infill_order to
+  wall_sequence), as it is. A key it does not know or ignores as obsolete goes, the plan names it.
+  A choice it does not know stays: the target translates it or takes its default, both without
+  harm. "nil" (the printer's value) only where the target allows it.
+- Some keys hold two values in one list: standard and high-flow hotend in Snapmaker Orca
+  (["265", "280"]), extruder variants in OrcaSlicer 2.5. The other slicer has no place for the
+  second one, so between different slicers such a key keeps its first value, the plan names it;
+  Snapmaker Orca then takes that value for both hotends.
 - The printers: those of the source's list the target has, by name. An empty list stays empty,
   i.e. every printer. If none of them is there, the copy is refused.
 - The name: an own profile keeps its name. A system profile gets its source in brackets, without
@@ -58,26 +61,26 @@ def _target_printers(res: Resolver) -> set:
     return set(res.collection["machine"]) | {p.name for p in res.own_profiles("machine") if res.loaded(p)}
 
 
-def _adapt(values: dict, specs: dict, same_app: bool) -> tuple:
-    """values as the target reads them; the keys that had to go, and those cut to one value."""
+def _adapt(values: dict, target: dict, kind: str, same_app: bool) -> tuple:
+    """values as the target reads them; the keys that had to go, and those cut to one value.
+    target: the entry of the target slicer in orfix/options.json."""
+    specs, legacy = target["options"][kind], set(target["legacy"])
     out, dropped, cut = {}, [], []
     for key, value in values.items():
         spec = specs.get(key)
-        if spec is None:
+        items = [v for v in as_list(value) if isinstance(v, str)]
+        if spec is None and key not in legacy or not items:
             dropped.append(key)
             continue
-        items = [v for v in as_list(value) if isinstance(v, str)]
         if not same_app and len(items) > 1:
             items = items[:1]
             cut.append(key)
-        if not items:
+        if spec is None:
+            out[key] = items if isinstance(value, list) else items[0]
+        elif "nil" in items and not spec["nullable"]:
             dropped.append(key)
-            continue
-        if "nil" in items and not spec["nullable"] \
-                or spec["type"] in ("coEnum", "coEnums") and "enums" in spec and any(v not in spec["enums"] for v in items):
-            dropped.append(key)
-            continue
-        out[key] = items if spec["type"].endswith("s") else items[0]
+        else:
+            out[key] = items if spec["type"].endswith("s") else items[0]
     return out, sorted(dropped), sorted(cut)
 
 
@@ -111,7 +114,7 @@ def convert(source_res: Resolver, source_app: str, target_res: Resolver, target_
         for q in reversed([p] + chain):
             values.update(q.values)
     data, dropped, cut = _adapt({k: v for k, v in values.items() if k not in _OWN_KEYS},
-                                OPTIONS[target_app]["options"][kind], same_app)
+                                OPTIONS[target_app], kind, same_app)
     # A root profile names its printers; a child only if the source child did.
     if target_parent is None or "compatible_printers" in p.values:
         data["compatible_printers"] = printers

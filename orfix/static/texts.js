@@ -50,7 +50,7 @@ export const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Hauptmenü",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", drucker: "Drucker", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", drucker: "Drucker", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details" },
     technik: "Technik",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -171,6 +171,7 @@ export const T = {
     verbs: {
       on: "einschalten", off: "ausschalten", new: "neu anlegen", delete: "löschen", rename: "umbenennen", edit: "ändern",
       remove: "entfernen", default: "als Standard festlegen", clean: "aufräumen", hide: "ausblenden",
+      copy: "übertragen",
     },
     allPrinters: "alle Drucker",
     allNozzles: "alle Düsen",
@@ -210,6 +211,7 @@ export const T = {
     },
     inherits: (name) => `baut auf ${q(name)} auf`,
     keys: (labels) => `Werte: ${labels.join(", ")}`,
+    keysCount: (k, root) => `${n(k)} Werte${root ? ", ohne Vorlage" : ""}`,
     keyNames: { compatible_printers: "Druckerliste" },
     withInfo: (file) => `dazu ${file}`,
     more: (k) => `${n(k)} weitere`,
@@ -460,6 +462,32 @@ export const T = {
         spiralinset: "Spirale nach innen", hilbertcurve: "Hilbertkurve", archimedeanchords: "Archimedische Sehnen", octagramspiral: "Oktagrammspirale",
       },
     },
+  },
+
+  // ---------------------------------------------------------------- page "Übertragen"
+  transfer: {
+    title: "Profile übertragen",
+    lead: "Links und rechts je eine Installation. Profile auswählen und mit dem Pfeil hinüberschieben, auch mehrere auf einmal. Orfix legt sie dort als eigene Profile mit allen Werten an.",
+    needTwo: "Zum Übertragen braucht es zwei Installationen. Unter „Slicer“ lässt sich ein weiterer Datenordner hinzufügen.",
+    left: "Links",
+    right: "Rechts",
+    swap: "Seiten tauschen",
+    kindLabel: "Profilart",
+    kinds: { filament: "Filamente", process: "Prozesse" },
+    search: "Profil suchen",
+    onlyMissing: "Nur was drüben fehlt",
+    shown: (k) => `${n(k)} angezeigt`,
+    allOf: (label) => `Alle unter ${label} auswählen`,
+    there: "drüben vorhanden",
+    queued: "vorgemerkt",
+    queuedFor: (slicer) => `Vorgemerkt für ${slicer}. Klicken nimmt es zurück.`,
+    queuedFlash: (k, slicer) => `${n(k)} ${k === 1 ? "Profil" : "Profile"} zum Übertragen nach ${slicer} vorgemerkt`,
+    toRight: (k) => k ? `${n(k)} nach rechts` : "Nach rechts",
+    toLeft: (k) => k ? `${n(k)} nach links` : "Nach links",
+    none: "Nichts gefunden.",
+    nothingMissing: "Hier gibt es nichts, was drüben fehlt.",
+    fromSlicer: (slicer) => `aus ${slicer}`,
+    note: "Was dabei nicht mitkommt, etwa der zweite Wert für das High-Flow-Hotend, zeigt „Das passiert“ vor dem Übernehmen. Drucker lassen sich noch nicht übertragen.",
   },
 
   // ---------------------------------------------------------------- page "Details"

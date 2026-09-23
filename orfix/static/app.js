@@ -17,6 +17,7 @@ import SicherungenPage from "./pages/sicherungen.js";
 import SlicerPage from "./pages/slicer.js";
 import ProzessePage from "./pages/prozesse.js";
 import DetailsPage from "./pages/details.js";
+import TransferPage, { transferChanges } from "./pages/transfer.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -25,6 +26,7 @@ const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
   { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "drucker", icon: "printer", component: DruckerPage },
+  { id: "transfer", icon: "transfer", component: TransferPage },
   { id: "sicherungen", icon: "backup", component: SicherungenPage },
   { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
   { id: "details", icon: "info", component: DetailsPage },
@@ -37,6 +39,7 @@ const CHANGE = {
   rename: { icon: "pencil", cls: "ch-rename" }, edit: { icon: "pencil", cls: "ch-edit" },
   remove: { icon: "minus", cls: "ch-off" }, default: { icon: "star", cls: "ch-on" },
   clean: { icon: "broom", cls: "ch-off" }, hide: { icon: "minus", cls: "ch-off" },
+  copy: { icon: "transfer", cls: "ch-new" },
 };
 
 const app = createApp({
@@ -58,7 +61,7 @@ const app = createApp({
     // All pages, all installations. Each installation is planned and written on its own, with
     // its own backup. "Übernehmen" is off where Orfix may not write (writeBlock in common.js);
     // the plan can still refuse, then it says why.
-    const changes = computed(() => [...filamentChanges.value, ...liveChanges.value]);
+    const changes = computed(() => [...filamentChanges.value, ...liveChanges.value, ...transferChanges.value]);
     const changeGroups = computed(() => INSTANCES.map((i) => {
       const block = writeBlock(i);
       return { inst: i, items: changes.value.filter((c) => c.inst === i), block: block ? problemText(block, i) : "" };

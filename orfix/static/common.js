@@ -23,7 +23,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["filamente", "prozesse", "drucker", "sicherungen", "slicer", "details"];
+export const PAGE_IDS = ["filamente", "prozesse", "drucker", "transfer", "sicherungen", "slicer", "details"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 
@@ -121,6 +121,19 @@ export const live = reactive({});
 export function modelShown(inst, m) {
   const s = live[inst.id];
   return m.own ? s.own.has(m.model) && (!m.origin || s.packages.has(m.origin)) : s.models.has(m.model);
+}
+
+// Heading of a profile in the lists of the pages "Details" and "Übertragen", as in the tree on
+// "Filamente": own ones, bundles, then per maker and, for filaments, brand. key sorts the headings.
+export function originGroup(f) {
+  const F = T.filaments;
+  if (f.origin_kind === "user") return { key: "0", label: F.kinds.user };
+  if (f.origin_kind === "bundle") return { key: "1" + f.bundle, label: F.bundlePrinter(f.bundle) };
+  const kind = f.origin_kind === "vendor" ? F.kinds.vendorFrom(f.package) : F.kinds.library;
+  const prefix = (f.origin_kind === "vendor" ? "2" + f.package : "3") + "|";
+  if (f.material === undefined) return { key: prefix, label: kind };  // a process: no brand
+  const brand = f.vendor || F.noBrand;
+  return { key: prefix + brand.toLowerCase(), label: `${kind} · ${brand}` };
 }
 
 // The nozzle chosen per printer model, the same on the pages "Filamente" and "Prozesse": a
@@ -341,7 +354,7 @@ export const ICONS = {
   user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.8 3.6-6 7-6s6.2 2.2 7 6"/>',
   factory: '<path d="M3.5 20.5h17M5 20.5V12l4.5 3v-3l4.5 3v-3l4.5 3v5.5M15.5 12.5V4.5h3v8.2"/>',
   package: '<path d="m12 3.5 8 4v9l-8 4-8-4v-9z"/><path d="m4 7.5 8 4 8-4M12 11.5v9M8 5.5l8 4"/>',
-  layers: '<path d="m12 4 8.5 4.5L12 13 3.5 8.5z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5"/>',
+  transfer: '<path d="M4 8.5h14.5M15 5l3.5 3.5L15 12M20 15.5H5.5M9 12l-3.5 3.5L9 19"/>',
   books: '<rect x="3.5" y="4.5" width="4" height="15.5" rx="1"/><rect x="9" y="4.5" width="4" height="15.5" rx="1"/><path d="m14.7 6.2 3.8-1 3 14.4-3.8 1z"/>',
   temp: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>',
   bed: '<rect x="3" y="15" width="18" height="3.5" rx="1"/><path d="M8 12c1-1.2-.6-2.3.4-4M12 12c1-1.2-.6-2.3.4-4M16 12c1-1.2-.6-2.3.4-4"/>',

@@ -5,7 +5,7 @@
 // Data: GET /api/data for the status per printer, GET /api/instances/{id}/profile for chain,
 // files and values. The side panel of the page "Filamente" opens this page for one filament
 // (detailsFor in common.js).
-import { INSTANCES, ui, go, hashOf, modelShown, nozzleLabel, printerShortName, whenText } from "../common.js";
+import { INSTANCES, ui, go, hashOf, modelShown, nozzleLabel, originGroup, printerShortName, whenText } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 import { problemText } from "../plan.js";
@@ -38,15 +38,8 @@ export default {
       : f.origin_kind === "bundle" ? F.bundlePrinter(f.bundle) : T.labels.origin_kind[f.origin_kind];
 
     // ------------------------------------------------------------ the list to pick from
-    // Headings as in the tree on "Filamente": own ones, bundles, then per maker and brand. Own
-    // ones say what they derive from, the others their material.
-    function groupOf(f) {
-      if (f.origin_kind === "user") return { key: "0", label: F.kinds.user };
-      if (f.origin_kind === "bundle") return { key: "1" + f.bundle, label: F.bundlePrinter(f.bundle) };
-      const brand = f.vendor || F.noBrand;
-      if (f.origin_kind === "vendor") return { key: "2" + f.package + "|" + brand, label: `${F.kinds.vendorFrom(f.package)} · ${brand}` };
-      return { key: "3" + brand.toLowerCase(), label: `${F.kinds.library} · ${brand}` };
-    }
+    // Headings as in the tree on "Filamente" (originGroup). Own ones say what they derive from,
+    // the others their material.
     const subOf = (f) => f.origin_kind === "user" || f.origin_kind === "bundle"
       ? f.chain[0] ? D.derivedFrom(plainName(f.chain[0])) : D.root
       : f.material || "";
@@ -57,7 +50,7 @@ export default {
       for (const f of inst.value.filaments) {
         const hay = `${f.name} ${f.vendor || ""} ${f.material || ""}`.toLowerCase();
         if (!words.value.every((w) => hay.includes(w))) continue;
-        const g = groupOf(f);
+        const g = originGroup(f);
         if (!map.has(g.key)) map.set(g.key, { ...g, items: [] });
         map.get(g.key).items.push({ f, name: plainName(f.name), sub: subOf(f) });
       }

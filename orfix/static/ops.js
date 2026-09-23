@@ -6,9 +6,10 @@
 // the other .conf entries last. Every op names profiles as they are on disk.
 import { FIELDS, live, profileInfo, unusedListNames } from "./common.js";
 import { store, initialOf, sameValue } from "./pages/filamente.js";
+import { queued } from "./pages/transfer.js";
 
 const ORDER = [
-  "filament_create", "filament_bind", "filament_update", "filament_rename", "filament_visible",
+  "profile_copy", "filament_create", "filament_bind", "filament_update", "filament_rename", "filament_visible",
   "filament_delete", "printer_model_off", "printer_delete", "default_printer", "cleanup_presets",
 ];
 
@@ -213,6 +214,9 @@ export function changesOf(inst) {
     if (ed && ed.name !== init.name) add({ op: "filament_rename", name: n, new_name: ed.name });
   }
   for (const [name, on] of visible) add({ op: "filament_visible", name, visible: on });
+
+  // ---------------------------------------------------------- page "Übertragen"
+  for (const q of queued) if (q.to === inst.id) add({ op: "profile_copy", from: q.from, kind: q.kind, name: q.name });
 
   // Array.prototype.sort is stable: the order within one kind of op stays.
   return out.sort((a, b) => ORDER.indexOf(a.op) - ORDER.indexOf(b.op));

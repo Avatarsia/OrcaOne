@@ -855,3 +855,31 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .chain-this .chain-name { color: var(--accent-text); }
 .chain-link { display: inline-flex; align-items: center; gap: 2px; font-size: inherit; text-align: left; }
 
+/* Page "Übertragen": two installations side by side, the arrows in between */
+.transfer-page h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
+.transfer-page > .note { margin-bottom: 16px; }
+.xfer-pick { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 12px; }
+.xfer-inst select { width: 100%; }
+.xfer-swap { margin-bottom: 2px; }
+.xfer-missing { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.xfer-cols { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 12px; }
+.xfer-side-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 6px; }
+.xfer-side-head .sub { margin-left: auto; color: var(--muted); font-size: 12px; }
+.xfer-list { max-height: 62vh; overflow: auto; padding-bottom: 6px; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface); }
+.xfer-group { display: flex; align-items: center; gap: 8px; }
+.xfer-row { display: flex; align-items: baseline; gap: 8px; padding: 5px 12px; cursor: pointer; }
+.xfer-row:hover { background: var(--row-hover); }
+.xfer-row.is-chosen { background: var(--selected); }
+.xfer-row input { flex: none; align-self: center; }
+.xfer-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.xfer-there { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.xfer-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.tag-queued { border: 0; background: var(--focus-bg); color: var(--accent-text); cursor: pointer; }
+.xfer-mid { position: sticky; top: 64px; display: flex; flex-direction: column; gap: 8px; padding-top: 34px; }
+.xfer-mid .btn { justify-content: center; white-space: nowrap; }
+.transfer-page .quiet-note { margin-top: 16px; }
+@media (max-width: 900px) {
+  .xfer-pick, .xfer-cols { grid-template-columns: minmax(0, 1fr); }
+  .xfer-mid { position: static; flex-direction: row; justify-content: center; padding-top: 0; }
+}
+

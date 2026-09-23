@@ -64,7 +64,9 @@ function fileLines(ops, restore) {
     const sub = [
       typeof what === "function" ? what(params) : what,
       params.inherits ? P.inherits(params.inherits) : "",
-      params.keys?.length && o.what === "own_profile" ? P.keys(params.keys.map(keyLabel)) : "",
+      // A copy of another slicer's profile holds every value: a count says enough then.
+      params.keys?.length && o.what === "own_profile"
+        ? params.keys.length > 8 ? P.keysCount(params.keys.length, !params.inherits) : P.keys(params.keys.map(keyLabel)) : "",
       info ? P.withInfo(fileName(info.params?.to || info.path)) : "",
       folderOf(o.path),
     ].filter(Boolean).join(" · ");

@@ -6,7 +6,7 @@ import json
 import pytest
 
 from conftest import copy_fixture
-from orfix import guard, instances, operations, scanner
+from orfix import guard, instances, operations, scanner, transfer
 from orfix.resolver import Resolver
 
 U1_04 = "Snapmaker U1 (0.4 nozzle)"
@@ -111,3 +111,19 @@ def test_refused_copies(both):
     assert plan(orca, snorca, "filament", "Altes PETG")["blocked"] == "unknown_profile"  # not loaded
     with pytest.raises(operations.InvalidChange):
         operations.make_plan(orca, [], [{"op": "profile_copy", "from": snorca.id, "kind": "machine", "name": "Mein U1"}])
+
+
+def test_values_are_shaped_for_the_target():
+    target = {"legacy": ["wall_infill_order"], "options": {"process": {
+        "z": {"type": "coEnums", "nullable": True, "enums": ["Auto Lift", "Normal Lift"]},
+        "e": {"type": "coEnum", "nullable": False, "enums": ["ensure_all", "ensure_moderate"]},
+        "n": {"type": "coFloats", "nullable": False}, "s": {"type": "coString", "nullable": False}}}}
+    values = {"z": ["nil"], "e": "1", "n": ["nil"], "s": ["a", "b"], "gone": ["1"],
+              "wall_infill_order": "inner wall/outer wall/infill"}
+    data, dropped, cut = transfer._adapt(values, target, "process", same_app=False)
+    # "nil" only where allowed; an old choice and an old name stay for the target to translate
+    # (ensure_vertical_shell_thickness "1", wall_infill_order); a list for a string key is cut.
+    assert data == {"z": ["nil"], "e": "1", "s": "a", "wall_infill_order": "inner wall/outer wall/infill"}
+    assert (dropped, cut) == (["gone", "n"], ["s"])
+    assert transfer._adapt({"n": ["1", "2"]}, target, "process", same_app=True)[0] == {"n": ["1", "2"]}
+

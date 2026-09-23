@@ -9,7 +9,10 @@ Read from the slicer sources in slicer-src/ (not in git, see FINDINGS "Quellen")
 - PrintConfig.cpp: every `def = this->add("key", coType)` or `add_nullable`, its enum_values, and
   the retraction keys a filament overrides (declared in a loop, nullable, "filament_" + key);
 - Preset.cpp: s_Preset_print_options, s_Preset_filament_options, s_Preset_printer_options and
-  s_Preset_machine_limits_options, which decide what belongs to a process, filament or printer.
+  s_Preset_machine_limits_options, which decide what belongs to a process, filament or printer;
+- PrintConfig.cpp, handle_legacy: old names the slicer translates while loading ("legacy", e.g.
+  wall_infill_order to wall_sequence) and those it ignores as obsolete ("obsolete"). A copy keeps
+  the first, the slicer converts them; the others the target would drop anyway.
 
 Run after updating slicer-src: .lenv/bin/python tools/make_options.py
 """
@@ -78,6 +81,16 @@ def extruder_keys(text: str) -> list:
     return re.findall(r'"([^"]+)"', strip_comments(m.group(1))) if m else []
 
 
+def legacy(text: str, defs: dict) -> tuple:
+    """(old names handle_legacy translates, names it ignores as obsolete)."""
+    start = text.find("void PrintConfigDef::handle_legacy(")
+    body = text[start:text.find("\nvoid ", start + 10)]
+    ignore = re.search(r"static std::set<std::string> ignore\s*=\s*\{(.*?)\};", body, re.S)
+    obsolete = set(re.findall(r'"([^"]+)"', strip_comments(ignore.group(1)))) if ignore else set()
+    named = set(re.findall(r'opt_key\s*==\s*"([^"]+)"', strip_comments(body)))
+    return sorted(named - obsolete - set(defs)), sorted(obsolete)
+
+
 def build() -> dict:
     out = {}
     for app_key, (label, src) in SOURCES.items():
@@ -90,7 +103,8 @@ def build() -> dict:
             if kind == "machine":
                 keys += extruder_keys(config)
             kinds[kind] = {k: defs[k] for k in sorted(set(keys)) if k in defs}
-        out[app_key] = {"source": label, "options": kinds}
+        old, obsolete = legacy(config, defs)
+        out[app_key] = {"source": label, "options": kinds, "legacy": old, "obsolete": obsolete}
     return out
 
 
