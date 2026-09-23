@@ -38,6 +38,9 @@ export const api = {
   apply: (id, planId) => request("POST", `${instUrl(id)}/apply`, { plan_id: planId }),
   // One profile with its chain, files and every value (pages "Prozesse" and "Details").
   profile: (id, kind, name) => request("GET", `${instUrl(id)}/profile?kind=${kind}&name=${encodeURIComponent(name)}`),
+  // The slicer's own logs, filtered on the server (orcaone/logs.py).
+  logs: (id) => request("GET", `${instUrl(id)}/logs`),
+  log: (id, name, show, q) => request("GET", `${instUrl(id)}/logs/${encodeURIComponent(name)}?show=${show}&q=${encodeURIComponent(q)}`),
   backups: (id) => request("GET", `${instUrl(id)}/backups`),
   backupNow: (id) => request("POST", `${instUrl(id)}/backups`),
   // Camera of the U1 (orcaone/camera.py); the picture itself comes as image/jpeg.

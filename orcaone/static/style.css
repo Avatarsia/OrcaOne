@@ -987,3 +987,25 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .cam-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
 .cam-form .field { margin-top: 0; }
 @media (min-width: 1400px) { .cam-grid { grid-template-columns: repeat(auto-fill, minmax(640px, 1fr)); } }
+
+/* Page "Logs": the entries in a box of their own that scrolls */
+.log-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-bottom: 12px; }
+.log-file { display: flex; flex: 1 1 280px; flex-direction: column; gap: 4px; }
+.log-file > span { color: var(--label); font-size: 13px; font-weight: 700; }
+.log-bar .chips { flex: 0 1 auto; }
+.log-count { min-width: 18px; padding: 0 6px; border-radius: 9px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 400; text-align: center; }
+.log-list {
+  max-height: 65vh; margin-top: 8px; overflow: auto; border: 1px solid var(--line-box); border-radius: 6px;
+  background: var(--surface); font-family: var(--mono); font-size: 12px; line-height: 1.45;
+}
+.log-row { display: grid; grid-template-columns: 64px 64px minmax(0, 1fr); gap: 8px; padding: 3px 10px; border-bottom: 1px solid var(--divider); }
+.log-row:last-child { border-bottom: 0; }
+.log-time { color: var(--muted); }
+.log-level { font-weight: 700; }
+.log-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-more { color: var(--muted); font-family: var(--font); font-style: normal; }
+.lv-info .log-level, .lv-debug .log-level, .lv-trace .log-level { color: var(--muted); font-weight: 400; }
+/* Only errors get a background: Snapmaker Orca writes almost everything as a warning. */
+.lv-warning .log-level { color: var(--warn); }
+.lv-error, .lv-fatal { background: var(--error-bg); }
+.lv-error .log-level, .lv-fatal .log-level { color: var(--error); }

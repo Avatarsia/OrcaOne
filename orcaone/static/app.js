@@ -19,6 +19,7 @@ import ProzessePage from "./pages/prozesse.js";
 import DetailsPage from "./pages/details.js";
 import TransferPage, { transferChanges } from "./pages/transfer.js";
 import KameraPage from "./pages/kamera.js";
+import LogsPage from "./pages/logs.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -33,6 +34,7 @@ const PAGES = [
   { id: "sicherungen", icon: "backup", component: SicherungenPage },
   { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
   { id: "details", icon: "info", component: DetailsPage },
+  { id: "logs", icon: "log", component: LogsPage },
 ].map((p) => ({ ...p, label: T.nav.pages[p.id] }));
 
 // Icon and colour class per type of change; the verbs are in texts.js.

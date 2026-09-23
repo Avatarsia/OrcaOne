@@ -50,7 +50,7 @@ export const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Hauptmenü",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", drucker: "Drucker", kamera: "Kamera", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", drucker: "Drucker", kamera: "Kamera", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     technik: "Technik",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -494,6 +494,31 @@ export const T = {
       camera_already_listed: "Diesen Drucker gibt es hier schon.",
       camera_not_found: "Diesen Drucker gibt es hier nicht mehr. Lade die Seite neu.",
       camera_every_invalid: "Das Bild lässt sich alle 1 bis 60 Sekunden holen.",
+    },
+  },
+
+  // ---------------------------------------------------------------- page "Logs"
+  logs: {
+    title: "Logs",
+    lead: (slicer) => `Was ${slicer} bei jedem Start mitschreibt, eine Datei je Start. Hilft, wenn etwas nicht klappt. Nur zum Ansehen.`,
+    loading: "Lese Logs …",
+    none: "Dieser Slicer hat noch keine Logs geschrieben.",
+    file: "Start",
+    fileOption: (when, size, last) => `${when} · ${size}${last ? " · letzter Start" : ""}`,
+    refresh: "Aktualisieren",
+    refreshTitle: "Läuft der Slicer, schreibt er weiter. Holt den neuesten Stand.",
+    showLabel: "Zeigen",
+    show: { all: "Alles", problems: "Warnungen und Fehler", errors: "Nur Fehler" },
+    search: "Im Log suchen",
+    entries: "Einträge",
+    levels: { fatal: "Absturz", error: "Fehler", warning: "Warnung", info: "Info", debug: "Debug", trace: "Trace", "": "" },
+    shown: (shown, matched) => shown < matched ? `Die letzten ${n(shown)} von ${n(matched)} Einträgen` : matched === 1 ? "1 Eintrag" : `${n(matched)} Einträge`,
+    noMatch: "Keine Einträge für diese Auswahl.",
+    cut: "Die Datei ist sehr groß, OrcaOne liest nur ihr Ende.",
+    more: (k) => ` … und ${n(k)} Zeichen mehr`,
+    where: "Ordner:",
+    errors: {
+      log_not_found: "Diese Logdatei gibt es nicht mehr. Klicke auf „Aktualisieren“.",
     },
   },
 

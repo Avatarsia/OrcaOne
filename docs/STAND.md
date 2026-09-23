@@ -186,3 +186,11 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Umzug:** Beim Start holt `settings.migrate` Sicherungen und Einstellungsdateien aus `~/.local/share/orcaone` und `~/.local/share/orfix` (Windows `%LOCALAPPDATA%`) und löscht die leeren alten Ordner. Was schon da ist, gewinnt; was nicht umziehen konnte, bleibt am alten Ort.
 - **Git:** `data/` steht in `.gitignore`, weil die Sicherungen Zugangsdaten enthalten.
 - **Tests:** Eine automatische Fixture in `tests/conftest.py` legt `data/` in den temporären Ordner des Tests.
+
+## Logs (23.09.2026)
+
+- **Seite „Logs“** unter „Technik“, nur lesend: Start wählen (neuester zuerst, mit Uhrzeit und Größe), „Alles“, „Warnungen und Fehler“ oder „Nur Fehler“ mit Anzahl, Suche mit mehreren Wörtern in beliebiger Reihenfolge. Fehler rot hinterlegt, Warnungen mit orangem Wort, Stufe immer als Text.
+- **Format** beider Slicer: `[warning]⇥2026-09-23 09:24:21.294249[Thread 0x…]:Text`, eine Datei je Start in `<Datenordner>/log/`. Zeilen ohne diesen Anfang gehören zum Eintrag davor (etwa OrcaSlicers Systeminfo). SnOrca schreibt fast alles als „warning“, OrcaSlicer als „info“.
+- **Große Dateien:** OrcaSlicers Logs erreichen 10 MB mit rund 21.600 Einträgen; zwei davon sind je 2,7 MB groß (die ganze Profilliste als JSON, `SaveProfile` und `on_profile_loaded`). Deshalb filtert und sucht der Server über alles und schickt nur die letzten 2000 Einträge mit höchstens 2000 Zeichen je Eintrag (Antwort 380 KB, 190 ms). Dateien über 20 MB liest OrcaOne nur vom Ende.
+- **Sicherheit:** Gelesen wird nur eine Datei, die in `log/` liegt und kein Symlink ist; der Name muss in der Liste stehen.
+- **Aufgefallen beim Ansehen:** SnOrcas eingebauter Updater meldet „Update install failed“ für `printers/`, und zwar in allen 16 Logs dieses Rechners. Das ist ein Problem von Snapmaker, nicht von OrcaOne.

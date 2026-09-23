@@ -44,7 +44,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
   - **Kamera:** Bild der Kamera des Snapmaker U1.
   - **Übertragen:** Profile zwischen zwei Installationen in beide Richtungen kopieren.
   - **Sicherungen.**
-  - Unter „Technik“: **Slicer** (Datenordner) und **Details** (alles zu einem Filament).
+  - Unter „Technik“: **Slicer** (Datenordner), **Details** (alles zu einem Filament) und **Logs** (Logdateien der Slicer, nur lesen).
 
   Details nur auf Anforderung im Seitenpanel. Kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos.
 - **Plattformen:** Linux und Windows gleichwertig. Pfade nur mit `pathlib`.

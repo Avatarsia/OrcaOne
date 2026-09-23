@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, backup, camera, guard, instances, operations, overview
+from . import __version__, backup, camera, guard, instances, logs, operations, overview
 
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -83,6 +83,11 @@ def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "camera_host_invalid": 400, "camera_already_listed": 400,
               "camera_every_invalid": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
+
+
+@app.exception_handler(logs.LogError)
+def _log_error(request: Request, exc: logs.LogError):
+    return _error(str(exc), 404 if str(exc) == "log_not_found" else 400)
 
 
 @app.get("/api/instances")
@@ -188,6 +193,20 @@ def delete_backup(instance_id: str, name: str):
 @app.post("/api/instances/{instance_id}/backups/{name}/restore-plan")
 def restore_plan(instance_id: str, name: str):
     return {"plan": operations.restore_plan(*operations.find_instance(instance_id), name)}
+
+
+# ---------------------------------------------------------------- the slicers' logs (orcaone/logs.py)
+
+@app.get("/api/instances/{instance_id}/logs")
+def list_logs(instance_id: str):
+    instance, _ = operations.find_instance(instance_id)
+    return {"files": logs.files(instance.data_dir), "location": overview.home_path(instance.data_dir / "log")}
+
+
+@app.get("/api/instances/{instance_id}/logs/{name}")
+def read_log(instance_id: str, name: str, show: str = "all", q: str = ""):
+    instance, _ = operations.find_instance(instance_id)
+    return logs.read(instance.data_dir, name, show, q)
 
 
 # ---------------------------------------------------------------- camera of the U1 (orcaone/camera.py)

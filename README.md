@@ -55,6 +55,7 @@ Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“.
   - „Wiederherstellen …“ zeigt erst „Das passiert“: was zurückkommt und was wegfällt.
 - **Slicer** (unter „Technik“): alle Installationen, Hinweise, Platz, Ordnerbaum mit Erklärung je Ordner, Herstellerpakete, `.conf` und Datenordner von Hand hinzufügen oder entfernen.
 - **Details** (unter „Technik“): ein Filament aus einer Liste mit Suche wählen und alles dazu sehen: Drucker und Düsen mit Status, die Vererbungskette bis zum Originalprofil, die Dateien, die `.info` und jeden Wert mit dem Profil, das ihn setzt. Das Seitenpanel auf „Filamente“ springt mit „Alle Details“ hierher.
+- **Logs** (unter „Technik“): was der Slicer bei jedem Start in `<Datenordner>/log/` schreibt. Einen Start wählen, „Alles“, „Warnungen und Fehler“ oder „Nur Fehler“ zeigen, im Log suchen. Gezeigt werden die letzten 2000 Einträge und von einem Eintrag höchstens 2000 Zeichen; die Suche läuft über alles. Nur zum Ansehen.
 
 Alles Ändernde landet in der Änderungsliste unten. So wird daraus eine Änderung am Slicer:
 
@@ -121,7 +122,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | Pfad | Inhalt |
 |---|---|
 | `orcaone/__main__.py` | Start: freier Port, Server, Browser |
-| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Kameras über `/api/cameras` |
+| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Logs über `/api/instances/{id}/logs`, Kameras über `/api/cameras` |
 | `orcaone/operations.py` | Änderungen planen und schreiben (harte Regeln 2 bis 7): Plan mit Dateioperationen, Diff der `.conf` mit maskierten Zugangsdaten und Fingerabdruck von `.conf` und `user/` vor dem Planen; ein anderer Plan, der inzwischen lief, macht ihn veraltet. Beim Ausführen: Laufprüfung, Sicherung, erneute Laufprüfung, atomar schreiben und neu prüfen (sonst zurück auf die Sicherung), neu einlesen |
 | `orcaone/transfer.py` | Profile in eine andere Installation übertragen: Werte ans Ziel anpassen nach `orcaone/options.json` (erzeugt aus dem Quellcode der Slicer mit `tools/make_options.py`) |
 | `orcaone/backup.py` | ZIP-Sicherungen ohne `log/`, `cache/` usw., Liste, Löschen und was ein Wiederherstellen zurückschreibt |
@@ -132,6 +133,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `orcaone/instances.py` | Installationen finden, manuelle Pfade |
 | `orcaone/settings.py` | der Ordner `data/`: `settings.json` lesen und schreiben, alte Daten einmal umziehen |
 | `orcaone/camera.py` | Kamera des U1: wecken über Moonrakers WebSocket, Bild holen |
+| `orcaone/logs.py` | Logdateien der Slicer lesen, zählen und filtern (nur lesend) |
 | `orcaone/guard.py` | Prüfen, ob ein Slicer läuft (nur lesend) |
 | `orcaone/conf.py` | `.conf` byte-genau lesen und schreiben |
 | `orcaone/model.py` | Dataclasses |
