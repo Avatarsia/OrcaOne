@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from . import backup, guard, instances, scanner
+from . import backup, camera, guard, instances, scanner
 from .model import SLICERS, Instance
 from .resolver import CORE_VALUES, EDITABLE_FIELDS, STATUS_OF_PROBLEM, VALUE_KEYS, Resolver, first, strings
 from .scanner import LIBRARY, KINDS
@@ -297,6 +297,9 @@ def _printers_page(res: Resolver, system_models: list, system_printers: list, se
             "cover": COVERS.get(model, PLACEHOLDER_COVER), "visible": p.name in loadable, "default": p.name == selected,
             "origin": "bundle" if p.bundle else "project" if PROJECT_NAME.search(p.name) else "own",
             "file": p.file, "info": _info(p), "only_here": _only_on(res, {p.name}),
+            # "Hostname, IP or URL" of the dialog "Physical Printer": the slicer saves it into an
+            # own printer (PhysicalPrinterDialog::OnOK, save_preset).
+            "print_host": (first(res.value(p, "print_host")) or None) if complete else None,
         }
         if p.bundle:
             entry["bundle"] = scan.bundles.get(p.bundle, "")
@@ -650,6 +653,11 @@ def build_all() -> dict:
             log.exception("Reading %s failed", i.data_dir)
             failed.append({"id": i.id, "slicer": SLICERS[i.slicer]["name"], "path": home_path(i.data_dir),
                            "data_dir": str(i.data_dir), "manual": str(i.data_dir) in manual, "code": "scan_failed"})
+    # The address the slicers have for a printer model, for the pages "Drucker", "Kamera" and
+    # "Kalibrieren"; one typed in on the page "Drucker" goes first (camera.printers).
+    camera.remember_slicer_hosts({p["model"]: {"host": p["print_host"], "slicer": b["slicer"]}
+                                  for b in reversed(built) for p in reversed(b["printers_page"]["own"])
+                                  if p.get("model") and p.get("print_host")})
     return {
         "generated": datetime.now().isoformat(timespec="seconds"),
         "core_values": [{"key": key} for key in CORE_VALUES],

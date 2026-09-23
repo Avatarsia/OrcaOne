@@ -169,6 +169,8 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
   height: 40px; padding: 0 12px; border-radius: 4px;
   color: var(--label); text-decoration: none;
 }
+/* A page about the one above it: set in a little, a little lower */
+.nav-item.is-sub { height: 34px; padding-left: 30px; font-size: 13px; }
 .nav-item .icon { color: var(--icon); }
 .nav-text { flex: 1; min-width: 0; }
 /* Right in the menu: number of pending changes (orange dot, as the change bar) or of backups */
@@ -193,6 +195,9 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .page { max-width: 860px; margin: 0 auto; }
 .page-head { margin-bottom: 20px; }
 .page-head h1 { font-size: 20px; font-weight: 700; }
+/* Pages with the title straight in .page (Details, Übertragen, Kamera, Kalibrieren, Logs) */
+.page > h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
+.page > h1 + .note { margin-bottom: 16px; }
 .page-head p { margin-top: 4px; color: var(--muted); }
 
 /* Buttons and inputs */
@@ -700,6 +705,16 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .nz-chip.is-default { border-color: var(--accent-line); background: var(--focus-bg); color: var(--accent-text); font-weight: 700; }
 .card-problem { display: flex; align-items: center; gap: 6px; color: var(--error); font-size: 13px; font-weight: 700; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 8px; }
+/* The printer's network address (OrcaOne's own setting) */
+.card-host { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
+.card-host .icon { color: var(--icon); }
+.card-host-value { font-family: var(--mono); }
+.card-host-from { color: var(--muted); font-size: 12px; }
+.card-host.is-missing { color: var(--warn); font-weight: 600; }
+.card-host.is-missing .icon { color: var(--warn); }
+.card-host.is-missing .link { font-weight: 400; }
+.card-host.is-editing .input { flex: 1 1 140px; min-width: 0; font-family: var(--mono); font-size: 13px; }
+.card-host .field-error { flex-basis: 100%; }
 .card-actions .btn { flex: 1 1 auto; }
 .all-clean { display: flex; align-items: center; gap: 8px; color: var(--label); }
 .all-clean .icon { color: var(--success); }
@@ -827,8 +842,6 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .panel .kv dd { margin-bottom: 8px; }
 
 /* Page "Details" */
-.details-page h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
-.details-page > .note { margin-bottom: 16px; }
 .details-page .search { flex: none; }
 /* The pick list of the page "Details": search field, list with small headings below it */
 .combo { position: relative; }
@@ -866,8 +879,6 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .chain-link { display: inline-flex; align-items: center; gap: 2px; font-size: inherit; text-align: left; }
 
 /* Page "Übertragen": two installations side by side, the arrows in between */
-.transfer-page h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
-.transfer-page > .note { margin-bottom: 16px; }
 .xfer-pick { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 12px; }
 .xfer-inst select { width: 100%; }
 .xfer-swap {
@@ -962,8 +973,6 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 }
 
 /* Page "Kamera" */
-.camera-page h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
-.camera-page > .note { margin-bottom: 16px; }
 .cam-grid { display: grid; gap: 16px; }
 .cam-card { display: flex; flex-direction: column; gap: 10px; margin: 0; }
 .cam-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
@@ -980,17 +989,29 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .cam-status.is-wait { color: var(--muted); }
 .cam-frame { display: grid; place-items: center; overflow: hidden; aspect-ratio: 16 / 9; border-radius: 8px; background: #111; }
 .cam-frame img { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
-.cam-frame img:fullscreen { cursor: default; background: #000; }
 .cam-empty { display: grid; justify-items: center; gap: 8px; color: #9a9890; font-size: 13px; }
 .cam-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
 .cam-every { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
 .cam-every select { width: auto; }
 .cam-wake { color: var(--warn); font-size: 13px; font-weight: 700; }
 .cam-detail { overflow: hidden; max-width: 40ch; color: var(--muted); font-family: var(--mono); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.cam-foot .right { margin-left: auto; }
-.cam-add { margin: 0; }
-.cam-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
-.cam-form .field { margin-top: 0; }
+.cam-views { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+/* The big views: the whole browser window, or the whole screen (the same element in full screen).
+   The bar hides after a few seconds without a mouse move (is-idle). */
+.cam-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #000; }
+.cam-overlay img { width: 100%; height: 100%; object-fit: contain; }
+.cam-overlay .cam-empty { color: #b8b6ae; }
+.cam-overlay-bar {
+  position: absolute; top: 0; right: 0; left: 0; display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  background: linear-gradient(rgba(0, 0, 0, .7), transparent); color: #f2f2f2; transition: opacity .3s;
+}
+.cam-overlay-bar .cam-status { margin-left: 0; }
+.cam-overlay-bar .cam-status.is-wait { color: #c8c8c8; }
+.cam-overlay-hint { margin-left: auto; color: #c8c8c8; font-size: 12px; }
+.cam-overlay-btn { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer; }
+.cam-overlay-btn:hover { background: rgba(255, 255, 255, .25); }
+.cam-overlay.is-idle { cursor: none; }
+.cam-overlay.is-idle .cam-overlay-bar { opacity: 0; }
 @media (min-width: 1400px) { .cam-grid { grid-template-columns: repeat(auto-fill, minmax(640px, 1fr)); } }
 
 /* Page "Logs": the entries in a box of their own that scrolls */
@@ -1017,6 +1038,8 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 
 /* Page "Kalibrieren": the U1 live on top, then the steps to tick off */
 .cal-page .log-file { max-width: 520px; }
+.cal-machine { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.cal-machine-text { display: flex; flex-direction: column; gap: 6px; }
 .cal-progress { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .cal-bar { flex: 0 1 240px; height: 8px; overflow: hidden; border-radius: 4px; background: var(--surface-2); }
 .cal-bar > span { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width .2s; }
@@ -1031,7 +1054,8 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .cal-head.is-match { border-color: var(--accent-line); }
 .cal-head.is-active { box-shadow: inset 3px 0 0 var(--accent); }
 .cal-dot { flex: none; width: 16px; height: 16px; border: 1px solid var(--line-box); border-radius: 50%; }
-.cal-pa { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+.cal-head > strong { white-space: nowrap; }
+.cal-pa { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px 5px; font-size: 13px; }
 .cal-pa small { color: var(--muted); font-size: 11px; }
 .cal-pa strong { font-family: var(--mono); font-size: 13px; }
 .tag.is-measured, .tag.is-required { background: var(--selected); color: var(--text); font-weight: 700; }

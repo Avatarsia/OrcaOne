@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import uvicorn
 
-from orcaone import guard, instances, settings
+from orcaone import camera, guard, instances, settings
 from orcaone.__main__ import free_port
 from orcaone.app import app
 
@@ -22,6 +22,8 @@ def data_dir(tmp_path, monkeypatch):
     real one next to orcaone.sh."""
     folder = tmp_path / "orcaone-data"
     monkeypatch.setattr(settings, "DATA_DIR", folder)
+    # What the last scan found in the slicers' printer profiles (overview.build_all).
+    monkeypatch.setattr(camera, "_slicer_hosts", {})
     return folder
 
 

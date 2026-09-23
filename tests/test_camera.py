@@ -18,29 +18,58 @@ def test_hosts():
     assert [camera.normalize(x) for x in ("", "10.0.0.1/admin", "a b", "http://x/../y")] == [None] * 4
 
 
-def test_list_of_printers(fake_home):
-    first = camera.add("http://10.30.40.174/")
-    assert first["host"] == "10.30.40.174" and camera.cameras() == [first]
+def test_address_per_printer_model():
+    assert camera.set_host("Snapmaker U1", " http://10.30.40.174/ ") == {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone"}}
+    camera.set_host("Generic Klipper Printer", "klipper.local")
+    # Only a U1 has a camera.
+    cams = camera.cameras()
+    assert [(c["model"], c["host"]) for c in cams] == [("Snapmaker U1", "10.30.40.174")]
+    assert camera.find(cams[0]["id"])["host"] == "10.30.40.174"
+    assert camera.set_every(cams[0]["id"], 5)["every"] == 5
+    # Another address keeps the picture interval, and the camera its id.
+    camera.set_host("Snapmaker U1", "10.30.40.175")
+    assert camera.cameras() == [{"id": cams[0]["id"], "model": "Snapmaker U1", "host": "10.30.40.175", "every": 5}]
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.175", "from": "orcaone", "every": 5}
+    for model, host, code in (("Snapmaker U1", "10.0.0.1/admin", "camera_host_invalid"), ("Snapmaker U1", "a b", "camera_host_invalid"),
+                              ("", "10.0.0.1", "printer_invalid"), (None, "10.0.0.1", "printer_invalid"),
+                              ("Snapmaker U1", None, "printer_invalid")):
+        with pytest.raises(camera.CameraError) as err:
+            camera.set_host(model, host)
+        assert err.value.code == code
     with pytest.raises(camera.CameraError) as err:
-        camera.add("10.30.40.174")
-    assert err.value.code == "camera_already_listed"
-    with pytest.raises(camera.CameraError) as err:
-        camera.add("10.30.40.174/../x")
-    assert err.value.code == "camera_host_invalid"
-    assert camera.set_every(first["id"], 5)["every"] == 5 and camera.cameras()[0]["every"] == 5
-    with pytest.raises(camera.CameraError) as err:
-        camera.set_every(first["id"], 0)
+        camera.set_every(cams[0]["id"], 0)
     assert err.value.code == "camera_every_invalid"
-    camera.remove(first["id"])
+    # Saved empty, the address goes, and the camera with it.
+    assert camera.set_host("Snapmaker U1", "  ") == {"Generic Klipper Printer": {"host": "klipper.local", "from": "orcaone"}}
     assert camera.cameras() == []
     with pytest.raises(camera.CameraError):
-        camera.find(first["id"])
+        camera.find(cams[0]["id"])
+
+
+def test_address_from_the_slicer():
+    """"Hostname, IP or URL" of the slicer's dialog "Physical Printer" counts until one is typed in
+    on the page "Drucker"; saved empty there, the slicer's counts again."""
+    camera.remember_slicer_hosts({"Snapmaker U1": {"host": "http://10.30.40.174:7125/", "slicer": "OrcaSlicer"},
+                                  "Generic Klipper Printer": {"host": "http://x/octoprint", "slicer": "OrcaSlicer"}})
+    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174:7125", "from": "slicer", "slicer": "OrcaSlicer"}}
+    cam = camera.cameras()[0]
+    assert camera.set_every(cam["id"], 2)["every"] == 2
+    assert camera.printers()["Snapmaker U1"]["every"] == 2
+    camera.set_host("Snapmaker U1", "10.30.40.9")
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.9", "from": "orcaone", "every": 2}
+    camera.set_host("Snapmaker U1", "")
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.174:7125", "from": "slicer", "slicer": "OrcaSlicer", "every": 2}
 
 
 def test_api(server, monkeypatch):
-    status, body = call(f"{server}/api/cameras", "POST", {"host": "10.30.40.174", "name": "Werkstatt"})
-    cam = json.loads(body)["camera"]
-    assert status == 200 and cam["name"] == "Werkstatt"
+    status, body = call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": "10.30.40.174"})
+    mine = {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone"}}
+    assert status == 200 and json.loads(body) == {"printers": mine}
+    assert json.loads(call(f"{server}/api/printers")[1]) == {"printers": mine}
+    status, body = call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": "10.0.0.1/x"})
+    assert (status, json.loads(body)) == (400, {"error": "camera_host_invalid"})
+    cam = json.loads(call(f"{server}/api/cameras")[1])["cameras"][0]
+    assert cam["model"] == "Snapmaker U1"
     monkeypatch.setattr(camera, "image", lambda host: (b"\xff\xd8jpeg", 4.0))
     monkeypatch.setattr(camera, "_rpc", lambda host, method, params: {"result": {"state": "ok"}})
     with __import__("urllib.request").request.urlopen(f"{server}/api/cameras/{cam['id']}/image") as response:
@@ -51,7 +80,9 @@ def test_api(server, monkeypatch):
     status, body = call(f"{server}/api/cameras/{cam['id']}/wake", "POST")
     assert (status, json.loads(body)) == (502, {"error": "camera_refused", "detail": "busy"})
     assert call(f"{server}/api/cameras/nope/image")[0] == 404
-    assert call(f"{server}/api/cameras/{cam['id']}", "DELETE")[0] == 200
+    status, body = call(f"{server}/api/cameras/{cam['id']}", "POST", {"every": 5})
+    assert status == 200 and json.loads(body)["camera"]["every"] == 5
+    call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": ""})
     assert json.loads(call(f"{server}/api/cameras")[1]) == {"cameras": []}
 
 

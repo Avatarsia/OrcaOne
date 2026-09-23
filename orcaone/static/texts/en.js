@@ -474,9 +474,12 @@ const T = {
   // (section "Kalibrierung").
   calibration: {
     title: "Calibrate a filament",
-    lead: "Step by step to tick off; only flow and pressure advance are required. OrcaOne writes the values into your own filament and reads the U1 live along the way.",
+    lead: "For the Snapmaker U1, step by step to tick off; only flow and pressure advance are required. OrcaOne writes the values into your own filament and reads the U1 live along the way.",
+    onlyU1: "Calibrating is so far only for the Snapmaker U1, and this installation has none. Other printers calibrate differently, for example without a measurement at print start.",
+    nozzle: "Nozzle",
+    nozzleChip: (label) => `${label} mm`,
     filament: "Filament",
-    noOwn: "No own filament yet. Calibration always happens on an own copy; the vendor profiles stay as they are.",
+    noOwn: "No own filament for this nozzle yet. Calibration always happens on an own copy; the vendor profiles stay as they are.",
     toFilaments: "Create a copy under “Filaments”",
     progress: (done, total) => `${n(done)} of ${n(total)} steps done`,
     required: "Required",
@@ -501,8 +504,8 @@ const T = {
     // The U1, read live over Moonraker (orcaone/camera.py, status).
     printer: {
       title: "U1 live",
-      none: "Add your U1 under “Camera”. Then OrcaOne shows the spools and pressure advance values here live.",
-      toCamera: "To the page “Camera”",
+      none: "Enter your U1’s IP address on the page “Printers”. Then OrcaOne shows the spools and pressure advance values here live.",
+      toPrinters: "To the page “Printers”",
       unreachable: "The printer cannot be reached right now.",
       states: { standby: "Ready", printing: "Printing", paused: "Paused", complete: "Done", cancelled: "Cancelled", error: "Error" },
       calibrates: "with Flow Calibration",
@@ -518,8 +521,8 @@ const T = {
     filamentSteps: "For this filament",
     steps: {
       connect: {
-        title: "Add the U1 to OrcaOne",
-        points: ["Then OrcaOne reads spools and pressure advance straight from the printer, without Fluidd."],
+        title: "Enter the U1’s IP address",
+        points: ["On the page “Printers”, at your U1. Then OrcaOne reads spools and pressure advance straight from the printer, without Fluidd."],
         connected: (name, host) => `Added: ${name} (${host})`,
       },
       spread: {
@@ -583,10 +586,11 @@ const T = {
           "Send the PA line test without “Flow Calibration”. Otherwise the printer measures by itself and overrides the values the test tries out.",
         ],
         off: "Pressure advance is off in the filament, so the slicer does not use the value at all. OrcaOne turns it on when entering.",
+        smallNozzle: "With the 0.2 mm nozzle the U1 measures unreliably: use the PA line test here.",
         valueLabel: "Pressure advance value",
         takeFrom: "Take from the printer:",
         enter: (v) => `Enter ${v} and turn on`,
-        noPrinter: "Without an added U1: read the value in Fluidd’s console.",
+        noPrinter: "Without the U1’s IP address: read the value in Fluidd’s console.",
       },
       mvs: {
         title: "Max. flow",
@@ -635,30 +639,21 @@ const T = {
   // ---------------------------------------------------------------- page "Kamera"
   camera: {
     title: "Camera",
-    lead: "The camera picture of the Snapmaker U1 with stock firmware. While this page is open, OrcaOne wakes the camera and fetches the picture.",
+    lead: "The camera picture of every Snapmaker U1 with stock firmware whose IP address is set under “Printers”. While this page is open, OrcaOne wakes the camera and fetches the picture.",
+    none: "No U1 with an IP address yet. Enter it at your U1 on the page “Printers”.",
+    toPrinters: "To the page “Printers”",
     alt: (name) => `Camera picture of ${name}`,
-    fullscreen: "Click for full screen",
     waking: "Waking the camera …",
     lastImage: (s) => s < 2 ? "Picture is current" : `Last picture ${n(s)} s ago`,
     stale: (s) => `No new picture for ${n(s)} s`,
     wakeFailed: "Waking does not work right now",
     every: "Picture every",
-    remove: "Remove",
-    removed: "Printer removed",
-    addTitle: "Add a printer",
-    addAnother: "Add another printer",
-    addHint: "The IP address is on the printer’s display in the network settings, or in your router.",
-    host: "IP address",
-    hostHint: "e.g. 192.168.1.50",
-    name: "Name",
-    nameHint: "Snapmaker U1",
-    add: "Add",
-    added: "Printer added",
+    // The three views: in the page, filling the browser window, the whole screen.
+    views: { window: "Fill window", screen: "Full screen", normal: "Back to the page" },
+    back: "Esc goes back",
     errors: {
       camera_unreachable: "Printer not reachable. Is it on and in the same network?",
       camera_refused: "The printer refuses to wake the camera.",
-      camera_host_invalid: "This is neither an IP address nor a host name.",
-      camera_already_listed: "This printer is already here.",
       camera_not_found: "This printer is no longer here. Reload the page.",
       camera_every_invalid: "The picture can be fetched every 1 to 60 seconds.",
     },
@@ -792,6 +787,23 @@ const T = {
     startsThen: (slicer) => `At start ${slicer} then chooses`,
     alreadyDefault: "This is already the default.",
     safe: "OrcaOne makes a backup first.",
+    // The network address on each card, OrcaOne's own setting (orcaone/camera.py).
+    address: {
+      label: "IP address",
+      hint: "e.g. 192.168.1.50",
+      add: "Enter",
+      change: "Change",
+      none: "No IP address",
+      fromSlicer: (slicer) => `from the printer profile in ${slicer}`,
+      save: "Save",
+      saved: "IP address saved",
+      removed: "IP address removed",
+      why: "The address in the network. Without an own one, OrcaOne takes the one from the slicer’s dialog “Physical Printer”. For a U1, “Camera” and “Calibrate” use it to show picture and values live. Saving it empty removes the own one.",
+      errors: {
+        camera_host_invalid: "This is neither an IP address nor a host name.",
+        printer_invalid: "OrcaOne does not know this printer. Rescan.",
+      },
+    },
     safeRestore: { before: "OrcaOne makes a backup first. Under ", after: " you can restore everything." },
     credits: "Printer images from OrcaSlicer",
     plan: {

@@ -105,6 +105,7 @@ def test_api(server, fake_home, moonraker):
     assert call(f"{server}/api/instances/nope/calibration", "POST", {"step": "machine", "done": True})[0] == 404
 
     host, _ = moonraker
-    cam = json.loads(call(f"{server}/api/cameras", "POST", {"host": host})[1])["camera"]
+    call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": host})
+    cam = json.loads(call(f"{server}/api/cameras")[1])["cameras"][0]
     status, body = call(f"{server}/api/cameras/{cam['id']}/status")
     assert status == 200 and json.loads(body)["heads"][3]["pa"] == 0.017665

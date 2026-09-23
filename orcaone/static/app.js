@@ -27,14 +27,16 @@ const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmoun
 document.documentElement.lang = LANG;
 
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
+// sub: a page about the one above, set in a little under it: Kalibrieren and Übertragen work on
+// filament profiles, the camera belongs to the printer (its address is on the printer's card).
 const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
+  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
+  { id: "transfer", icon: "transfer", component: TransferPage, sub: true },
   { id: "prozesse", icon: "layers", component: ProzessePage },
-  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage },
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Needs no slicer data: shows at once and stays through "Neu einlesen".
-  { id: "kamera", icon: "camera", component: KameraPage, standalone: true },
-  { id: "transfer", icon: "transfer", component: TransferPage },
+  { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true },
   { id: "sicherungen", icon: "backup", component: SicherungenPage },
   { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
   { id: "details", icon: "info", component: DetailsPage },
@@ -347,7 +349,7 @@ const app = createApp({
       <nav class="nav" :aria-label="T.nav.label">
         <template v-for="p in PAGES" :key="p.id">
           <div v-if="p.group" class="nav-label">{{ p.group }}</div>
-          <a class="nav-item" :href="navHash(p)" :aria-current="route.page === p.id ? 'page' : null" @click="go($event, navHash(p))">
+          <a :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)" :aria-current="route.page === p.id ? 'page' : null" @click="go($event, navHash(p))">
             <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
             <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
                   :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>

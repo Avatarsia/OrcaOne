@@ -46,10 +46,11 @@ export const api = {
   log: (id, name, show, q) => request("GET", `${instUrl(id)}/logs/${encodeURIComponent(name)}?show=${show}&q=${encodeURIComponent(q)}`),
   backups: (id) => request("GET", `${instUrl(id)}/backups`),
   backupNow: (id) => request("POST", `${instUrl(id)}/backups`),
-  // Camera of the U1 (orcaone/camera.py); the picture itself comes as image/jpeg.
+  // The address of a printer model (page "Drucker"); every U1 with one has a camera
+  // (orcaone/camera.py). The picture itself comes as image/jpeg.
+  printers: () => request("GET", "/api/printers"),
+  setPrinterHost: (model, host) => request("POST", "/api/printers", { model, host }),
   cameras: () => request("GET", "/api/cameras"),
-  addCamera: (host, name) => request("POST", "/api/cameras", { host, name }),
-  removeCamera: (id) => request("DELETE", `/api/cameras/${encodeURIComponent(id)}`),
   cameraEvery: (id, every) => request("POST", `/api/cameras/${encodeURIComponent(id)}`, { every }),
   wakeCamera: (id) => request("POST", `/api/cameras/${encodeURIComponent(id)}/wake`),
   // Page "Kalibrieren": the printer read live (spools, pressure advance), and the ticks.

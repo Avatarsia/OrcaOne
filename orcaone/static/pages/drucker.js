@@ -7,10 +7,15 @@
 // printer_delete, filament_delete, default_printer and cleanup_presets.
 // Removing the last model of a vendor can make the slicer delete the whole vendor package at its
 // next start (FINDINGS 4.2); the plan says so and names the own printers that go with it.
+// Each card also shows the printer's network address: the one typed in here (OrcaOne's own
+// setting by model, saved at once), else the one of the slicer's dialog "Physical Printer"
+// (print_host of an own printer). A U1 with one gets its camera and live values on the pages
+// "Kamera" and "Kalibrieren" (orcaone/camera.py).
 import {
   INSTANCES, live, flash, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
+import { api } from "../api.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -24,6 +29,37 @@ export default {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
     const state = computed(() => live[props.instId]);
     const readOnly = computed(() => !!inst.value.running);
+
+    // ------------------------------------------------------------ network address per model
+    const hosts = ref({});
+    const addressKey = (c) => c.model || c.name;
+    const hostOf = (c) => hosts.value[addressKey(c)]?.host || "";
+    const hostFrom = (c) => hosts.value[addressKey(c)]?.from === "slicer" ? hosts.value[addressKey(c)].slicer : "";
+    const editing = ref(null);  // card id
+    const hostDraft = ref("");
+    const hostError = ref("");
+    function editHost(c) {
+      editing.value = c.id;
+      hostDraft.value = hostOf(c);
+      hostError.value = "";
+      nextTick(() => document.getElementById("host-" + c.id)?.focus());
+    }
+    async function saveHost(c) {
+      try {
+        hosts.value = (await api.setPrinterHost(addressKey(c), hostDraft.value)).printers;
+        editing.value = null;
+        flash(hostDraft.value.trim() ? P.address.saved : P.address.removed);
+      } catch (err) {
+        hostError.value = P.address.errors[err.code] || T.errors[err.code] || T.errors.unknown;
+      }
+    }
+    onMounted(async () => {
+      try {
+        hosts.value = (await api.printers()).printers;
+      } catch {
+        hosts.value = {};
+      }
+    });
 
     // ------------------------------------------------------------ cards
     const cards = computed(() => {
@@ -203,6 +239,7 @@ export default {
 
     return {
       T, P, KIND_ICON, inst, state, readOnly, cards, locked, nozzlesOf, defaultCard, defaultText,
+      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost,
       dead, remembered, clean, panel, choice, along, pcard, plan, panelTitle,
       openDefault, setDefault, openRemove, toggleAlong, remove, closePanel,
       go, hashOf, plural, nozzleLabel, printerText, profileSub,
@@ -253,6 +290,23 @@ export default {
                 mm
               </p>
               <p v-if="!c.visible" class="card-problem" :title="c.problem"><ui-icon name="info" :size="16"/>{{ c.unresolved ? P.unresolved : P.notVisible }}</p>
+              <form v-if="editing === c.id" class="card-host is-editing" @submit.prevent="saveHost(c)">
+                <label class="sr-only" :for="'host-' + c.id">{{ P.address.label }}</label>
+                <input :id="'host-' + c.id" v-model="hostDraft" class="input" type="text" autocomplete="off" :placeholder="P.address.hint"
+                       @keydown.esc="editing = null">
+                <button class="btn btn-primary" type="submit">{{ P.address.save }}</button>
+                <button class="btn" type="button" @click="editing = null">{{ T.cancel }}</button>
+                <p v-if="hostError" class="field-error" role="alert">{{ hostError }}</p>
+              </form>
+              <p v-else :class="['card-host', { 'is-missing': !hostOf(c) }]" :title="P.address.why">
+                <ui-icon name="network" :size="16"/>
+                <template v-if="hostOf(c)">
+                  <span class="card-host-value">{{ hostOf(c) }}</span>
+                  <small v-if="hostFrom(c)" class="card-host-from">{{ P.address.fromSlicer(hostFrom(c)) }}</small>
+                </template>
+                <span v-else>{{ P.address.none }}</span>
+                <button class="link" type="button" @click="editHost(c)">{{ hostOf(c) ? P.address.change : P.address.add }}</button>
+              </p>
             </div>
             <div class="card-actions">
               <button v-if="c.printers.length && !(c.isDefault && c.printers.length < 2)" class="btn" type="button"

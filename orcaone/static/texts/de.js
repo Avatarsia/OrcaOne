@@ -476,9 +476,12 @@ const T = {
   // (section "Kalibrierung").
   calibration: {
     title: "Filament kalibrieren",
-    lead: "Schritt für Schritt zum Abhaken, Pflicht sind nur Flow und Pressure Advance. Die Werte trägt OrcaOne in dein eigenes Filament ein und liest dabei live vom U1 mit.",
+    lead: "Für den Snapmaker U1, Schritt für Schritt zum Abhaken; Pflicht sind nur Flow und Pressure Advance. Die Werte trägt OrcaOne in dein eigenes Filament ein und liest dabei live vom U1 mit.",
+    onlyU1: "Kalibrieren gibt es bisher nur für den Snapmaker U1, und diese Installation hat keinen. Andere Drucker kalibrieren anders, etwa ohne Messung beim Druckstart.",
+    nozzle: "Düse",
+    nozzleChip: (label) => `${label} mm`,
     filament: "Filament",
-    noOwn: "Noch kein eigenes Filament. Kalibriert wird immer eine eigene Kopie, die Profile vom Hersteller bleiben unverändert.",
+    noOwn: "Noch kein eigenes Filament für diese Düse. Kalibriert wird immer eine eigene Kopie, die Profile vom Hersteller bleiben unverändert.",
     toFilaments: "Unter „Filamente“ eine Kopie anlegen",
     progress: (done, total) => `${n(done)} von ${n(total)} Schritten erledigt`,
     required: "Pflicht",
@@ -503,8 +506,8 @@ const T = {
     // The U1, read live over Moonraker (orcaone/camera.py, status).
     printer: {
       title: "U1 live",
-      none: "Trage deinen U1 unter „Kamera“ ein. Dann zeigt OrcaOne hier live die Spulen und die Pressure-Advance-Werte.",
-      toCamera: "Zur Seite „Kamera“",
+      none: "Trage die IP-Adresse deines U1 auf der Seite „Drucker“ ein. Dann zeigt OrcaOne hier live die Spulen und die Pressure-Advance-Werte.",
+      toPrinters: "Zur Seite „Drucker“",
       unreachable: "Der Drucker ist gerade nicht erreichbar.",
       states: { standby: "Bereit", printing: "Druckt", paused: "Pausiert", complete: "Fertig", cancelled: "Abgebrochen", error: "Fehler" },
       calibrates: "mit Flow Calibration",
@@ -520,8 +523,8 @@ const T = {
     filamentSteps: "Für dieses Filament",
     steps: {
       connect: {
-        title: "U1 in OrcaOne eintragen",
-        points: ["Dann liest OrcaOne Spulen und Pressure Advance direkt vom Drucker, ohne Fluidd."],
+        title: "IP-Adresse des U1 eintragen",
+        points: ["Auf der Seite „Drucker“ bei deinem U1. Dann liest OrcaOne Spulen und Pressure Advance direkt vom Drucker, ohne Fluidd."],
         connected: (name, host) => `Eingetragen: ${name} (${host})`,
       },
       spread: {
@@ -585,10 +588,11 @@ const T = {
           "Den PA-Linientest ohne „Flow Calibration“ senden. Sonst misst der Drucker selbst und übergeht die Werte, die der Test durchprobiert.",
         ],
         off: "Im Filament ist Pressure Advance aus, der Slicer nutzt den Wert also gar nicht. Beim Eintragen schaltet OrcaOne es ein.",
+        smallNozzle: "Mit der 0,2-mm-Düse misst der U1 unzuverlässig: hier den PA-Linientest nehmen.",
         valueLabel: "Pressure-Advance-Wert",
         takeFrom: "Vom Drucker übernehmen:",
         enter: (v) => `${v} eintragen und einschalten`,
-        noPrinter: "Ohne eingetragenen U1: den Wert in Fluidd in der Konsole ablesen.",
+        noPrinter: "Ohne IP-Adresse des U1: den Wert in Fluidd in der Konsole ablesen.",
       },
       mvs: {
         title: "Max. Durchfluss",
@@ -637,30 +641,21 @@ const T = {
   // ---------------------------------------------------------------- page "Kamera"
   camera: {
     title: "Kamera",
-    lead: "Das Kamerabild des Snapmaker U1 mit Original-Firmware. Solange diese Seite offen ist, weckt OrcaOne die Kamera und holt das Bild.",
+    lead: "Das Kamerabild jedes Snapmaker U1 mit Original-Firmware, dessen IP-Adresse unter „Drucker“ steht. Solange diese Seite offen ist, weckt OrcaOne die Kamera und holt das Bild.",
+    none: "Noch kein U1 mit IP-Adresse. Trage sie auf der Seite „Drucker“ bei deinem U1 ein.",
+    toPrinters: "Zur Seite „Drucker“",
     alt: (name) => `Kamerabild von ${name}`,
-    fullscreen: "Klicken für Vollbild",
     waking: "Kamera wird geweckt …",
     lastImage: (s) => s < 2 ? "Bild ist aktuell" : `Letztes Bild vor ${n(s)} s`,
     stale: (s) => `Kein neues Bild seit ${n(s)} s`,
     wakeFailed: "Wecken klappt gerade nicht",
     every: "Bild alle",
-    remove: "Entfernen",
-    removed: "Drucker entfernt",
-    addTitle: "Drucker eintragen",
-    addAnother: "Weiteren Drucker eintragen",
-    addHint: "Die IP-Adresse steht am Display des Druckers in den Netzwerk-Einstellungen oder in deinem Router.",
-    host: "IP-Adresse",
-    hostHint: "z. B. 192.168.1.50",
-    name: "Name",
-    nameHint: "Snapmaker U1",
-    add: "Eintragen",
-    added: "Drucker eingetragen",
+    // The three views: in the page, filling the browser window, the whole screen.
+    views: { window: "Fensterfüllend", screen: "Vollbild", normal: "Zurück zur Seite" },
+    back: "Esc führt zurück",
     errors: {
       camera_unreachable: "Drucker nicht erreichbar. Ist er an und im selben Netz?",
       camera_refused: "Der Drucker lehnt das Wecken der Kamera ab.",
-      camera_host_invalid: "Das ist keine IP-Adresse und kein Rechnername.",
-      camera_already_listed: "Diesen Drucker gibt es hier schon.",
       camera_not_found: "Diesen Drucker gibt es hier nicht mehr. Lade die Seite neu.",
       camera_every_invalid: "Das Bild lässt sich alle 1 bis 60 Sekunden holen.",
     },
@@ -794,6 +789,23 @@ const T = {
     startsThen: (slicer) => `Beim Start wählt ${slicer} dann`,
     alreadyDefault: "Das ist schon der Standard.",
     safe: "Vorher legt OrcaOne eine Sicherung an.",
+    // The network address on each card, OrcaOne's own setting (orcaone/camera.py).
+    address: {
+      label: "IP-Adresse",
+      hint: "z. B. 192.168.1.50",
+      add: "Eintragen",
+      change: "Ändern",
+      none: "Keine IP-Adresse",
+      fromSlicer: (slicer) => `aus dem Druckerprofil in ${slicer}`,
+      save: "Speichern",
+      saved: "IP-Adresse gespeichert",
+      removed: "IP-Adresse entfernt",
+      why: "Die Adresse im Netz. Ohne eigene nimmt OrcaOne die aus dem Dialog „Physischer Drucker“ des Slicers. Bei einem U1 zeigen „Kamera“ und „Kalibrieren“ damit Bild und Werte live. Leer speichern entfernt die eigene.",
+      errors: {
+        camera_host_invalid: "Das ist keine IP-Adresse und kein Rechnername.",
+        printer_invalid: "Diesen Drucker kennt OrcaOne nicht. Lies neu ein.",
+      },
+    },
     safeRestore: { before: "Vorher legt OrcaOne eine Sicherung an. Unter ", after: " stellst du alles wieder her." },
     credits: "Druckerbilder aus OrcaSlicer",
     plan: {

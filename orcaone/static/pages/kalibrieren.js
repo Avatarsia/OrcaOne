@@ -4,7 +4,7 @@
 // ops.js, "Übernehmen"); the ticks go into data/settings.json (orcaone/calibration.py). While the
 // page is visible, OrcaOne reads the U1 every few seconds, read only (camera.status): the spools
 // and the pressure advance the firmware uses.
-import { INSTANCES, ui, flash, go, hashOf, onReset, LOCALE } from "../common.js";
+import { INSTANCES, ui, flash, go, hashOf, onReset, LOCALE, nozzleLabel } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 
@@ -37,7 +37,11 @@ export const calibrationChanges = computed(() => INSTANCES.flatMap((inst) =>
     inst, page: "kalibrieren", type: "edit", name: plainName(name),
     where: C.changeWhere(Object.keys(values).map((k) => C.keys[k] || k)),
   }))));
-// The filament last chosen per installation, for the next visit.
+// The steps follow the U1: Flow Calibration at print start, four heads, spools with RFID. Another
+// Klipper printer calibrates differently (orcaone/camera.py knows the same models).
+const U1_MODELS = ["Snapmaker U1"];
+// The printer and the filament last chosen per installation, for the next visit.
+const lastPrinter = {};
 const lastChosen = {};
 
 // "0,02" and "0.02" both count; anything else is NaN.
@@ -66,11 +70,31 @@ export default {
   setup(props) {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
     const errorText = (code) => C.errors[code] || T.errors[code] || T.errors.unknown;
-    const own = computed(() => inst.value.filaments.filter((f) => f.origin_kind === "user").map((f) => f.name)
-      .sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" })));
-    const start = [ui.calibrateFor, lastChosen[props.instId]].find((n) => n && own.value.includes(n));
+    // ------------------------------------------------------------ printer and filament
+    const u1Models = computed(() => inst.value.models.filter((m) => U1_MODELS.includes(m.model)));
+    const u1Printers = computed(() => u1Models.value.flatMap((m) => m.printers.map((p) => p.name)));
+    const byName = (a, b) => a.localeCompare(b, "de", { sensitivity: "base" });
+    // Own filaments that fit a printer, on or off there.
+    const ownFor = (printerName) => inst.value.filaments
+      .filter((f) => f.origin_kind === "user" && f.printers[printerName]).map((f) => f.name).sort(byName);
+    // From the page "Filamente" comes a filament: then a U1 nozzle it fits. Else the last choice,
+    // the printer the slicer starts with, the 0.4 nozzle.
+    const wanted = ui.calibrateFor;
     ui.calibrateFor = null;
+    const printerName = ref([
+      wanted && u1Printers.value.find((p) => ownFor(p).includes(wanted)),
+      lastPrinter[props.instId], inst.value.printers_page.default_printer.name,
+      u1Printers.value.find((p) => p.includes("0.4")), u1Printers.value[0],
+    ].find((p) => p && u1Printers.value.includes(p)) || "");
+    const model = computed(() => u1Models.value.find((m) => m.printers.some((p) => p.name === printerName.value)) || null);
+    const nozzle = computed(() => model.value?.printers.find((p) => p.name === printerName.value)?.variant || "");
+    const own = computed(() => ownFor(printerName.value));
+    const start = [wanted, lastChosen[props.instId]].find((n) => n && own.value.includes(n));
     const name = ref(start || own.value[0] || "");
+    watch(printerName, () => {
+      lastPrinter[props.instId] = printerName.value;
+      if (!own.value.includes(name.value)) name.value = own.value[0] || "";
+    });
 
     // ------------------------------------------------------------ the filament as it is now
     const profile = ref(null);
@@ -199,7 +223,8 @@ export default {
     const cameras = ref(null);
     const printer = ref(null);
     const printerError = ref("");
-    const cam = computed(() => cameras.value?.[0] || null);
+    // The chosen U1, if it has an address (page "Drucker").
+    const cam = computed(() => (cameras.value || []).find((c) => c.model === model.value?.model) || null);
     let timer = null;
     async function readPrinter() {
       if (!cam.value || document.hidden) return;
@@ -258,7 +283,7 @@ export default {
     });
 
     return {
-      T, C, S, STEPS, PRINTER_STEPS, KEYS_OF, LINKS, inst, own, name, profile, valueOf, nowText, material, ticks, open, tickOf, mark, redo,
+      T, C, S, STEPS, PRINTER_STEPS, KEYS_OF, LINKS, inst, u1Models, printerName, model, nozzle, nozzleLabel, own, name, profile, valueOf, nowText, material, ticks, open, tickOf, mark, redo,
       doneCount, dateText, form, enter, undo, queuedText, tempMiddle, tempValue, flowNow, flowNext, flowEdge, paValue,
       paOff, mvsLimit, mvsSafe, retLength, shrinkPct, cameras, cam, printer, printerError, headName, spoolText, matches,
       stateText, rfidHeads, measured, show, raw, plainName, go, hashOf,
@@ -270,7 +295,19 @@ export default {
       <h1 id="page-title" tabindex="-1">{{ C.title }}</h1>
       <p class="note">{{ C.lead }}</p>
 
+      <p v-if="!u1Models.length" class="empty">{{ C.onlyU1 }}</p>
+      <template v-else>
       <section class="box cal-pick">
+        <div class="cal-machine">
+          <img class="bar-img" :src="model.cover" alt="" width="48" height="48">
+          <div class="cal-machine-text">
+            <strong>{{ model.model }}</strong>
+            <div class="chips" role="group" :aria-label="C.nozzle">
+              <button v-for="p in model.printers" :key="p.name" class="chip" type="button" :aria-pressed="p.name === printerName ? 'true' : 'false'"
+                      @click="printerName = p.name">{{ C.nozzleChip(nozzleLabel(p.variant)) }}</button>
+            </div>
+          </div>
+        </div>
         <p v-if="!own.length" class="empty">{{ C.noOwn }}
           <a class="link" :href="hashOf('filamente', instId)" @click="go($event, hashOf('filamente', instId))">{{ C.toFilaments }}</a></p>
         <template v-else>
@@ -289,11 +326,11 @@ export default {
       <section class="box cal-printer" :aria-label="C.printer.title">
         <div class="box-head">
           <h2>{{ C.printer.title }}</h2>
-          <span v-if="cam" class="sub">{{ cam.name }} · {{ cam.host }}</span>
+          <span v-if="cam" class="sub">{{ cam.model }} · {{ cam.host }}</span>
           <span v-if="printer && !printerError" :class="['cal-state', 'is-' + printer.state]">{{ stateText }}</span>
         </div>
         <p v-if="cameras && !cam" class="note">{{ C.printer.none }}
-          <a class="link" :href="hashOf('kamera', instId)" @click="go($event, hashOf('kamera', instId))">{{ C.printer.toCamera }}</a></p>
+          <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ C.printer.toPrinters }}</a></p>
         <p v-else-if="printerError" class="alert" role="alert">{{ printerError }}</p>
         <div v-else-if="printer" class="cal-heads">
           <div v-for="(h, i) in printer.heads" :key="h.extruder" :class="['cal-head', { 'is-match': matches(h), 'is-active': printer.active === h.extruder }]">
@@ -371,6 +408,7 @@ export default {
                   <p class="cal-now">{{ C.inProfile }} <strong>{{ nowText('pressure_advance') }}</strong>
                     · {{ C.printer.paLabel }} {{ paOff ? C.off : C.on }}</p>
                   <p v-if="paOff" class="cal-warn">{{ S.pa.off }}</p>
+                  <p v-if="nozzle === '0.2'" class="cal-warn">{{ S.pa.smallNozzle }}</p>
                   <p v-if="printer" class="cal-takes"><span class="note">{{ S.pa.takeFrom }}</span>
                     <button v-for="(h, i) in printer.heads" :key="h.extruder" :class="['chip', { 'is-match': matches(h) }]" type="button"
                             :disabled="h.pa == null" @click="form.pa = show(h.pa, 6)">
@@ -451,8 +489,8 @@ export default {
               </div>
               <div class="cal-body">
                 <ul class="cal-points"><li v-for="(p, k) in S[id].points" :key="k">{{ p }}</li></ul>
-                <p v-if="id === 'connect' && cam" class="note">{{ S.connect.connected(cam.name, cam.host) }}</p>
-                <p v-else-if="id === 'connect'"><a class="link" :href="hashOf('kamera', instId)" @click="go($event, hashOf('kamera', instId))">{{ C.printer.toCamera }}</a></p>
+                <p v-if="id === 'connect' && cam" class="note">{{ S.connect.connected(cam.model, cam.host) }}</p>
+                <p v-else-if="id === 'connect'"><a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ C.printer.toPrinters }}</a></p>
                 <p v-if="id === 'spread'"><a class="link" :href="LINKS.spread" target="_blank" rel="noopener">{{ S.spread.link }}</a></p>
               </div>
             </li>
@@ -463,6 +501,7 @@ export default {
           <div class="box-head"><h2>{{ C.rulesTitle }}</h2></div>
           <ul class="cal-points"><li v-for="(r, k) in C.rules" :key="k">{{ r }}</li></ul>
         </section>
+      </template>
       </template>
     </div>
   `,

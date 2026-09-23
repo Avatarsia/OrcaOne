@@ -80,7 +80,7 @@ def _backup_error(request: Request, exc: backup.BackupError):
 
 @app.exception_handler(camera.CameraError)
 def _camera_error(request: Request, exc: camera.CameraError):
-    status = {"camera_not_found": 404, "camera_host_invalid": 400, "camera_already_listed": 400,
+    status = {"camera_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400,
               "camera_every_invalid": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
@@ -260,22 +260,18 @@ def list_cameras():
     return {"cameras": camera.cameras()}
 
 
-@app.post("/api/cameras")
-def add_camera(payload: dict = Body(...)):
-    name = payload.get("name")
-    try:
-        return {"camera": camera.add(payload.get("host"), name if isinstance(name, str) else "")}
-    except OSError:
-        return _error("save_failed", 500)
+@app.get("/api/printers")
+def list_printers():
+    return {"printers": camera.printers()}
 
 
-@app.delete("/api/cameras/{camera_id}")
-def remove_camera(camera_id: str):
+@app.post("/api/printers")
+def set_printer(payload: dict = Body(...)):
+    # The address of a printer model, from its card on the page "Drucker"; empty takes it away.
     try:
-        camera.remove(camera_id)
+        return {"printers": camera.set_host(payload.get("model"), payload.get("host"))}
     except OSError:
         return _error("save_failed", 500)
-    return {"removed": camera_id}
 
 
 @app.post("/api/cameras/{camera_id}")

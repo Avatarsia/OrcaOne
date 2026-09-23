@@ -1,15 +1,19 @@
-// Page "Kamera": the picture of the Snapmaker U1 camera (stock firmware), after the user's
-// prototypes/U1Cam/u1cam.py. While the page is open and visible, OrcaOne wakes the camera every
-// few seconds and fetches the picture the printer wrote last (orcaone/camera.py); the browser
-// never talks to the printer itself. The printers are added here by address, once.
-import { flash } from "../common.js";
+// Page "Kamera": the picture of every Snapmaker U1 (stock firmware) whose address is set on its
+// card on the page "Drucker" (orcaone/camera.py), after the user's prototypes/U1Cam/u1cam.py.
+// While the page is open and visible, OrcaOne wakes the camera every few seconds and fetches the
+// picture the printer wrote last; the browser never talks to the printer itself.
+// Three views, as on YouTube: in the page, filling the browser window, and the whole screen
+// (Fullscreen API). In the two big ones the bar hides after a few seconds without a mouse move,
+// so a spare screen shows the picture only; Esc goes back.
+import { flash, go, hashOf, loadState } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
-const { ref, reactive, onMounted, onUnmounted } = Vue;
+const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const K = T.camera;
 const WAKE_EVERY = 10000;  // ms, as u1cam.py does
 const EVERY = [1, 2, 3, 5, 10];
+const IDLE = 3000;         // ms without a mouse move before the bar of a big view hides
 
 export default {
   name: "KameraPage",
@@ -20,10 +24,6 @@ export default {
     const loadError = ref("");
     // Per camera: the picture as object URL, when it came, how waking went.
     const live = reactive({});
-    const host = ref("");
-    const name = ref("");
-    const addError = ref("");
-    const busy = ref(false);
     const now = ref(Date.now());
     let timers = [];
 
@@ -89,7 +89,6 @@ export default {
       // Kept for the next visit; the page works on without it.
       api.cameraEvery(c.id, seconds).catch((err) => flash(errorText(err.code)));
     }
-
     async function load() {
       try {
         list.value = (await api.cameras()).cameras;
@@ -98,33 +97,6 @@ export default {
         start();
       } catch (err) {
         loadError.value = errorText(err.code);
-      }
-    }
-    async function add() {
-      if (!host.value.trim() || busy.value) return;
-      busy.value = true;
-      addError.value = "";
-      try {
-        await api.addCamera(host.value, name.value);
-        host.value = "";
-        name.value = "";
-        flash(K.added);
-        await load();
-      } catch (err) {
-        addError.value = errorText(err.code);
-      } finally {
-        busy.value = false;
-      }
-    }
-    async function remove(c) {
-      try {
-        await api.removeCamera(c.id);
-        if (live[c.id]?.url) URL.revokeObjectURL(live[c.id].url);
-        delete live[c.id];
-        flash(K.removed);
-        await load();
-      } catch (err) {
-        flash(errorText(err.code));
       }
     }
 
@@ -136,20 +108,75 @@ export default {
       const age = Math.max(0, Math.round((now.value - s.at) / 1000));
       return age > s.every * 3 ? { cls: "warn", text: K.stale(age) } : { cls: "ok", text: K.lastImage(age) };
     }
-    function fullscreen(ev) {
-      const img = ev.currentTarget;
-      document.fullscreenElement ? document.exitFullscreen() : img.requestFullscreen?.();
-    }
 
+    // ------------------------------------------------------------ the three views
+    const view = ref("normal");  // "normal", "window" or "screen"
+    const bigId = ref(null);
+    const big = computed(() => (list.value || []).find((c) => c.id === bigId.value) || null);
+    const overlay = ref(null);
+    const idle = ref(false);
+    let idleTimer = null;
+    // From "window" to "screen" and back with Esc lands in "window" again, as on YouTube.
+    let beforeScreen = "normal";
+    function stir() {
+      idle.value = false;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { idle.value = true; }, IDLE);
+    }
+    async function showBig(c, mode) {
+      bigId.value = c.id;
+      if (mode === "screen") {
+        beforeScreen = view.value === "screen" ? beforeScreen : view.value;
+        view.value = "screen";
+        await nextTick();
+        try {
+          await overlay.value.requestFullscreen();
+        } catch {
+          view.value = "window";  // the browser refused: at least the whole window
+        }
+      } else {
+        if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+        view.value = "window";
+      }
+      stir();
+    }
+    async function back() {
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+      view.value = "normal";
+      bigId.value = null;
+    }
+    // The browser leaves full screen by itself on Esc.
+    const onFullscreen = () => {
+      if (!document.fullscreenElement && view.value === "screen") {
+        view.value = beforeScreen;
+        if (view.value === "normal") bigId.value = null;
+      }
+    };
+    const onKey = (ev) => { if (ev.key === "Escape" && view.value === "window") back(); };
     const onVisible = () => { if (!document.hidden) (list.value || []).forEach((c) => fetchImage(c)); };
-    onMounted(() => { load(); document.addEventListener("visibilitychange", onVisible); });
+
+    // The page shows before the slicers are read; an address from a printer profile comes with
+    // that read (overview.build_all), so the list is asked again after every one.
+    watch(() => loadState.version, load);
+    onMounted(() => {
+      load();
+      document.addEventListener("visibilitychange", onVisible);
+      document.addEventListener("fullscreenchange", onFullscreen);
+      document.addEventListener("keydown", onKey);
+    });
     onUnmounted(() => {
       stop();
+      clearTimeout(idleTimer);
       document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("fullscreenchange", onFullscreen);
+      document.removeEventListener("keydown", onKey);
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       Object.values(live).forEach((s) => s.url && URL.revokeObjectURL(s.url));
     });
 
-    return { T, K, EVERY, list, loadError, live, host, name, addError, busy, stateOf, status, setEvery, add, remove, fullscreen };
+    return {
+      T, K, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
+    };
   },
 
   template: `
@@ -159,16 +186,18 @@ export default {
 
       <p v-if="loadError" class="alert" role="alert">{{ loadError }}</p>
       <p v-else-if="list === null" class="note">{{ T.loading }}</p>
+      <p v-else-if="!list.length" class="empty">{{ K.none }}
+        <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ K.toPrinters }}</a></p>
       <div v-else class="cam-grid">
-        <article v-for="c in list" :key="c.id" class="box cam-card" :aria-label="c.name">
+        <article v-for="c in list" :key="c.id" class="box cam-card" :aria-label="c.model">
           <div class="cam-head">
             <ui-icon name="camera" :size="20"/>
-            <strong>{{ c.name }}</strong>
+            <strong>{{ c.model }}</strong>
             <span class="cam-host">{{ c.host }}</span>
             <span :class="['cam-status', 'is-' + status(c).cls]"><span class="cam-dot"></span>{{ status(c).text }}</span>
           </div>
           <div class="cam-frame">
-            <img v-if="stateOf(c.id).url" :src="stateOf(c.id).url" :alt="K.alt(c.name)" :title="K.fullscreen" @click="fullscreen">
+            <img v-if="stateOf(c.id).url" :src="stateOf(c.id).url" :alt="K.alt(c.model)" :title="K.views.window" @click="showBig(c, 'window')">
             <div v-else class="cam-empty"><ui-icon name="camera" :size="40"/><span>{{ K.waking }}</span></div>
           </div>
           <div class="cam-foot">
@@ -179,24 +208,28 @@ export default {
             </label>
             <span v-if="stateOf(c.id).wakeOk === false" class="cam-wake" :title="stateOf(c.id).wakeDetail">{{ K.wakeFailed }}</span>
             <span v-if="stateOf(c.id).errorDetail" class="cam-detail" :title="stateOf(c.id).errorDetail">{{ stateOf(c.id).errorDetail }}</span>
-            <button class="btn right" type="button" @click="remove(c)"><ui-icon name="trash"/>{{ K.remove }}</button>
+            <span class="cam-views right">
+              <button class="btn" type="button" @click="showBig(c, 'window')"><ui-icon name="window"/>{{ K.views.window }}</button>
+              <button class="btn" type="button" @click="showBig(c, 'screen')"><ui-icon name="fullscreen"/>{{ K.views.screen }}</button>
+            </span>
           </div>
         </article>
+      </div>
 
-        <section class="box cam-add" aria-labelledby="cam-add-h">
-          <div class="box-head"><h2 id="cam-add-h">{{ list.length ? K.addAnother : K.addTitle }}</h2></div>
-          <p class="note">{{ K.addHint }}</p>
-          <form class="cam-form" @submit.prevent="add">
-            <label class="field"><span>{{ K.host }}</span>
-              <input v-model="host" class="input" type="text" autocomplete="off" :placeholder="K.hostHint" required>
-            </label>
-            <label class="field"><span>{{ K.name }}</span>
-              <input v-model="name" class="input" type="text" autocomplete="off" :placeholder="K.nameHint">
-            </label>
-            <button class="btn btn-primary" type="submit" :disabled="busy || !host.trim()"><ui-icon name="plus"/>{{ K.add }}</button>
-          </form>
-          <p v-if="addError" class="field-error" role="alert">{{ addError }}</p>
-        </section>
+      <div v-if="view !== 'normal' && big" ref="overlay" :class="['cam-overlay', { 'is-idle': idle }]"
+           role="dialog" :aria-label="K.alt(big.model)" @mousemove="stir" @click="stir">
+        <img v-if="stateOf(big.id).url" :src="stateOf(big.id).url" :alt="K.alt(big.model)">
+        <div v-else class="cam-empty"><ui-icon name="camera" :size="56"/><span>{{ K.waking }}</span></div>
+        <div class="cam-overlay-bar">
+          <strong>{{ big.model }}</strong>
+          <span :class="['cam-status', 'is-' + status(big).cls]"><span class="cam-dot"></span>{{ status(big).text }}</span>
+          <small class="cam-overlay-hint">{{ K.back }}</small>
+          <button v-if="view === 'window'" class="cam-overlay-btn" type="button" :title="K.views.screen" :aria-label="K.views.screen"
+                  @click.stop="showBig(big, 'screen')"><ui-icon name="fullscreen"/></button>
+          <button v-else class="cam-overlay-btn" type="button" :title="K.views.window" :aria-label="K.views.window"
+                  @click.stop="showBig(big, 'window')"><ui-icon name="shrink"/></button>
+          <button class="cam-overlay-btn" type="button" :title="K.views.normal" :aria-label="K.views.normal" @click.stop="back"><ui-icon name="close"/></button>
+        </div>
       </div>
     </div>
   `,

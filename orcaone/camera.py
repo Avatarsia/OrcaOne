@@ -1,14 +1,16 @@
-"""Camera of the Snapmaker U1 with its stock firmware (page "Kamera"), after the user's
-prototypes/U1Cam/u1cam.py, and what the page "Kalibrieren" reads from the printer (status()).
+"""Printers in the network: the address of a printer, typed in at its card on the page "Drucker",
+and what OrcaOne does with it for a Snapmaker U1 with its stock firmware: the camera (page
+"Kamera", after the user's prototypes/U1Cam/u1cam.py) and the status the page "Kalibrieren" reads
+(status()).
 
 The camera sleeps until Moonraker's JSON-RPC method camera.start_monitor wakes it, sent over the
 printer's WebSocket as its own web page does. Then the printer writes
 /server/files/camera/monitor.jpg every few seconds. OrcaOne wakes it while the page shows the
 picture and passes the picture through, so the browser needs no access of its own to the printer.
 
-Only printers the user added are asked (section "cameras" of OrcaOne's settings): the page names
-a camera by its id, never by an address, so no other page can make OrcaOne fetch from elsewhere.
-Standard library only.
+Only addresses the user typed in are asked (section "printers" of OrcaOne's settings): the pages
+name a camera by its id, never by an address, so no other page can make OrcaOne fetch from
+elsewhere. Standard library only.
 """
 
 import base64
@@ -37,15 +39,37 @@ class CameraError(Exception):
         self.code, self.detail = code, detail
 
 
-def cameras() -> list[dict]:
-    """[{"id", "host", "name", "every"?}] as added; every: seconds between two pictures."""
-    items = settings.load().get("cameras")
-    return [c for c in items if isinstance(c, dict) and isinstance(c.get("host"), str) and isinstance(c.get("id"), str)] \
-        if isinstance(items, list) else []
+# Printer models whose camera and status OrcaOne knows; both slicers call the U1 so.
+U1_MODELS = {"Snapmaker U1"}
 
 
-def _save(items: list[dict]) -> None:
-    settings.change(lambda data: data.update(cameras=items))
+# The addresses the slicers have, {"<model>": {"host", "slicer"}}: "Hostname, IP or URL" of their
+# dialog "Physical Printer", saved as print_host in an own printer. Taken from every scan of GET
+# /api/data (overview.build_all), so the files stay the only source.
+_slicer_hosts: dict = {}
+
+
+def remember_slicer_hosts(found: dict) -> None:
+    global _slicer_hosts
+    _slicer_hosts = {model: {**p, "host": host} for model, p in found.items() if (host := normalize(p["host"]))}
+
+
+def printers() -> dict:
+    """The address per printer model: {"<model>": {"host": "10.30.40.174", "from": "orcaone" or
+    "slicer", "slicer"?, "every"?}}. One typed in on the page "Drucker" goes before the slicer's;
+    every is the seconds between two camera pictures. By model, so the same U1 has one address in
+    Snapmaker Orca and in OrcaSlicer."""
+    found = settings.load().get("printers")
+    own = {m: p for m, p in found.items() if isinstance(p, dict)} if isinstance(found, dict) else {}
+    out = {}
+    for model in sorted(set(own) | set(_slicer_hosts)):
+        mine, theirs = own.get(model, {}), _slicer_hosts.get(model)
+        every = {"every": mine["every"]} if isinstance(mine.get("every"), int) else {}
+        if isinstance(mine.get("host"), str):
+            out[model] = {"host": mine["host"], "from": "orcaone", **every}
+        elif theirs:
+            out[model] = {"host": theirs["host"], "from": "slicer", "slicer": theirs["slicer"], **every}
+    return out
 
 
 def normalize(raw: str) -> str | None:
@@ -54,36 +78,39 @@ def normalize(raw: str) -> str | None:
     return host if _HOST.fullmatch(host) else None
 
 
-def add(raw: str, name: str = "") -> dict:
-    host = normalize(raw) if isinstance(raw, str) else None
-    if host is None:
+def set_host(model, raw) -> dict:
+    """Sets the address of a printer model; an empty one takes it away."""
+    if not isinstance(model, str) or not model.strip() or len(model) > 200 or not isinstance(raw, str):
+        raise CameraError("printer_invalid")
+    host = normalize(raw) if raw.strip() else None
+    if raw.strip() and host is None:
         raise CameraError("camera_host_invalid")
-    items = cameras()
-    if any(c["host"] == host for c in items):
-        raise CameraError("camera_already_listed")
-    camera = {"id": hashlib.sha1(host.encode()).hexdigest()[:10], "host": host, "name": name.strip() or "Snapmaker U1"}
-    _save(items + [camera])
-    return camera
+
+    def edit(data):
+        found = data.get("printers") if isinstance(data.get("printers"), dict) else {}
+        entry = found.get(model) if isinstance(found.get(model), dict) else {}
+        if host is None:
+            entry.pop("host", None)   # then the slicer's address counts again, if it has one
+        else:
+            entry["host"] = host
+        if entry:
+            found[model] = entry
+        else:
+            found.pop(model, None)
+        data["printers"] = found
+
+    settings.change(edit)
+    return printers()
 
 
-def remove(camera_id: str) -> None:
-    items = cameras()
-    if not any(c["id"] == camera_id for c in items):
-        raise CameraError("camera_not_found")
-    _save([c for c in items if c["id"] != camera_id])
+def _id(model: str) -> str:
+    return hashlib.sha1(model.encode("utf-8")).hexdigest()[:10]
 
 
-def set_every(camera_id: str, every) -> dict:
-    """Seconds between two pictures on the page, kept for the next visit."""
-    if not isinstance(every, int) or isinstance(every, bool) or not 1 <= every <= 60:
-        raise CameraError("camera_every_invalid")
-    items = cameras()
-    camera = next((c for c in items if c["id"] == camera_id), None)
-    if camera is None:
-        raise CameraError("camera_not_found")
-    camera["every"] = every
-    _save(items)
-    return camera
+def cameras() -> list[dict]:
+    """Every U1 with an address has a camera: [{"id", "model", "host", "every"?}]."""
+    return [{"id": _id(model), "model": model, "host": p["host"], **({"every": p["every"]} if "every" in p else {})}
+            for model, p in printers().items() if model in U1_MODELS]
 
 
 def find(camera_id: str) -> dict:
@@ -91,6 +118,22 @@ def find(camera_id: str) -> dict:
     if camera is None:
         raise CameraError("camera_not_found")
     return camera
+
+
+def set_every(camera_id: str, every) -> dict:
+    """Seconds between two pictures on the page, kept for the next visit."""
+    if not isinstance(every, int) or isinstance(every, bool) or not 1 <= every <= 60:
+        raise CameraError("camera_every_invalid")
+    model = find(camera_id)["model"]
+
+    def edit(data):
+        found = data.get("printers") if isinstance(data.get("printers"), dict) else {}
+        entry = found.get(model) if isinstance(found.get(model), dict) else {}
+        found[model] = {**entry, "every": every}   # also for an address from the slicer
+        data["printers"] = found
+
+    settings.change(edit)
+    return find(camera_id)
 
 
 HEADS = ["extruder", "extruder1", "extruder2", "extruder3"]

@@ -4,7 +4,8 @@ orcaone.sh (the user's wish of 23.09.2026). In it:
   "manual_paths": data directories added by hand (instances.py);
   "unlocks": per installation, the library filaments OrcaOne switched on in Snapmaker Orca, to
   notice when the setup wizard switches them off again (instances.py, FINDINGS 4.7);
-  "cameras": the printers of the page "Kamera" (camera.py);
+  "printers": the network address per printer model, typed in on the page "Drucker", and the
+  seconds between two camera pictures (camera.py);
   "language": the language of the page, "de" or "en" (app.py); missing: the browser's;
   "calibration": the ticks of the page "Kalibrieren" (calibration.py).
 - backups/: the backups (backup.py). They hold credentials, so data/ is not in Git.
@@ -68,11 +69,22 @@ def _read(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _cameras_to_printers(data: dict) -> None:
+    """Up to 23.09.2026 the page "Kamera" had a list of its own; the address now belongs to the
+    printer. All those cameras were U1s, so the first one becomes the address of that model."""
+    cameras = data.pop("cameras", None)
+    printers = data.get("printers") if isinstance(data.get("printers"), dict) else {}
+    for cam in cameras if isinstance(cameras, list) else []:
+        if isinstance(cam, dict) and isinstance(cam.get("host"), str) and "Snapmaker U1" not in printers:
+            printers["Snapmaker U1"] = {"host": cam["host"], **({"every": cam["every"]} if isinstance(cam.get("every"), int) else {})}
+    data["printers"] = printers
+
+
 def migrate() -> None:
     """Moves the old data here once: the backups as they are, the separate settings files
     (instances.json, cameras.json, unlocks/<installation>.json) into settings.json. A section
     that is already there wins; its old file then stays, nothing is lost. The old folder goes
-    once it is empty."""
+    once it is empty. A list "cameras" of that time becomes "printers" (_cameras_to_printers)."""
     for old in _old_dirs():
         if not old.is_dir():
             continue
@@ -110,3 +122,5 @@ def migrate() -> None:
                 folder.rmdir()
             except OSError:
                 pass  # not empty: something stays that was not moved
+    if "cameras" in load():
+        change(_cameras_to_printers)

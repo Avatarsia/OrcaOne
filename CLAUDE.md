@@ -39,11 +39,11 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
   - Satzschreibung, Status immer als Text plus Farbe.
 - **Oberfläche:**
   - **Filamente:** Drucker wählen → Düse → Baum aus Eigene, Vom Hersteller und Orca-Bibliothek.
+    - **Kalibrieren:** nur für den U1: U1 und Düse wählen, dann ein passendes eigenes Filament; die Kalibrieranleitung des Nutzers als Liste zum Abhaken, liest den U1 live und nur lesend.
+    - **Übertragen:** Profile zwischen zwei Installationen in beide Richtungen kopieren.
   - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
-  - **Kalibrieren:** die Kalibrieranleitung des Nutzers als Liste zum Abhaken, liest den U1 live und nur lesend.
-  - **Drucker:** Standard festlegen, aufräumen.
-  - **Kamera:** Bild der Kamera des Snapmaker U1.
-  - **Übertragen:** Profile zwischen zwei Installationen in beide Richtungen kopieren.
+  - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen oder `print_host` aus dem Slicer).
+    - **Kamera:** Bild jedes U1 mit IP-Adresse, in der Seite, fensterfüllend oder im Vollbild.
   - **Sicherungen.**
   - Unter „Technik“: **Slicer** (Datenordner), **Details** (alles zu einem Filament) und **Logs** (Logdateien der Slicer, nur lesen).
 

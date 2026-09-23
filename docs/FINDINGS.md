@@ -516,6 +516,14 @@ Anlass: Die Anleitung des Nutzers `prototypes/U1 Filament Kalibrierung.md` wird 
 - Kopf 4 steht nach dem letzten Druck auf 0,017665, die anderen auf 0,02. Der letzte Druck nutzte Kopf 4 nicht; bei den anderen setzte der G-Code beim Werkzeugwechsel 0,02 („// pressure_advance: 0.020000“ in der Konsole). Eine krumme Zahl ist also ein Messwert, und er bleibt in der Firmware, bis ein Druck den Kopf mit einem anderen Wert belegt. OrcaOne liest das über `printer/objects/query`, ohne etwas an den Drucker zu senden.
 - Laut Snapmaker-Forum gilt der Messwert für den Kalibrierdruck; danach setzt ein eingeschalteter Slicer-Wert ihn wieder.
 
+**Wo die Slicer die Adresse des Druckers ablegen:** Der Dialog „Physischer Drucker“ (Symbol neben der Druckerwahl) speichert „Hostname, IP or URL“ als `print_host`, dazu `host_type`, `print_host_webui` und `printhost_apikey`, in ein eigenes Druckerprofil, dessen Namen man dort vergibt (`PhysicalPrinterDialog::OnOK` → `save_preset`, in OrcaSlicer main und SnOrca gleich). Ein leeres Feld wird nicht gespeichert. Den U1 selbst findet SnOrca ohne gespeicherte Adresse per mDNS (`slic3r/GUI/SSWCP.cpp`, `sw_WakeupFind` und `sw_StartMachineFind`; `slic3r/Utils/Bonjour.cpp`):
+- ein UDP-Socket auf Port 5353 mit `SO_REUSEADDR`, der Gruppe 224.0.0.251 auf jeder Schnittstelle beigetreten; die Antworten kommen per Multicast;
+- erst „aufwärmen“ mit einer PTR-Anfrage nach `_services._dns-sd._udp.local` (laut Kommentar baut das bei Access Points die Multicast-Weiterleitung auf), dann einmal `_snapmaker._tcp.local`, dann bis zu 20 s lang `_snapmaker._tcp.local` mit 3 Wiederholungen;
+- die Anfrage: ID 0, eine Frage, Typ PTR, Klasse ANY (`BonjourRequest::make_PTR`);
+- aus der Antwort: Hostname, IPv4 und Port, dazu die TXT-Felder `sn`, `version`, `machine_type`, `link_mode`, `userid`, `device_name`, `ip` und `region`.
+
+Auf diesem Rechner stand die IP in keiner Datei der beiden Slicer (am 23.09. alle Ordner durchsucht, Klartext und UTF-16). Der Grund: Der Rechner erreicht den U1 über WireGuard (`wg0`, 10.30.250.5 → 10.30.40.174), nicht im selben LAN. mDNS ist Link-lokal und geht nicht durch den Tunnel; eine Anfrage genau wie SnOrcas brachte kein einziges fremdes Paket. Von hier findet also auch SnOrca den U1 nicht.
+
 **Nicht geprüft:** der genaue Text der Konsolenmeldung („Got pressure advance“ laut Anleitung, „measure k“ laut Forum), die 32 mm³/s des Hotends und der Rat zur 0,2-mm-Düse (die Snapmaker-Wiki zeigt ihren Inhalt nur per JavaScript).
 
 ## Offen: nur am laufenden Slicer prüfbar

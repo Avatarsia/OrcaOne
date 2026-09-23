@@ -3,7 +3,7 @@ import json
 import pytest
 
 from conftest import BUNDLE, FIXTURES, add_bundle, copy_fixture
-from orcaone import instances, overview, settings
+from orcaone import camera, instances, overview, settings
 from orcaone.guard import SlicerProcess
 from test_opc import patched
 
@@ -297,3 +297,20 @@ def test_high_flow_is_marked(snorca):
     assert records["0.20mm Standard @Snapmaker U1 (0.4 nozzle)"].get("high_flow") is True
     assert "high_flow" not in records["0.08mm Standard @Snapmaker U1 (0.4 nozzle)"]
 
+
+
+def test_address_from_the_dialog_physical_printer(fake_home, monkeypatch):
+    """The slicer saves "Hostname, IP or URL" of its dialog "Physical Printer" into an own printer
+    as print_host (PhysicalPrinterDialog::OnOK); it becomes the address of that printer model."""
+    monkeypatch.setattr(overview.guard, "find_processes", lambda: [])
+    monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
+    data_dir = copy_fixture("orca", fake_home / ".config" / "OrcaSlicer")
+    machine = data_dir / "user" / "default" / "machine"
+    machine.mkdir(parents=True)
+    (machine / "Mein U1.json").write_text(json.dumps({
+        "name": "Mein U1", "from": "User", "version": "2.5.0", "inherits": "Snapmaker U1 (0.4 nozzle)",
+        "host_type": "octoprint", "print_host": "http://10.30.40.174/"}), encoding="utf-8")
+    own = {p["name"]: p for p in build(data_dir)["printers_page"]["own"]}
+    assert (own["Mein U1"]["model"], own["Mein U1"]["print_host"]) == ("Snapmaker U1", "http://10.30.40.174/")
+    overview.build_all()
+    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "slicer", "slicer": "OrcaSlicer"}}
