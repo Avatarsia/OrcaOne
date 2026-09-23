@@ -116,7 +116,8 @@ def test_serves_every_module_the_ui_imports(server):
         for rel in re.findall(r'from "(\.{1,2}/[^"]+)"', body.decode("utf-8")):
             todo.append(posixpath.normpath(posixpath.join(posixpath.dirname(path), rel)))
     assert {"common.js", "api.js", "texts.js", "texts/de.js", "texts/en.js", "texts/names.js", "pages/kalibrieren.js", "pages/filamente.js",
-            "pages/filament-editor.js", "pages/drucker.js", "pages/sicherungen.js", "pages/slicer.js"} <= seen
+            "pages/filament-editor.js", "pages/filament-picker.js", "pages/vergleichen.js", "pages/drucker.js", "pages/sicherungen.js",
+            "pages/slicer.js"} <= seen
 
 
 def test_language_is_a_setting(server, data_dir):

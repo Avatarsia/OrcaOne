@@ -51,7 +51,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Main menu",
-    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", transfer: "Transfer", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", transfer: "Transfer", vergleichen: "Compare", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
     technik: "Advanced",
     pending: "queued changes",
     backups: "Backups",
@@ -732,6 +732,24 @@ const T = {
     nothingMissing: "Everything is already there.",
     fromSlicer: (slicer) => `from ${slicer}`,
     note: "What does not come along shows in “What happens” before applying. Printers follow later.",
+  },
+
+  // ---------------------------------------------------------------- page "Vergleichen"
+  compare: {
+    title: "Compare two filaments",
+    lead: "Two filaments side by side, also from two installations: which values differ and where they come from. Only to look at.",
+    pick: (i) => i ? "Second filament" : "First filament",
+    installation: "Installation",
+    empty: "Choose two filaments above.",
+    valuesTitle: "Values",
+    count: (differ, same) => `${n(differ)} different, ${n(same)} the same`,
+    showSame: "Show equal values too",
+    key: "Setting",
+    notSet: "not set",
+    same: "same",
+    differs: "different",
+    allSame: "All values are the same.",
+    noMatch: "No setting matches the search.",
   },
 
   // ---------------------------------------------------------------- page "Details"

@@ -5,12 +5,13 @@
 // Data: GET /api/data for the status per printer, GET /api/instances/{id}/profile for chain,
 // files and values. The side panel of the page "Filamente" opens this page for one filament
 // (detailsFor in common.js).
-import { INSTANCES, ui, go, hashOf, modelShown, nozzleLabel, originGroup, printerShortName, whenText } from "../common.js";
+import { INSTANCES, ui, go, hashOf, modelShown, nozzleLabel, printerShortName, whenText } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 import { problemText } from "../plan.js";
+import FilamentPicker from "./filament-picker.js";
 
-const { ref, computed, nextTick } = Vue;
+const { ref, computed } = Vue;
 const D = T.details;
 const F = T.filaments;
 
@@ -21,13 +22,11 @@ const STATUS_CLASS = { visible: "st-on", hidden: "st-off", displaced: "st-warn" 
 
 export default {
   name: "DetailsPage",
+  components: { FilamentPicker },
   props: { instId: { type: String, required: true } },
 
   setup(props) {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
-    const query = ref("");      // what the field shows: the chosen name, or what is typed
-    const open = ref(false);
-    const active = ref(0);      // the entry the arrow keys are on
     const chosen = ref(null);   // the record of GET /api/data
     const details = ref(null);  // GET /profile
     const error = ref("");
@@ -37,88 +36,10 @@ export default {
     const originText = (f) => f.origin_kind === "vendor" ? F.kinds.vendorFrom(f.package)
       : f.origin_kind === "bundle" ? F.bundlePrinter(f.bundle) : T.labels.origin_kind[f.origin_kind];
 
-    // ------------------------------------------------------------ the list to pick from
-    // Headings as in the tree on "Filamente" (originGroup). Own ones say what they derive from,
-    // the others their material.
-    const subOf = (f) => f.origin_kind === "user" || f.origin_kind === "bundle"
-      ? f.chain[0] ? D.derivedFrom(plainName(f.chain[0])) : D.root
-      : f.material || "";
-    // Typed words filter, in any order; the chosen name standing in the field shows the whole list.
-    const words = computed(() => query.value === shownName(chosen.value) ? [] : query.value.toLowerCase().split(/\s+/).filter(Boolean));
-    const groups = computed(() => {
-      const map = new Map();
-      for (const f of inst.value.filaments) {
-        const hay = `${f.name} ${f.vendor || ""} ${f.material || ""}`.toLowerCase();
-        if (!words.value.every((w) => hay.includes(w))) continue;
-        const g = originGroup(f);
-        if (!map.has(g.key)) map.set(g.key, { ...g, items: [] });
-        map.get(g.key).items.push({ f, name: plainName(f.name), sub: subOf(f) });
-      }
-      const list = [...map.values()].sort((a, b) => a.key.localeCompare(b.key, "de"));
-      let idx = 0;
-      for (const g of list) {
-        g.items.sort((a, b) => a.name.localeCompare(b.name, "de"));
-        for (const it of g.items) it.idx = idx++;
-      }
-      return list;
-    });
-    const flat = computed(() => groups.value.flatMap((g) => g.items));
-    function shownName(f) { return f ? plainName(f.name) : ""; }
-    function openList() {
-      if (!open.value) active.value = Math.max(0, flat.value.findIndex((it) => it.f === chosen.value));
-      open.value = true;
-      nextTick(scrollToActive);
-    }
-    // A click or Tab into the field marks its text, so typing replaces it right away. The click
-    // that brought the focus would put the caret in and undo that, so it marks again.
-    let focusedAt = 0;
-    function onFocus(ev) {
-      focusedAt = Date.now();
-      openList();
-      ev.target.select();
-    }
-    function onClick(ev) {
-      if (!open.value || Date.now() - focusedAt < 400) ev.target.select();
-      openList();
-    }
-    function closeList() {
-      open.value = false;
-      query.value = shownName(chosen.value);
-    }
-    function pick(it) {
-      open.value = false;
-      choose(it.f.name);
-      // The field keeps the focus; its text marked, the next typing starts a new search.
-      nextTick(() => document.getElementById("details-combo")?.select());
-    }
-    function scrollToActive() {
-      document.getElementById("combo-opt-" + active.value)?.scrollIntoView({ block: "nearest" });
-    }
-    function onKey(ev) {
-      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
-        ev.preventDefault();
-        if (!open.value) return openList();
-        const n = flat.value.length;
-        if (n) active.value = (active.value + (ev.key === "ArrowDown" ? 1 : n - 1)) % n;
-        nextTick(scrollToActive);
-      } else if (ev.key === "Enter" && open.value && flat.value[active.value]) {
-        ev.preventDefault();
-        pick(flat.value[active.value]);
-      } else if (ev.key === "Escape" && open.value) {
-        ev.stopPropagation();
-        closeList();
-      }
-    }
-    function onInput() {
-      open.value = true;
-      active.value = 0;
-    }
-
     async function choose(name) {
       const f = inst.value.byName.get(name);
       if (!f) return;
       chosen.value = f;
-      query.value = shownName(f);
       details.value = null;
       error.value = "";
       filter.value = "";
@@ -219,8 +140,8 @@ export default {
     });
 
     return {
-      T, D, F, inst, query, open, active, chosen, details, error, filter, choose, originText, groups, flat,
-      onFocus, onClick, closeList, pick, onKey, onInput, filamentHash, toFilaments, printerRows, nowhere, chain, missing, original, files, info,
+      T, D, F, inst, chosen, details, error, filter, choose, originText,
+      filamentHash, toFilaments, printerRows, nowhere, chain, missing, original, files, info,
       problem, values, plainName,
     };
   },
@@ -231,28 +152,7 @@ export default {
       <p class="note">{{ D.lead(inst.slicer) }}</p>
 
       <section class="box">
-        <div class="combo">
-          <label class="combo-label" for="details-combo">{{ D.pick }}</label>
-          <span class="search">
-            <ui-icon name="search"/>
-            <input id="details-combo" v-model="query" class="input" type="text" role="combobox" autocomplete="off"
-                   aria-autocomplete="list" aria-controls="details-list" :aria-expanded="open ? 'true' : 'false'"
-                   :aria-activedescendant="open && flat[active] ? 'combo-opt-' + active : null" :placeholder="D.pickHint"
-                   @focus="onFocus" @click="onClick" @input="onInput" @keydown="onKey" @blur="closeList">
-            <ui-icon name="chevronDown" class="combo-chev"/>
-          </span>
-          <div v-if="open" id="details-list" class="combo-list" role="listbox" :aria-label="D.pick">
-            <template v-for="g in groups" :key="g.key">
-              <div class="combo-head" role="presentation">{{ g.label }}</div>
-              <div v-for="it in g.items" :key="it.f.name" :id="'combo-opt-' + it.idx" role="option"
-                   :aria-selected="chosen && chosen.name === it.f.name ? 'true' : 'false'"
-                   :class="['combo-opt', { 'is-active': it.idx === active }]" @mousedown.prevent="pick(it)" @mousemove="active = it.idx">
-                <span class="combo-name">{{ it.name }}</span><small>{{ it.sub }}</small>
-              </div>
-            </template>
-            <p v-if="!flat.length" class="combo-none">{{ D.noMatch }}</p>
-          </div>
-        </div>
+        <filament-picker id="details-combo" :inst="inst" :chosen="chosen" :label="D.pick" @pick="choose"/>
         <p class="note">{{ D.count(inst.filaments.length) }}</p>
       </section>
 

@@ -53,7 +53,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Hauptmenü",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", transfer: "Übertragen", vergleichen: "Vergleichen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     technik: "Technik",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -734,6 +734,24 @@ const T = {
     nothingMissing: "Alles schon drüben.",
     fromSlicer: (slicer) => `aus ${slicer}`,
     note: "Was nicht mitkommt, zeigt „Das passiert“ vor dem Übernehmen. Drucker folgen später.",
+  },
+
+  // ---------------------------------------------------------------- page "Vergleichen"
+  compare: {
+    title: "Zwei Filamente vergleichen",
+    lead: "Zwei Filamente nebeneinander, auch aus zwei Installationen: welche Werte sich unterscheiden und woher sie kommen. Nur zum Ansehen.",
+    pick: (i) => i ? "Zweites Filament" : "Erstes Filament",
+    installation: "Installation",
+    empty: "Wähle oben zwei Filamente.",
+    valuesTitle: "Werte",
+    count: (differ, same) => `${n(differ)} unterschiedlich, ${n(same)} gleich`,
+    showSame: "Gleiche Werte auch zeigen",
+    key: "Einstellung",
+    notSet: "nicht gesetzt",
+    same: "gleich",
+    differs: "anders",
+    allSame: "Alle Werte sind gleich.",
+    noMatch: "Keine Einstellung passt zur Suche.",
   },
 
   // ---------------------------------------------------------------- page "Details"

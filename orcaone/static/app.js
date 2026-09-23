@@ -18,6 +18,7 @@ import SlicerPage from "./pages/slicer.js";
 import ProzessePage from "./pages/prozesse.js";
 import DetailsPage from "./pages/details.js";
 import TransferPage, { transferChanges } from "./pages/transfer.js";
+import VergleichenPage from "./pages/vergleichen.js";
 import KameraPage from "./pages/kamera.js";
 import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
@@ -27,12 +28,13 @@ const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmoun
 document.documentElement.lang = LANG;
 
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
-// sub: a page about the one above, set in a little under it: Kalibrieren and Übertragen work on
-// filament profiles, the camera belongs to the printer (its address is on the printer's card).
+// sub: a page about the one above, set in a little under it: Kalibrieren, Übertragen and Vergleichen
+// work on filament profiles, the camera belongs to the printer (its address is on the printer's card).
 const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
   { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
   { id: "transfer", icon: "transfer", component: TransferPage, sub: true },
+  { id: "vergleichen", icon: "compare", component: VergleichenPage, sub: true },
   { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Needs no slicer data: shows at once and stays through "Neu einlesen".
