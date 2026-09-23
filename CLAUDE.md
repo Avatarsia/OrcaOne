@@ -14,7 +14,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 
 ## Harte Regeln (Vorrang vor allem anderen)
 
-1. Während der Entwicklung nie in echte Slicer-Datenverzeichnisse schreiben (`~/.config/Snapmaker_Orca`, `~/.config/OrcaSlicer`, Flatpak-Pfade unter `~/.var/app/`, `%APPDATA%\…`). Lesen ist erlaubt. Tests nur gegen Fixtures im Repo oder Kopien in einem temporären Verzeichnis. Keinen Slicer starten oder beenden.
+1. Automatische Tests laufen nur gegen Fixtures im Repo oder Kopien in einem temporären Verzeichnis, nie gegen echte Slicer-Datenverzeichnisse (`~/.config/Snapmaker_Orca`, `~/.config/OrcaSlicer`, Flatpak-Pfade unter `~/.var/app/`, `%APPDATA%\…`). Auf dem Entwicklungsrechner sind SnOrca und OrcaSlicer nur Testinstallationen: Beim Ausprobieren schreibt Orfix direkt in die echten Ordner, abgesichert durch seine Sicherungen (Entscheidung vom 23.09.2026). Keinen Slicer starten oder beenden.
 2. Orfix schreibt ausschließlich in `user/**` und in die `<APP_KEY>.conf` eines Datenverzeichnisses. Nie in `system/`, Programmressourcen, Logs oder Caches.
 3. Schreiben nur, wenn der betroffene Slicer nicht läuft, also weder sein Prozess noch seine AppImage-Runtime existiert. Sonst die Instanz schreibgeschützt anzeigen und den Grund nennen. Die Sperrdatei in `cache/` nie selbst setzen.
 4. Vor jedem Schreibvorgang ein vollständiges ZIP-Backup des Datenverzeichnisses, ohne `log/`, `cache/`, `web/`, `hms/`, `ota/`, `user/Temp/`, `user/*/temp/` und `user_backup-v*/`. Backups sind vertraulich, weil sie Zugangsdaten enthalten. Jedes Backup lässt sich in der Oberfläche wiederherstellen.

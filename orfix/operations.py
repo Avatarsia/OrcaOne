@@ -117,8 +117,6 @@ def run_block(instance: Instance, processes: list) -> str | None:
 
 
 def environment_block(instance: Instance, processes: list, restore: bool = False) -> str | None:
-    if not instances.write_allowed(instance):
-        return "write_not_allowed"
     # A restore writes the whole .conf back, so a broken one does not stop it: it is the way to
     # repair it. Starting the slicer instead would reset every setting (FINDINGS 4.3).
     if "conf_unreadable" in instance.problems and not restore:

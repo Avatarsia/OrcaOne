@@ -65,14 +65,14 @@ Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 
 **Danach (Wunsch vom 22.09.):** ein gemeinsamer Test „Was sehe ich in SnOrca, was in Orfix, und kommt eine Änderung richtig an?“, siehe [TEST-VERGLEICH](TEST-VERGLEICH.md).
 - **Teil A** (nur lesen) geht jetzt mit der App.
-- **Teil B** (Änderungen) braucht echte Schreibfunktionen. Sie kommen als erster Teil von Phase 2: Sicherung, `.conf` ändern, eigenes Profil anlegen. Orfix schreibt dabei nur in von Hand hinzugefügte Ordner, also in eine Kopie, die mit `--datadir` gestartet wird.
+- **Teil B** (Änderungen) braucht echte Schreibfunktionen. Sie kommen als erster Teil von Phase 2: Sicherung, `.conf` ändern, eigenes Profil anlegen.
 
 ## Offene Fehler und Punkte
 
 - **`geckodriver`-Prozess:** Ein Agent hat einen `geckodriver` übrig gelassen (PID 98327, Snap-Firefox). Ihn darf nur der Nutzer beenden: `kill 98327`.
 - **Enter-Taste:** Im Formular „Datenordner hinzufügen“ hat die Enter-Taste im Test-Browser der App nicht abgeschickt, nur der Knopf. In einem echten Browser prüfen.
 - **Windows:** nur mit nachgebauter `.conf` getestet. Eine echte Windows-`.conf` fehlt, vorher `devices` bzw. `local_machines` leeren.
-- **Praxistests offen:** „Bibliothek freischalten“ (Weg A und B, mit `--datadir`-Kopie) und Flatpak.
+- **Praxistests offen:** „Bibliothek freischalten“ (Weg A und B, Teil B) und Flatpak.
 - **Gemeldet am 22.09. zu Entwurf E, alle erledigt:** „Läuft“ bei geschlossenem SnOrca (die Daten kommen jetzt live), die verwirrenden Beispielprofile (entfernt), die Ansicht, die Klicks nicht folgte (in E2 behoben), und die toten `orca_presets`-Einträge („Default Printer“ wird erkannt).
 - **Sicherungen:** Was eine Wiederherstellung zurückbringt und was wegfällt, zeigt die App noch nicht. Das braucht einen Vergleich im Backend, er kommt mit Phase 2.
 
@@ -97,7 +97,7 @@ Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
   - `/plan` → `/apply`, dazu die Sicherungs-API.
 
   Danach folgen Zusammenführen samt Ende-zu-Ende-Test, Review und Nachbessern.
-- **Sicherheitsregel:** Orfix schreibt nur in von Hand hinzugefügte Ordner, sonst meldet es `write_not_allowed`.
+- **Sicherheitsregel bis 23.09.:** Orfix schrieb nur in von Hand hinzugefügte Ordner. Aufgehoben, siehe unten.
 - **Nach einem Abbruch** fortsetzen mit `resumeFromRunId: "wf_9ea0a07b-6fd"`, Skript unter `…/workflows/scripts/orfix-writes-part-b-wf_9ea0a07b-6fd.js`.
 
 ## Nächster Wunsch (22.09.2026): Seite „Prozesse“ – vom Nutzer bestätigt, nach Teil B bauen
@@ -112,6 +112,12 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 ## Teil B bereit zum Test (22.09.2026, 13:30)
 
 - **Schreibfunktionen fertig** (`a2b06ad`, `e6b9938`), 175 Tests grün. Der Ende-zu-Ende-Test und ein Lauf auf einer Kopie des echten Ordners sind in Ordnung.
-- **Offen:** die Spalte „SnOrca“ in [TEST-VERGLEICH](TEST-VERGLEICH.md) Teil B. Der Nutzer testet mit einer Kopie unter `~/orfix-test/Snapmaker_Orca` und `--datadir`.
+- **Offen:** die Spalte „SnOrca“ in [TEST-VERGLEICH](TEST-VERGLEICH.md) Teil B.
+- **23.09.: Test direkt im echten Ordner** `~/.config/Snapmaker_Orca`, ohne Kopie und ohne `--datadir`. Auf diesem Rechner sind SnOrca und Orca nur Testinstallationen, zurück geht es über die Sicherungen. Die Sperre für Ordner, die nicht von Hand hinzugefügt wurden (`write_not_allowed`), ist entfernt, Regel 1 in CLAUDE.md angepasst.
+- **Orca 2.5 geprüft (23.09.)** auf einer Kopie des echten Ordners `~/.config/OrcaSlicer` mit B1, B4, B5 und B7:
+  - ein neues eigenes Profil baut auf einem Profil aus `Snapmaker.opc` auf, `version` 2.5.0, `.info` mit `base_id` aus der `.opc`;
+  - die `.conf` bleibt mit Tab eingerückt, Wiederherstellen ergibt die Kopie Byte für Byte.
+  - Das Format eigener Profile ist in Orca main unverändert: JSON plus `.info` (`Preset::save`, `load_presets` in `Preset.cpp`). `.opc` liegt nur in `system/`, dort schreibt Orfix nie.
+- **Offen:** Profile aus Profilpaketen von Orca 2.5 (`user/<ordner>/_local/`, `_subscribed/`) zählt Orfix zu den eigenen und ließe sie bearbeiten. Sperren, bevor jemand Pakete importiert.
 - **Danach:** Seite „Prozesse“ **nur zum Anzeigen**, ohne Bearbeiten. Das hat der Nutzer am 22.09. entschieden: „klingt fast wie ein Slicer-Nachbau … Overkill“.
   - Gezeigt werden die eingestellten Werte in den Gruppen Qualität, Stabilität, Geschwindigkeit, Stützen und Haftung, dazu „Alle Werte“ aufklappbar.

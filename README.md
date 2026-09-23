@@ -4,14 +4,12 @@ Orfix ist eine lokale Web-App, mit der man die Profile von OrcaSlicer und Snapma
 
 **Stand: Phase 1 (Übersicht) und der erste Teil von Phase 2 (Schreiben).** Orfix liest beide Slicer live ein und zeigt Drucker, Filamente, Sicherungen und die Datenordner. Die Oberfläche folgt dem Entwurf E2.
 
-Änderungen schreibt Orfix vorerst **nur in Datenordner, die von Hand hinzugefügt wurden**, zum Beispiel in eine Kopie, auf der der Slicer mit `--datadir` läuft. Ablauf:
+Änderungen schreibt Orfix direkt in die Datenordner der Slicer, aber nur, solange der Slicer geschlossen ist. Ablauf:
 
 1. Plan mit „Das passiert“ anzeigen.
 2. Nach „Ausführen“ eine Sicherung anlegen.
 3. Schreiben. Scheitert das mittendrin, kommen die berührten Dateien aus der Sicherung zurück.
 4. Neu einlesen.
-
-Die echten Ordner wie `~/.config/Snapmaker_Orca` bleiben schreibgeschützt, bis der Nutzer das Schreiben dort freigibt.
 
 ## Starten
 
@@ -69,7 +67,7 @@ In eine Installation, in die Orfix nicht schreiben darf, ist „Übernehmen“ a
 - Vererbung, Sichtbarkeit und Kompatibilität so auflösen wie der Slicer. Dazu gehört auch, welche Bibliotheksprofile ein Herstellerprofil verdrängt.
 - Hinweise geben, etwa zu verwaisten eigenen Profilen, zu versteckten Bibliotheksprofilen in Snapmaker Orca und zu toten Einträgen in `orca_presets`.
 - Erkennen, ob der Slicer läuft. Dann heißt es „Läuft – nur ansehen“ samt Grund, und alle ändernden Knöpfe sind aus.
-- Schreiben, nur in von Hand hinzugefügte Datenordner:
+- Schreiben, nur bei geschlossenem Slicer:
   - Filamente sichtbar machen oder ausblenden (Liste `"filaments"`, nie leer);
   - Bibliotheksfilamente in Snapmaker Orca für alle Düsen (Weg A) oder für einzelne Düsen über ein eigenes Hilfsprofil (Weg B, FINDINGS 4.7);
   - eigene Filamente anlegen, ändern, umbenennen (samt `inherits` der Kinder und `orca_presets`) und löschen;
@@ -130,9 +128,9 @@ Die Entwürfe D, E und E2 liegen nur noch in der Git-Geschichte, zuletzt in Comm
 
 ## Offene Punkte
 
-- **Schreiben nur in von Hand hinzugefügte Ordner.** Die Standardorte, Flatpak, portable AppImages und Ordner, die Orfix nur von einem laufenden Slicer kennt, bleiben schreibgeschützt (`write_not_allowed`), bis der Nutzer das Schreiben dort freigibt.
+- **Profilpakete von OrcaSlicer 2.5** (`_local/`, `_subscribed/`) zeigt Orfix wie eigene Profile und ließe sie bearbeiten. Das soll gesperrt werden.
 - **Sichtprüfung im Browser fehlt** für „Das passiert“, die Meldungen nach dem Schreiben und die Seite „Sicherungen“. Die Abläufe sind nur mit dem echten Seitencode ohne Browser durchgespielt.
-- **Praxistest Teil B mit SnOrca steht aus.** Er läuft nach `docs/TEST-VERGLEICH.md` auf einer Kopie mit `--datadir`. Ohne SnOrca liefen die Schritte schon auf einer Kopie des echten Ordners, geprüft mit dem Resolver von Orfix: alles wie erwartet.
+- **Praxistest Teil B mit SnOrca steht aus.** Er läuft nach `docs/TEST-VERGLEICH.md` direkt im echten Ordner. Ohne SnOrca liefen die Schritte schon auf einer Kopie des echten Ordners, geprüft mit dem Resolver von Orfix: alles wie erwartet.
 - **`version` neuer Profile** kommt aus der Slicerversion (2.4.0 bzw. 2.5.0). SnOrca übernimmt beim Speichern die Version der Vorlage. Laut Quellcode zählt nur gültiges Semver, am Slicer ist das noch nicht geprüft.
 - **Zeichenkette oder Liste:** Orfix schreibt einen Wert so, wie der geerbte Wert aussieht, weil die Optionsdefinitionen fehlen. Bei zwei Werten (High Flow) ersetzt ein einzelner Wert nur den ersten.
 - **Pläne leben nur im Speicher.** Nach einem Neustart von Orfix heißt es „Plan abgelaufen“, dann einfach neu planen.

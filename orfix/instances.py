@@ -248,14 +248,3 @@ def save_unlocks(instance_id: str, names: list[str]) -> None:
     tmp.write_text(json.dumps({"names": sorted(set(names))}, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, file)
 
-
-def write_allowed(instance: Instance) -> bool:
-    """Whether Orfix may write into this data directory at all.
-
-    Until the user allows writing to the real slicer folders, only data directories added by
-    hand qualify, e.g. a copy the slicer runs on with --datadir (docs/TEST-VERGLEICH.md). The
-    default locations, Flatpak, portable AppImages and folders known only from a running slicer
-    stay read only. A manual folder the slicer is running on shows up as "process"."""
-    if instance.source == "manual":
-        return True
-    return instance.source == "process" and str(instance.data_dir) in manual_paths()

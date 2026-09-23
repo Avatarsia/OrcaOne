@@ -1,8 +1,7 @@
 """Part B of docs/TEST-VERGLEICH.md end to end over HTTP: the real server in a thread, a copy of
-tests/fixtures/snorca in tmp_path added by hand (only such folders may be written), and every step
-the way the page sends it (orfix/static/ops.js): POST /plan, POST /apply, then GET /api/data as
-the page reads it. At the end the backup from before the first step brings the copy back byte for
-byte."""
+tests/fixtures/snorca at the default location of a fake home, and every step the way the page
+sends it (orfix/static/ops.js): POST /plan, POST /apply, then GET /api/data as the page reads it.
+At the end the backup from before the first step brings the copy back byte for byte."""
 
 import json
 
@@ -24,8 +23,6 @@ class Page:
 
     def __init__(self, server, data_dir):
         self.server, self.data_dir = server, data_dir
-        status, body = call(f"{server}/api/instances/manual", "POST", {"path": str(data_dir)})
-        assert status == 200, body
         self.id = self.data()["id"]
         self.base = f"{server}/api/instances/{self.id}"
 
@@ -69,11 +66,11 @@ def own_file(page, name):
 
 
 def test_part_b_end_to_end(server, fake_home):
-    data_dir = copy_fixture("snorca", fake_home / "orfix-test" / "Snapmaker_Orca")
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
     start = tree(data_dir)
     page = Page(server, data_dir)
     inst = page.data()
-    assert (inst["source"], inst["write_allowed"], inst["running"]) == ("manual", True, False)
+    assert (inst["source"], inst["running"]) == ("auto", False)
     # Part A as a starting point: the vendor filaments per nozzle, nothing of the library.
     assert {"Snapmaker ABS @U1 0.4 nozzle", "Snapmaker PLA Basic @U1"} <= shown(inst, U1_04)
     assert all("SUNLU PLA+ @System" not in shown(inst, p) for p in U1)

@@ -73,13 +73,10 @@ export function statusText(inst) {
 
 // Why Orfix may not write to this installation now: a code of T.blocked, or null. The backend
 // checks the same, in the same order, when it plans and applies (environment_block in
-// orfix/operations.py); checked here as well, so "Übernehmen" is off right away. For now Orfix
-// writes only in data directories added by hand (write_allowed of GET /api/data; without it,
-// source "manual"), the real ones stay read only until the user allows writing there. Then
-// not with a .conf Orfix cannot read, and never while the slicer runs (hard rule 3). A restore
-// writes the whole .conf back, so a broken one does not stop it: it is the way to repair it.
+// orfix/operations.py); checked here as well, so "Übernehmen" is off right away. Not with a
+// .conf Orfix cannot read, and never while the slicer runs (hard rule 3). A restore writes the
+// whole .conf back, so a broken one does not stop it: it is the way to repair it.
 export function writeBlock(inst, restore = false) {
-  if (!(inst.write_allowed ?? inst.source === "manual")) return "write_not_allowed";
   if (inst.problems.includes("conf_unreadable") && !restore) return "conf_unreadable";
   if (inst.running) return inst.running_reason?.code === "process_unmapped" ? "slicer_maybe_running" : "slicer_running";
   return null;

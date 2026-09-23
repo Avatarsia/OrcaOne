@@ -2,24 +2,7 @@
 
 Entwurf vom 22.09.2026. Ziel: prüfen, ob Orfix genau das zeigt, was SnOrca zeigt, und ob eine Änderung in Orfix im Slicer genau so ankommt wie angekündigt.
 
-**Grundregel:** Geändert wird nur eine **Kopie** des Datenordners. Der echte Ordner `~/.config/Snapmaker_Orca` bleibt unangetastet (harte Regel 1). SnOrca startet für den Test mit `--datadir` auf der Kopie.
-
-## Vorbereitung (einmal)
-
-1. SnOrca schließen.
-2. Kopie anlegen:
-
-   ```bash
-   mkdir -p ~/orfix-test && cp -a ~/.config/Snapmaker_Orca ~/orfix-test/
-   ```
-
-3. SnOrca auf der Kopie starten:
-
-   ```bash
-   ~/Downloads/Snapmaker_Orca_Linux_AppImage_Ubuntu2404_V2.4.0.appimage --datadir ~/orfix-test/Snapmaker_Orca
-   ```
-
-4. In Orfix links unter „Technik“ „Slicer“ öffnen, unten bei „Datenordner hinzufügen“ den Pfad `~/orfix-test/Snapmaker_Orca` eintragen und „Hinzufügen“ klicken. Die Kopie erscheint als eigene Installation, gefunden als „Von Hand hinzugefügt“. Nur in solche Ordner schreibt Orfix.
+**Grundregel:** Getestet wird direkt im echten Ordner `~/.config/Snapmaker_Orca`, SnOrca startet ganz normal. Auf diesem Rechner ist SnOrca nur eine Testinstallation, und vor jeder Änderung legt Orfix eine Sicherung an (Entscheidung vom 23.09.2026). B7 stellt am Ende den Stand von vor B1 wieder her.
 
 ## Teil A: Anzeigen vergleichen (nur lesen)
 
@@ -35,9 +18,9 @@ Für jede Düse gilt: In SnOrca den Drucker „Snapmaker U1 (x nozzle)“ wähle
 | A6 | – | Die Orca-Bibliothek fehlt in SnOrca komplett und steht in Orfix ausgegraut, SUNLU mit 7 Einträgen | ☐ | ☐ |
 | A7 | – | Druckerliste: nur Snapmaker U1 mit 4 Düsen | ☐ | ☐ |
 
-## Teil B: Änderungen (nur auf der Kopie)
+## Teil B: Änderungen
 
-Orfix kann jetzt schreiben: Sicherung, `.conf` ändern, eigene Profile anlegen, umbenennen und löschen, Sicherung wiederherstellen. Es schreibt **nur** in von Hand hinzugefügte Ordner. In den Standardorten wie `~/.config/Snapmaker_Orca` bleibt „Übernehmen“ aus, und das Panel nennt den Grund („In diese Installation schreibt Orfix noch nicht …“).
+Orfix kann jetzt schreiben: Sicherung, `.conf` ändern, eigene Profile anlegen, umbenennen und löschen, Sicherung wiederherstellen. Solange SnOrca läuft, bleibt „Übernehmen“ aus.
 
 **Schon geprüft, ohne SnOrca (22.09.2026):**
 
@@ -46,18 +29,18 @@ Orfix kann jetzt schreiben: Sicherung, `.conf` ändern, eigene Profile anlegen, 
 
 Offen ist nur die Spalte „SnOrca“.
 
-**Vor dem ersten Schritt:** Oben rechts unter „Installation“ die Kopie wählen, also den Eintrag mit dem Pfad `~/orfix-test/Snapmaker_Orca`. Die Seiten „Drucker“, „Sicherungen“ und „Slicer“ zeigen immer die gewählte Installation. Auf „Filamente“ stehen beide Installationen untereinander, jeweils mit ihrem Pfad. Die Kopie steht dann oben.
+**Vor dem ersten Schritt:** Oben rechts unter „Installation“ Snapmaker Orca wählen, Pfad `~/.config/Snapmaker_Orca`. Die Seiten „Drucker“, „Sicherungen“ und „Slicer“ zeigen immer die gewählte Installation. Auf „Filamente“ stehen beide Installationen untereinander, jeweils mit ihrem Pfad.
 
 **Ablauf je Schritt:**
 
-1. SnOrca (Kopie) schließen. In Orfix „Neu einlesen“ klicken. Bei der Kopie steht dann „Geschlossen“ statt „Läuft – nur ansehen“.
+1. SnOrca schließen. In Orfix „Neu einlesen“ klicken. Bei Snapmaker Orca steht dann „Geschlossen“ statt „Läuft – nur ansehen“.
 2. In Orfix ändern, wie in der Klickfolge unten beschrieben. Unten erscheint die Leiste „1 Änderung“.
 3. Übernehmen:
    - „Übernehmen …“ klicken.
    - Im Seitenpanel „Übernehmen“ klicken.
    - Das Panel „Das passiert“ zeigt jede Datei und jede Änderung der `.conf`, dazu „Vorher wird automatisch gesichert“.
    - „Ausführen“ klicken. Die Meldung „Übernommen“ erscheint, und die Leiste ist leer.
-4. SnOrca auf der Kopie starten und prüfen.
+4. SnOrca starten und prüfen.
 
 | # | Änderung in Orfix | Was Orfix im Hintergrund tut | Erwartung in SnOrca | Orfix | SnOrca |
 |---|---|---|---|---|---|
@@ -73,7 +56,7 @@ Offen ist nur die Spalte „SnOrca“.
 
 **B1 – SUNLU PLA+ bei allen Düsen (Weg A)**
 
-1. „Filamente“ → Karte „Snapmaker U1“ der Kopie.
+1. „Filamente“ → Karte „Snapmaker U1“ bei Snapmaker Orca.
 2. Unter „Düse“ die Kachel „Alle“ wählen, sie ist schon voreingestellt.
 3. Unter „Alle Filamente“ ins Suchfeld „Filament suchen“ `SUNLU` tippen. Unter „Orca-Bibliothek“ klappt „SUNLU“ auf.
 4. Den Schalter rechts neben „PLA+“ einschalten. Oben unter „Aktiv“ steht jetzt „PLA+“ mit „SUNLU“ darunter.
@@ -93,7 +76,7 @@ Offen ist nur die Spalte „SnOrca“.
 
 **B3 – Filamente ohne Drucker ausblenden**
 
-1. Links unter „Technik“ „Slicer“ öffnen. Oben muss die Kopie gewählt sein.
+1. Links unter „Technik“ „Slicer“ öffnen. Oben muss Snapmaker Orca gewählt sein.
 2. Unter „Hinweise“ steht „8 sichtbare Filamente passen zu keinem installierten Drucker“. Dort „Ausblenden“ klicken. Es erscheint „Zum Ausblenden vorgemerkt …“.
 3. Übernehmen. „Das passiert“ zeigt acht Zeilen „… wird ausgeblendet“, etwa „Snapmaker ABS“ mit dem vollen Namen `Snapmaker ABS @J1` darunter.
 4. Unter „Filamente“ → „Snapmaker U1“ ist bei jeder Düse dasselbe aktiv wie vorher.
@@ -122,12 +105,12 @@ Offen ist nur die Spalte „SnOrca“.
 
 1. In SnOrca den Assistenten durchklicken und SnOrca schließen.
 2. In Orfix „Neu einlesen“ klicken.
-3. Unter „Filamente“ steht bei der Kopie der Hinweis „Freischaltung verloren: ‚SUNLU PLA+ @System‘ aus der Orca-Bibliothek ist wieder ausgeblendet …“. Derselbe Hinweis steht unter „Slicer“ → „Hinweise“ als „Achtung“.
+3. Unter „Filamente“ steht bei Snapmaker Orca der Hinweis „Freischaltung verloren: ‚SUNLU PLA+ @System‘ aus der Orca-Bibliothek ist wieder ausgeblendet …“. Derselbe Hinweis steht unter „Slicer“ → „Hinweise“ als „Achtung“.
 4. „SUNLU PLA Matte @Snapmaker U1“ und „Mein PLA hell“ sind weiter aktiv.
 
 **B7 – Wiederherstellen**
 
-1. „Sicherungen“ öffnen, oben muss die Kopie gewählt sein. Die Liste steht neueste zuerst: je Schritt eine Sicherung „Vor einer Änderung“ mit Uhrzeit und Zusatz, etwa „Filament umbenannt“ oder „Freischaltung“.
+1. „Sicherungen“ öffnen, oben muss Snapmaker Orca gewählt sein. Die Liste steht neueste zuerst: je Schritt eine Sicherung „Vor einer Änderung“ mit Uhrzeit und Zusatz, etwa „Filament umbenannt“ oder „Freischaltung“.
 2. Die **unterste** Sicherung von heute anklicken. Das ist die von B1, mit dem Zusatz „Sichtbarkeit“.
 3. „Wiederherstellen …“ klicken. „Das passiert“ zeigt:
    - `Snapmaker_Orca.conf` bekommt den Stand der Sicherung;

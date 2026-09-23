@@ -484,18 +484,12 @@ def test_cleanup_presets(snorca):
 
 # ---------------------------------------------------------------- guards
 
-def test_default_locations_stay_read_only(isolated):
+def test_default_location_is_written_like_any_other(isolated):
     data_dir = copy_fixture("snorca", isolated / ".config" / "Snapmaker_Orca")
     instance = instance_of(data_dir)
     assert instance.source == "auto"
-    made = plan(instance, {"op": "filament_visible", "name": "SUNLU PLA+ @System", "visible": True})
-    # The plan still shows what would happen.
-    assert made["blocked"] == "write_not_allowed" and made["conf_diff"]
-    before = conf_path(instance).read_bytes()
-    with pytest.raises(operations.OperationError) as err:
-        operations.apply(instance.id, made["id"])
-    assert err.value.code == "write_not_allowed"
-    assert conf_path(instance).read_bytes() == before
+    run(instance, {"op": "filament_visible", "name": "SUNLU PLA+ @System", "visible": True})
+    assert "SUNLU PLA+ @System" in json.loads(conf_path(instance).read_text(encoding="utf-8"))["filaments"]
 
 
 def test_running_slicer_blocks(snorca, monkeypatch):
@@ -795,7 +789,7 @@ def test_manual_folder_the_slicer_runs_on(snorca, monkeypatch):
     running = [SlicerProcess(4711, "Snapmaker_Orca", snorca.data_dir)]
     monkeypatch.setattr(guard, "find_processes", lambda: running)
     instance, processes = operations.find_instance(snorca.id)
-    assert instance.source == "process" and instances.write_allowed(instance)
+    assert instance.source == "process"
     made = plan(instance, {"op": "default_printer", "printer": U1_02}, processes=processes)
     assert made["blocked"] == "slicer_running"
 

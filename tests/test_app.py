@@ -126,7 +126,6 @@ def test_change_backup_and_restore_through_the_api(server, fake_home):
     data_dir = copy_fixture("snorca", fake_home / "orfix-test" / "Snapmaker_Orca")
     call(f"{server}/api/instances/manual", "POST", {"path": str(data_dir)})
     inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
-    assert inst["write_allowed"] is True
     base = f"{server}/api/instances/{inst['id']}"
     change = {"op": "filament_visible", "name": "SUNLU PLA+ @System", "visible": True}
     status, body = call(f"{base}/plan", "POST", {"changes": [change]})
@@ -165,16 +164,10 @@ def test_api_error_codes(server, fake_home):
     assert (status, json.loads(body)) == (404, {"error": "instance_not_found"})
     copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
     inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
-    assert inst["write_allowed"] is False
     base = f"{server}/api/instances/{inst['id']}"
     status, body = call(f"{base}/plan", "POST", {"changes": [{"op": "zaubern"}]})
     assert (status, json.loads(body)) == (400, {"error": "invalid_change", "index": 0, "field": "op"})
     status, body = call(f"{base}/plan", "POST", {"changes": "alles"})
     assert status == 400 and json.loads(body)["error"] == "invalid_change"
-    status, body = call(f"{base}/plan", "POST", {"changes": [{"op": "default_printer", "printer": "Snapmaker U1 (0.2 nozzle)"}]})
-    plan = json.loads(body)["plan"]
-    assert plan["blocked"] == "write_not_allowed"
-    status, body = call(f"{base}/apply", "POST", {"plan_id": plan["id"]})
-    assert (status, json.loads(body)) == (409, {"error": "write_not_allowed"})
-    # A backup only reads the data directory, so it works everywhere.
-    assert call(f"{base}/backups", "POST")[0] == 200
+    status, body = call(f"{base}/apply", "POST", {"plan_id": "nope"})
+    assert (status, json.loads(body)) == (404, {"error": "plan_not_found"})

@@ -508,8 +508,6 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
         "kind": "snorca" if snorca else "orca",
         "header": conf.get("header", ""), "version": instance.version or "",
         "path": home_path(instance.data_dir), "storage": scan.storage, "source": instance.source, "manual": manual,
-        # Whether Orfix may write here at all (instances.write_allowed); running comes on top.
-        "write_allowed": instances.write_allowed(instance),
         # The path as orfix/instances.py stores it: "Entfernen" sends it back for a manual one.
         "data_dir": str(instance.data_dir),
         "running": running,

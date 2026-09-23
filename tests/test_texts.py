@@ -74,7 +74,7 @@ def test_every_code_the_backend_knows_has_a_text():
 def test_every_code_of_plans_and_writes_has_a_text():
     # POST /plan, /apply, /restore-plan and the backup API (orfix/operations.py, orfix/backup.py)
     problems = set(re.findall(r'(?:Blocked|OperationError)\("(\w+)"', OPERATIONS))
-    problems |= {"slicer_running", "slicer_maybe_running", "write_not_allowed", "conf_unreadable", "name_invalid",
+    problems |= {"slicer_running", "slicer_maybe_running", "conf_unreadable", "name_invalid",
                  "name_too_long", "path_outside_backup", "backup_unreadable", "backup_failed", "backup_not_found",
                  "delete_failed", "invalid_change"}
     assert problems <= keys("blocked") | keys("errors")

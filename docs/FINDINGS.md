@@ -468,7 +468,7 @@ Für jedes Profil: in Orfix die aufgelöste Ansicht öffnen, im Slicer dasselbe 
 
 ## Offen: nur am laufenden Slicer prüfbar
 
-Jeder Test läuft mit einer **Kopie** des Datenverzeichnisses und `--datadir`, nie mit dem echten Verzeichnis.
+Auf dem Entwicklungsrechner laufen diese Tests direkt im echten Datenverzeichnis, weil die Slicer dort nur Testinstallationen sind (23.09.2026). Vor jeder Änderung legt Orfix eine Sicherung an.
 
 - [ ] „Bibliothek freischalten“, Weg A und Weg B, mit `SUNLU PLA+ @System` (4.7).
 - [ ] SnOrca mit fehlendem bzw. `null`-`"filaments"`: Sind wirklich alle Systemfilamente sichtbar?

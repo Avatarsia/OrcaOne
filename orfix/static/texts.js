@@ -127,7 +127,6 @@ export const T = {
   blocked: {
     slicer_running: (inst) => `${inst.slicer} läuft gerade. Schließe das Programm, um Änderungen zu speichern.`,
     slicer_maybe_running: (inst) => `Vielleicht läuft ${inst.slicer} gerade. Schließe alle Fenster von ${inst.slicer} und lies dann neu ein.`,
-    write_not_allowed: () => "In diese Installation schreibt Orfix noch nicht. Zum Testen einen kopierten Datenordner unter „Slicer“ hinzufügen.",
     // Starting the slicer would reset every setting (FINDINGS 4.3); a restore is not stopped by it.
     conf_unreadable: (inst) => `Die Einstellungsdatei von ${inst.slicer} ließ sich nicht lesen. Starte ${inst.slicer} jetzt nicht, sonst setzt er alle Einstellungen zurück. Stelle unter „Sicherungen“ eine Sicherung wieder her.`,
     name_taken: (inst, d) => `${d.name ? `Den Namen ${q(d.name)}` : "Einen der Namen"} gibt es schon. Wähle unter „Filamente“ einen anderen.`,
