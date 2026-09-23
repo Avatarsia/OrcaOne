@@ -156,5 +156,6 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
   - Werte: Was das Ziel kennt, im Format des Ziels. Alte Namen, die das Ziel beim Laden übersetzt (`handle_legacy`), unverändert. Was es nicht kennt oder als veraltet ignoriert, bleibt weg, der Plan nennt es. Zwei Werte in einem Feld (High Flow, Extruder-Varianten): nur der erste.
   - Probelauf ohne Schreiben mit allen echten Profilen: Orca-Bibliothek → SnOrca 145 von 166 ohne Verlust, 21 abgelehnt (Drucker fehlen in SnOrca). SnOrca → Orca: alle 222 Filamente und 85 Prozesse, weg fallen nur SnOrca- oder Bambu-eigene Einstellungen.
 - **Praxistest 23.09.:** „COEX ABS (Orca)“ Orca → SnOrca geht, SnOrca lädt und speichert es (FINDINGS, Offen-Liste). Danach dazugekommen: freundlichere Liste (Spulen, Haken „drüben schon da“, HF-Abzeichen, runde Pfeile), Kopien erscheinen sofort drüben unter „Eigene“, Gruppen zuklappbar (anfangs nur „Eigene“ offen).
-- **Offen:** Gegenrichtung SnOrca → Orca im Slicer, Drucker übertragen. Neuer Name für die App (Vorschläge Spulo, Layro), weil die U1-Kamera dazukommen soll.
+- **Gegenrichtung 23.09.:** „Snapmaker Support For PLA @U1 0.4 nozzle (SnOrca)“ SnOrca → Orca geht, Orcas Log meldet das Laden ohne Fehler.
+- **Offen:** Drucker übertragen. Neuer Name für die App (Vorschläge Spulo, Layro), weil die U1-Kamera dazukommen soll.
 

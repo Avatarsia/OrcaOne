@@ -498,7 +498,8 @@ Auf dem Entwicklungsrechner laufen diese Tests direkt im echten Datenverzeichnis
 
 - [ ] „Bibliothek freischalten“, Weg A und Weg B, mit `SUNLU PLA+ @System` (4.7). Weg B: SnOrca lädt das Hilfsprofil (23.09., siehe Übertragung).
 - [x] Übertragung Orca → SnOrca (23.09., Nutzer: „geht“): „COEX ABS (Orca)“ aus der Orca-Bibliothek lädt in SnOrca bei den Düsen seiner Druckerliste (U1 0,2, 0,4, 0,6). SnOrca hat die Datei danach selbst neu gespeichert: `version "2.4.0.0"` statt „2.4.0“, 111 statt der geschriebenen Einstellungen, weil es bei Wurzelprofilen den vollständigen Satz schreibt.
-- [ ] Noch offen: Nimmt der G-Code mit High-Flow-Düse die Standardwerte? Erscheint ein übertragenes Filament im Assistenten unter „Eigene Filamente“? Gegenrichtung SnOrca → Orca im Slicer.
+- [x] Übertragung SnOrca → Orca (23.09.): „Snapmaker Support For PLA @U1 0.4 nozzle (SnOrca)“ lädt in OrcaSlicer 2.5.0-dev, Log: „load config successful“, Alias „Snapmaker Support For PLA“, ohne Fehler; der Nutzer hat es beim U1 0,4 gewählt. Orca hat die Datei nicht neu geschrieben (`version "2.5.0"` von Orfix).
+- [ ] Noch offen: Nimmt der G-Code mit High-Flow-Düse die Standardwerte? Erscheint ein übertragenes Filament im Assistenten unter „Eigene Filamente“?
 - [ ] SnOrca mit fehlendem bzw. `null`-`"filaments"`: Sind wirklich alle Systemfilamente sichtbar?
 - [ ] Windows: Hat die `.conf` auf der Platte CRLF? Sind die MD5-Ziffern Großbuchstaben? Dafür braucht es eine echte Windows-Datei.
 - [ ] Flatpak: Zeigt `/proc/<pid>/cwd` bzw. `F_GETLK` aus Sicht des Hosts dasselbe wie bei der AppImage?
