@@ -262,7 +262,7 @@ Weg B testet man genauso. Beide Tests stehen noch aus.
 **Weitere Befunde:**
 
 - Die Bibliothek in SnOrca ist älter als in Orca main: Manifest 02.03.01.10 gegen 02.04.00.09, 274 gegen 543 Dateien. Außerdem hat sie **eigene IDs**. Bei 232 von 272 gemeinsamen Profilen unterscheiden sich nur `setting_id` und `filament_id`, bei 40 auch Werte. Profile werden deshalb zwischen den Slicern über den **Namen** zugeordnet, nie über IDs.
-- SnOrca setzt bei Systemfilamenten ohne eigene `filament_id` zuerst die `setting_id` ein. Bei `SUNLU PLA+ @System` ist die `filament_id` also `OSNLS03`. Orca erbt dagegen `OGFSNL03` von `@base`.
+- SnOrca setzt bei Systemfilamenten ohne eigene `filament_id` zuerst die `setting_id` ein. Bei `SUNLU PLA+ @System` ist die `filament_id` also `OSNLS03`. SnOrcas `@base` hat `OGFSNL03`, in der Orca-Nightly heißt `SUNLU PLA+ @base` dagegen `OFMUWNkp` (main `…/SUNLU PLA+ @base.json:6`, geprüft 23.09.).
 - Material4Print gibt es in keinem U1-relevanten Paket. Es kommt nur per Import herein, damit bleibt der ZIP-Import ein guter Testfall für Phase 3.
 
 ## 4.8 Import und Export
@@ -466,11 +466,38 @@ Für jedes Profil: in Orfix die aufgelöste Ansicht öffnen, im Slicer dasselbe 
 
 ---
 
+## Übertragung OrcaSlicer → SnOrca: Filamente (geprüft 23.09.2026)
+
+Anlass: Die Bibliothek der Orca-Nightly (`OrcaFilamentLibrary.opc` 2.4.0.8) hat 307 wählbare Filamente, die von SnOrca 2.4.0 (02.03.01.10) 142. SnOrca fehlen 166, davon zeigt Orca 144 beim U1, etwa FilAr, Elegoo, Eolas Prints, COEX 3D und FILL3D. Keines dieser 144 hat einen Schlüssel, den SnOrca nicht kennt, einen Mehrfachwert, einen unbekannten Enum-Wert oder eine Namenskollision. Belege ohne Präfix: SnOrca 2.4.0, `src/libslic3r/`.
+
+**Wie SnOrca eigene Filamente lädt** (`Preset.cpp:1238-1425`):
+- `filament/base/` wird vor `filament/` geladen. Profile ohne Elternprofil gehören nach `base/` (1246-1249).
+- Der Name kommt aus `"name"` in der Datei, nicht aus dem Dateinamen. Ein schon geladener Name wird still übersprungen (1313-1322). Orca main nimmt den Dateinamen.
+- `version` ist Pflicht und muss gültig sein, sonst wird die Datei still übersprungen (1324-1327).
+- Fehlt das Elternprofil, lädt SnOrca das Profil nicht und lässt die Datei liegen (1357-1364). Mit `is_custom_defined: "1"` lädt es trotzdem, dann aber mit den Standardwerten des Slicers.
+- Mit Elternprofil ersetzt SnOrca die `filament_id` durch die des Elternprofils (1355).
+- Ein unbekannter Schlüssel wird still verworfen, das Profil lädt (`PrintConfig.cpp:7621-7624`). Ein unbekannter Enum- oder Bool-Wert wird durch den Standardwert ersetzt (`Config.cpp:647-679`). Ein Wert, der sich nicht umwandeln lässt, etwa Text als Zahl, lässt SnOrca `.json` **und** `.info` löschen (`Preset.cpp:1290-1300`). Einen Hinweis beim Start gibt es in keinem Fall.
+- Eigene Profile sind unabhängig von `"filaments"` sichtbar, sobald sie kompatibel sind (801). Eine gesetzte `compatible_printers` geht vor der Bedingung (769-784). SnOrca füllt `compatible_printers` nicht aus dem Namen, das tut nur Orca main.
+
+**Empfohlenes Format (Variante A, Wurzelprofil):** `user/<ordner>/filament/base/<Alias> @U1.json` plus `.info`.
+- Alle Werte der Orca-Kette ausgeschrieben, ohne Elternprofil (`inherits ""`). So legt auch SnOrcas eigener Dialog „Filament erstellen“ Filamente an (2360-2409). Die Standardwerte beider Slicer sind bei allen 102 gemeinsamen Filamentschlüsseln gleich.
+- Variante B (Kind eines SnOrca-Systemprofils) ist schwächer: Die `filament_id` kommt dann vom Elternprofil. Werte, die die Orca-Kette nicht setzt, kämen samt High-Flow-Werten von Snapmaker. Und benennt Snapmaker das Elternprofil um, verwaist das Kind, denn die Snapmaker-Filamente haben kein `renamed_from`.
+- Nur Filamentschlüssel von SnOrca, je Schlüssel ein Wert als String-Liste; `nil` nur bei den Rückzugswerten, die es erlauben. `filament_flow_support` weglassen: SnOrca füllt dann die High-Flow-Werte mit dem Standardwert auf (409-437).
+- Dazu `name`, `from "User"`, `version "2.4.0"`, `inherits ""`, `filament_settings_id [Name]`, `compatible_printers` mit den vier U1-Düsen, `compatible_printers_condition ""`. Nicht schreiben: `type`, `setting_id`, `instantiation`, `renamed_from`, `description`, `is_custom_defined`.
+- `filament_id`: eine eigene nach SnOrcas Verfahren, `"P" + md5(Name vor " @")[:7]` (`slic3r/GUI/CreatePresetsDialog.cpp:446-464`), eindeutig im Ziel. Die ID aus Orca nicht übernehmen: Teilt ein Systemprofil sie, fehlt das Filament in der Liste „Eigene Filamente“ des Assistenten. Auf dem U1 selbst spielt die ID keine Rolle, der Drucker meldet Hersteller, Typ und Farbe.
+- Name `<Alias> @U1`, nicht `@System`: Nimmt SnOrca das Filament später in seine Bibliothek auf, bliebe die eigene Datei sonst still ungeladen. Die Seitenleiste zeigt den Teil vor „@“.
+- Ein Beispiel für „Elegoo PLA @U1“ (71 Schlüssel) besteht Orfix' `check_profile` und lädt im Scanner für alle U1-Düsen.
+
+**Gegenrichtung und Drucker (Stichpunkte):** Orca main lädt kein Profil ohne Elternprofil und bindet eine leere Druckerliste an den Text nach „@“, also immer eine Liste setzen. Von SnOrcas Mehrfachwerten nur den ersten übernehmen. Druckerprofile: Etwa 50 Schlüssel von main kennt SnOrca nicht. `nozzle_volume_type` hat in beiden Slicern andere Werte, SnOrca ersetzt sie still. Bei Druckern nie `is_custom_defined: "1"` setzen, das sperrt „3MF drucken“ (`slic3r/GUI/MainFrame.cpp:1640`).
+
+**Nebenbefund aus Teil B:** SnOrca hat Orfix' Hilfsprofil `SUNLU PLA+ (DS)` (Weg B, Kind eines Bibliotheksprofils) geladen, auch mit der Farbe als einzelnem String. „Speichern unter“ machte daraus `SUNLU PLA+ (1DS)` mit `version "2.4.0.0"` und `sync_info = create`.
+
 ## Offen: nur am laufenden Slicer prüfbar
 
 Auf dem Entwicklungsrechner laufen diese Tests direkt im echten Datenverzeichnis, weil die Slicer dort nur Testinstallationen sind (23.09.2026). Vor jeder Änderung legt Orfix eine Sicherung an.
 
-- [ ] „Bibliothek freischalten“, Weg A und Weg B, mit `SUNLU PLA+ @System` (4.7).
+- [ ] „Bibliothek freischalten“, Weg A und Weg B, mit `SUNLU PLA+ @System` (4.7). Weg B: SnOrca lädt das Hilfsprofil (23.09., siehe Übertragung).
+- [ ] Übertragung Orca → SnOrca: Lädt SnOrca ein Wurzelprofil wie „Elegoo PLA @U1“ bei allen vier Düsen, ohne die Datei neu zu schreiben? Nimmt der G-Code mit High-Flow-Düse die Standardwerte? Erscheint es im Assistenten unter „Eigene Filamente“?
 - [ ] SnOrca mit fehlendem bzw. `null`-`"filaments"`: Sind wirklich alle Systemfilamente sichtbar?
 - [ ] Windows: Hat die `.conf` auf der Platte CRLF? Sind die MD5-Ziffern Großbuchstaben? Dafür braucht es eine echte Windows-Datei.
 - [ ] Flatpak: Zeigt `/proc/<pid>/cwd` bzw. `F_GETLK` aus Sicht des Hosts dasselbe wie bei der AppImage?

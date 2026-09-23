@@ -141,3 +141,9 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Auswahl auf „Details“ (Rückmeldung 23.09.):** eine eigene Klappliste statt `datalist`: Suche mit Wörtern in beliebiger Reihenfolge, kleine Überschriften nach Herkunft und Marke, eigene Filamente mit „abgeleitet von …“. Beim Klick ins Feld ist der Text markiert, man muss nichts löschen. Pfeiltasten, Enter und Escape gehen. „Abgeleitet von“ steht von oben nach unten: Grundprofil oben, das gewählte Profil unten.
 - **Offen:** Die Seite „Details“ kann bisher nur Filamente. Prozesse und Drucker gingen mit derselben Abfrage.
 
+## Übertragung Orca → SnOrca: Prüfung fertig (23.09.2026)
+
+- Ergebnis in [FINDINGS](FINDINGS.md) unter „Übertragung OrcaSlicer → SnOrca“. Empfehlung: Wurzelprofil mit allen Werten der Orca-Kette in `filament/base/`, Name `<Alias> @U1`, eigene `filament_id`, gebunden an die vier U1-Düsen.
+- Beispiel `Elegoo PLA @U1.json` und die Skripte der Prüfung liegen im Scratchpad der Sitzung vom 23.09., nicht im Repo.
+- **Nächster Schritt, wenn der Nutzer zustimmt:** Übertragung als Schreibfunktion mit Plan und Sicherung bauen. Oberfläche: In SnOrca stehen unter „Orca-Bibliothek“ die fehlenden Filamente ausgegraut mit „nur in OrcaSlicer“; Einschalten legt das eigene Profil an. Danach Praxistest im Slicer (offene Punkte in FINDINGS).
+
