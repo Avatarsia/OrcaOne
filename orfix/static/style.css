@@ -885,6 +885,11 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   border-bottom: 1px solid var(--divider); background: var(--surface);
 }
 .xfer-group input { flex: none; }
+.xfer-group-head {
+  display: flex; align-items: center; flex: 1; gap: 8px; min-width: 0; padding: 0; border: 0; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.xfer-group-chosen { color: var(--accent-text); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .xfer-group-icon { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 6px; background: var(--focus-bg); color: var(--accent-text); }
 .xfer-group-label { flex: 1; font-size: 14px; font-weight: 700; }
 .xfer-group-count { min-width: 24px; padding: 0 7px; border-radius: 11px; background: var(--surface-2); color: var(--label); font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }

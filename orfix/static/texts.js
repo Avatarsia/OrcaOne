@@ -483,6 +483,7 @@ export const T = {
     newHere: "neu",
     cancelCopy: "Nicht übertragen",
     allOf: (label) => `Alle unter ${label} auswählen`,
+    chosenIn: (k) => `${n(k)} ausgewählt`,
     thereAs: (name) => `Drüben schon da: ${name}`,
     highFlow: "Hat eigene Werte für das High-Flow-Hotend. Nach OrcaSlicer kommt nur der Wert für das Standard-Hotend mit.",
     legendThere: "drüben schon da",

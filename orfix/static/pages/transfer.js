@@ -55,7 +55,26 @@ export default {
     const query = ref("");
     const onlyMissing = ref(true);
     const chosen = reactive({ left: new Set(), right: new Set() });
-    watch([kind, leftId, rightId], () => { chosen.left.clear(); chosen.right.clear(); });
+    // Groups open per side: at first only the own profiles ("0", originGroup). While searching,
+    // every group with hits is open unless closed by hand, as in the tree on "Filamente".
+    const OWN = "0";
+    const expanded = reactive({ left: new Set([OWN]), right: new Set([OWN]) });
+    const collapsed = reactive({ left: new Set(), right: new Set() });
+    watch([kind, leftId, rightId], () => {
+      for (const k of ["left", "right"]) {
+        chosen[k].clear();
+        expanded[k] = new Set([OWN]);
+        collapsed[k].clear();
+      }
+    });
+    const searching = computed(() => query.value.trim() !== "");
+    watch(query, () => { collapsed.left.clear(); collapsed.right.clear(); });
+    const isOpen = (key, g) => searching.value ? !collapsed[key].has(g.key) : expanded[key].has(g.key);
+    function toggleOpen(key, g) {
+      const set = searching.value ? collapsed[key] : expanded[key];
+      set.has(g.key) ? set.delete(g.key) : set.add(g.key);
+    }
+    const chosenIn = (key, g) => g.rows.filter((r) => chosen[key].has(r.p.name)).length;
 
     // What each side offers: filaments and processes the slicer loads, no way-B helper.
     const profilesOf = (inst) => !inst ? [] : kind.value === "filament"
@@ -145,6 +164,10 @@ export default {
         }
       }
       chosen[key].clear();
+      // The copies land among the own profiles over there: that group opens.
+      const there = key === "left" ? "right" : "left";
+      expanded[there].add(OWN);
+      collapsed[there].delete(OWN);
       flash(X.queuedFlash(names.length, to.slicer));
     }
     function unqueue(from, name) {
@@ -154,7 +177,7 @@ export default {
 
     return {
       T, X, INSTANCES, ui, leftId, rightId, left, right, swap, kind, query, onlyMissing, chosen, sides,
-      toggle, toggleGroup, groupState, pickable, blockOf, blockText, push, unqueue,
+      toggle, toggleGroup, groupState, pickable, isOpen, toggleOpen, chosenIn, blockOf, blockText, push, unqueue,
     };
   },
 
@@ -209,11 +232,15 @@ export default {
                   <div class="xfer-group">
                     <input type="checkbox" :checked="groupState(s.key, g) === 'true'" :indeterminate="groupState(s.key, g) === 'mixed'"
                            :disabled="!pickable(g).length" :aria-label="X.allOf(g.label)" :title="X.allOf(g.label)" @change="toggleGroup(s.key, g)">
-                    <span class="xfer-group-icon"><ui-icon :name="g.icon" :size="16"/></span>
-                    <span class="xfer-group-label">{{ g.label }}</span>
-                    <span class="xfer-group-count">{{ g.rows.length }}</span>
+                    <button class="xfer-group-head" type="button" :aria-expanded="isOpen(s.key, g) ? 'true' : 'false'" @click="toggleOpen(s.key, g)">
+                      <ui-icon name="chevron" class="chev"/>
+                      <span class="xfer-group-icon"><ui-icon :name="g.icon" :size="16"/></span>
+                      <span class="xfer-group-label">{{ g.label }}</span>
+                      <span v-if="chosenIn(s.key, g)" class="xfer-group-chosen">{{ X.chosenIn(chosenIn(s.key, g)) }}</span>
+                      <span class="xfer-group-count">{{ g.rows.length }}</span>
+                    </button>
                   </div>
-                  <template v-for="r in g.rows" :key="(r.pending ? 'in:' : '') + r.p.name">
+                  <template v-for="r in (isOpen(s.key, g) ? g.rows : [])" :key="(r.pending ? 'in:' : '') + r.p.name">
                   <div v-if="r.pending" :class="['xfer-row', 'is-pending', { 'is-fresh': r.fresh }]">
                     <span class="xfer-in"><ui-icon :name="s.key === 'right' ? 'arrowRight' : 'arrowLeft'" :size="14"/></span>
                     <spool-icon v-if="r.colour" :colour="r.colour" :size="26"/>
