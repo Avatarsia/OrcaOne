@@ -1,6 +1,6 @@
 # Arbeitsstand
 
-Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in [FINDINGS](FINDINGS.md) und [PLAN](PLAN.md).
+Stand 23.09.2026. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in [FINDINGS](FINDINGS.md) und [PLAN](PLAN.md).
 
 ## Erledigt
 
@@ -173,3 +173,9 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Eigene Filamente bei keiner Düse an:** ausgeblendet mit `instantiation: "false"` (`filament_update` mit `hidden`), die Druckerliste bleibt. Eine Düse anwählen blendet es wieder ein, dann gilt nur diese Düse. Ein eigenes Filament ohne Vorlage (etwa eine Kopie aus dem anderen Slicer) lässt sich bei jeder Düse anwählen.
 - **Praxistest 23.09.:** SnOrca blendet das Profil aus, die Datei bleibt. OrcaSlicer noch offen.
 
+## U1-Kamera (23.09.2026)
+
+- **Seite „Kamera“** im Hauptmenü, unabhängig von den Installationen. Drucker einmal über die Adresse hinzufügen, danach je Drucker eine Karte mit Bild, Zustand in Text und Farbe („Bild ist aktuell“, „Kein neues Bild seit 40 s“) und Bildtakt 1 bis 10 s, der gemerkt wird.
+- **Ablauf wie `prototypes/U1Cam/u1cam.py`:** Solange die Seite sichtbar ist, schickt OrcaOne alle 10 s `camera.start_monitor` über Moonrakers WebSocket und reicht `monitor.jpg` durch. Der Browser spricht nie selbst mit dem Drucker. Das Alter des Bilds rechnet OrcaOne mit der Uhr des Druckers (Date minus Last-Modified). Ist die Seite verdeckt, pausiert sie.
+- **Sicherheit:** Die Seite nennt Kameras nur über ihre ID, nie über eine Adresse; OrcaOne fragt also nur Drucker, die der Nutzer eingetragen hat.
+- **Am echten U1 geprüft (10.30.40.174):** Moonraker 1.6.0, Wecken antwortet in 185 ms mit „success“, Bild 117 KB. Tests mit einem nachgebauten Moonraker in `tests/test_camera.py`.

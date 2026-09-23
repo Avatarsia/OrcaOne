@@ -18,6 +18,7 @@ import SlicerPage from "./pages/slicer.js";
 import ProzessePage from "./pages/prozesse.js";
 import DetailsPage from "./pages/details.js";
 import TransferPage, { transferChanges } from "./pages/transfer.js";
+import KameraPage from "./pages/kamera.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -26,6 +27,8 @@ const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
   { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "drucker", icon: "printer", component: DruckerPage },
+  // Needs no slicer data: shows at once and stays through "Neu einlesen".
+  { id: "kamera", icon: "camera", component: KameraPage, standalone: true },
   { id: "transfer", icon: "transfer", component: TransferPage },
   { id: "sicherungen", icon: "backup", component: SicherungenPage },
   { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
@@ -49,7 +52,8 @@ const app = createApp({
     const page = computed(() => PAGES.find((p) => p.id === route.value.page));
     // A new key per route and per load mounts the page fresh, so a printer view never patches
     // over the last one and never keeps state from old data.
-    const pageKey = computed(() => [route.value.page, ui.instId, route.value.modelIdx, loadState.version].join("|"));
+    const pageKey = computed(() => page.value?.standalone ? route.value.page
+      : [route.value.page, ui.instId, route.value.modelIdx, loadState.version].join("|"));
     const pageProps = computed(() => PRINTER_PAGES.includes(route.value.page)
       ? { instId: ui.instId, modelIdx: route.value.modelIdx }
       : { instId: ui.instId });
@@ -336,7 +340,7 @@ const app = createApp({
             <button v-if="f.manual" class="link" type="button" :disabled="loadState.busy" @click="leave(() => removeFailed(f))">{{ T.slicer.remove }}</button>
           </p>
         </div>
-        <component v-if="inst" :is="page.component" :key="pageKey" v-bind="pageProps"/>
+        <component v-if="inst || page.standalone" :is="page.component" :key="pageKey" v-bind="pageProps"/>
         <div v-else class="page">
           <p v-if="loadState.status === 'loading'" class="loading" role="status">{{ T.loading }}</p>
           <section v-else-if="loadState.status === 'error'" class="soon" role="alert">

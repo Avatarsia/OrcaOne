@@ -50,7 +50,7 @@ export const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Hauptmenü",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", drucker: "Drucker", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", drucker: "Drucker", kamera: "Kamera", transfer: "Übertragen", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details" },
     technik: "Technik",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -462,6 +462,38 @@ export const T = {
         crosshatch: "Kreuzschraffur", tpmsd: "TPMS-D", tpmsfk: "TPMS-FK", gyroid: "Gyroid", concentric: "Konzentrisch",
         spiralinset: "Spirale nach innen", hilbertcurve: "Hilbertkurve", archimedeanchords: "Archimedische Sehnen", octagramspiral: "Oktagrammspirale",
       },
+    },
+  },
+
+  // ---------------------------------------------------------------- page "Kamera"
+  camera: {
+    title: "Kamera",
+    lead: "Das Kamerabild des Snapmaker U1 mit Original-Firmware. Solange diese Seite offen ist, weckt OrcaOne die Kamera und holt das Bild.",
+    alt: (name) => `Kamerabild von ${name}`,
+    fullscreen: "Klicken für Vollbild",
+    waking: "Kamera wird geweckt …",
+    lastImage: (s) => s < 2 ? "Bild ist aktuell" : `Letztes Bild vor ${n(s)} s`,
+    stale: (s) => `Kein neues Bild seit ${n(s)} s`,
+    wakeFailed: "Wecken klappt gerade nicht",
+    every: "Bild alle",
+    remove: "Entfernen",
+    removed: "Drucker entfernt",
+    addTitle: "Drucker eintragen",
+    addAnother: "Weiteren Drucker eintragen",
+    addHint: "Die IP-Adresse steht am Display des Druckers in den Netzwerk-Einstellungen oder in deinem Router.",
+    host: "IP-Adresse",
+    hostHint: "z. B. 192.168.1.50",
+    name: "Name",
+    nameHint: "Snapmaker U1",
+    add: "Eintragen",
+    added: "Drucker eingetragen",
+    errors: {
+      camera_unreachable: "Drucker nicht erreichbar. Ist er an und im selben Netz?",
+      camera_refused: "Der Drucker lehnt das Wecken der Kamera ab.",
+      camera_host_invalid: "Das ist keine IP-Adresse und kein Rechnername.",
+      camera_already_listed: "Diesen Drucker gibt es hier schon.",
+      camera_not_found: "Diesen Drucker gibt es hier nicht mehr. Lade die Seite neu.",
+      camera_every_invalid: "Das Bild lässt sich alle 1 bis 60 Sekunden holen.",
     },
   },
 

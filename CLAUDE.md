@@ -40,6 +40,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
   - **Filamente:** Drucker wählen → Düse → Baum aus Eigene, Vom Hersteller und Orca-Bibliothek.
   - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
   - **Drucker:** Standard festlegen, aufräumen.
+  - **Kamera:** Bild der Kamera des Snapmaker U1.
   - **Übertragen:** Profile zwischen zwei Installationen in beide Richtungen kopieren.
   - **Sicherungen.**
   - Unter „Technik“: **Slicer** (Datenordner) und **Details** (alles zu einem Filament).

@@ -39,6 +39,7 @@ Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“.
 - **Prozesse:** dieselbe Druckerwahl, dann je Düse die Prozesse als Kacheln mit Schichthöhe und Art, der zuletzt im Slicer gewählte ist markiert. Ein Klick zeigt die wichtigsten Werte in fünf Gruppen, dazu „Alle Werte“. Nur zum Ansehen.
 - **Übertragen:** zwei Installationen nebeneinander, links und rechts je eine Liste mit Suche und dem Schalter „Nur was drüben fehlt“. Filamente und Prozesse auswählen, auch mehrere oder eine ganze Gruppe, und mit dem Pfeil hinüberschieben. OrcaOne legt sie drüben als eigene Profile mit allen Werten an. Was nicht mitkommt, nennt „Das passiert“.
 - **Drucker:** den Drucker festlegen, mit dem der Slicer startet, Drucker entfernen und dabei Filamente mitlöschen, die nur zu ihm gehören, veraltete Einträge der `.conf` aufräumen.
+- **Kamera:** das Bild der Kamera des Snapmaker U1 mit Originalfirmware. Den Drucker einmal über seine Adresse hinzufügen. Solange die Seite offen und sichtbar ist, weckt OrcaOne die Kamera alle 10 Sekunden und holt das Bild alle 1 bis 10 Sekunden; der Takt wird gemerkt. Ein Klick aufs Bild zeigt es bildschirmfüllend.
 - **Sicherungen:** alle Sicherungen mit Größe, Anlass und Gesamtgröße.
   - „Jetzt sichern“ legt sofort eine an.
   - „Löschen …“ fragt vorher nach.
@@ -111,20 +112,22 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | Pfad | Inhalt |
 |---|---|
 | `orcaone/__main__.py` | Start: freier Port, Server, Browser |
-| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`) |
+| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Kameras über `/api/cameras` |
 | `orcaone/operations.py` | Änderungen planen und schreiben (harte Regeln 2 bis 7): Plan mit Dateioperationen, Diff der `.conf` mit maskierten Zugangsdaten und Fingerabdruck von `.conf` und `user/` vor dem Planen; ein anderer Plan, der inzwischen lief, macht ihn veraltet. Beim Ausführen: Laufprüfung, Sicherung, erneute Laufprüfung, atomar schreiben und neu prüfen (sonst zurück auf die Sicherung), neu einlesen |
+| `orcaone/transfer.py` | Profile in eine andere Installation übertragen: Werte ans Ziel anpassen nach `orcaone/options.json` (erzeugt aus dem Quellcode der Slicer mit `tools/make_options.py`) |
 | `orcaone/backup.py` | ZIP-Sicherungen ohne `log/`, `cache/` usw., Liste, Löschen und was ein Wiederherstellen zurückschreibt |
 | `orcaone/overview.py` | baut `GET /api/data`: je Installation Drucker, Filamente, Hinweise und die Seiten „Slicer“, „Drucker“, „Sicherungen“. Texte kommen als Codes |
 | `orcaone/scanner.py` | liest `system/`, eigene Profile und den Ordnerbaum (nur lesend) |
 | `orcaone/resolver.py` | Vererbung, Sichtbarkeit, Kompatibilität, Bibliotheks-Ausschluss |
 | `orcaone/opc.py` | Leser für das `.opc`-Format der OrcaSlicer-Nightly |
 | `orcaone/instances.py` | Installationen finden, manuelle Pfade |
+| `orcaone/camera.py` | Kamera des U1: wecken über Moonrakers WebSocket, Bild holen |
 | `orcaone/guard.py` | Prüfen, ob ein Slicer läuft (nur lesend) |
 | `orcaone/conf.py` | `.conf` byte-genau lesen und schreiben |
 | `orcaone/model.py` | Dataclasses |
 | `orcaone/static/` | Oberfläche: Vue 3 ohne Build-Schritt. `app.js` (Rahmen, Menü, Änderungsliste), `common.js` (Daten, Zustand, Symbole), `ops.js` (macht aus der Änderungsliste die `changes` für den Plan), `plan.js` („Das passiert“), `pages/` (eine Datei je Seite), `texts.js` (alle Texte), `style.css`, Druckerbilder in `assets/` |
 | `prototypes/opc/` | Prototyp für das `.opc`-Format, jetzt in `orcaone/opc.py` |
-| `prototypes/U1Cam/` | Kamera des U1 wecken und Bilder holen, kein Teil von OrcaOne |
+| `prototypes/U1Cam/` | Skript des Nutzers, Vorlage für die Seite „Kamera“ |
 | `docs/` | Befunde (`FINDINGS.md`), Plan (`PLAN.md`), Arbeitsstand (`STAND.md`) |
 | `ORCAONE_SPEC.md` | Spezifikation |
 

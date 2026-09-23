@@ -7,10 +7,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import Body, FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, backup, guard, instances, operations, overview
+from . import __version__, backup, camera, guard, instances, operations, overview
 
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -76,6 +76,13 @@ def _invalid_change(request: Request, exc: operations.InvalidChange):
 @app.exception_handler(backup.BackupError)
 def _backup_error(request: Request, exc: backup.BackupError):
     return _error(exc.code, 404 if exc.code == "backup_not_found" else 500)
+
+
+@app.exception_handler(camera.CameraError)
+def _camera_error(request: Request, exc: camera.CameraError):
+    status = {"camera_not_found": 404, "camera_host_invalid": 400, "camera_already_listed": 400,
+              "camera_every_invalid": 400}.get(exc.code, 502)
+    return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
 
 @app.get("/api/instances")
@@ -182,6 +189,50 @@ def delete_backup(instance_id: str, name: str):
 @app.post("/api/instances/{instance_id}/backups/{name}/restore-plan")
 def restore_plan(instance_id: str, name: str):
     return {"plan": operations.restore_plan(*operations.find_instance(instance_id), name)}
+
+
+# ---------------------------------------------------------------- camera of the U1 (orcaone/camera.py)
+
+@app.get("/api/cameras")
+def list_cameras():
+    return {"cameras": camera.cameras()}
+
+
+@app.post("/api/cameras")
+def add_camera(payload: dict = Body(...)):
+    name = payload.get("name")
+    try:
+        return {"camera": camera.add(payload.get("host"), name if isinstance(name, str) else "")}
+    except OSError:
+        return _error("save_failed", 500)
+
+
+@app.delete("/api/cameras/{camera_id}")
+def remove_camera(camera_id: str):
+    try:
+        camera.remove(camera_id)
+    except OSError:
+        return _error("save_failed", 500)
+    return {"removed": camera_id}
+
+
+@app.post("/api/cameras/{camera_id}")
+def update_camera(camera_id: str, payload: dict = Body(...)):
+    try:
+        return {"camera": camera.set_every(camera_id, payload.get("every"))}
+    except OSError:
+        return _error("save_failed", 500)
+
+
+@app.post("/api/cameras/{camera_id}/wake")
+def wake_camera(camera_id: str):
+    return {"result": camera.wake(camera.find(camera_id)["host"])}
+
+
+@app.get("/api/cameras/{camera_id}/image")
+def camera_image(camera_id: str):
+    data, age = camera.image(camera.find(camera_id)["host"])
+    return Response(content=data, media_type="image/jpeg", headers={} if age is None else {"X-Image-Age": f"{age:.0f}"})
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

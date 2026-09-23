@@ -23,7 +23,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["filamente", "prozesse", "drucker", "transfer", "sicherungen", "slicer", "details"];
+export const PAGE_IDS = ["filamente", "prozesse", "drucker", "kamera", "transfer", "sicherungen", "slicer", "details"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 
@@ -354,6 +354,7 @@ export const ICONS = {
   user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.8 3.6-6 7-6s6.2 2.2 7 6"/>',
   factory: '<path d="M3.5 20.5h17M5 20.5V12l4.5 3v-3l4.5 3v-3l4.5 3v5.5M15.5 12.5V4.5h3v8.2"/>',
   package: '<path d="m12 3.5 8 4v9l-8 4-8-4v-9z"/><path d="m4 7.5 8 4 8-4M12 11.5v9M8 5.5l8 4"/>',
+  camera: '<path d="M4 8.5h3.2l1.6-2.5h6.4l1.6 2.5H20v10.5H4z"/><circle cx="12" cy="13.3" r="3.4"/>',
   transfer: '<path d="M4 8.5h14.5M15 5l3.5 3.5L15 12M20 15.5H5.5M9 12l-3.5 3.5L9 19"/>',
   arrowRight: '<path d="M4 12h15.5M13.5 6l6 6-6 6"/>',
   arrowLeft: '<path d="M20 12H4.5M10.5 6l-6 6 6 6"/>',

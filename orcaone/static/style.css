@@ -955,3 +955,35 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   .xfer-mid { position: static; flex-direction: row; justify-content: center; padding-top: 0; }
   .xfer-arrow-label { margin-bottom: 0; }
 }
+
+/* Page "Kamera" */
+.camera-page h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
+.camera-page > .note { margin-bottom: 16px; }
+.cam-grid { display: grid; gap: 16px; }
+.cam-card { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.cam-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.cam-head .icon { color: var(--accent-text); }
+.cam-host { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.cam-status { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 13px; }
+.cam-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line-box); }
+.cam-status.is-ok .cam-dot { background: var(--success); }
+.cam-status.is-ok { color: var(--success); }
+.cam-status.is-warn .cam-dot { background: var(--warn); }
+.cam-status.is-warn { color: var(--warn); }
+.cam-status.is-err .cam-dot { background: var(--error); }
+.cam-status.is-err { color: var(--error); }
+.cam-status.is-wait { color: var(--muted); }
+.cam-frame { display: grid; place-items: center; overflow: hidden; aspect-ratio: 16 / 9; border-radius: 8px; background: #111; }
+.cam-frame img { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
+.cam-frame img:fullscreen { cursor: default; background: #000; }
+.cam-empty { display: grid; justify-items: center; gap: 8px; color: #9a9890; font-size: 13px; }
+.cam-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.cam-every { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.cam-every select { width: auto; }
+.cam-wake { color: var(--warn); font-size: 13px; font-weight: 700; }
+.cam-detail { overflow: hidden; max-width: 40ch; color: var(--muted); font-family: var(--mono); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.cam-foot .right { margin-left: auto; }
+.cam-add { margin: 0; }
+.cam-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.cam-form .field { margin-top: 0; }
+@media (min-width: 1400px) { .cam-grid { grid-template-columns: repeat(auto-fill, minmax(640px, 1fr)); } }
