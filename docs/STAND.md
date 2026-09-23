@@ -171,5 +171,5 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 
 - **Wunsch des Nutzers:** Der Schalter war verwirrend, bei eigenen Filamenten mit Schloss. Jetzt zeigt jede Zeile ihren Zustand (ausgegraut, halber Kreis für „teilweise“, Haken für „an“), die Düsen im Seitenpanel sind die Bedienung, dazu Ziehen nach „Aktiv“ und das ✕ an den Kacheln.
 - **Eigene Filamente bei keiner Düse an:** ausgeblendet mit `instantiation: "false"` (`filament_update` mit `hidden`), die Druckerliste bleibt. Eine Düse anwählen blendet es wieder ein, dann gilt nur diese Düse. Ein eigenes Filament ohne Vorlage (etwa eine Kopie aus dem anderen Slicer) lässt sich bei jeder Düse anwählen.
-- **Offen:** Praxistest im Slicer, ob beide das Profil wirklich ausblenden (FINDINGS, Offen-Liste).
+- **Praxistest 23.09.:** SnOrca blendet das Profil aus, die Datei bleibt. OrcaSlicer noch offen.
 
