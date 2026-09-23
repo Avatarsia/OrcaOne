@@ -36,6 +36,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 - **Frontend:** Vue 3 (lokal in `orcaone/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
   - Stil wie die heutige Oberfläche in `orcaone/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orcaone/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
   - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
+  - App-Symbol: ein eigenes (`tools/make_icons.py`), nichts aus OrcaSlicer oder Snapmaker Orca.
   - Satzschreibung, Status immer als Text plus Farbe.
 - **Oberfläche:**
   - **Filamente:** Drucker wählen → Düse → Baum aus Eigene, Vom Hersteller und Orca-Bibliothek.

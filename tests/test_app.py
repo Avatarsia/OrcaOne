@@ -2,6 +2,7 @@ import json
 import os
 import posixpath
 import re
+import struct
 import sys
 import urllib.parse
 import urllib.request
@@ -80,6 +81,26 @@ def test_serves_the_ui(server):
     for path in ("style.css", "vendor/vue.global.prod.js", "vendor/inter/InterVariable.woff2",
                  "vendor/jetbrains-mono/JetBrainsMono-Regular.woff2", "assets/printer-placeholder.png"):
         assert call(f"{server}/{path}")[0] == 200, path
+
+
+def test_is_an_installable_web_app(server):
+    """The manifest with the fields and icon sizes Chrome wants for installing
+    (web.dev/articles/install-criteria); __main__.choose_port also knows a running OrcaOne by it."""
+    body = call(f"{server}/")[1]
+    assert b'rel="manifest" href="manifest.json"' in body and b'rel="icon" href="assets/app-icon.svg"' in body
+    status, body = call(f"{server}/manifest.json")
+    manifest = json.loads(body)
+    assert status == 200 and manifest["name"] == "OrcaOne" and manifest["start_url"] == "/" and manifest["display"] == "standalone"
+    assert {"192x192", "512x512"} <= {icon["sizes"] for icon in manifest["icons"]}
+    for icon in manifest["icons"]:
+        status, data = call(f"{server}/{icon['src']}")
+        assert status == 200, icon["src"]
+        if icon["type"] == "image/png":
+            assert "%dx%d" % struct.unpack(">II", data[16:24]) == icon["sizes"]
+    status, data = call(f"{server}/assets/app-icon.ico")
+    assert status == 200 and struct.unpack("<HHH", data[:6]) == (0, 1, 4)
+    # Plain shapes only: Qt SVG, which draws launcher icons in KDE, knows no clipPath.
+    assert b"clipPath" not in call(f"{server}/assets/app-icon.svg")[1]
 
 
 def test_serves_every_module_the_ui_imports(server):

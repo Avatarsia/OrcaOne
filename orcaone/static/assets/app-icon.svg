@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- OrcaOne's own app icon, made by tools/make_icons.py together with the PNG and ICO files. -->
+  <defs>
+    <linearGradient id="tile" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512">
+      <stop offset="0" stop-color="#26A69A"/>
+      <stop offset="1" stop-color="#00695C"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <path fill="#FFFFFF" fill-rule="evenodd" d="M256 80a176 176 0 1 1 0 352a176 176 0 1 1 0 -352zM256 136a120 120 0 1 1 0 240a120 120 0 1 1 0 -240z"/>
+  <path fill="url(#tile)" d="M80 117h352v8h-352zM80 162h352v8h-352zM80 207h352v8h-352zM80 252h352v8h-352zM80 297h352v8h-352zM80 342h352v8h-352zM80 387h352v8h-352z"/>
+  <path fill="#FFFFFF" d="M262 168L306 168L306 344L262 344L262 216L209.6 252.7L209.6 204.7z"/>
+</svg>

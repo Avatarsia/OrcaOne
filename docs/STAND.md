@@ -2,6 +2,29 @@
 
 Stand 23.09.2026. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in [FINDINGS](FINDINGS.md) und [PLAN](PLAN.md).
 
+## Aktuell (23.09.2026)
+
+- **Ordner umbenannt:** Der Nutzer hat `~/dev/orfix` am 23.09. in `~/dev/OrcaOne` umbenannt, mit großen Buchstaben. Das Gedächtnis liegt deshalb unter `-home-dominiks-dev-OrcaOne`, die Ordner `-orfix` und `-orcaone` sind alte Kopien. Vorher geprüft:
+  - Es gibt keine weiteren Worktrees, und `.claude/launch.json` nutzt relative Pfade.
+  - Den Starter `~/.local/share/applications/orcaone.desktop` hat der Nutzer auf `~/dev/OrcaOne` umgestellt.
+  - `.lenv` ist schon einmal umgezogen (von `orcix`). `.lenv/bin/python -m …` läuft weiter, nur Skripte wie `.lenv/bin/pip` haben noch alte Pfade im Shebang.
+- **App-Fenster: gebaut** (Wunsch vom 23.09.), ohne Tabs, Adressleiste und Lesezeichenleiste.
+  - Eigenes Symbol: ein „O“ aus gedruckten Schichten um eine „1“, auf Teal. Der Nutzer will ausdrücklich nichts aus Orca oder SnOrca. `tools/make_icons.py` zeichnet es ohne Zusatzpakete als SVG, PNG 192/512 und ICO (16 bis 256 px). Das SVG besteht nur aus einfachen Formen: Qt SVG, mit dem KDE Starter und Menüs zeichnet, kennt kein `clipPath` ([Qt-Doku](https://doc.qt.io/qt-6/svgextensions.html)) und zeigte die Ringschichten der ersten Fassung als durchgehende Balken (Nutzer, 23.09.; nachgestellt mit `ksvgtopng`). Jetzt: ganzer Ring, darüber die Fugen im Farbverlauf der Kachel.
+  - `manifest.json`, Favicon und `theme-color`. Chrome verlangt fürs Installieren Symbole in 192 und 512 px, einen Service Worker nicht mehr ([Kriterien](https://web.dev/articles/install-criteria)).
+  - Fester Port 4711 statt eines freien, denn eine installierte Web-App merkt sich den Port. Läuft OrcaOne schon, öffnet ein zweiter Start nur ein Fenster. Ist der Port anderweitig belegt, nimmt OrcaOne einen freien (`__main__.choose_port`). Die Vorschau in `.claude/launch.json` bleibt auf 8765.
+  - `browser.py`: Chrome, Chromium, Edge, Brave und Vivaldi bekommen `--app=<Adresse>`, Firefox und Opera `--new-window`.
+  - Unterstützung, geprüft am 23.09.: Chrome, Edge, Brave und Chromium installieren Web-Apps unter Windows, Linux und macOS. Safari kann das ab macOS 14 („Zum Dock hinzufügen“). Firefox kann es ab 143 nur unter Windows, unter Linux ist es abgeschaltet und geht nur ohne Sandbox oder als Flatpak, unter macOS gar nicht ([Firefox-Doku](https://firefox-source-docs.mozilla.org/browser/components/taskbartabs/docs/index.html)).
+  - Auf diesem Rechner ist Firefox als Snap der Standard, dort bleibt es beim neuen Fenster. Brave ist installiert. Brave ohne Fenster (`--headless --screenshot`) blieb als Snap hängen und ließ sich weder von Claude noch aus dem Terminal-Panel beenden, nur mit `snap run --shell brave -c "kill …"`.
+- **Als Nächstes, in dieser Reihenfolge:**
+  1. **Druckstatus zur Kamera:** Fortschritt, Schicht, Restzeit und Temperaturen neben dem Bild. Moonraker liefert dafür, am U1 am 23.09. nur gelesen:
+     - `print_stats` mit `state`, `filename`, `print_duration`, `total_duration`, `filament_used`, `info.current_layer` und `info.total_layer`;
+     - `virtual_sdcard.progress` und `display_status.progress`;
+     - `heater_bed` und die vier Extruder.
+  2. **Zwei Profile vergleichen:** neue Seite, eingerückt unter „Filamente“.
+  3. **„Neu seit dem letzten Mal“:** unter „Drucker“, Schnappschuss nach PLAN 1.4 in `data/snapshots/`.
+  4. **Importieren und Exportieren:** unter „Filamente“. Eigene Profile als Datei exportieren und Herstellerpakete wie das ZIP von Material4Print für den U1 importieren, beides über Plan und Bestätigung.
+- **Beim Nutzer:** „Im LAN suchen“ zu Hause testen, die Prüfliste auf dem Windows-Rechner (unten, „Windows-Durchsicht“).
+
 ## Erledigt
 
 - **Phase 0 (Grundgerüst):** fertig und committet.
@@ -21,7 +44,7 @@ Stand 23.09.2026. Übergabe zwischen Sessions. Das Wichtigste zuerst, Details in
 
 | Thema | Entscheidung |
 |---|---|
-| Name | OrcaOne, der Ordner heißt `~/dev/orcaone` |
+| Name | OrcaOne, der Ordner heißt `~/dev/OrcaOne` |
 | Slicer | SnOrca 2.4 sowie OrcaSlicer stabil (2.4.x, JSON) und Nightly (2.5.0-dev, `.opc`) |
 | Plattformen | Linux und Windows gleichwertig. Ein Windows-Rechner zum Testen ist vorhanden |
 | Abhängigkeiten | fastapi, uvicorn, psutil, pytest in `.lenv`. Vue und Schrift liegen lokal |
@@ -164,7 +187,7 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Name:** OrcaOne = Orca + U1 („One“), vom Nutzer gewählt; Kunstwörter ohne Bezug hat er verworfen. Auf PyPI und GitHub frei (geprüft 23.09.).
 - **Umbenannt:** Paket `orcaone/`, `orcaone.sh`/`orcaone.cmd`, `ORCAONE_SPEC.md`, alle Texte und die Doku, `.claude/launch.json` (Konfiguration „orcaone“). Nur die historische Zeile in PLAN.md zur ersten Umbenennung bleibt.
 - **Bestehende Daten:** Beim Start zieht OrcaOne `~/.local/share/orfix` einmal nach `~/.local/share/orcaone` um (`instances.move_old_data_dir`); am 23.09. auf diesem Rechner geschehen, alle 6 Sicherungen sind da. Seit dem Datenordner (unten) übernimmt `settings.migrate` diesen Umzug. Sicherungen mit `orfix-backup.json` bleiben lesbar und wiederherstellbar.
-- **Für den Nutzer offen:** den Projektordner `~/dev/orfix` in `~/dev/orcaone` umbenennen. Das Gedächtnis liegt schon unter `-home-dominiks-dev-orcaone`. `.lenv` zieht mit um, `./orcaone.sh` läuft weiter (es ruft Python mit `-m` auf).
+- **Projektordner:** seit 23.09. `~/dev/OrcaOne`, siehe „Aktuell“ oben. `.lenv` zieht mit um, `./orcaone.sh` läuft weiter (es ruft Python mit `-m` auf).
 - **Nächste Schritte:** U1-Kamera (`prototypes/U1Cam/u1cam.py`), eine Seite „Logs“ unter „Technik“ (die Slicer schreiben nach `<Datenordner>/log/`), Drucker übertragen zurückgestellt.
 
 ## Filamente ohne Schalter (23.09.2026)

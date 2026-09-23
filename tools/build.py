@@ -31,6 +31,8 @@ def main() -> None:
         "--add-data", f"{ROOT / 'orcaone' / 'options.json'}{os.pathsep}orcaone",
         # uvicorn picks its event loop and protocols by name at run time.
         "--collect-submodules", "uvicorn",
+        # OrcaOne's icon for the program file; only Windows keeps it there (tools/make_icons.py).
+        *(["--icon", str(ROOT / "orcaone" / "static" / "assets" / "app-icon.ico")] if os.name == "nt" else []),
     ])
     print(f"\nFertig: {ROOT / 'dist' / 'OrcaOne'}")
 
