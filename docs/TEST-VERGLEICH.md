@@ -36,10 +36,8 @@ Offen ist nur die Spalte „SnOrca“.
 1. SnOrca schließen. In Orfix „Neu einlesen“ klicken. Bei Snapmaker Orca steht dann „Geschlossen“ statt „Läuft – nur ansehen“.
 2. In Orfix ändern, wie in der Klickfolge unten beschrieben. Unten erscheint die Leiste „1 Änderung“.
 3. Übernehmen:
-   - „Übernehmen …“ klicken.
-   - Im Seitenpanel „Übernehmen“ klicken.
-   - Das Panel „Das passiert“ zeigt jede Datei und jede Änderung der `.conf`, dazu „Vorher wird automatisch gesichert“.
-   - „Ausführen“ klicken. Die Meldung „Übernommen“ erscheint, und die Leiste ist leer.
+   - Unten „Übernehmen …“ klicken. Das Seitenpanel „Das passiert“ zeigt jede Datei und jede Änderung der `.conf`, dazu „Vorher wird automatisch gesichert“.
+   - Dort „Übernehmen“ klicken. Die Meldung „Übernommen“ erscheint, und die Leiste ist leer.
 4. SnOrca starten und prüfen.
 
 | # | Änderung in Orfix | Was Orfix im Hintergrund tut | Erwartung in SnOrca | Orfix | SnOrca |
@@ -116,13 +114,13 @@ Offen ist nur die Spalte „SnOrca“.
    - `Snapmaker_Orca.conf` bekommt den Stand der Sicherung;
    - `SUNLU PLA Matte @Snapmaker U1.json` und `Mein PLA hell.json` fallen weg;
    - die acht Filamente aus B3 werden wieder sichtbar.
-4. „Ausführen“ klicken. Die Meldung „Wiederhergestellt“ erscheint. Vorher legt Orfix die Sicherung „Vor dem Wiederherstellen …“ an, damit lässt sich auch das zurücknehmen.
+4. „Wiederherstellen“ klicken. Die Meldung „Wiederhergestellt“ erscheint. Vorher legt Orfix die Sicherung „Vor dem Wiederherstellen …“ an, damit lässt sich auch das zurücknehmen.
 5. Unter „Filamente“ ist der Stand wie in Teil A, auch der Hinweis aus B6 ist weg.
 
 **Wenn etwas nicht geht:**
 
 - Läuft SnOrca noch, ist „Übernehmen“ aus. Das Panel sagt dann: „Snapmaker Orca läuft gerade. Schließe das Programm …“.
-- Hat sich der Datenordner seit dem Plan geändert, etwa weil SnOrca kurz lief, meldet „Ausführen“ einen veralteten Plan und bietet „Neu planen“ an.
+- Hat sich der Datenordner seit dem Plan geändert, etwa weil SnOrca kurz lief, meldet „Übernehmen“ einen veralteten Plan und bietet „Neu planen“ an.
 
 ## Auswertung
 

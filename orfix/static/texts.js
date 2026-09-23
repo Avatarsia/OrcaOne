@@ -233,8 +233,11 @@ export const T = {
     },
     nothing: "Dabei ändert sich keine Datei.",
     safe: "Vorher wird automatisch gesichert.",
-    run: "Ausführen",
-    running: "Führe aus …",
+    // The same word as the message afterwards: "Übernommen", "Wiederhergestellt".
+    run: "Übernehmen",
+    running: "Übernehme …",
+    restore: "Wiederherstellen",
+    restoring: "Stelle wieder her …",
     replan: "Neu planen",
     afterTitle: "Beim Prüfen danach aufgefallen",
     warningUnknown: (w) => `Hinweis von Orfix (${w.code})` + (w.names?.length ? `: ${w.names.join(", ")}` : w.name ? `: ${w.name}` : ""),

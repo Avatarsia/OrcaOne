@@ -4,7 +4,7 @@
 // Data: GET /api/instances/{id}/backups (BACKUPS in common.js). The actions go straight to the
 // API, not into the change list: "Jetzt sichern" makes one, "Löschen" asks first, and
 // "Wiederherstellen" shows the plan of /restore-plan ("Das passiert", plan.js), its
-// "Ausführen" sends /apply. Before restoring, the backend backs up the current state
+// "Wiederherstellen" there sends /apply. Before restoring, the backend backs up the current state
 // (reason before_restore).
 import {
   INSTANCES, BACKUPS, refreshBackups, writeBlock, load, resetChanges, flash, fmtSize, plural, dayLabel, clockText, whenText,

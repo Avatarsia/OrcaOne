@@ -1,7 +1,7 @@
 // App frame: top bar, main menu on the left (ionpy device window), one page per hash route,
 // and the change list that all pages fill. The data comes live from GET /api/data (common.js).
-// "Übernehmen" writes in two steps (hard rule 5): POST /plan shows "Das passiert" (plan.js),
-// "Ausführen" sends POST /apply; the backend backs up first, then the data is read again. What
+// "Übernehmen …" writes in two steps (hard rule 5): POST /plan shows "Das passiert" (plan.js),
+// its "Übernehmen" sends POST /apply; the backend backs up first, then the data is read again. What
 // the backend's check after writing reports stays in the panel (DoneView).
 import {
   INSTANCES, FAILED, BACKUPS, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
@@ -63,9 +63,15 @@ const app = createApp({
     const plan = reactive({ busy: false, error: "", outdated: false, groupError: {} });
     const changesOpen = ref(false);
     let changesFocus = null;
+    // "Übernehmen …" shows "Das passiert" right away: one click shows the plan, the next one
+    // writes it (hard rule 5). The list of changes comes first only if there is a choice or a
+    // stop: changes for several installations, or one Orfix may not write to now.
+    const direct = () => changeGroups.value.length === 1 && !changeGroups.value[0].block;
     function openChanges() {
       if (!changesOpen.value) changesFocus = document.activeElement;
       changesOpen.value = true;
+      done.value = null;
+      if (direct()) makePlan(changeGroups.value[0].inst);
       nextTick(() => document.getElementById("changes-title")?.focus());
     }
     function closeChanges() {
@@ -82,8 +88,12 @@ const app = createApp({
     }
 
     // ------------------------------------------------------------ plan and apply
-    // A change on a page while the plan shows makes it stale, so the panel goes back to the list.
-    watch(changes, () => { if (!plan.busy) planned.value = null; });
+    // A change on a page while the plan shows makes it stale: plan again, or back to the list.
+    watch(changes, () => {
+      if (plan.busy) return;
+      planned.value = null;
+      if (changesOpen.value && !done.value && direct()) makePlan(changeGroups.value[0].inst);
+    });
     const focusTitle = () => nextTick(() => document.getElementById("changes-title")?.focus());
 
     async function makePlan(i) {
@@ -105,6 +115,7 @@ const app = createApp({
       }
     }
     function backToList() {
+      if (direct()) return closeChanges();
       planned.value = null;
       plan.error = "";
       plan.outdated = false;
@@ -353,6 +364,7 @@ const app = createApp({
               <plan-view :plan="planned.plan" :inst="planned.inst" :busy="plan.busy" :error="plan.error" :can-replan="plan.outdated"
                          @apply="runPlan" @back="backToList" @replan="makePlan(planned.inst)"/>
             </template>
+            <p v-else-if="plan.busy" class="note">{{ T.changes.planning }}</p>
             <template v-else>
               <p v-if="!changes.length" class="note">{{ T.changes.none }}</p>
               <section v-for="g in changeGroups" :key="g.inst.id" class="change-group" :aria-label="g.inst.slicer">

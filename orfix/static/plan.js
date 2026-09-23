@@ -1,8 +1,9 @@
 // "Das passiert": the side panel content for a plan of POST /plan or /restore-plan, shared by the
 // change list (app.js) and the page "Sicherungen". It shows which file is created, changed,
 // renamed or deleted, what changes in the .conf, the warnings and, if the backend refuses, why
-// and what to do next. Its "Ausführen" is the explicit confirmation of hard rule 5; the caller
-// then sends /apply with the plan id. DoneView shows what /apply reports afterwards.
+// and what to do next. Its "Übernehmen" (or "Wiederherstellen") is the explicit confirmation of
+// hard rule 5; the caller then sends /apply with the plan id. DoneView shows what /apply reports
+// afterwards.
 // The backend sends codes (orfix/operations.py); their words are in texts.js.
 import { T } from "./texts.js";
 import { printerText } from "./common.js";
@@ -227,7 +228,7 @@ export default {
         <button class="btn" type="button" :disabled="busy" @click="$emit('back')">{{ T.back }}</button>
         <button v-if="canReplan" class="btn" type="button" :disabled="busy" @click="$emit('replan')"><ui-icon name="refresh"/>{{ P.replan }}</button>
         <button class="btn btn-primary right" type="button" :disabled="busy || !!plan.blocked || empty" @click="$emit('apply')">
-          {{ busy ? P.running : P.run }}
+          {{ restore ? (busy ? P.restoring : P.restore) : (busy ? P.running : P.run) }}
         </button>
       </div>
     </div>

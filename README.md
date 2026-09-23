@@ -7,7 +7,7 @@ Orfix ist eine lokale Web-App, mit der man die Profile von OrcaSlicer und Snapma
 Änderungen schreibt Orfix direkt in die Datenordner der Slicer, aber nur, solange der Slicer geschlossen ist. Ablauf:
 
 1. Plan mit „Das passiert“ anzeigen.
-2. Nach „Ausführen“ eine Sicherung anlegen.
+2. Nach „Übernehmen“ eine Sicherung anlegen.
 3. Schreiben. Scheitert das mittendrin, kommen die berührten Dateien aus der Sicherung zurück.
 4. Neu einlesen.
 
@@ -45,15 +45,15 @@ Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“.
 
 Alles Ändernde landet in der Änderungsliste unten. So wird daraus eine Änderung am Slicer:
 
-1. „Übernehmen …“ öffnet die Liste. „Übernehmen“ holt den Plan.
+1. „Übernehmen …“ in der Leiste unten holt den Plan.
 2. Das Seitenpanel zeigt „Das passiert“:
    - jede Datei, die neu entsteht, sich ändert, umbenannt oder gelöscht wird;
    - die Änderungen an der `.conf` in Worten, etwa „SUNLU PLA+ wird sichtbar“;
    - Hinweise;
    - bei einem Stopp den Grund und was zu tun ist.
-3. Erst „Ausführen“ schreibt. Davor sichert Orfix den Datenordner, danach liest es ihn neu ein.
+3. Erst „Übernehmen“ im Seitenpanel schreibt. Davor sichert Orfix den Datenordner, danach liest es ihn neu ein.
 
-In eine Installation, in die Orfix nicht schreiben darf, ist „Übernehmen“ aus, und die Liste sagt, warum.
+Eine Liste der Änderungen kommt nur dazwischen, wenn Änderungen an mehreren Installationen vorgemerkt sind oder Orfix gerade nicht schreiben darf, etwa weil der Slicer läuft. Dann sagt sie, warum.
 
 ## Was Orfix kann
 
@@ -82,14 +82,14 @@ In eine Installation, in die Orfix nicht schreiben darf, ist „Übernehmen“ a
 
 1. Orfix starten. Unter „Filamente“ erscheinen die Drucker beider Installationen.
 2. Einen Drucker anklicken, etwa den U1, und eine Düse wählen. „Aktiv“ zeigt dieselben Filamente wie die Auswahl im Slicer (Vergleich nach `docs/TEST-VERGLEICH.md`, Teil A).
-3. Ein Filament der echten Installation einschalten. Unten erscheint „1 Änderung“. „Übernehmen …“ zeigt die Liste, „Übernehmen“ ist aus und nennt den Grund: „In diese Installation schreibt Orfix noch nicht …“. „Verwerfen“ stellt den Stand wieder her.
+3. Ein Filament einschalten. Unten erscheint „1 Änderung“. „Übernehmen …“ zeigt „Das passiert“, „Übernehmen“ schreibt. Läuft der Slicer, zeigt „Übernehmen …“ nur die Liste mit dem Grund. „Verwerfen“ stellt den Stand wieder her.
 4. Unter „Drucker“ „Als Standard“ oder „Entfernen“ wählen. Beides erscheint ebenfalls in der Änderungsliste. Die Seite „Filamente“ zeigt einen entfernten Drucker nicht mehr an.
 5. Unter „Sicherungen“ „Jetzt sichern“ klicken. Die Sicherung erscheint sofort in der Liste, samt Größe. Sichern darf Orfix jede Installation, weil es dabei nur liest.
-6. Schreiben mit einer Kopie: siehe `docs/TEST-VERGLEICH.md`, Teil B, mit der Klickfolge je Schritt.
+6. Schreiben: siehe `docs/TEST-VERGLEICH.md`, Teil B, mit der Klickfolge je Schritt.
 7. Unter „Slicer“ eine Kopie eines Datenordners hinzufügen, zum Beispiel nach `cp -r ~/.config/Snapmaker_Orca /tmp/snorca-kopie`. Sie erscheint als „Von Hand hinzugefügt“ und lässt sich mit „Entfernen“ wieder entfernen. Dabei wird nur der Eintrag in Orfix gelöscht, nicht der Ordner. Ein falscher Ordner, etwa der Home-Ordner, ergibt eine Fehlermeldung, die sagt, was zu tun ist.
 8. Einen Slicer starten und „Neu einlesen“ klicken. Die Installation heißt dann „Läuft – nur ansehen“, die Seiten nennen den Grund. Den Slicer beenden und wieder neu einlesen.
 9. Orfix im Terminal beenden und „Neu einlesen“ klicken. Es erscheint „Orfix antwortet nicht …“. Nach einem Neuladen der Seite steht dort, was zu tun ist, samt „Erneut versuchen“.
-10. Prüfen, dass nichts in den echten Ordner geschrieben wurde: `ls -l --time-style=full-iso ~/.config/Snapmaker_Orca/Snapmaker_Orca.conf` vor und nach den Schritten 3 bis 5 vergleichen.
+10. Prüfen, dass „Verwerfen“ nichts schreibt: `ls -l --time-style=full-iso ~/.config/Snapmaker_Orca/Snapmaker_Orca.conf` vor und nach Schritt 4 vergleichen.
 11. Die Systemeinstellung zwischen hell und dunkel wechseln. Orfix zieht mit.
 
 ## Tests
