@@ -1082,9 +1082,12 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .imp-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .imp-found { margin: 14px 0 4px; }
 .imp-project { margin: 8px 0 4px; }
-.imp-uses { display: grid; gap: 4px; margin: 6px 0; padding: 0; list-style: none; font-size: 13px; }
-.imp-uses li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.imp-uses .icon { color: var(--accent-text); }
+.imp-uses { display: grid; gap: 8px; margin: 6px 0; padding: 0; list-style: none; font-size: 13px; }
+.imp-uses li { display: flex; align-items: flex-start; gap: 8px; }
+.imp-uses .icon { flex: none; margin-top: 1px; color: var(--accent-text); }
+.imp-spools { display: inline-flex; flex-wrap: wrap; gap: 1px; }
+.imp-help { margin-top: 10px; }
+.imp-help ul { display: grid; gap: 4px; margin: 6px 0 0; padding-left: 18px; }
 .imp-note { color: var(--muted); font-size: 12px; }
 .imp-where { color: var(--muted); font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
 .imp-values { font-size: 12px; }

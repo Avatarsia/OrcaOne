@@ -270,7 +270,7 @@ def _read_file(instance_id: str, raw: bytes, name: str) -> dict:
     instance = operations.find_instance(instance_id)[0]
     source = importer.read(raw, name)
     res = Resolver(scanner.scan(instance.data_dir, instance.slicer))
-    project = {"application": source["project"]["application"], "uses": importer.uses(source, res)} if source.get("project") else None
+    project = {**source["project"], "uses": importer.uses(source, res)} if source.get("project") else None
     return {"file": name, "format": source["format"], "skipped": source["skipped"], "project": project,
             "profiles": importer.analyse(source, res, instance.slicer)}
 

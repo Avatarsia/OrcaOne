@@ -23,6 +23,9 @@ export const importChanges = computed(() => importQueue.map((q) => {
 }).filter(Boolean));
 
 const keyOf = (p) => `${p.kind}/${p.name}`;
+// The name up to "@", by which the slicers group profiles (alias_of in scanner.py).
+const aliasOf = (name) => (name.includes("@") ? name.slice(0, name.indexOf("@")).trimEnd() : "") || name;
+const nozzles = (variant) => String(variant).split("+").map(Number);  // "0.4+0.6": a U1 with two kinds
 const number = (v, digits) => isNaN(Number(v)) ? String(v) : Number(v).toLocaleString(LOCALE, { maximumFractionDigits: digits });
 // The values of a row: temperature, flow, max. volumetric speed, material and maker; for a process
 // layer height, walls and infill; for a printer model and nozzle.
@@ -116,6 +119,31 @@ export default {
       return parts.join(" · ");
     }
 
+    // A 3MF: the profiles the project uses, and for those not here what fits instead: the printers
+    // with its nozzle, their processes with its layer height, and the filaments these printers show
+    // under the same name up to "@", hidden ones marked (the page "Filamente" can show them).
+    const uses = computed(() => {
+      const project = result.value?.project, i = inst.value;
+      if (!project || !i) return [];
+      const printers = i.models.flatMap((m) => m.printers).filter((p) => nozzles(p.variant).includes(Number(project.nozzle)));
+      const processes = new Set(printers.flatMap((p) => p.processes));
+      function fitting(u) {
+        if (u.here) return [];
+        if (u.kind === "machine") return printers.map((p) => ({ name: p.name }));
+        if (u.kind === "process") {
+          return i.processes.filter((p) => processes.has(p.name) && Number(p.layer_height) === Number(u.values.layer_height))
+            .map((p) => ({ name: p.name }));
+        }
+        return i.filaments.filter((f) => f.alias === aliasOf(u.name)).map((f) => {
+          const states = printers.map((p) => f.printers[p.name]?.status);
+          return states.includes("visible") ? { name: f.name } : states.includes("hidden") ? { name: f.name, hidden: true } : null;
+        }).filter(Boolean);
+      }
+      return project.uses.map((u) => ({ ...u, fitting: fitting(u) }));
+    });
+    const fittingText = (u) => I.fitting(u.fitting.map((f) => plainName(f.name) + (f.hidden ? ` (${I.hiddenHere})` : "")).join(", "));
+    const foreignPrinter = computed(() => uses.value.some((u) => u.kind === "machine" && !u.here));
+
     // ------------------------------------------------------------ export
     const own = computed(() => {
       const i = inst.value;
@@ -156,8 +184,8 @@ export default {
 
     return {
       T, I, KIND_ICON, STATUS_CLASS, TAKES, inst, block, file, result, error, reading, picked, dragging, onPick, onDrop, groups,
-      toQueue, queue, queuedHere, keyOf, statusText, detailText, valuesText, own, exportPicked, flat, exporting, toggleGroup,
-      exportNow, plainName,
+      toQueue, queue, queuedHere, keyOf, statusText, detailText, valuesText, uses, fittingText, foreignPrinter, own, exportPicked,
+      flat, exporting, toggleGroup, exportNow, plainName,
     };
   },
 
@@ -174,6 +202,10 @@ export default {
           <small>{{ I.kinds }}</small>
           <input type="file" accept=".json,.zip,.orca_filament,.orca_printer,.orca_bundle,.3mf" @change="onPick">
         </label>
+        <details class="more imp-help">
+          <summary>{{ I.help }}</summary>
+          <ul><li v-for="t in I.helpItems" :key="t">{{ t }}</li></ul>
+        </details>
         <p v-if="reading" class="note">{{ I.reading }}</p>
         <p v-else-if="error" class="alert" role="alert">{{ error }}</p>
         <template v-else-if="result">
@@ -183,10 +215,22 @@ export default {
           <div v-if="result.project" class="imp-project">
             <p>{{ result.project.application ? I.project(result.project.application) : I.projectUses }}</p>
             <ul class="imp-uses">
-              <li v-for="u in result.project.uses" :key="u.kind + '/' + u.name"><ui-icon :name="KIND_ICON[u.kind]"/>{{ plainName(u.name) }}
-                <small :class="u.here ? 'st-on' : 'st-warn'">{{ u.here ? I.here : I.notHere }}</small></li>
+              <li v-for="u in uses" :key="u.kind + '/' + u.name">
+                <ui-icon :name="KIND_ICON[u.kind]"/>
+                <div class="imp-main">
+                  <div class="imp-line">
+                    <span>{{ plainName(u.name) }}</span>
+                    <span v-if="u.colours" class="imp-spools" role="img" :aria-label="u.colours.join(', ')" :title="u.colours.join(', ')">
+                      <spool-icon v-for="(c, n) in u.colours" :key="n" :colour="c" :size="18"/></span>
+                    <small :class="u.here ? 'st-on' : 'st-warn'">{{ u.here ? I.here : I.notHere }}</small>
+                  </div>
+                  <small v-if="valuesText(u)" class="imp-values">{{ valuesText(u) }}</small>
+                  <small v-if="u.fitting.length" class="imp-note">{{ fittingText(u) }}</small>
+                </div>
+              </li>
             </ul>
             <p v-if="!result.profiles.length" class="note">{{ I.onlySystem }}</p>
+            <p v-if="foreignPrinter" class="note">{{ I.geometryOnly }}</p>
           </div>
           <p v-else-if="!result.profiles.length" class="empty">{{ I.none }}</p>
           <div v-for="g in groups" :key="g.kind" class="imp-group">

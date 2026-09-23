@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 from . import transfer
-from .resolver import Resolver, as_list
+from .resolver import Resolver, as_list, first
 from .scanner import META_KEYS
 
 KINDS = ("filament", "process", "machine")
@@ -41,6 +41,8 @@ _USER_FILE = re.compile(r"user/[^/]+/(machine|process|filament)/(?:base/)?[^/]+\
 _NOT_PROFILES = {"bundle_structure.json", "bundle_metadata.json", "orcaone-backup.json", "orfix-backup.json"}
 # A printer's connection and its credentials; the slicers' export drops them too (FINDINGS 4.8).
 _CONNECTION = re.compile(r"print_?host")
+# A filament's colour in a project, "#RRGGBB" and in some versions with alpha.
+_COLOUR = re.compile(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?")
 # Values the page shows per profile, besides name and printers.
 CORE = {"filament": ("filament_vendor", "filament_type", "nozzle_temperature", "filament_flow_ratio", "filament_max_volumetric_speed"),
         "process": ("layer_height", "wall_loops", "sparse_infill_density"),
@@ -156,6 +158,15 @@ def read(raw: bytes, filename: str) -> dict:
     return out
 
 
+def _of_slot(value, slot: int, count: int):
+    """A filament's part of a project value (slot from 0): the project keeps one value per
+    filament, or one per filament and hotend variant (Snapmaker Orca)."""
+    if isinstance(value, list) and count and len(value) % count == 0:
+        size = len(value) // count
+        return value[slot * size:(slot + 1) * size]
+    return value
+
+
 def _read_3mf(archive: zipfile.ZipFile, entries: list, out: dict, stem: str) -> None:
     """The own profiles a project embeds, complete, and the changes it made to others without
     saving them: those are in project_settings.config only, as the keys that differ from the
@@ -176,9 +187,24 @@ def _read_3mf(archive: zipfile.ZipFile, entries: list, out: dict, stem: str) -> 
     filaments = [f for f in as_list(project.get("filament_settings_id")) if isinstance(f, str)]
     slots = [("process", project.get("print_settings_id"))] + [("filament", f) for f in filaments] \
         + [("machine", project.get("printer_settings_id"))]
-    # What the project uses, for the page: system profiles stand in a 3MF by their name only.
+    # What the project uses, for the page: system profiles stand in a 3MF by their name only, with
+    # the values the project prints with; the page finds what fits here by the nozzle.
+    uses = {}
+    for i, (kind, name) in enumerate(slots):
+        if not isinstance(name, str) or not name:
+            continue
+        use = uses.setdefault((kind, name), {"kind": kind, "name": name, "values": {}})
+        for key in CORE[kind]:
+            value = first(_of_slot(project.get(key), i - 1, len(filaments)) if kind == "filament" else project.get(key))
+            if isinstance(value, (str, int, float)) and value != "":
+                use["values"].setdefault(key, value)
+        if kind == "filament":
+            colour = first(_of_slot(project.get("filament_colour"), i - 1, len(filaments)))
+            if isinstance(colour, str) and _COLOUR.fullmatch(colour.strip()):
+                use.setdefault("colours", []).append(colour.strip().upper())
+    nozzle = first(project.get("nozzle_diameter"))
     out["project"] = {"application": found.group(1).replace("-", " ") if found else "",
-                      "uses": [{"kind": k, "name": n} for k, n in dict.fromkeys((k, n) for k, n in slots if isinstance(n, str) and n)]}
+                      "nozzle": nozzle if isinstance(nozzle, str) else "", "uses": list(uses.values())}
     parents, changed = as_list(project.get("inherits_group")), as_list(project.get("different_settings_to_system"))
     if len(changed) != len(slots):
         return
@@ -191,12 +217,7 @@ def _read_3mf(archive: zipfile.ZipFile, entries: list, out: dict, stem: str) -> 
         for key in dict.fromkeys(k for k in keys.split(";") if k):
             if key in META_KEYS or key.endswith("_settings_id") or key not in project:
                 continue
-            value = project[key]
-            # Per filament the project keeps one value, or one per hotend variant (Snapmaker Orca).
-            if kind == "filament" and isinstance(value, list) and filaments and len(value) % len(filaments) == 0:
-                size = len(value) // len(filaments)
-                value = value[(i - 1) * size:i * size]
-            values[key] = value
+            values[key] = _of_slot(project[key], i - 1, len(filaments)) if kind == "filament" else project[key]
         if values:
             new_name = f"{name.removesuffix(' @System').removesuffix(' @base')} ({stem})"
             out["profiles"].append(Found(kind, new_name, {"name": new_name, "inherits": parent, **values},

@@ -68,9 +68,8 @@ def test_reads_every_kind_of_file():
     project = {"3D/3dmodel.model": "<model/>", "Metadata/project_settings.config": PROJECT,
                "Metadata/filament_settings_1.config": filament("Projekt PLA", inherits=BASIC, nozzle_temperature=["225"], **{"from": "project"})}
     got = importer.read(zip_of(project), "Benchy.3mf")
-    assert got["format"] == "3mf" and got["project"]["uses"] == [
-        {"kind": "process", "name": "0.20mm Standard @Snapmaker U1 (0.4 nozzle)"}, {"kind": "filament", "name": "Projekt PLA"},
-        {"kind": "machine", "name": U1_04}]
+    assert got["format"] == "3mf" and [(u["kind"], u["name"]) for u in got["project"]["uses"]] == [
+        ("process", "0.20mm Standard @Snapmaker U1 (0.4 nozzle)"), ("filament", "Projekt PLA"), ("machine", U1_04)]
     assert [(f.kind, f.name, f.full) for f in got["profiles"]] == [
         ("filament", "Projekt PLA", True), ("process", "0.20mm Standard @Snapmaker U1 (0.4 nozzle) (Benchy)", False)]
     assert got["profiles"][1].data == {"name": "0.20mm Standard @Snapmaker U1 (0.4 nozzle) (Benchy)",
@@ -87,6 +86,27 @@ def test_reads_every_kind_of_file():
     with pytest.raises(importer.ImportFailed) as err:
         importer.read(b"hello", "hello.txt")
     assert err.value.code == "file_unknown"
+
+
+def test_a_project_names_its_profiles_with_the_values_it_prints_with():
+    # Happy Shark (Bambu Studio 1.9.3): one filament in three slots, each with its colour; "red" is none.
+    project = {"print_settings_id": "0.28mm Extra Draft @BBL A1", "printer_settings_id": "Bambu Lab A1 0.4 nozzle",
+               "filament_settings_id": ["Bambu PLA Basic @BBL A1"] * 3, "filament_colour": ["#FFFFFF", "#0080ff", "red"],
+               "filament_type": ["PLA"] * 3, "nozzle_temperature": ["220"] * 3, "layer_height": "0.28", "wall_loops": "2",
+               "sparse_infill_density": "15%", "nozzle_diameter": ["0.4"], "printer_model": "Bambu Lab A1"}
+    got = importer.read(zip_of({"Metadata/project_settings.config": project}), "Happy_Shark.3mf")["project"]
+    assert got["nozzle"] == "0.4" and got["uses"] == [
+        {"kind": "process", "name": "0.28mm Extra Draft @BBL A1",
+         "values": {"layer_height": "0.28", "wall_loops": "2", "sparse_infill_density": "15%"}},
+        {"kind": "filament", "name": "Bambu PLA Basic @BBL A1", "values": {"filament_type": "PLA", "nozzle_temperature": "220"},
+         "colours": ["#FFFFFF", "#0080FF"]},
+        {"kind": "machine", "name": "Bambu Lab A1 0.4 nozzle", "values": {"printer_model": "Bambu Lab A1", "nozzle_diameter": "0.4"}}]
+
+    # Snapmaker Orca keeps a value per filament and hotend variant: a slot shows its first.
+    project = {"filament_settings_id": ["A", "B"], "nozzle_temperature": ["220", "230", "240", "250"], "filament_colour": ["#111111", "#222222"]}
+    uses = importer.read(zip_of({"Metadata/project_settings.config": project}), "p.3mf")["project"]["uses"]
+    assert [(u["name"], u["values"], u["colours"]) for u in uses] == [("A", {"nozzle_temperature": "220"}, ["#111111"]),
+                                                                      ("B", {"nozzle_temperature": "240"}, ["#222222"])]
 
 
 def test_an_entry_too_big_is_left_out(monkeypatch):
@@ -177,6 +197,15 @@ def test_import_through_the_plan(server, fake_home):
     # What OrcaOne wrote counts as seen on the page "Änderungen".
     assert json.loads(call(f"{base}/news")[1])["count"] == 0
     assert upload(server, inst["id"], b"kein Profil", "x.txt") == (400, {"error": "file_unknown"})
+
+    # A 3MF: what the project uses, whether it is here, and its nozzle for the page to find what fits.
+    project = {"print_settings_id": "0.20mm Standard @Snapmaker U1 (0.4 nozzle)", "printer_settings_id": "Bambu Lab A1 0.4 nozzle",
+               "filament_settings_id": [BASIC], "filament_colour": ["#0080FF"], "nozzle_diameter": ["0.4"]}
+    status, got = upload(server, inst["id"], zip_of({"Metadata/project_settings.config": project}), "Hai.3mf")
+    assert status == 200 and got["profiles"] == [] and got["project"]["nozzle"] == "0.4"
+    assert [(u["name"], u["here"]) for u in got["project"]["uses"]] == [
+        ("0.20mm Standard @Snapmaker U1 (0.4 nozzle)", True), (BASIC, True), ("Bambu Lab A1 0.4 nozzle", False)]
+    assert got["project"]["uses"][1]["colours"] == ["#0080FF"]
 
 
 def test_export(server, fake_home):
