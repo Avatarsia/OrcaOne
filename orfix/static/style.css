@@ -913,6 +913,14 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 0; border-radius: 11px;
   background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; cursor: pointer;
 }
+/* A copy on its way in: where it will land, until "Übernehmen" */
+.xfer-row.is-pending { background: var(--focus-bg); cursor: default; }
+.xfer-row.is-fresh { animation: fresh-in 1.6s ease-out; }
+@keyframes fresh-in { from { background: var(--selected); box-shadow: inset 3px 0 0 var(--accent); } }
+.xfer-in { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.xfer-new { padding: 1px 8px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; }
+.xfer-cancel { width: 26px; height: 26px; }
+.xfer-incoming { color: var(--accent-text); font-weight: 700; }
 .xfer-empty { display: grid; justify-items: center; gap: 6px; padding: 32px 16px; color: var(--muted); text-align: center; }
 .xfer-empty .icon { color: var(--success); }
 

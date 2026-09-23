@@ -26,6 +26,12 @@ const fmt = (v) => isNaN(Number(v)) ? String(v) : Number(v).toFixed(2).replace("
 // "@System" says nothing in the list, the heading tells where a profile comes from.
 const shownName = (name) => plainName(name).replace(/ @(System|base)$/, "");
 const GROUP_ICON = { user: "user", bundle: "package", vendor: "factory", library: "books" };
+// The name a copy gets in the target, as orfix/transfer.py gives it: an own profile keeps its
+// name, a system profile gets its source in brackets. Only for the list; a clash with a name the
+// target has already ends in "(2)", which the plan shows.
+const SHORT = { Snapmaker_Orca: "SnOrca", OrcaSlicer: "Orca" };
+const copyName = (p, from) => p.origin_kind === "user" ? p.name
+  : `${p.name.replace(/ @(System|base)$/, "")} (${SHORT[from.app_key] || from.slicer})`;
 
 export default {
   name: "TransferPage",
@@ -65,11 +71,29 @@ export default {
       const there = namesOf(otherInst);
       const words = query.value.toLowerCase().split(/\s+/).filter(Boolean);
       const map = new Map();
+      const matches = (p, name) => words.every((w) => `${name} ${p.vendor || ""} ${p.material || ""}`.toLowerCase().includes(w));
+      // Copies queued for this side show where they will land: among the own profiles, first,
+      // whatever the filter "Nur was drüben fehlt" says.
+      let incoming = 0;
+      for (const q of queued) {
+        if (q.to !== inst.id || q.kind !== kind.value) continue;
+        const from = INSTANCES.find((i) => i.id === q.from);
+        const p = from && profilesOf(from).find((x) => x.name === q.name);
+        if (!p) continue;
+        incoming++;
+        const name = copyName(p, from);
+        if (!matches(p, name)) continue;
+        if (!map.has("0")) map.set("0", { key: "0", label: T.filaments.kinds.user, icon: "user", rows: [] });
+        map.get("0").rows.push({
+          p, name: plainName(name), pending: from, fresh: q.fresh,
+          colour: kind.value === "filament" ? materialSpool(p.material) : null,
+          layer: kind.value === "filament" ? "" : fmt(p.layer_height), sub: X.comesFrom(from.slicer),
+        });
+      }
       for (const p of profilesOf(inst)) {
         const exists = there.has(matchKey(p.name));
         if (onlyMissing.value && exists) continue;
-        const hay = `${p.name} ${p.vendor || ""} ${p.material || ""}`.toLowerCase();
-        if (!words.every((w) => hay.includes(w))) continue;
+        if (!matches(p, p.name)) continue;
         const g = originGroup(p);
         if (!map.has(g.key)) map.set(g.key, { ...g, icon: GROUP_ICON[p.origin_kind], rows: [] });
         const q = queued.find((x) => x.from === inst.id && x.kind === kind.value && x.name === p.name);
@@ -82,8 +106,9 @@ export default {
         });
       }
       const groups = [...map.values()].sort((a, b) => a.key.localeCompare(b.key, "de"));
-      for (const g of groups) g.rows.sort((a, b) => a.name.localeCompare(b.name, "de"));
-      return { key, inst, groups, count: groups.reduce((n, g) => n + g.rows.length, 0) };
+      for (const g of groups) g.rows.sort((a, b) => !!b.pending - !!a.pending || a.name.localeCompare(b.name, "de"));
+      const count = groups.reduce((n, g) => n + g.rows.filter((r) => !r.pending).length, 0);
+      return { key, inst, groups, count, incoming, empty: !groups.length };
     }
     const sides = computed(() => [side(left.value, right.value, "left"), side(right.value, left.value, "right")]);
 
@@ -91,13 +116,15 @@ export default {
       const set = chosen[key];
       set.has(name) ? set.delete(name) : set.add(name);
     }
+    // What a click can pick: neither queued already nor a copy on its way in.
+    const pickable = (g) => g.rows.filter((r) => !r.queued && !r.pending).map((r) => r.p.name);
     function toggleGroup(key, g) {
-      const names = g.rows.filter((r) => !r.queued).map((r) => r.p.name);
+      const names = pickable(g);
       const all = names.every((n) => chosen[key].has(n));
       for (const n of names) all ? chosen[key].delete(n) : chosen[key].add(n);
     }
     const groupState = (key, g) => {
-      const names = g.rows.filter((r) => !r.queued).map((r) => r.p.name);
+      const names = pickable(g);
       const on = names.filter((n) => chosen[key].has(n)).length;
       return on === 0 ? "false" : on === names.length ? "true" : "mixed";
     };
@@ -110,22 +137,24 @@ export default {
     };
     function push(from, to, key) {
       const names = [...chosen[key]];
+      // fresh: the copy lights up once in the other list.
+      for (const q of queued) delete q.fresh;
       for (const name of names) {
         if (!queued.some((q) => q.from === from.id && q.to === to.id && q.kind === kind.value && q.name === name)) {
-          queued.push({ from: from.id, to: to.id, kind: kind.value, name });
+          queued.push({ from: from.id, to: to.id, kind: kind.value, name, fresh: true });
         }
       }
       chosen[key].clear();
       flash(X.queuedFlash(names.length, to.slicer));
     }
-    function unqueue(inst, name) {
-      const idx = queued.findIndex((q) => q.from === inst.id && q.kind === kind.value && q.name === name);
+    function unqueue(from, name) {
+      const idx = queued.findIndex((q) => q.from === from.id && q.kind === kind.value && q.name === name);
       if (idx >= 0) queued.splice(idx, 1);
     }
 
     return {
       T, X, INSTANCES, ui, leftId, rightId, left, right, swap, kind, query, onlyMissing, chosen, sides,
-      toggle, toggleGroup, groupState, blockOf, blockText, push, unqueue,
+      toggle, toggleGroup, groupState, pickable, blockOf, blockText, push, unqueue,
     };
   },
 
@@ -174,17 +203,31 @@ export default {
                 <div class="xfer-side-title"><strong>{{ s.inst.slicer }}</strong><span class="version">{{ s.inst.version }}</span></div>
                 <run-status :inst="s.inst"/>
               </div>
-              <p class="xfer-side-sub">{{ onlyMissing ? X.missingThere(s.count) : X.shown(s.count) }}</p>
+              <p class="xfer-side-sub">{{ onlyMissing ? X.missingThere(s.count) : X.shown(s.count) }}<span v-if="s.incoming" class="xfer-incoming"> · {{ X.incoming(s.incoming) }}</span></p>
               <div class="xfer-list">
                 <template v-for="g in s.groups" :key="g.key">
                   <div class="xfer-group">
                     <input type="checkbox" :checked="groupState(s.key, g) === 'true'" :indeterminate="groupState(s.key, g) === 'mixed'"
-                           :aria-label="X.allOf(g.label)" :title="X.allOf(g.label)" @change="toggleGroup(s.key, g)">
+                           :disabled="!pickable(g).length" :aria-label="X.allOf(g.label)" :title="X.allOf(g.label)" @change="toggleGroup(s.key, g)">
                     <span class="xfer-group-icon"><ui-icon :name="g.icon" :size="16"/></span>
                     <span class="xfer-group-label">{{ g.label }}</span>
                     <span class="xfer-group-count">{{ g.rows.length }}</span>
                   </div>
-                  <label v-for="r in g.rows" :key="r.p.name" :class="['xfer-row', { 'is-chosen': chosen[s.key].has(r.p.name), 'is-queued': r.queued }]">
+                  <template v-for="r in g.rows" :key="(r.pending ? 'in:' : '') + r.p.name">
+                  <div v-if="r.pending" :class="['xfer-row', 'is-pending', { 'is-fresh': r.fresh }]">
+                    <span class="xfer-in"><ui-icon :name="s.key === 'right' ? 'arrowRight' : 'arrowLeft'" :size="14"/></span>
+                    <spool-icon v-if="r.colour" :colour="r.colour" :size="26"/>
+                    <span v-else class="xfer-layer">{{ r.layer }}<small>mm</small></span>
+                    <span class="xfer-text">
+                      <span class="xfer-name" :title="r.name">{{ r.name }}</span>
+                      <span class="xfer-sub">{{ r.sub }}</span>
+                    </span>
+                    <span class="xfer-badges">
+                      <span class="xfer-new">{{ X.newHere }}</span>
+                      <button class="icon-btn xfer-cancel" type="button" :title="X.cancelCopy" :aria-label="X.cancelCopy" @click="unqueue(r.pending, r.p.name)"><ui-icon name="close" :size="16"/></button>
+                    </span>
+                  </div>
+                  <label v-else :class="['xfer-row', { 'is-chosen': chosen[s.key].has(r.p.name), 'is-queued': r.queued }]">
                     <input type="checkbox" :checked="chosen[s.key].has(r.p.name)" :disabled="!!r.queued" @change="toggle(s.key, r.p.name)">
                     <spool-icon v-if="r.colour" :colour="r.colour" :size="26"/>
                     <span v-else class="xfer-layer">{{ r.layer }}<small>mm</small></span>
@@ -200,8 +243,9 @@ export default {
                       </button>
                     </span>
                   </label>
+                  </template>
                 </template>
-                <div v-if="!s.count" class="xfer-empty">
+                <div v-if="s.empty" class="xfer-empty">
                   <ui-icon :name="onlyMissing ? 'checkCircle' : 'search'" :size="30"/>
                   <p>{{ onlyMissing ? X.nothingMissing : X.none }}</p>
                 </div>
