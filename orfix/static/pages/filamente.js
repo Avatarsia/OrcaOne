@@ -7,7 +7,7 @@
 // here, too. Nothing is written here: the change list in app.js collects all of it, ops.js turns
 // the state below (`store`) into the ops of POST /plan.
 import {
-  INSTANCES, FIELDS, live, flash, go, hashOf, plural, nozzleLabel, printerShortName,
+  INSTANCES, FIELDS, live, ui, flash, go, hashOf, plural, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey,
   setLeaveGuard, clearLeaveGuard, onReset,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
@@ -204,12 +204,6 @@ function entriesOf(inst, model) {
     .filter((e) => stillThere(inst, e))
     .map((e) => withEdits(inst, e));
 }
-// A printer card shows while the slicer shows the printer: a model switched on in "models", an
-// own printer while its file and its vendor package are there.
-function modelShown(inst, m) {
-  const s = live[inst.id];
-  return m.own ? s.own.has(m.model) && (!m.origin || s.packages.has(m.origin)) : s.models.has(m.model);
-}
 function isOn(inst, e, printer) {
   const profile = e.slots[printer];
   if (!profile) return null;
@@ -313,7 +307,14 @@ export default {
     const model = computed(() => props.modelIdx === null ? null : inst.value.models[props.modelIdx]);
     // Removed under "Drucker": the change list takes it away.
     const gone = computed(() => !!model.value && !modelShown(inst.value, model.value));
-    const nozzle = ref("all");
+    // Shared with the page "Prozesse" (common.js); a printer that is gone means "all".
+    const nozzle = computed({
+      get: () => {
+        const chosen = model.value && chosenNozzle[nozzleKey(inst.value, model.value)];
+        return chosen && model.value.printers.some((p) => p.name === chosen) ? chosen : "all";
+      },
+      set: (v) => { if (model.value) chosenNozzle[nozzleKey(inst.value, model.value)] = v; },
+    });
     const printers = computed(() => !model.value ? []
       : nozzle.value === "all" ? model.value.printers.map((p) => p.name) : [nozzle.value]);
     const entries = computed(() => model.value ? entriesOf(inst.value, model.value) : []);
@@ -623,6 +624,14 @@ export default {
       if (e.kind === "library" && usesList(inst.value, e)) return F.scope.everywhere;
       return ps.length === model.value.printers.length ? F.scope.allNozzles : F.scope.only(labelsOf(ps.map((p) => p.name)));
     });
+    // The page "Details" with the profile of this entry: for a manufacturer entry the one of the
+    // nozzle in view (templateProfile), for an own one its file.
+    function toDetails(e) {
+      const rec = e.record ? inst.value.byName.get(e.record) : templateProfile(e).rec;
+      if (!rec) return;
+      ui.detailsFor = rec.name;
+      go(null, hashOf("details", inst.value.id));
+    }
     function jumpTo(id) {
       const e = entries.value.find((x) => x.id === id);
       if (!e) return flash(F.templateNotFound);
@@ -827,7 +836,7 @@ export default {
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
       brandOpen, toggleBrand, toggleKind, toggleMaterial, toggle, switchOn, toggleAt, lockText,
-      openPanel, closePanel, openDetails, pickRow, jumpTo, removeOwn,
+      openPanel, closePanel, openDetails, pickRow, jumpTo, toDetails, removeOwn,
       dragStart, dragEnd, dragOver, drop, KIND_ICON,
     };
   },
@@ -1082,6 +1091,9 @@ export default {
                       @click="openEditor(detail.e, 'new')"><ui-icon name="plus"/>{{ F.newFrom }}</button>
               <button v-if="detail.e.kind === 'user'" class="btn btn-danger right" type="button" :disabled="readOnly" @click="removeOwn(detail.e)"><ui-icon name="trash"/>{{ F.delete }}</button>
             </div>
+            <p v-if="!detail.e.fresh" class="details-link">
+              <button class="link" type="button" @click="guarded(() => toDetails(detail.e))"><ui-icon name="info"/>{{ T.details.toDetails }}</button>
+            </p>
           </template>
         </template>
 

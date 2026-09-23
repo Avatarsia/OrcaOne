@@ -36,10 +36,12 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
   - Stil wie die heutige Oberfläche in `orfix/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orfix/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
   - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
   - Satzschreibung, Status immer als Text plus Farbe.
-- **Oberfläche:** drei Seiten.
+- **Oberfläche:**
   - **Filamente:** Drucker wählen → Düse → Baum aus Eigene, Vom Hersteller und Orca-Bibliothek.
+  - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
   - **Drucker:** Standard festlegen, aufräumen.
   - **Sicherungen.**
+  - Unter „Technik“: **Slicer** (Datenordner) und **Details** (alles zu einem Filament).
 
   Details nur auf Anforderung im Seitenpanel. Kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos.
 - **Plattformen:** Linux und Windows gleichwertig. Pfade nur mit `pathlib`.

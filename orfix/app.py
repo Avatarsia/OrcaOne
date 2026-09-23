@@ -130,6 +130,16 @@ def remove_manual(path: str):
     return {"removed": path}
 
 
+@app.get("/api/instances/{instance_id}/profile")
+def profile(instance_id: str, kind: str, name: str):
+    # Read on demand: every value of every profile would make GET /api/data megabytes larger.
+    details = overview.profile_details(operations.find_instance(instance_id)[0], kind, name) \
+        if kind in ("filament", "process", "machine") else None
+    if details is None:
+        return _error("unknown_profile", 404, name=name)
+    return details
+
+
 # ---------------------------------------------------------------- changes (hard rule 5)
 
 @app.post("/api/instances/{instance_id}/plan")

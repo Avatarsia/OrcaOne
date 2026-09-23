@@ -787,3 +787,52 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   .nozzle-tile { min-width: 64px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Page "Prozesse": one tile per process, the layer height large */
+.proc-last-line { display: flex; align-items: center; gap: 6px; margin: -4px 0 16px; color: var(--accent-text); font-size: 13px; font-weight: 700; }
+.proc-group .box-head { align-items: center; }
+.proc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.proc-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; height: 100%; padding: 14px 8px 12px;
+  border: 1px solid var(--line-input); border-radius: 8px; background: var(--surface); color: var(--text); text-align: center; cursor: pointer;
+}
+.proc-tile:hover { border-color: var(--accent-line); }
+.proc-tile[aria-current="true"] { border-color: var(--accent-line); background: var(--selected); }
+.proc-layer { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.proc-layer small { margin-left: 2px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.proc-kind { font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+.proc-last { margin-top: 4px; }
+.proc-hero { display: grid; place-items: center; flex: none; width: 88px; height: 64px; border-radius: 8px; background: var(--focus-bg); color: var(--accent-text); }
+.proc-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.proc-value { padding: 8px 10px; border-radius: 6px; background: var(--surface-2); }
+.proc-value dt { color: var(--muted); font-size: 12px; }
+.proc-value dd { font-weight: 700; overflow-wrap: anywhere; }
+.all-values { margin-top: 20px; }
+.view-only { margin-top: 20px; }
+.kv { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 6px 12px; margin: 8px 0 0; font-size: 13px; }
+.kv dt { color: var(--label); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.kv dd { overflow-wrap: anywhere; }
+.kv dd small { display: block; color: var(--muted); font-size: 11px; }
+/* In the narrow side panel each value goes below its key. */
+.panel .kv { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.panel .kv dd { margin-bottom: 8px; }
+
+/* Page "Details" */
+.details-page h1 { margin-bottom: 4px; font-size: 20px; font-weight: 700; }
+.details-page > .note { margin-bottom: 16px; }
+.details-page .field { margin-top: 0; }
+.details-page .search { display: block; flex: none; }
+.details-filter { display: block; margin-bottom: 8px; }
+.details-link { margin-top: 16px; }
+.details-link .link { display: inline-flex; align-items: center; gap: 6px; }
+.status-text { flex: none; font-weight: 700; }
+.status-reason { flex-basis: 100%; color: var(--muted); font-size: 12px; }
+.st-on { color: var(--success); }
+.st-off { color: var(--muted); }
+.st-warn { color: var(--warn); }
+.chain { margin: 8px 0 0; padding-left: 22px; }
+.chain li { padding: 6px 0; border-bottom: 1px solid var(--divider); }
+.chain li small { display: block; color: var(--muted); font-size: 12px; }
+.chain-name { font-weight: 700; overflow-wrap: anywhere; }
+.chain-missing .chain-name { color: var(--error); }
+

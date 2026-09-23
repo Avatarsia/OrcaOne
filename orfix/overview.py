@@ -191,6 +191,73 @@ def _only_on(res: Resolver, printer_names: set) -> list:
     return sorted(out, key=lambda i: (i["kind"], i["name"].lower()))
 
 
+# ---------------------------------------------------------------- page "Prozesse"
+
+# The slicer's default for the values the page shows first, where no profile of the chain sets
+# them: PrintConfigDef, the same in Snapmaker Orca 2.4.0 and OrcaSlicer main (PrintConfig.cpp,
+# e.g. brim_type at line 1350 and 1857). Strings as the slicer writes them to JSON.
+PROCESS_DEFAULTS = {
+    "layer_height": "0.2", "initial_layer_print_height": "0.2", "seam_position": "aligned",
+    "ironing_type": "no ironing", "wall_loops": "2", "top_shell_layers": "4", "bottom_shell_layers": "3",
+    "sparse_infill_density": "20%", "sparse_infill_pattern": "crosshatch", "outer_wall_speed": "60",
+    "inner_wall_speed": "60", "sparse_infill_speed": "100", "top_surface_speed": "100",
+    "initial_layer_speed": "30", "travel_speed": "120", "default_acceleration": "500", "enable_support": "0",
+    "support_type": "normal(auto)", "support_threshold_angle": "30", "support_on_build_plate_only": "0",
+    "brim_type": "auto_brim", "brim_width": "0", "skirt_loops": "1", "raft_layers": "0",
+}
+
+
+def _process_record(res: Resolver, p) -> dict:
+    """A process as a tile: its layer height, and the name up to "@", which names the kind."""
+    record = {"name": p.name, "alias": p.alias, "origin_kind": p.origin_kind, "package": p.package or None,
+              "layer_height": first(res.value(p, "layer_height")) or PROCESS_DEFAULTS["layer_height"]}
+    if not p.package:
+        parent = res.parent(p)
+        record["template"] = parent.name if parent else None
+    if p.bundle:
+        record["bundle"] = res.scan.bundles.get(p.bundle, "")
+    return record
+
+
+def _link(p) -> dict:
+    return {"name": p.name, "origin_kind": p.origin_kind, "package": p.package or None, "file": p.file,
+            "abstract": not p.selectable}
+
+
+def profile_details(instance: Instance, kind: str, name: str) -> dict | None:
+    """One profile as the slicer resolves it, read on demand for the side panel of the page
+    "Prozesse" and for the page "Details": its chain of templates with their files, and every
+    value with the profile that sets it. A process also gets the slicer's default for the values
+    the page shows first. None if there is no such profile."""
+    scan = scanner.scan(instance.data_dir, instance.slicer)
+    res = Resolver(scan)
+    found = [p for p in scan.of_kind(kind) if p.name == name and p.selectable]
+    found += [p for p in res.own_profiles(kind) if p.name == name]
+    if not found:
+        return None
+    p = found[0]
+    chain, complete = res.chain(p)
+    values = {}
+    for q in [p] + chain:
+        for key, value in q.values.items():
+            # "…_settings_id" repeats the name.
+            if key not in values and key not in scanner.META_KEYS and not key.endswith("_settings_id"):
+                values[key] = {"value": value, "source": q.name, "own": q is p}
+    if kind == "process":
+        for key, value in PROCESS_DEFAULTS.items():
+            values.setdefault(key, {"value": value, "source": None, "own": False, "default": True})
+    out = {**_link(p), "kind": kind, "inherits": p.inherits or None, "renamed_from": p.renamed_from,
+           "chain": [_link(q) for q in chain], "chain_complete": complete, "values": dict(sorted(values.items()))}
+    if not p.package:
+        state = res.state(p)
+        out["info"] = _info(p)
+        out["problem"] = state.problem if state else None
+        out["parent_via"] = state.via if state else None
+    if p.bundle:
+        out["bundle"] = scan.bundles.get(p.bundle, "")
+    return out
+
+
 # ---------------------------------------------------------------- page "Drucker"
 
 def _printers_page(res: Resolver, system_models: list, system_printers: list, selected: str) -> dict:
@@ -466,6 +533,11 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
 
     processes_all = [p for p in scan.of_kind("process") if p.selectable] + \
                     [p for p in res.own_profiles("process") if res.loaded(p)]
+    # The process last chosen per printer: the slicer keeps the current one in "presets", the
+    # others in "orca_presets" (FINDINGS 4.3).
+    presets = _dict(conf.get("presets"))
+    remembered = {e["machine"]: e.get("process") for e in _items(conf.get("orca_presets"))
+                  if isinstance(e, dict) and isinstance(e.get("machine"), str)}
     same_alias = []
 
     def variant_entry(variant, printer):
@@ -484,8 +556,12 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
                 if r["printers"][printer.name]["status"] == "visible" and r["origin_kind"] != "user":
                     seen.setdefault(r["alias"], []).append(r["name"])
             same_alias.extend((printer.name, names) for names in seen.values() if len(names) > 1)
+        last = presets.get("process") if printer.name == selected else None
+        if not isinstance(last, str) or last not in proc_names:
+            last = remembered.get(printer.name)
         return {"name": printer.name, "variant": variant, "selected": printer.name == selected,
-                "counts": counts, "process_count": len(proc_names), "processes": proc_names}
+                "counts": counts, "process_count": len(proc_names), "processes": proc_names,
+                "process": last if isinstance(last, str) and last in proc_names else None}
 
     system_models = [{"model": m["model"], "origin": m["package"],
                       "printers": [variant_entry(variant, printer) for variant, printer in m["printers"]],
@@ -525,6 +601,7 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
         "filament_list": {"mode": "list" if filament_list else "all", "count": len(filament_list)},
         "models": out_models,
         "filaments": list(records.values()),
+        "processes": [_process_record(res, p) for p in processes_all],
         "without_printer": without_printer,
         "warnings": warnings,
         "stats": {

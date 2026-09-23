@@ -21,15 +21,17 @@ export const FIELDS = shallowReactive([]);
 export const loadState = reactive({ status: "loading", error: null, busy: false, generated: null, version: 0 });
 
 // ------------------------------------------------------------ routing
-// #/<page>/<installation>, for one printer #/filamente/<installation>/<model index>. The
-// installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["filamente", "drucker", "sicherungen", "slicer"];
+// #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
+// for "prozesse"). The installation is part of the address, so a reload stays with it.
+export const PAGE_IDS = ["filamente", "prozesse", "drucker", "sicherungen", "slicer", "details"];
+// Pages that show one printer at a time: the menu keeps the printer when switching between them.
+export const PRINTER_PAGES = ["filamente", "prozesse"];
 
 export function parseHash(hash) {
   const [page, instId, idx] = hash.replace(/^#\/?/, "").split("/");
   if (!PAGE_IDS.includes(page)) return { page: "filamente", instId: null, modelIdx: null };
   const inst = INSTANCES.find((i) => i.id === instId) || null;
-  const ok = page === "filamente" && !!inst && /^\d+$/.test(idx || "") && !!inst.models[+idx];
+  const ok = PRINTER_PAGES.includes(page) && !!inst && /^\d+$/.test(idx || "") && !!inst.models[+idx];
   return { page, instId: inst ? inst.id : null, modelIdx: ok ? +idx : null };
 }
 export const hashOf = (page, instId, modelIdx = null) =>
@@ -63,7 +65,8 @@ export function go(ev, hash) {
 
 // ------------------------------------------------------------ shared state
 // The chosen installation follows the address (app.js).
-export const ui = reactive({ instId: null, toast: "" });
+// detailsFor: a filament the page "Details" opens with (from the page "Filamente").
+export const ui = reactive({ instId: null, toast: "", detailsFor: null });
 
 // One word per state on every page.
 export function statusText(inst) {
@@ -110,6 +113,19 @@ const copyLive = (s) => ({
   defaultPrinter: s.defaultPrinter, dead: [...s.dead], hideUnused: s.hideUnused,
 });
 export const live = reactive({});
+
+// A printer card shows while the slicer shows the printer: a model switched on in "models", an
+// own printer while its file and its vendor package are there. "Entfernen" on the page
+// "Drucker" takes it away before it is written.
+export function modelShown(inst, m) {
+  const s = live[inst.id];
+  return m.own ? s.own.has(m.model) && (!m.origin || s.packages.has(m.origin)) : s.models.has(m.model);
+}
+
+// The nozzle chosen per printer model, the same on the pages "Filamente" and "Prozesse": a
+// printer name, or "all" (only the page "Filamente" offers that).
+export const chosenNozzle = reactive({});
+export const nozzleKey = (inst, model) => inst.id + "|" + model.model;
 
 // Pages with state of their own (the filament switches) rebuild it here after every load and
 // after "Verwerfen".
@@ -324,6 +340,7 @@ export const ICONS = {
   user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.8 3.6-6 7-6s6.2 2.2 7 6"/>',
   factory: '<path d="M3.5 20.5h17M5 20.5V12l4.5 3v-3l4.5 3v-3l4.5 3v5.5M15.5 12.5V4.5h3v8.2"/>',
   package: '<path d="m12 3.5 8 4v9l-8 4-8-4v-9z"/><path d="m4 7.5 8 4 8-4M12 11.5v9M8 5.5l8 4"/>',
+  layers: '<path d="m12 4 8.5 4.5L12 13 3.5 8.5z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5"/>',
   books: '<rect x="3.5" y="4.5" width="4" height="15.5" rx="1"/><rect x="9" y="4.5" width="4" height="15.5" rx="1"/><path d="m14.7 6.2 3.8-1 3 14.4-3.8 1z"/>',
   temp: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>',
   bed: '<rect x="3" y="15" width="18" height="3.5" rx="1"/><path d="M8 12c1-1.2-.6-2.3.4-4M12 12c1-1.2-.6-2.3.4-4M16 12c1-1.2-.6-2.3.4-4"/>',

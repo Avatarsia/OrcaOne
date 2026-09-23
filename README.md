@@ -36,12 +36,14 @@ Optionen: `--port 8765` für einen festen Port, `--no-browser`, wenn der Browser
 Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“.
 
 - **Filamente:** erst die Drucker als Bilder, dann je Drucker die Düse, die aktiven Filamente als Spulen und der Baum aus „Eigene“, „Vom Hersteller“ und „Orca-Bibliothek“. Ein- und ausschalten per Schalter oder Ziehen, dazu „Bearbeiten“ und „Neues Filament“.
+- **Prozesse:** dieselbe Druckerwahl, dann je Düse die Prozesse als Kacheln mit Schichthöhe und Art, der zuletzt im Slicer gewählte ist markiert. Ein Klick zeigt die wichtigsten Werte in fünf Gruppen, dazu „Alle Werte“. Nur zum Ansehen.
 - **Drucker:** den Drucker festlegen, mit dem der Slicer startet, Drucker entfernen und dabei Filamente mitlöschen, die nur zu ihm gehören, veraltete Einträge der `.conf` aufräumen.
 - **Sicherungen:** alle Sicherungen mit Größe, Anlass und Gesamtgröße.
   - „Jetzt sichern“ legt sofort eine an.
   - „Löschen …“ fragt vorher nach.
   - „Wiederherstellen …“ zeigt erst „Das passiert“: was zurückkommt und was wegfällt.
 - **Slicer** (unter „Technik“): alle Installationen, Hinweise, Platz, Ordnerbaum mit Erklärung je Ordner, Herstellerpakete, `.conf` und Datenordner von Hand hinzufügen oder entfernen.
+- **Details** (unter „Technik“): ein Filament aus einer Liste mit Suche wählen und alles dazu sehen: Drucker und Düsen mit Status, die Vererbungskette bis zum Originalprofil, die Dateien, die `.info` und jeden Wert mit dem Profil, das ihn setzt. Das Seitenpanel auf „Filamente“ springt mit „Alle Details“ hierher.
 
 Alles Ändernde landet in der Änderungsliste unten. So wird daraus eine Änderung am Slicer:
 

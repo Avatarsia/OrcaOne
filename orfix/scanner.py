@@ -48,8 +48,8 @@ class Profile:
     renamed_from: list = field(default_factory=list)  # explicit or implicit, FINDINGS 4.4
     values: dict = field(default_factory=dict)        # own settings only: key -> str or list
     setting_id: str = ""       # system profiles: the id an own child keeps as base_id in its .info
+    file: str | None = None    # path relative to the data directory; the cache file for an .opc package
     # Own profiles only:
-    file: str | None = None    # path relative to the data directory
     load_pass: int = 0         # the slicer loads folder by folder; a parent must come earlier
     problem: str | None = None  # invalid_json, bad_version, wrong_type: the slicer skips it
     json_name: str | None = None  # "name" in the file, if it differs from the name used
@@ -208,6 +208,7 @@ def _load_json_package(scan: Scan, manifest_path: Path, manifest: dict) -> None:
                 continue
             listed.add(path.relative_to(folder).as_posix())
             profile = profile_from_json(data, "filament", name)
+            profile.file = f"system/{name}/{path.relative_to(folder).as_posix()}"
             scan.profiles[(name, "filament", profile.name)] = profile
             package.counts["filament"] += 1
     for list_key, kind in (("machine_list", "machine"), ("process_list", "process"), ("filament_list", "filament")):
@@ -217,6 +218,7 @@ def _load_json_package(scan: Scan, manifest_path: Path, manifest: dict) -> None:
             if not isinstance(data, dict):
                 continue
             profile = profile_from_json(data, kind, name)
+            profile.file = f"system/{name}/{sub_path}"
             scan.profiles[(name, kind, profile.name)] = profile
             package.counts[kind] += 1
     listed |= set(_sub_paths(manifest, "machine_model_list"))
@@ -249,7 +251,7 @@ def _load_opc_package(scan: Scan, path: Path, cache: opc.VendorCache) -> None:
                 instantiation=entry.instantiation or "true",
                 renamed_from=implicit_renamed_from(entry.name, entry.renamed_from),
                 values={k: opc.to_json_value(o) for k, o in entry.config.items()},
-                setting_id=entry.setting_id,
+                setting_id=entry.setting_id, file=package.file,
             )
             scan.profiles[(cache.vendor_name, kind, entry.name)] = profile
             package.counts[kind] += 1

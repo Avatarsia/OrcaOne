@@ -251,3 +251,42 @@ def test_bundle_profiles_are_marked(fake_home, tmp_path):
     # Removing the U1 does not offer the bundle filament for deleting along: Orfix never deletes it.
     u1 = next(m for m in data["printers_page"]["system"] if m["model"] == "Snapmaker U1")
     assert all(x["name"] != f"{BUNDLE}/Paket PLA" for x in u1["only_here"])
+
+
+def test_processes_and_the_last_choice(snorca):
+    records = {r["name"]: r for r in snorca["processes"]}
+    standard = records["0.20mm Standard @Snapmaker U1 (0.4 nozzle)"]
+    assert (standard["alias"], standard["origin_kind"], standard["layer_height"]) == ("0.20mm Standard", "vendor", "0.2")
+    u1 = next(m for m in snorca["models"] if m["model"] == "Snapmaker U1")
+    by_nozzle = {v["variant"]: v for v in u1["printers"]}
+    # No "process" in "presets": the choice kept in "orca_presets" counts.
+    assert by_nozzle["0.4"]["process"] == "0.08mm Standard @Snapmaker U1 (0.4 nozzle)"
+    # A remembered process the printer does not offer any more is no choice.
+    assert by_nozzle["0.2"]["process"] is None
+
+
+def test_profile_details_follow_the_chain(fake_home):
+    instance = instances.load_instance((FIXTURES / "snorca").resolve(), "manual")
+    details = overview.profile_details(instance, "process", "0.20mm Standard @Snapmaker U1 (0.4 nozzle)")
+    assert [(c["name"], c["file"], c["abstract"]) for c in details["chain"]][0] == \
+        ("fdm_process_U1_0.20", "system/Snapmaker/process/fdm_process_U1_0.20.json", True)
+    assert details["file"] == "system/Snapmaker/process/0.20mm Standard @Snapmaker U1 (0.4 nozzle).json"
+    assert details["values"]["layer_height"] == {"value": "0.2", "source": "fdm_process_U1_common", "own": False}
+    # No profile sets it: the slicer's default.
+    assert details["values"]["brim_type"] == {"value": "auto_brim", "source": None, "own": False, "default": True}
+    assert not {"inherits", "name", "print_settings_id"} & set(details["values"])
+
+    own = overview.profile_details(instance, "filament", "Mein PLA")
+    assert (own["file"], own["origin_kind"], own["problem"]) == ("user/default/filament/Mein PLA.json", "user", None)
+    assert own["chain"][0]["origin_kind"] == "vendor"
+    orphan = overview.profile_details(instance, "filament", "Altes PETG")
+    assert orphan["problem"] == "parent_missing" and not orphan["chain_complete"]
+    assert overview.profile_details(instance, "process", "Gibt es nicht") is None
+
+
+def test_opc_profiles_name_their_cache_file(orca):
+    instance = instances.load_instance((FIXTURES / "orca").resolve(), "manual")
+    details = overview.profile_details(instance, "filament", "Generic PLA @System")
+    assert details["file"] == "system/OrcaFilamentLibrary.opc"
+    assert all(c["file"] == "system/OrcaFilamentLibrary.opc" for c in details["chain"])
+

@@ -3,6 +3,7 @@ import os
 import posixpath
 import re
 import sys
+import urllib.parse
 import urllib.request
 
 import pytest
@@ -171,3 +172,14 @@ def test_api_error_codes(server, fake_home):
     assert status == 400 and json.loads(body)["error"] == "invalid_change"
     status, body = call(f"{base}/apply", "POST", {"plan_id": "nope"})
     assert (status, json.loads(body)) == (404, {"error": "plan_not_found"})
+
+
+def test_profile_details_on_demand(server, fake_home):
+    copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    base = f"{server}/api/instances/{inst['id']}/profile"
+    status, body = call(f"{base}?kind=process&name={urllib.parse.quote('0.20mm Standard @Snapmaker U1 (0.4 nozzle)')}")
+    assert status == 200 and json.loads(body)["values"]["layer_height"]["value"] == "0.2"
+    assert call(f"{base}?kind=process&name=nope")[0] == 404
+    assert call(f"{base}?kind=zauber&name=nope")[0] == 404
+

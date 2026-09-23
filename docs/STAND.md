@@ -132,3 +132,11 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
    - Vorher im Quellcode klären, wie ein übertragenes Profil in SnOrca aussehen muss: alle Werte ausgeschrieben oder auf einem SnOrca-Profil aufbauend, High-Flow-Werte, Schlüssel, die SnOrca nicht kennt, `compatible_printers`. Dann ein Praxistest mit einem einzelnen Profil.
    - Danach Druckerprofile (U1) in beide Richtungen.
 4. **Kleinkram:** eine echte Windows-`.conf`, Flatpak, `version` neuer Profile am Slicer prüfen, PLAN.md und STAND aufräumen.
+
+## Prozesse und Details (23.09.2026)
+
+- **Seite „Prozesse“** (nur ansehen): Druckerwahl wie auf „Filamente“, die Düse gilt für beide Seiten (`chosenNozzle` in `common.js`). Kacheln mit Schichthöhe und Art, markiert ist die letzte Wahl aus `presets.process` bzw. `orca_presets`. Das Seitenpanel zeigt Qualität, Stabilität, Geschwindigkeit, Stützen und Haftung, dazu „Alle Werte“. Fehlt ein Wert in der ganzen Kette, zeigt Orfix den Standardwert des Slicers (`PROCESS_DEFAULTS` in `overview.py`, geprüft in `PrintConfig.cpp` beider Slicer).
+- **Seite „Details“** (unter „Technik“, Wunsch vom 23.09.): ein Filament aus einer Liste mit Suche, dazu Drucker und Düsen mit Status, die Vererbungskette mit Originalprofil, die Dateien, die `.info` und alle Werte. Aus dem Seitenpanel von „Filamente“ führt „Alle Details“ hierher.
+- **Backend:** `GET /api/instances/{id}/profile?kind=…&name=…` liefert ein Profil mit Kette, Dateien und Werten. Herstellerprofile tragen jetzt ihren Dateipfad, bei `.opc` die Cache-Datei.
+- **Offen:** Die Seite „Details“ kann bisher nur Filamente. Prozesse und Drucker gingen mit derselben Abfrage.
+

@@ -36,6 +36,8 @@ export const api = {
   // /apply. The backend refuses the apply if a file changed since the plan (plan_outdated).
   plan: (id, changes) => request("POST", `${instUrl(id)}/plan`, { changes }),
   apply: (id, planId) => request("POST", `${instUrl(id)}/apply`, { plan_id: planId }),
+  // One profile with its chain, files and every value (pages "Prozesse" and "Details").
+  profile: (id, kind, name) => request("GET", `${instUrl(id)}/profile?kind=${kind}&name=${encodeURIComponent(name)}`),
   backups: (id) => request("GET", `${instUrl(id)}/backups`),
   backupNow: (id) => request("POST", `${instUrl(id)}/backups`),
   deleteBackup: (id, name) => request("DELETE", backupUrl(id, name)),

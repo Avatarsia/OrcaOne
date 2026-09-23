@@ -4,7 +4,7 @@
 // its "Übernehmen" sends POST /apply; the backend backs up first, then the data is read again. What
 // the backend's check after writing reports stays in the panel (DoneView).
 import {
-  INSTANCES, FAILED, BACKUPS, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
+  INSTANCES, FAILED, BACKUPS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon,
 } from "./common.js";
 import { T } from "./texts.js";
@@ -15,15 +15,19 @@ import FilamentePage, { changes as filamentChanges } from "./pages/filamente.js"
 import DruckerPage from "./pages/drucker.js";
 import SicherungenPage from "./pages/sicherungen.js";
 import SlicerPage from "./pages/slicer.js";
+import ProzessePage from "./pages/prozesse.js";
+import DetailsPage from "./pages/details.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
 const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
+  { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "drucker", icon: "printer", component: DruckerPage },
   { id: "sicherungen", icon: "backup", component: SicherungenPage },
   { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
+  { id: "details", icon: "info", component: DetailsPage },
 ].map((p) => ({ ...p, label: T.nav.pages[p.id] }));
 
 // Icon and colour class per type of change; the verbs are in texts.js.
@@ -43,9 +47,12 @@ const app = createApp({
     // A new key per route and per load mounts the page fresh, so a printer view never patches
     // over the last one and never keeps state from old data.
     const pageKey = computed(() => [route.value.page, ui.instId, route.value.modelIdx, loadState.version].join("|"));
-    const pageProps = computed(() => route.value.page === "filamente"
+    const pageProps = computed(() => PRINTER_PAGES.includes(route.value.page)
       ? { instId: ui.instId, modelIdx: route.value.modelIdx }
       : { instId: ui.instId });
+    // Between "Filamente" and "Prozesse" the menu keeps the printer.
+    const navHash = (p) => hashOf(p.id, ui.instId,
+      PRINTER_PAGES.includes(p.id) && PRINTER_PAGES.includes(route.value.page) ? route.value.modelIdx : null);
 
     // ------------------------------------------------------------ change list
     // All pages, all installations. Each installation is planned and written on its own, with
@@ -270,7 +277,7 @@ const app = createApp({
     });
 
     return {
-      INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, badges, go, hashOf, leave,
+      INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, navHash, badges, go, hashOf, leave,
       statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan,
@@ -312,7 +319,7 @@ const app = createApp({
       <nav class="nav" :aria-label="T.nav.label">
         <template v-for="p in PAGES" :key="p.id">
           <div v-if="p.group" class="nav-label">{{ p.group }}</div>
-          <a class="nav-item" :href="hashOf(p.id, ui.instId)" :aria-current="route.page === p.id ? 'page' : null" @click="go($event, hashOf(p.id, ui.instId))">
+          <a class="nav-item" :href="navHash(p)" :aria-current="route.page === p.id ? 'page' : null" @click="go($event, navHash(p))">
             <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
             <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
                   :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
