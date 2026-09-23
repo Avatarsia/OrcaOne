@@ -70,7 +70,7 @@ Stand 22.09.2026, 11:05. Übergabe zwischen Sessions. Das Wichtigste zuerst, Det
 ## Offene Fehler und Punkte
 
 - **`geckodriver`-Prozess:** Ein Agent hat einen `geckodriver` übrig gelassen (PID 98327, Snap-Firefox). Ihn darf nur der Nutzer beenden: `kill 98327`.
-- **Enter-Taste:** Im Formular „Datenordner hinzufügen“ hat die Enter-Taste im Test-Browser der App nicht abgeschickt, nur der Knopf. In einem echten Browser prüfen.
+- **Enter-Taste:** Im Formular „Datenordner hinzufügen“ schickt Enter im Test-Browser der App nicht ab. Grund (23.09.): Das Werkzeug sendet Enter nur als `keydown` ohne Zeichen, das reicht Browsern nicht zum Abschicken eines Formulars. Tasten, die Orfix selbst auswertet, etwa in der Klappliste auf „Details“, gehen. In einem normalen Browser kurz prüfen.
 - **Windows:** nur mit nachgebauter `.conf` getestet. Eine echte Windows-`.conf` fehlt, vorher `devices` bzw. `local_machines` leeren.
 - **Praxistests offen:** „Bibliothek freischalten“ (Weg A und B, Teil B) und Flatpak.
 - **Gemeldet am 22.09. zu Entwurf E, alle erledigt:** „Läuft“ bei geschlossenem SnOrca (die Daten kommen jetzt live), die verwirrenden Beispielprofile (entfernt), die Ansicht, die Klicks nicht folgte (in E2 behoben), und die toten `orca_presets`-Einträge („Default Printer“ wird erkannt).
@@ -138,5 +138,6 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Seite „Prozesse“** (nur ansehen): Druckerwahl wie auf „Filamente“, die Düse gilt für beide Seiten (`chosenNozzle` in `common.js`). Kacheln mit Schichthöhe und Art, markiert ist die letzte Wahl aus `presets.process` bzw. `orca_presets`. Das Seitenpanel zeigt Qualität, Stabilität, Geschwindigkeit, Stützen und Haftung, dazu „Alle Werte“. Fehlt ein Wert in der ganzen Kette, zeigt Orfix den Standardwert des Slicers (`PROCESS_DEFAULTS` in `overview.py`, geprüft in `PrintConfig.cpp` beider Slicer).
 - **Seite „Details“** (unter „Technik“, Wunsch vom 23.09.): ein Filament aus einer Liste mit Suche, dazu Drucker und Düsen mit Status, die Vererbungskette mit Originalprofil, die Dateien, die `.info` und alle Werte. Aus dem Seitenpanel von „Filamente“ führt „Alle Details“ hierher.
 - **Backend:** `GET /api/instances/{id}/profile?kind=…&name=…` liefert ein Profil mit Kette, Dateien und Werten. Herstellerprofile tragen jetzt ihren Dateipfad, bei `.opc` die Cache-Datei.
+- **Auswahl auf „Details“ (Rückmeldung 23.09.):** eine eigene Klappliste statt `datalist`: Suche mit Wörtern in beliebiger Reihenfolge, kleine Überschriften nach Herkunft und Marke, eigene Filamente mit „abgeleitet von …“. Beim Klick ins Feld ist der Text markiert, man muss nichts löschen. Pfeiltasten, Enter und Escape gehen. „Abgeleitet von“ steht von oben nach unten: Grundprofil oben, das gewählte Profil unten.
 - **Offen:** Die Seite „Details“ kann bisher nur Filamente. Prozesse und Drucker gingen mit derselben Abfrage.
 

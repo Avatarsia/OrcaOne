@@ -10,11 +10,10 @@ import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 import { problemText } from "../plan.js";
 
-const { ref, computed, watch } = Vue;
+const { ref, computed, nextTick } = Vue;
 const D = T.details;
 const F = T.filaments;
 
-const ORIGIN_ORDER = ["user", "bundle", "vendor", "library"];
 const asList = (v) => Array.isArray(v) ? v : [v];
 const valueText = (raw) => asList(raw).join(", ") || "–";
 // Status as text plus colour, as on every page.
@@ -26,10 +25,9 @@ export default {
 
   setup(props) {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
-    // The list: every filament the data knows, own ones first, then by name.
-    const options = computed(() => [...inst.value.filaments].sort((a, b) =>
-      ORIGIN_ORDER.indexOf(a.origin_kind) - ORIGIN_ORDER.indexOf(b.origin_kind) || a.name.localeCompare(b.name, "de")));
-    const query = ref("");
+    const query = ref("");      // what the field shows: the chosen name, or what is typed
+    const open = ref(false);
+    const active = ref(0);      // the entry the arrow keys are on
     const chosen = ref(null);   // the record of GET /api/data
     const details = ref(null);  // GET /profile
     const error = ref("");
@@ -38,14 +36,96 @@ export default {
 
     const originText = (f) => f.origin_kind === "vendor" ? F.kinds.vendorFrom(f.package)
       : f.origin_kind === "bundle" ? F.bundlePrinter(f.bundle) : T.labels.origin_kind[f.origin_kind];
-    // "PLA Basic · Snapmaker · Vom Hersteller" as the second line of an option.
-    const optionLabel = (f) => [f.material, originText(f)].filter(Boolean).join(" · ");
+
+    // ------------------------------------------------------------ the list to pick from
+    // Headings as in the tree on "Filamente": own ones, bundles, then per maker and brand. Own
+    // ones say what they derive from, the others their material.
+    function groupOf(f) {
+      if (f.origin_kind === "user") return { key: "0", label: F.kinds.user };
+      if (f.origin_kind === "bundle") return { key: "1" + f.bundle, label: F.bundlePrinter(f.bundle) };
+      const brand = f.vendor || F.noBrand;
+      if (f.origin_kind === "vendor") return { key: "2" + f.package + "|" + brand, label: `${F.kinds.vendorFrom(f.package)} · ${brand}` };
+      return { key: "3" + brand.toLowerCase(), label: `${F.kinds.library} · ${brand}` };
+    }
+    const subOf = (f) => f.origin_kind === "user" || f.origin_kind === "bundle"
+      ? f.chain[0] ? D.derivedFrom(plainName(f.chain[0])) : D.root
+      : f.material || "";
+    // Typed words filter, in any order; the chosen name standing in the field shows the whole list.
+    const words = computed(() => query.value === shownName(chosen.value) ? [] : query.value.toLowerCase().split(/\s+/).filter(Boolean));
+    const groups = computed(() => {
+      const map = new Map();
+      for (const f of inst.value.filaments) {
+        const hay = `${f.name} ${f.vendor || ""} ${f.material || ""}`.toLowerCase();
+        if (!words.value.every((w) => hay.includes(w))) continue;
+        const g = groupOf(f);
+        if (!map.has(g.key)) map.set(g.key, { ...g, items: [] });
+        map.get(g.key).items.push({ f, name: plainName(f.name), sub: subOf(f) });
+      }
+      const list = [...map.values()].sort((a, b) => a.key.localeCompare(b.key, "de"));
+      let idx = 0;
+      for (const g of list) {
+        g.items.sort((a, b) => a.name.localeCompare(b.name, "de"));
+        for (const it of g.items) it.idx = idx++;
+      }
+      return list;
+    });
+    const flat = computed(() => groups.value.flatMap((g) => g.items));
+    function shownName(f) { return f ? plainName(f.name) : ""; }
+    function openList() {
+      if (!open.value) active.value = Math.max(0, flat.value.findIndex((it) => it.f === chosen.value));
+      open.value = true;
+      nextTick(scrollToActive);
+    }
+    // A click or Tab into the field marks its text, so typing replaces it right away. The click
+    // that brought the focus would put the caret in and undo that, so it marks again.
+    let focusedAt = 0;
+    function onFocus(ev) {
+      focusedAt = Date.now();
+      openList();
+      ev.target.select();
+    }
+    function onClick(ev) {
+      if (!open.value || Date.now() - focusedAt < 400) ev.target.select();
+      openList();
+    }
+    function closeList() {
+      open.value = false;
+      query.value = shownName(chosen.value);
+    }
+    function pick(it) {
+      open.value = false;
+      choose(it.f.name);
+      // The field keeps the focus; its text marked, the next typing starts a new search.
+      nextTick(() => document.getElementById("details-combo")?.select());
+    }
+    function scrollToActive() {
+      document.getElementById("combo-opt-" + active.value)?.scrollIntoView({ block: "nearest" });
+    }
+    function onKey(ev) {
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        if (!open.value) return openList();
+        const n = flat.value.length;
+        if (n) active.value = (active.value + (ev.key === "ArrowDown" ? 1 : n - 1)) % n;
+        nextTick(scrollToActive);
+      } else if (ev.key === "Enter" && open.value && flat.value[active.value]) {
+        ev.preventDefault();
+        pick(flat.value[active.value]);
+      } else if (ev.key === "Escape" && open.value) {
+        ev.stopPropagation();
+        closeList();
+      }
+    }
+    function onInput() {
+      open.value = true;
+      active.value = 0;
+    }
 
     async function choose(name) {
       const f = inst.value.byName.get(name);
       if (!f) return;
       chosen.value = f;
-      query.value = f.name;
+      query.value = shownName(f);
       details.value = null;
       error.value = "";
       filter.value = "";
@@ -57,8 +137,6 @@ export default {
         if (mine === seq) error.value = problemText(err.code, inst.value, err.data);
       }
     }
-    // A name typed or picked in the list; an exact match opens it.
-    watch(query, (q) => { if (q !== chosen.value?.name && inst.value.byName.has(q)) choose(q); });
     // Opened from the page "Filamente" for one filament.
     if (ui.detailsFor) {
       const name = ui.detailsFor;
@@ -85,9 +163,19 @@ export default {
     const nowhere = computed(() => chosen.value && !printerRows.value.length);
 
     // ------------------------------------------------------------ chain and files
-    const chain = computed(() => details.value ? [details.value, ...details.value.chain] : []);
-    // The original: the first template of a manufacturer or the library, the profile itself for those.
-    const original = computed(() => chain.value.find((c) => c.origin_kind === "vendor" || c.origin_kind === "library") || null);
+    // From the base profile at the top down to this one; a template the slicer cannot find on top.
+    const chain = computed(() => details.value ? [...details.value.chain].reverse().concat([details.value]) : []);
+    const missing = computed(() => {
+      const d = details.value;
+      if (!d || d.chain_complete) return null;
+      return (d.chain.length ? d.chain[d.chain.length - 1] : d).inherits;
+    });
+    // The original: the nearest selectable profile of a manufacturer or the library, going up from
+    // this one; for those it is the profile itself.
+    const original = computed(() => {
+      const up = [...chain.value].reverse().filter((c) => c.origin_kind === "vendor" || c.origin_kind === "library");
+      return up.find((c) => !c.abstract) || up[0] || null;
+    });
     const files = computed(() => {
       const d = details.value;
       if (!d) return [];
@@ -119,8 +207,9 @@ export default {
     });
 
     return {
-      T, D, F, inst, options, query, chosen, details, error, filter, choose, originText, optionLabel,
-      printerRows, nowhere, chain, original, files, info, problem, values, plainName,
+      T, D, F, inst, query, open, active, chosen, details, error, filter, choose, originText, groups, flat,
+      onFocus, onClick, closeList, pick, onKey, onInput, printerRows, nowhere, chain, missing, original, files, info,
+      problem, values, plainName,
     };
   },
 
@@ -130,17 +219,29 @@ export default {
       <p class="note">{{ D.lead(inst.slicer) }}</p>
 
       <section class="box">
-        <label class="field">
-          <span class="label">{{ D.pick }}</span>
+        <div class="combo">
+          <label class="combo-label" for="details-combo">{{ D.pick }}</label>
           <span class="search">
             <ui-icon name="search"/>
-            <input v-model="query" class="input" type="text" list="details-options" autocomplete="off" :placeholder="D.pickHint">
+            <input id="details-combo" v-model="query" class="input" type="text" role="combobox" autocomplete="off"
+                   aria-autocomplete="list" aria-controls="details-list" :aria-expanded="open ? 'true' : 'false'"
+                   :aria-activedescendant="open && flat[active] ? 'combo-opt-' + active : null" :placeholder="D.pickHint"
+                   @focus="onFocus" @click="onClick" @input="onInput" @keydown="onKey" @blur="closeList">
+            <ui-icon name="chevronDown" class="combo-chev"/>
           </span>
-        </label>
-        <datalist id="details-options">
-          <option v-for="f in options" :key="f.name" :value="f.name" :label="optionLabel(f)"></option>
-        </datalist>
-        <p class="note">{{ D.count(options.length) }}</p>
+          <div v-if="open" id="details-list" class="combo-list" role="listbox" :aria-label="D.pick">
+            <template v-for="g in groups" :key="g.key">
+              <div class="combo-head" role="presentation">{{ g.label }}</div>
+              <div v-for="it in g.items" :key="it.f.name" :id="'combo-opt-' + it.idx" role="option"
+                   :aria-selected="chosen && chosen.name === it.f.name ? 'true' : 'false'"
+                   :class="['combo-opt', { 'is-active': it.idx === active }]" @mousedown.prevent="pick(it)" @mousemove="active = it.idx">
+                <span class="combo-name">{{ it.name }}</span><small>{{ it.sub }}</small>
+              </div>
+            </template>
+            <p v-if="!flat.length" class="combo-none">{{ D.noMatch }}</p>
+          </div>
+        </div>
+        <p class="note">{{ D.count(inst.filaments.length) }}</p>
       </section>
 
       <p v-if="!chosen" class="empty">{{ D.empty }}</p>
@@ -184,13 +285,13 @@ export default {
             <div class="box-head"><h2>{{ D.chainTitle }}</h2></div>
             <p v-if="original" class="note">{{ D.original }} <strong>{{ plainName(original.name) }}</strong></p>
             <ol class="chain">
-              <li v-for="(c, n) in chain" :key="c.name + n">
-                <span class="chain-name">{{ plainName(c.name) }}</span>
-                <small>{{ n === 0 ? D.thisProfile : c.abstract ? D.abstract : D.template }}<template v-if="c.package"> · {{ c.package }}</template></small>
-              </li>
-              <li v-if="!details.chain_complete && details.inherits" class="chain-missing">
-                <span class="chain-name">{{ plainName(details.chain.length ? details.chain[details.chain.length - 1].name : details.inherits) }}</span>
+              <li v-if="missing" class="chain-missing">
+                <span class="chain-name">{{ plainName(missing) }}</span>
                 <small>{{ D.missing }}</small>
+              </li>
+              <li v-for="(c, n) in chain" :key="c.name + n" :class="{ 'chain-this': n === chain.length - 1 }">
+                <span class="chain-name">{{ plainName(c.name) }}</span>
+                <small>{{ n === chain.length - 1 ? D.thisProfile : c.abstract ? D.abstract : D.template }}<template v-if="c.package"> · {{ c.package }}</template></small>
               </li>
             </ol>
             <p v-if="details.renamed_from && details.renamed_from.length" class="note">{{ D.renamedFrom }} {{ details.renamed_from.join(', ') }}</p>

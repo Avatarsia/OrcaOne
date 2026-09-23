@@ -221,7 +221,7 @@ def _process_record(res: Resolver, p) -> dict:
 
 def _link(p) -> dict:
     return {"name": p.name, "origin_kind": p.origin_kind, "package": p.package or None, "file": p.file,
-            "abstract": not p.selectable}
+            "abstract": not p.selectable, "inherits": p.inherits or None}
 
 
 def profile_details(instance: Instance, kind: str, name: str) -> dict | None:
