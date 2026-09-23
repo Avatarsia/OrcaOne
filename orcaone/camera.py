@@ -29,6 +29,9 @@ import psutil
 from . import settings
 
 TIMEOUT = 5
+# Straight to the printer in the LAN, never through a proxy: on Windows urllib would take the
+# system proxy from the registry (urllib.request.getproxies), which cannot reach it.
+_direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 # A host name or IPv4 address with an optional port: nothing that could become a path.
 _HOST = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(?::\d{1,5})?")
 
@@ -256,6 +259,8 @@ def search(seconds: float = 6.0) -> list[dict]:
                 data, (source, _) = sock.recvfrom(9000)
             except socket.timeout:
                 continue
+            except OSError:
+                continue   # Windows reports an ICMP "unreachable" of an earlier send here
             for printer in _parse_answer(data, source):
                 found.setdefault(printer["host"], printer)
     return sorted(found.values(), key=lambda p: p["host"])
@@ -278,7 +283,7 @@ def status(host: str) -> dict:
     objects = [f"{h}=pressure_advance,temperature,target" for h in HEADS]
     objects += ["print_stats=state,filename", "display_status=progress", "toolhead=extruder", "print_task_config", "filament_detect"]
     try:
-        with urllib.request.urlopen(f"http://{host}/printer/objects/query?{'&'.join(objects)}", timeout=TIMEOUT) as response:
+        with _direct.open(f"http://{host}/printer/objects/query?{'&'.join(objects)}", timeout=TIMEOUT) as response:
             found = json.loads(response.read())["result"]["status"]
         if not isinstance(found, dict):
             raise ValueError("no status")
@@ -318,7 +323,7 @@ def image(host: str) -> tuple[bytes, float | None]:
     Last-Modified, both by the printer's clock, so the computer's clock does not matter."""
     url = f"http://{host}/server/files/camera/monitor.jpg?t={time.time():.0f}"
     try:
-        with urllib.request.urlopen(url, timeout=TIMEOUT) as response:
+        with _direct.open(url, timeout=TIMEOUT) as response:
             data, headers = response.read(), response.headers
     except OSError as exc:
         raise CameraError("camera_unreachable", str(exc)) from None

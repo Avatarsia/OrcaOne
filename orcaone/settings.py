@@ -16,35 +16,56 @@ import os
 import platform
 import shutil
 import threading
+import time
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-_lock = threading.Lock()
+# Reads, too: on Windows a file open for reading cannot be replaced (Python opens it without
+# FILE_SHARE_DELETE), and the pages read the settings every few seconds (camera.py).
+_lock = threading.RLock()
 
 
 def _file() -> Path:
     return DATA_DIR / "settings.json"
 
 
-def load() -> dict:
+def _stored() -> dict:
+    """{} without a file or with a broken one; any other OSError goes up, e.g. while Windows has
+    the file open elsewhere, so that change() never writes over settings it could not read."""
     try:
         data = json.loads(_file().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (FileNotFoundError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def load() -> dict:
+    with _lock:
+        try:
+            return _stored()
+        except OSError:
+            return {}
 
 
 def change(edit) -> None:
     """Read the settings, let edit(settings) change them in place, write them back atomically.
     Under a lock, so two changes at the same time cannot undo each other."""
     with _lock:
-        data = load()
+        data = _stored()
         edit(data)
         file = _file()
         file.parent.mkdir(parents=True, exist_ok=True)
         tmp = file.with_name(file.name + ".tmp")
         tmp.write_text(json.dumps(data, indent=4, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
-        os.replace(tmp, file)
+        for attempt in range(3):
+            try:
+                os.replace(tmp, file)
+                break
+            except PermissionError:
+                # Windows: another program (a virus scanner, a backup tool) has it open for a moment.
+                if attempt == 2:
+                    raise
+                time.sleep(0.1)
 
 
 # ---------------------------------------------------------------- data up to 23.09.2026

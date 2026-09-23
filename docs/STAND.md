@@ -218,3 +218,15 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Im LAN suchen** (Karte eines U1): `camera.search` fragt wie SnOrca per mDNS (Ablauf in FINDINGS), etwa 6 s, und listet die Snapmaker-Drucker mit „Übernehmen“. Geprüft: Die Anfrage gleicht Byte für Byte SnOrcas `make_PTR`, die Auswertung mit nachgebauten Antworten (PTR, SRV mit Kompression, TXT, A). Von diesem Rechner findet sie wegen WireGuard nichts und sagt das; **der Nutzer testet sie zu Hause im selben LAN.**
 - **Kalibrieren nur für den U1** (Wunsch des Nutzers: „bei einem normalen Klipper-Drucker wäre der Vorgang anders“): Oben U1 und Düse wählen, angeboten werden nur U1-Modelle; die Filamentliste zeigt eigene Filamente, die zu diesem Drucker passen. Hat die Installation keinen U1, sagt die Seite das. Bei der 0,2-mm-Düse warnt der PA-Schritt. Im Browser geprüft: SnOrca (0,4: zwei SUNLU, 0,2: COEX ABS samt Warnung) und OrcaSlicer (nur der U1, nicht der Klipper-Drucker).
 - **Menü (Wunsch des Nutzers):** „Kalibrieren“ und „Übertragen“ stehen leicht eingerückt unter „Filamente“, „Kamera“ unter „Drucker“ (`sub` in `app.js`). „Filamente“ bleibt oben, weil dort die Hauptarbeit liegt und die Druckerwahl ihr erster Schritt ist.
+
+## Windows-Durchsicht (23.09.2026)
+
+Auf Wunsch des Nutzers geprüft, ob alles unter Windows läuft; ohne Windows-Rechner, per Quellcode.
+
+- **Behoben:**
+  - `data/settings.json`: Python öffnet Dateien unter Windows ohne `FILE_SHARE_DELETE`, ein offener Leser verhindert also das atomare Ersetzen. Lesen läuft jetzt unter derselben Sperre wie Schreiben. `change()` liest streng: Kann es die Datei nicht lesen, bricht es ab, statt `{}` darüberzuschreiben. `os.replace` versucht es bei `PermissionError` dreimal (Virenscanner). Tests dazu in `tests/test_settings.py`.
+  - LAN-Suche: `recvfrom` meldet unter Windows bei UDP ein früheres ICMP „unreachable“ als `ConnectionResetError`, die Suche läuft jetzt weiter.
+  - Anfragen an den U1 gehen ohne Proxy: `urllib` nähme unter Windows den System-Proxy aus der Registry.
+- **Geprüft, passt:** Programmnamen `snapmaker-orca.exe` und `orca-slicer.exe` (GUI-Hülle mit `OUTPUT_NAME`, `src/CMakeLists.txt`); `fcntl` nur unter POSIX; Pfade über `pathlib`; Rechte (`chmod`) nur unter POSIX; Logs lesen, während der Slicer schreibt (MSVC öffnet sie ohne Schreibsperre für andere); alter Datenordner `%LOCALAPPDATA%\orcaone`; `SO_REUSEPORT` gibt es unter Windows nicht und wird dort übersprungen.
+- **Hinweise im README:** OrcaOne ins eigene Benutzerprofil, nicht unter `C:\Programme` und nicht in OneDrive (Sicherungen mit Zugangsdaten in `data/`; unter Windows setzt OrcaOne keine Rechte); die Firewall-Frage bei „Im LAN suchen“ zulassen.
+- **Prüfliste für den Windows-Rechner:** `orcaone.cmd` starten; alte Daten aus `%LOCALAPPDATA%\orcaone` ziehen nach `data/` um; Sprache umschalten; eine Änderung mit Sicherung und Wiederherstellen; „Logs“ bei laufendem Slicer; IP beim U1 eintragen, dann Kamera (Vollbild) und „Kalibrieren“; „Im LAN suchen“ im selben LAN.

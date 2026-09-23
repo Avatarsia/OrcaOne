@@ -19,7 +19,7 @@ Linux:
 ./orcaone.sh
 ```
 
-Windows: `orcaone.cmd` doppelklicken.
+Windows: `orcaone.cmd` doppelklicken. Den OrcaOne-Ordner dafür ins eigene Benutzerprofil legen, etwa `C:\Users\<Name>\OrcaOne`: Er muss beschreibbar sein (also nicht unter `C:\Programme`), nur du solltest ihn lesen können, und er gehört nicht in einen OneDrive-Ordner wie „Dokumente“ oder „Desktop“, denn die Sicherungen in `data/` enthalten Zugangsdaten. Bei „Im LAN suchen“ fragt die Windows-Firewall beim ersten Mal, ob Python im Netz empfangen darf: für private Netzwerke zulassen, sonst findet die Suche nichts.
 
 Beim ersten Start legen die Skripte die Python-Umgebung `.lenv` an und installieren die Abhängigkeiten aus `requirements.txt`. Dafür braucht es Python ab 3.11, unter Linux mit dem Paket `python3-venv`. Danach öffnet sich der Browser. Beenden mit Strg+C im Terminal.
 

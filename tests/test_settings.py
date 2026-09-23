@@ -1,5 +1,8 @@
 import json
 import os
+from pathlib import Path
+
+import pytest
 
 from orcaone import camera, instances, settings
 
@@ -94,3 +97,38 @@ def test_the_camera_list_becomes_the_printer_address(fake_home, monkeypatch):
     settings.change(lambda data: data.update(cameras=[{"host": "10.0.0.9"}]))
     settings.migrate()
     assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone", "every": 5}}
+
+
+def test_a_file_that_cannot_be_read_is_not_written_over(data_dir, monkeypatch):
+    """Windows: while another program has settings.json open, reading or replacing it can fail.
+    Readers then get {}, but a change must not write {} over the settings."""
+    settings.change(lambda data: data.update(language="de"))
+    before = (data_dir / "settings.json").read_bytes()
+    real_read_text = Path.read_text
+
+    def locked(self, *args, **kwargs):
+        if self.name == "settings.json":
+            raise PermissionError(13, "in use")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", locked)
+    assert settings.load() == {}
+    with pytest.raises(PermissionError):
+        settings.change(lambda data: data.update(language="en"))
+    assert (data_dir / "settings.json").read_bytes() == before
+
+
+def test_replacing_retries_a_moment(data_dir, monkeypatch):
+    calls = []
+    real_replace = os.replace
+
+    def busy_once(src, dst):
+        calls.append(dst)
+        if len(calls) == 1:
+            raise PermissionError(13, "in use")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(settings.os, "replace", busy_once)
+    monkeypatch.setattr(settings.time, "sleep", lambda s: None)
+    settings.change(lambda data: data.update(language="en"))
+    assert len(calls) == 2 and settings.load()["language"] == "en"
