@@ -109,6 +109,25 @@ def test_a_project_names_its_profiles_with_the_values_it_prints_with():
                                                                       ("B", {"nozzle_temperature": "240"}, ["#222222"])]
 
 
+def test_a_cleaned_3mf_keeps_the_model_and_leaves_the_printer_out():
+    # What makes the slicer set up the project's printer, process and filaments, and the G-code for them.
+    bound = {"Metadata/project_settings.config": {"printer_settings_id": "Bambu Lab A1 0.4 nozzle"},
+             "Metadata/filament_settings_1.config": filament("Projekt PLA"), "Metadata/print_setting_1.config": "{}",
+             "Metadata/slice_info.config": "<config/>", "Metadata/plate_1.gcode": "G28", "Metadata/plate_1.gcode.md5": "abc"}
+    kept = {"3D/3dmodel.model": '<model><metadata name="Application">BambuStudio-01.09.03.50</metadata></model>',
+            "Metadata/model_settings.config": "<config/>", "Metadata/plate_1.png": b"\x89PNG", "_rels/.rels": "<Relationships/>"}
+    cleaned = importer.clean_3mf(zip_of({**kept, **bound}))
+    with zipfile.ZipFile(io.BytesIO(cleaned)) as archive:
+        assert sorted(archive.namelist()) == sorted(kept) and archive.read("Metadata/plate_1.png") == b"\x89PNG"
+    # Read again: still a 3MF, without a project; cleaning it twice has nothing to do.
+    again = importer.read(cleaned, "Hai (bereinigt).3mf")
+    assert (again["format"], again["profiles"], "project" in again) == ("3mf", [], False)
+    for raw, code in ((cleaned, "nothing_to_clean"), (zip_of({"a.json": "{}"}), "file_unknown"), (b"kein ZIP", "file_unknown")):
+        with pytest.raises(importer.ImportFailed) as err:
+            importer.clean_3mf(raw)
+        assert err.value.code == code
+
+
 def test_an_entry_too_big_is_left_out(monkeypatch):
     monkeypatch.setattr(importer, "MAX_ENTRY", 50)
     got = importer.read(zip_of({"a.json": filament("A" * 80)}), "a.zip")
@@ -206,6 +225,15 @@ def test_import_through_the_plan(server, fake_home):
     assert [(u["name"], u["here"]) for u in got["project"]["uses"]] == [
         ("0.20mm Standard @Snapmaker U1 (0.4 nozzle)", True), (BASIC, True), ("Bambu Lab A1 0.4 nozzle", False)]
     assert got["project"]["uses"][1]["colours"] == ["#0080FF"]
+
+
+def test_clean_3mf_over_the_api(server):
+    request = urllib.request.Request(f"{server}/api/clean-3mf", method="POST", headers={"Content-Type": "application/octet-stream"},
+                                     data=zip_of({"3D/3dmodel.model": "<model/>", "Metadata/project_settings.config": {}}))
+    with urllib.request.urlopen(request, timeout=10) as response:
+        assert response.headers["Content-Type"] == "model/3mf"
+        with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
+            assert archive.namelist() == ["3D/3dmodel.model"]
 
 
 def test_export(server, fake_home):

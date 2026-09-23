@@ -48,6 +48,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
   - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen, `print_host` aus dem Slicer oder beim U1 im LAN gesucht).
     - **Kamera:** Bild jedes U1 mit IP-Adresse samt Druckstatus (Fortschritt, Schicht, Restzeit, Temperaturen), in der Seite, fensterfüllend oder im Vollbild.
     - **Änderungen:** was sich seit dem letzten „Als gesehen markieren“ geändert hat (Update, Anmeldung, Cloud-Abgleich), je Profil; was OrcaOne selbst schreibt, zählt als gesehen.
+  - **3MF bereinigen:** ein Schnellwerkzeug. 3MF hineinziehen, zurück kommt es als Download ohne Drucker, Prozess, Filamente und G-Code des Projekts, damit der Slicer keinen fremden Drucker anlegt.
   - **Sicherungen.**
   - Unter „Technik“: **Slicer** (Datenordner), **Details** (alles zu einem Filament) und **Logs** (Logdateien der Slicer, nur lesen).
 

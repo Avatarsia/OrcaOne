@@ -51,7 +51,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Main menu",
-    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", aenderungen: "Changes", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "changes since last time",
     technik: "Advanced",
     pending: "queued changes",
@@ -825,7 +825,7 @@ const T = {
     fitting: (list) => `Matching here: ${list}`,
     hiddenHere: "hidden",
     onlySystem: "No own profiles are in it, only system profiles. They belong to the slicer and cannot be imported.",
-    geometryOnly: "To keep its printer out: choose “Import geometry only” when opening it in the slicer. If the slicer does not ask, set Preferences → Load behaviour to “Always Ask”.",
+    projectPrinter: "Opened like this, the slicer sets up the project's printer for the time being and remembers it. “Clean 3MF” prevents that; “Printers” → “Clean up” removes what is left.",
     skippedCount: (k) => k === 1 ? "1 file skipped" : `${n(k)} files skipped`,
     skipped: { not_readable: "not readable", not_a_profile: "no profile", twice: "twice", too_big: "too big" },
     kindsTitle: { filament: "Filaments", process: "Processes", machine: "Printers" },
@@ -863,6 +863,23 @@ const T = {
       file_unknown: "OrcaOne does not know this file. It reads JSON, ZIP, .orca_* bundles, 3MF and its backups.",
       file_too_big: "The file is too big for OrcaOne.",
       export_invalid: "OrcaOne put the selection together wrongly. Reload the page.",
+    },
+  },
+
+  // ---------------------------------------------------------------- page "3MF bereinigen"
+  clean3mf: {
+    title: "Clean 3MF",
+    lead: "A 3MF from the web brings its project's printer, process and filaments along. When opening it, the slicer sets up the foreign printer and remembers it. Cleaned, it opens the file with your printer. Model, plates and painting stay, the colours come from your filaments.",
+    pick: "Choose a 3MF",
+    drop: "or drop it here",
+    busy: "Cleaning …",
+    done: (name) => `Saved as ${q(name)}.`,
+    leftover: "Opened it before? “Printers” → “Clean up” removes the remembered printer.",
+    fileName: (stem) => `${stem} (cleaned).3mf`,
+    errors: {
+      file_unknown: "This is no 3MF project.",
+      file_too_big: "The file is too big for OrcaOne.",
+      nothing_to_clean: "There is nothing to clean: no printer, no profiles and no G-code in it.",
     },
   },
 

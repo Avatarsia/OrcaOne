@@ -2,7 +2,7 @@
 // Orca family writes goes to the backend, which says per profile what an import would do here;
 // the user ticks what to take, it joins the change list, and "Übernehmen" writes it with plan and
 // backup ("profile_import" in ops.js). Export: own profiles as a ZIP, as they are or complete.
-import { INSTANCES, LOCALE, DECIMAL, flash, loadState, onReset, writeBlock } from "../common.js";
+import { INSTANCES, LOCALE, DECIMAL, flash, loadState, onReset, saveBlob, writeBlock } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 
@@ -168,12 +168,7 @@ export default {
       try {
         const wanted = own.value.flatMap((g) => g.rows).filter((r) => exportPicked.has(keyOf(r)));
         const blob = await api.exportProfiles(props.instId, wanted.map(({ kind, name }) => ({ kind, name })), flat.value);
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement("a"), { href: url, download: I.fileName(inst.value.slicer, new Date().toISOString().slice(0, 10)) });
-        document.body.append(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        saveBlob(blob, I.fileName(inst.value.slicer, new Date().toISOString().slice(0, 10)));
         flash(I.exported);
       } catch (err) {
         flash(I.errors[err.code] || T.blocked[err.code]?.(inst.value, err.data || {}) || T.errors[err.code] || T.errors.unknown);
@@ -230,7 +225,7 @@ export default {
               </li>
             </ul>
             <p v-if="!result.profiles.length" class="note">{{ I.onlySystem }}</p>
-            <p v-if="foreignPrinter" class="note">{{ I.geometryOnly }}</p>
+            <p v-if="foreignPrinter" class="note">{{ I.projectPrinter }}</p>
           </div>
           <p v-else-if="!result.profiles.length" class="empty">{{ I.none }}</p>
           <div v-for="g in groups" :key="g.kind" class="imp-group">

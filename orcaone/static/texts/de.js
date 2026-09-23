@@ -53,7 +53,7 @@ const T = {
   // ---------------------------------------------------------------- frame (app.js)
   nav: {
     label: "Hauptmenü",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", aenderungen: "Änderungen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "Änderungen seit dem letzten Mal",
     technik: "Technik",
     pending: "vorgemerkte Änderungen",
@@ -827,7 +827,7 @@ const T = {
     fitting: (list) => `Hier passend: ${list}`,
     hiddenHere: "ausgeblendet",
     onlySystem: "Eigene Profile stecken nicht darin, nur Systemprofile. Die gehören zum Slicer und lassen sich nicht importieren.",
-    geometryOnly: "Damit sein Drucker nicht mitkommt: Wähle beim Öffnen im Slicer „Nur Geometrie importieren“. Fragt der Slicer nicht, stelle unter Einstellungen → Ladeverhalten „Immer fragen“ ein.",
+    projectPrinter: "Öffnest du das Projekt so im Slicer, legt er seinen Drucker vorübergehend an und merkt ihn sich. Das verhindert „3MF bereinigen“, den Rest räumt „Drucker“ → „Aufräumen“ weg.",
     skippedCount: (k) => k === 1 ? "1 Datei übersprungen" : `${n(k)} Dateien übersprungen`,
     skipped: { not_readable: "nicht lesbar", not_a_profile: "kein Profil", twice: "doppelt", too_big: "zu groß" },
     kindsTitle: { filament: "Filamente", process: "Prozesse", machine: "Drucker" },
@@ -865,6 +865,23 @@ const T = {
       file_unknown: "Diese Datei kennt OrcaOne nicht. Es liest JSON, ZIP, .orca_*-Pakete, 3MF und seine Sicherungen.",
       file_too_big: "Die Datei ist zu groß für OrcaOne.",
       export_invalid: "OrcaOne hat die Auswahl falsch zusammengestellt. Lade die Seite neu.",
+    },
+  },
+
+  // ---------------------------------------------------------------- page "3MF bereinigen"
+  clean3mf: {
+    title: "3MF bereinigen",
+    lead: "Ein 3MF aus dem Netz bringt Drucker, Prozess und Filamente seines Projekts mit. Der Slicer legt den fremden Drucker beim Öffnen an und merkt ihn sich. Bereinigt öffnet er die Datei mit deinem Drucker. Modell, Platten und Bemalung bleiben, die Farben kommen von deinen Filamenten.",
+    pick: "3MF wählen",
+    drop: "oder hierher ziehen",
+    busy: "Bereinige …",
+    done: (name) => `Gespeichert als ${q(name)}.`,
+    leftover: "Schon einmal geöffnet? Den gemerkten Drucker räumt „Drucker“ → „Aufräumen“ weg.",
+    fileName: (stem) => `${stem} (bereinigt).3mf`,
+    errors: {
+      file_unknown: "Das ist kein 3MF-Projekt.",
+      file_too_big: "Die Datei ist zu groß für OrcaOne.",
+      nothing_to_clean: "Da gibt es nichts zu bereinigen: kein Drucker, keine Profile und kein G-Code drin.",
     },
   },
 

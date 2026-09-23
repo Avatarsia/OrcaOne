@@ -25,7 +25,7 @@ async function request(method, url, body) {
   return data;
 }
 
-// A file as the body itself (page "Import/Export"), and a ZIP back as a Blob.
+// A file as the body itself (page "Import/Export"), and a file back as a Blob.
 async function upload(url, file) {
   let response;
   try {
@@ -38,9 +38,11 @@ async function upload(url, file) {
   return data;
 }
 async function download(url, body) {
+  const raw = body instanceof Blob;
   let response;
   try {
-    response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    response = await fetch(url, { method: "POST", headers: { "Content-Type": raw ? "application/octet-stream" : "application/json" },
+                                  body: raw ? body : JSON.stringify(body) });
   } catch {
     throw new ApiError("network");
   }
@@ -89,6 +91,7 @@ export const api = {
   // Page "Import/Export" (orcaone/importer.py): what a file holds, and own profiles as a ZIP.
   importFile: (id, file, name) => upload(`${instUrl(id)}/import?name=${encodeURIComponent(name)}`, file),
   exportProfiles: (id, profiles, flat) => download(`${instUrl(id)}/export`, { profiles, flat }),
+  clean3mf: (file) => download("/api/clean-3mf", file),
   // Page "Änderungen": what changed since the installation was last marked seen (orcaone/snapshot.py).
   news: (id) => request("GET", `${instUrl(id)}/news`),
   newsSeen: (id) => request("POST", `${instUrl(id)}/news/seen`),

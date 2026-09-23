@@ -12,12 +12,15 @@ How a profile lands (convert): as the child of its parent if the installation ha
 else as a root profile with every value, the way the page "Übertragen" copies (transfer.py).
 Parents from the same file go into it. A 3MF holds complete profiles, so these land even without
 their parent.
+
+The page "3MF bereinigen" gets a 3MF back without its project's printer (clean_3mf).
 """
 
 import hashlib
 import io
 import json
 import re
+import shutil
 import zipfile
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -34,6 +37,12 @@ _TYPES = {"filament": "filament", "process": "process", "print": "process", "mac
 # Own profiles a 3MF project embeds, as complete JSON (bbs_3mf.cpp, FINDINGS 4.8).
 _EMBEDDED = re.compile(r"Metadata/(machine|filament|process)_settings_\d+\.config", re.IGNORECASE)
 _PROJECT = "Metadata/project_settings.config"
+_MODEL = "3d/3dmodel.model"
+# What makes a slicer set up the printer, process and filaments of a project when it opens the 3MF,
+# even temporarily: the project's settings and the profiles it embeds; with them go the G-code and
+# slice info of plates sliced for that printer (bbs_3mf.cpp, FINDINGS 4.8).
+_PRINTER_BOUND = re.compile(r"Metadata/(?:project_settings\.config|slice_info\.config|[^/]+\.gcode(?:\.md5)?"
+                            r"|(?:print_setting|process_settings|filament_settings|machine_settings)_[^/]+)", re.IGNORECASE)
 _APPLICATION = re.compile(r'<metadata name="Application">([^<]*)</metadata>')
 # A data directory or one of OrcaOne's backups: the own profiles of every user folder.
 _USER_FILE = re.compile(r"user/[^/]+/(machine|process|filament)/(?:base/)?[^/]+\.json")
@@ -137,7 +146,7 @@ def read(raw: bytes, filename: str) -> dict:
             if len(entries) > MAX_ENTRIES:
                 raise ImportFailed("file_too_big")
             names = {e.filename for e in entries}
-            if _PROJECT in names or any(_EMBEDDED.fullmatch(n) for n in names):
+            if _PROJECT in names or any(_EMBEDDED.fullmatch(n) or n.lower() == _MODEL for n in names):
                 out["format"] = "3mf"
                 _read_3mf(archive, entries, out, PurePosixPath(filename).stem)
                 return out
@@ -174,7 +183,7 @@ def _read_3mf(archive: zipfile.ZipFile, entries: list, out: dict, stem: str) -> 
     for e in sorted((e for e in entries if _EMBEDDED.fullmatch(e.filename)), key=lambda e: e.filename):
         raw = _entry(archive, e)
         _add(out, _json(raw) if raw is not None else None, e.filename, full=True)
-    model = next((e for e in entries if e.filename.lower() == "3d/3dmodel.model"), None)
+    model = next((e for e in entries if e.filename.lower() == _MODEL), None)
     found = None
     if model is not None:
         # The model holds the meshes, often more than MAX_ENTRY; its metadata come first.
@@ -222,6 +231,36 @@ def _read_3mf(archive: zipfile.ZipFile, entries: list, out: dict, stem: str) -> 
             new_name = f"{name.removesuffix(' @System').removesuffix(' @base')} ({stem})"
             out["profiles"].append(Found(kind, new_name, {"name": new_name, "inherits": parent, **values},
                                          f"{_PROJECT} · {kind} {i}"))
+
+
+def clean_3mf(raw: bytes) -> bytes:
+    """Page "3MF bereinigen": the 3MF without what binds it to the printer it was made for
+    (_PRINTER_BOUND), so the slicer opens it with the printer, process and filaments chosen there.
+    Model, plates, painting and pictures stay as they are. Raises ImportFailed."""
+    if len(raw) > MAX_FILE:
+        raise ImportFailed("file_too_big")
+    buffer = io.BytesIO()
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as source, zipfile.ZipFile(buffer, "w") as target:
+            entries = [e for e in source.infolist() if not e.is_dir()]
+            if len(entries) > MAX_ENTRIES:
+                raise ImportFailed("file_too_big")
+            if not any(e.filename.lower() == _MODEL for e in entries):
+                raise ImportFailed("file_unknown")
+            if not any(_PRINTER_BOUND.fullmatch(e.filename) for e in entries):
+                raise ImportFailed("nothing_to_clean")
+            for e in entries:
+                if _PRINTER_BOUND.fullmatch(e.filename):
+                    continue
+                info = zipfile.ZipInfo(e.filename, e.date_time)
+                info.compress_type = zipfile.ZIP_STORED if e.compress_type == zipfile.ZIP_STORED else zipfile.ZIP_DEFLATED
+                info.external_attr = e.external_attr
+                # Streamed: a model can have hundreds of megabytes.
+                with source.open(e) as src, target.open(info, "w", force_zip64=e.file_size >= zipfile.ZIP64_LIMIT) as dst:
+                    shutil.copyfileobj(src, dst, 1024 * 1024)
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError, EOFError, NotImplementedError, RuntimeError) as exc:
+        raise ImportFailed("file_unknown", detail=str(exc)) from None
+    return buffer.getvalue()
 
 
 # ---------------------------------------------------------------- one profile in the target

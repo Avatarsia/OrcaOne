@@ -286,6 +286,16 @@ async def import_read(instance_id: str, request: Request, name: str = ""):
     return await run_in_threadpool(_read_file, instance_id, raw, name or "import")
 
 
+@app.post("/api/clean-3mf")
+async def clean_3mf(request: Request):
+    """Page "3MF bereinigen": the 3MF back without the printer, process and filaments of its project,
+    so the slicer does not set them up when opening it. Writes nothing; the page saves the answer."""
+    if int(request.headers.get("content-length") or 0) > importer.MAX_FILE:
+        raise importer.ImportFailed("file_too_big")
+    raw = await request.body()
+    return Response(content=await run_in_threadpool(importer.clean_3mf, raw), media_type="model/3mf")
+
+
 @app.post("/api/instances/{instance_id}/export")
 def export(instance_id: str, payload: dict = Body(...)):
     wanted = payload.get("profiles")

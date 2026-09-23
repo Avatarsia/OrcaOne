@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "kamera", "aenderungen", "sicherungen", "slicer", "details", "logs"];
+export const PAGE_IDS = ["filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "kamera", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -238,6 +238,16 @@ export function flash(text) {
   ui.toast = text;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { ui.toast = ""; }, 2800);
+}
+
+// A Blob from the server as a download under name: an export, a cleaned 3MF.
+export function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ------------------------------------------------------------ loading

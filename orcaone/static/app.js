@@ -21,6 +21,7 @@ import TransferPage, { transferChanges } from "./pages/transfer.js";
 import VergleichenPage from "./pages/vergleichen.js";
 import ImportPage, { importChanges } from "./pages/import.js";
 import AenderungenPage from "./pages/aenderungen.js";
+import BereinigenPage from "./pages/bereinigen.js";
 import KameraPage from "./pages/kamera.js";
 import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
@@ -32,7 +33,7 @@ document.documentElement.lang = LANG;
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
 // sub: a page about the one above, set in a little under it: Kalibrieren, Übertragen, Vergleichen and Import/Export
 // work on filament profiles, the camera belongs to the printer (its address is on the printer's card),
-// "Änderungen" sits under "Drucker" as the user suggested.
+// "Änderungen" sits under "Drucker" as the user suggested. "3MF bereinigen" is a quick tool of its own.
 const PAGES = [
   { id: "filamente", icon: "spool", component: FilamentePage },
   { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
@@ -44,6 +45,7 @@ const PAGES = [
   // Needs no slicer data: shows at once and stays through "Neu einlesen".
   { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true },
   { id: "aenderungen", icon: "diff", component: AenderungenPage, sub: true },
+  { id: "bereinigen", icon: "broom", component: BereinigenPage, standalone: true },
   { id: "sicherungen", icon: "backup", component: SicherungenPage },
   { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
   { id: "details", icon: "info", component: DetailsPage },
