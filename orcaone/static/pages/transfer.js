@@ -3,7 +3,7 @@
 // their values (orcaone/transfer.py); what cannot go along, the plan names before anything is
 // written. Filaments and processes; printers need more checks and come later.
 // Queued copies go into the common change list like every other change (ops.js, profile_copy).
-import { INSTANCES, ui, flash, onReset, originGroup, writeBlock } from "../common.js";
+import { INSTANCES, ui, flash, onReset, originGroup, writeBlock, DECIMAL } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { materialSpool } from "./filamente.js";
 
@@ -22,7 +22,7 @@ export const transferChanges = computed(() => queued.map((q) => {
 // The same profile on the other side, whatever its suffix: "Elegoo PLA @System", "Elegoo PLA
 // (Orca)" and "Elegoo PLA (Orca) (2)" are one.
 const matchKey = (name) => plainName(name).replace(/\s+@.*$/, "").replace(/(\s+\((?:Orca|SnOrca|\d+)\))+$/, "").trim().toLowerCase();
-const fmt = (v) => isNaN(Number(v)) ? String(v) : Number(v).toFixed(2).replace(".", ",");
+const fmt = (v) => isNaN(Number(v)) ? String(v) : Number(v).toFixed(2).replace(".", DECIMAL);
 // "@System" says nothing in the list, the heading tells where a profile comes from.
 const shownName = (name) => plainName(name).replace(/ @(System|base)$/, "");
 const GROUP_ICON = { user: "user", bundle: "package", vendor: "factory", library: "books" };

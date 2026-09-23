@@ -79,7 +79,7 @@ const asList = (v) => Array.isArray(v) ? v : v === null || v === undefined || v 
 // Short form of a .conf value for the generic lines: strings in quotes, the rest as JSON.
 function short(v) {
   if (v === null || v === undefined || (Array.isArray(v) && !v.length)) return P.conf.empty;
-  const text = typeof v === "string" ? `„${v}“` : JSON.stringify(v);
+  const text = typeof v === "string" ? T.quote(v) : JSON.stringify(v);
   return text.length > 80 ? text.slice(0, 77) + " …" : text;
 }
 const SLOT = /^filament(_\d\d)?$|^filaments$/;

@@ -7,7 +7,9 @@ import { api } from "./api.js";
 
 const { reactive, ref, shallowReactive, computed } = Vue;
 
-const LOCALE = "de-DE";
+export const LOCALE = T.locale;
+// The decimal sign of the chosen language, for values as the profiles write them: "0.4" -> "0,4".
+export const DECIMAL = (1.5).toLocaleString(LOCALE).charAt(1);
 
 // ------------------------------------------------------------ data
 // shallowReactive: a load replaces the list, the megabyte of nested data inside stays plain.
@@ -305,7 +307,7 @@ export async function removeDataDir(inst) {
 }
 
 // ------------------------------------------------------------ formatting
-export const nozzleLabel = (v) => v.split("+").map((d) => d.replace(".", ",")).join(" + ");
+export const nozzleLabel = (v) => v.split("+").map((d) => d.replace(".", DECIMAL)).join(" + ");
 export const printerShortName = (name) => plainName(name).replace(/\s*\(?[\d.+]+ nozzle\)?$/, "");
 export const plural = (n, one, many) => n.toLocaleString(LOCALE) + " " + (n === 1 ? one : many);
 

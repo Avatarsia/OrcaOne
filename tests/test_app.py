@@ -94,8 +94,22 @@ def test_serves_every_module_the_ui_imports(server):
         assert status == 200, path
         for rel in re.findall(r'from "(\.{1,2}/[^"]+)"', body.decode("utf-8")):
             todo.append(posixpath.normpath(posixpath.join(posixpath.dirname(path), rel)))
-    assert {"common.js", "api.js", "texts.js", "pages/filamente.js", "pages/filament-editor.js",
-            "pages/drucker.js", "pages/sicherungen.js", "pages/slicer.js"} <= seen
+    assert {"common.js", "api.js", "texts.js", "texts/de.js", "texts/en.js", "texts/names.js", "pages/filamente.js",
+            "pages/filament-editor.js", "pages/drucker.js", "pages/sicherungen.js", "pages/slicer.js"} <= seen
+
+
+def test_language_is_a_setting(server, data_dir):
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None}
+    status, body = call(f"{server}/api/settings", "POST", {"language": "en"})
+    assert status == 200 and json.loads(body) == {"language": "en"}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "en"}
+    assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["language"] == "en"
+    for wrong in ("fr", None, 1):
+        status, body = call(f"{server}/api/settings", "POST", {"language": wrong})
+        assert status == 400 and json.loads(body) == {"error": "setting_invalid"}
+    # Changed by hand to something unknown: the page takes the browser's language.
+    settings.change(lambda data: data.update(language="xx"))
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None}
 
 
 def test_no_draft_routes(server):

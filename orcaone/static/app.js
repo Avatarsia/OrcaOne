@@ -7,7 +7,7 @@ import {
   INSTANCES, FAILED, BACKUPS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon,
 } from "./common.js";
-import { T } from "./texts.js";
+import { T, LANG, LANGUAGES } from "./texts.js";
 import { api } from "./api.js";
 import { changesOf } from "./ops.js";
 import PlanView, { DoneView, problemText } from "./plan.js";
@@ -22,6 +22,8 @@ import KameraPage from "./pages/kamera.js";
 import LogsPage from "./pages/logs.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
+
+document.documentElement.lang = LANG;
 
 // Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
 const PAGES = [
@@ -211,6 +213,21 @@ const app = createApp({
     const loadError = computed(() => T.loadError[loadState.error === "network" ? "network" : "other"]);
     load();
 
+    // The language at the bottom of the menu: saved in data/settings.json, then the page loads
+    // anew, as every page reads its texts once. Queued changes would be lost, so they go first.
+    function setLanguage(code) {
+      if (code === LANG) return;
+      if (changes.value.length) return flash(T.nav.languageBlocked);
+      leave(async () => {
+        try {
+          await api.setLanguage(code);
+          location.reload();
+        } catch (err) {
+          flash(T.errors[err.code] || T.errors.unknown);
+        }
+      });
+    }
+
     // First start without any installation: the form adds one by hand.
     const newPath = ref("");
     const addError = ref("");
@@ -289,7 +306,7 @@ const app = createApp({
       INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, navHash, badges, go, hashOf, leave,
       statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
-      planned, done, plan, makePlan, backToList, runPlan,
+      planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage,
     };
   },
 
@@ -334,6 +351,10 @@ const app = createApp({
                   :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
           </a>
         </template>
+        <div class="nav-lang" role="group" :aria-label="T.nav.language">
+          <button v-for="l in LANGUAGES" :key="l.code" class="nav-lang-btn" type="button" :lang="l.code"
+                  :aria-pressed="l.code === LANG ? 'true' : 'false'" @click="setLanguage(l.code)">{{ l.name }}</button>
+        </div>
       </nav>
       <main class="main">
         <div v-if="FAILED.length" class="page failed-list" role="alert">

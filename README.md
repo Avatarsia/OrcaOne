@@ -35,14 +35,14 @@ Optionen: `--port 8765` für einen festen Port, `--no-browser`, wenn der Browser
 
 Alles, was OrcaOne selbst ablegt, liegt im Ordner `data/` im OrcaOne-Ordner:
 
-- `settings.json`: alle Einstellungen, also von Hand hinzugefügte Datenordner, die Kameras samt Bildtakt und die Bibliotheksfilamente, die OrcaOne in Snapmaker Orca freigeschaltet hat;
+- `settings.json`: alle Einstellungen, also von Hand hinzugefügte Datenordner, die Kameras samt Bildtakt, die Bibliotheksfilamente, die OrcaOne in Snapmaker Orca freigeschaltet hat, und die Sprache;
 - `backups/<id>/`: die Sicherungen, nur für den Nutzer lesbar.
 
 `data/` steht nicht im Git, denn die Sicherungen enthalten Zugangsdaten. Wer OrcaOne verschiebt, nimmt den Ordner mit. Daten älterer Versionen aus `~/.local/share/orcaone` bzw. `%LOCALAPPDATA%\orcaone` holt OrcaOne beim Start einmal hierher.
 
 ## Seiten
 
-Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“.
+Links steht das Menü, oben die Wahl der Installation und „Neu einlesen“. Unten im Menü wählst du die Sprache, Deutsch oder English; ohne Wahl gilt die des Browsers.
 
 - **Filamente:** erst die Drucker als Bilder, dann je Drucker die Düse, die aktiven Filamente als Spulen und der Baum aus „Eigene“, „Vom Hersteller“ und „Orca-Bibliothek“. Jede Zeile zeigt ihren Zustand: ausgegraut, teilweise an (halber Kreis) oder an (Haken). Ein- und ausschalten per Düse im Seitenpanel oder per Ziehen nach „Aktiv“, dazu „Bearbeiten“ und „Neues Filament“. Ein eigenes Filament, das bei keiner Düse mehr an ist, blendet OrcaOne im Slicer aus (`instantiation: "false"`), die Datei bleibt.
 - **Prozesse:** dieselbe Druckerwahl, dann je Düse die Prozesse als Kacheln mit Schichthöhe und Art, der zuletzt im Slicer gewählte ist markiert. Ein Klick zeigt die wichtigsten Werte in fünf Gruppen, dazu „Alle Werte“. Nur zum Ansehen.
@@ -122,7 +122,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | Pfad | Inhalt |
 |---|---|
 | `orcaone/__main__.py` | Start: freier Port, Server, Browser |
-| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Logs über `/api/instances/{id}/logs`, Kameras über `/api/cameras` |
+| `orcaone/app.py` | FastAPI-App, API unter `/api`, Oberfläche unter `/`. `GET /api/data` liefert alle Seiten live. Schreiben über `POST /api/instances/{id}/plan` und `/apply`, Sicherungen über `/api/instances/{id}/backups` (Liste, anlegen, löschen, `…/{name}/restore-plan`), Logs über `/api/instances/{id}/logs`, Kameras über `/api/cameras`, Einstellungen wie die Sprache über `/api/settings` |
 | `orcaone/operations.py` | Änderungen planen und schreiben (harte Regeln 2 bis 7): Plan mit Dateioperationen, Diff der `.conf` mit maskierten Zugangsdaten und Fingerabdruck von `.conf` und `user/` vor dem Planen; ein anderer Plan, der inzwischen lief, macht ihn veraltet. Beim Ausführen: Laufprüfung, Sicherung, erneute Laufprüfung, atomar schreiben und neu prüfen (sonst zurück auf die Sicherung), neu einlesen |
 | `orcaone/transfer.py` | Profile in eine andere Installation übertragen: Werte ans Ziel anpassen nach `orcaone/options.json` (erzeugt aus dem Quellcode der Slicer mit `tools/make_options.py`) |
 | `orcaone/backup.py` | ZIP-Sicherungen ohne `log/`, `cache/` usw., Liste, Löschen und was ein Wiederherstellen zurückschreibt |
@@ -137,7 +137,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `orcaone/guard.py` | Prüfen, ob ein Slicer läuft (nur lesend) |
 | `orcaone/conf.py` | `.conf` byte-genau lesen und schreiben |
 | `orcaone/model.py` | Dataclasses |
-| `orcaone/static/` | Oberfläche: Vue 3 ohne Build-Schritt. `app.js` (Rahmen, Menü, Änderungsliste), `common.js` (Daten, Zustand, Symbole), `ops.js` (macht aus der Änderungsliste die `changes` für den Plan), `plan.js` („Das passiert“), `pages/` (eine Datei je Seite), `texts.js` (alle Texte), `style.css`, Druckerbilder in `assets/` |
+| `orcaone/static/` | Oberfläche: Vue 3 ohne Build-Schritt. `app.js` (Rahmen, Menü, Änderungsliste), `common.js` (Daten, Zustand, Symbole), `ops.js` (macht aus der Änderungsliste die `changes` für den Plan), `plan.js` („Das passiert“), `pages/` (eine Datei je Seite), `texts.js` (wählt die Sprache), `texts/de.js` und `texts/en.js` (alle Texte), `style.css`, Druckerbilder in `assets/` |
 | `prototypes/opc/` | Prototyp für das `.opc`-Format, jetzt in `orcaone/opc.py` |
 | `prototypes/U1Cam/` | Skript des Nutzers, Vorlage für die Seite „Kamera“ |
 | `docs/` | Befunde (`FINDINGS.md`), Plan (`PLAN.md`), Arbeitsstand (`STAND.md`) |

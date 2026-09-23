@@ -48,7 +48,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 
   Details nur auf Anforderung im Seitenpanel. Kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos.
 - **Plattformen:** Linux und Windows gleichwertig. Pfade nur mit `pathlib`.
-- **Sprache:** Code, Bezeichner und Kommentare auf Englisch. UI-Texte auf Deutsch, zentral in `orcaone/static/texts.js`. Das Backend liefert Fehlercodes, keine Texte.
+- **Sprache:** Code, Bezeichner und Kommentare auf Englisch. Die Oberfläche gibt es auf Deutsch und Englisch: Texte in `orcaone/static/texts/de.js` und `en.js` mit denselben Schlüsseln, jeder neue Text in beide. Das Backend liefert Fehlercodes, keine Texte.
 - **KISS:** wenige Schichten, keine Abstraktionen auf Vorrat. Keine Platzhalter, jede Datei ist nach jedem Schritt vollständig und lauffähig.
 - **Tests:** pytest. Resolver und alle Schreiboperationen brauchen Tests gegen Fixtures. Fixtures entstehen mit `tests/fixtures/make_snorca_fixture.py`, anonymisiert.
 - **Commits:** kleine Commits pro abgeschlossenem Schritt, aber nur auf Auftrag.

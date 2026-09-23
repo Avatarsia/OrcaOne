@@ -6,7 +6,7 @@
 // Data: GET /api/data (processes, models[].printers[].processes and .process, the last choice);
 // the values of one process on demand from GET /api/instances/{id}/profile.
 import {
-  INSTANCES, go, hashOf, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey,
+  INSTANCES, go, hashOf, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey, DECIMAL, LOCALE,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
@@ -29,11 +29,11 @@ const GROUPS = [
   { id: "adhesion", keys: ["brim_type", "brim_width", "skirt_loops", "raft_layers"] },
 ];
 
-// "10000" -> "10.000", "0.25" -> "0,25"; anything else as it is.
-const fmt = (v) => v !== "" && !isNaN(Number(v)) ? Number(v).toLocaleString("de-DE", { maximumFractionDigits: 3 }) : String(v);
+// "10000" -> "10.000", "0.25" -> "0,25" in German; anything else as it is.
+const fmt = (v) => v !== "" && !isNaN(Number(v)) ? Number(v).toLocaleString(LOCALE, { maximumFractionDigits: 3 }) : String(v);
 const asList = (v) => Array.isArray(v) ? v : [v];
 // "0.2" -> "0,20": two decimals, as the process names write layer heights.
-const layerText = (v) => isNaN(Number(v)) ? fmt(v) : Number(v).toFixed(2).replace(".", ",");
+const layerText = (v) => isNaN(Number(v)) ? fmt(v) : Number(v).toFixed(2).replace(".", DECIMAL);
 // "0.20mm Standard" -> "Standard": without its layer height the name says what kind it is.
 const kindOf = (alias) => alias.replace(/^\s*\d+(?:[.,]\d+)?\s*(?:mm)?\s*/i, "").trim() || alias;
 // A shown value in words: switches and choices from texts.js, numbers with their unit. Snapmaker

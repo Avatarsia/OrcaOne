@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, backup, camera, guard, instances, logs, operations, overview
+from . import __version__, backup, camera, guard, instances, logs, operations, overview, settings
 
 STATIC_DIR = Path(__file__).parent / "static"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -107,6 +107,29 @@ def list_instances():
             for instance in found
         ],
     }
+
+
+# ---------------------------------------------------------------- OrcaOne's own settings (orcaone/settings.py)
+
+LANGUAGES = ("de", "en")
+
+
+@app.get("/api/settings")
+def get_settings():
+    language = settings.load().get("language")
+    return {"language": language if language in LANGUAGES else None}
+
+
+@app.post("/api/settings")
+def set_settings(payload: dict = Body(...)):
+    language = payload.get("language")
+    if language not in LANGUAGES:
+        return _error("setting_invalid")
+    try:
+        settings.change(lambda data: data.update(language=language))
+    except OSError:
+        return _error("save_failed", 500)
+    return {"language": language}
 
 
 @app.get("/api/data")

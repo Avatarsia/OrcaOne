@@ -1,5 +1,5 @@
-"""The backend sends codes, orcaone/static/texts.js has their words. Every code needs a text there,
-else the page shows nothing or stops."""
+"""The backend sends codes, orcaone/static/texts/de.js and en.js have their words. Every code needs
+a text in both, else the page shows nothing or stops."""
 import re
 from pathlib import Path
 
@@ -10,24 +10,27 @@ from orcaone import scanner
 from orcaone.resolver import STATUS_OF_PROBLEM
 from test_overview import build
 
-TEXTS = (Path(__file__).parent.parent / "orcaone" / "static" / "texts.js").read_text(encoding="utf-8")
+LANGUAGES = {lang: (Path(__file__).parent.parent / "orcaone" / "static" / "texts" / f"{lang}.js").read_text(encoding="utf-8")
+             for lang in ("de", "en")}
 OPERATIONS = (Path(__file__).parent.parent / "orcaone" / "operations.py").read_text(encoding="utf-8")
 
 
-def section(name: str) -> str:
-    """The body of `name: { ... }` in texts.js; braces of ${...} are balanced, too."""
-    match = re.search(rf"(?<![\w.]){re.escape(name)}: \{{", TEXTS)
+def section(text: str, name: str) -> str:
+    """The body of `name: { ... }` in a texts file; braces of ${...} are balanced, too."""
+    match = re.search(rf"(?<![\w.]){re.escape(name)}: \{{", text)
     assert match, name
     depth, i = 0, match.end() - 1
     while True:
-        depth += {"{": 1, "}": -1}.get(TEXTS[i], 0)
+        depth += {"{": 1, "}": -1}.get(text[i], 0)
         if depth == 0:
-            return TEXTS[match.end():i]
+            return text[match.end():i]
         i += 1
 
 
 def keys(name: str) -> set:
-    return set(re.findall(r'(?:^|[\s{,])"?([\w-]+)"?\s*[:(]', section(name)))
+    """The keys of a section that both languages have."""
+    found = [set(re.findall(r'(?:^|[\s{,])"?([\w-]+)"?\s*[:(]', section(text, name))) for text in LANGUAGES.values()]
+    return set.intersection(*found)
 
 
 def tree_codes(nodes, notes, ignored):
@@ -67,7 +70,7 @@ def test_every_code_the_backend_knows_has_a_text():
     assert set(scanner.CATEGORY_ORDER) <= keys("category")
     assert {"auto", "flatpak", "flatpak_legacy", "appimage_portable", "process", "manual"} <= keys("sources")
     # orcaone/app.py and orcaone/instances.py, plus "network" and "unknown" from api.js
-    assert {"path_not_found", "not_a_data_dir", "already_listed", "not_listed", "save_failed", "forbidden",
+    assert {"path_not_found", "not_a_data_dir", "already_listed", "not_listed", "save_failed", "forbidden", "setting_invalid",
             "network", "unknown"} <= keys("errors")
 
 

@@ -5,7 +5,7 @@
 // takes the value of the template, shown grey as placeholder; a typed value that differs from it
 // counts as changed. The form only reports name and own values, the page files them as a change.
 // It reports "dirty" while something is typed, so the page can ask before throwing it away.
-import { FIELDS } from "../common.js";
+import { FIELDS, DECIMAL, LOCALE } from "../common.js";
 import { T } from "../texts.js";
 
 const { reactive, ref, computed, watch, nextTick } = Vue;
@@ -43,13 +43,13 @@ export function nameProblem(name, taken) {
 }
 
 export const hexOf = (v) => (/^#[0-9A-Fa-f]{6}/.exec((v || "").trim()) || [""])[0].toUpperCase();
-const shown = (v) => String(v).replace(".", ",");
+const shown = (v) => String(v).replace(".", DECIMAL);
 // "0,95" and "0.95" both count; anything else is not a number.
 function num(text) {
   const t = text.trim().replace(",", ".");
   return /^-?(\d+(\.\d+)?|\.\d+)$/.test(t) ? Number(t) : NaN;
 }
-const de = (n) => n.toLocaleString("de-DE");
+const localNumber = (n) => n.toLocaleString(LOCALE);
 
 // Short text of one value for the list of changes: "Düse 225 °C", "Bett wie Vorlage".
 export function changeText(f, x) {
@@ -159,7 +159,7 @@ export default {
         if (n === Number(baseOf(f, s.key)) || (orig && n === Number(s.key === "b" ? orig.high_flow ?? orig.value : orig.value))) continue;
         const [lo, hi] = RANGES[f.key] || [f.min ?? -Infinity, f.max ?? Infinity];
         const unit = f.unit ? " " + f.unit : "";
-        if (n < lo || n > hi) return prefix + (hi === Infinity ? E.atLeast(de(lo), unit) : E.between(de(lo), de(hi), unit));
+        if (n < lo || n > hi) return prefix + (hi === Infinity ? E.atLeast(localNumber(lo), unit) : E.between(localNumber(lo), localNumber(hi), unit));
       }
       return "";
     }

@@ -8,7 +8,7 @@
 // the state below (`store`) into the ops of POST /plan.
 import {
   INSTANCES, FIELDS, live, ui, flash, go, hashOf, plural, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey,
-  setLeaveGuard, clearLeaveGuard, onReset,
+  setLeaveGuard, clearLeaveGuard, onReset, DECIMAL,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import FilamentEditor, { hexOf, changeText } from "./filament-editor.js";
@@ -41,7 +41,7 @@ const ALL_PRINTERS = "*";  // a list profile of the Orca library counts for ever
 const materialGroup = (m) => MATERIALS.find((g) => g.test(m || ""));
 export const materialSpool = (m) => materialGroup(m).colour;
 const byName = (a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" });
-const fmt = (v) => String(v).replace(".", ",");
+const fmt = (v) => String(v).replace(".", DECIMAL);
 const key = (profile, printer) => profile + "|" + printer;
 // "Snapmaker PLA SnapSpeed" -> "PLA SnapSpeed": the brand is shown on its own line or heading.
 // Own filaments keep their full name, the user chose it.

@@ -194,3 +194,10 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
 - **Große Dateien:** OrcaSlicers Logs erreichen 10 MB mit rund 21.600 Einträgen; zwei davon sind je 2,7 MB groß (die ganze Profilliste als JSON, `SaveProfile` und `on_profile_loaded`). Deshalb filtert und sucht der Server über alles und schickt nur die letzten 2000 Einträge mit höchstens 2000 Zeichen je Eintrag (Antwort 380 KB, 190 ms). Dateien über 20 MB liest OrcaOne nur vom Ende.
 - **Sicherheit:** Gelesen wird nur eine Datei, die in `log/` liegt und kein Symlink ist; der Name muss in der Liste stehen.
 - **Aufgefallen beim Ansehen:** SnOrcas eingebauter Updater meldet „Update install failed“ für `printers/`, und zwar in allen 16 Logs dieses Rechners. Das ist ein Problem von Snapmaker, nicht von OrcaOne.
+
+## Zwei Sprachen (23.09.2026)
+
+- **Wunsch des Nutzers:** die Oberfläche auf Deutsch und Englisch. Umschalter unten im Menü, gespeichert als `language` in `data/settings.json`; ohne Wahl gilt die Sprache des Browsers. Beim Umschalten lädt die Seite neu, vorgemerkte Änderungen müssen vorher übernommen oder verworfen sein.
+- **Aufbau:** `texts/de.js` (die bisherigen Texte) und `texts/en.js` mit denselben 1051 Schlüsseln, im Browser verglichen. `texts.js` wählt die Sprache per `GET /api/settings`; fehlt ein englischer Text, zeigt es den deutschen. Zahlen, Daten und Dezimalzeichen folgen der Sprache (`LOCALE`, `DECIMAL` in `common.js`, bisher fest „de-DE“ und Komma an fünf Stellen).
+- **Tests:** `tests/test_texts.py` prüft die Codes des Backends in beiden Dateien, `tests/test_app.py` die Einstellung.
+- **Offen:** Die Meldungen im Terminal (`__main__.py`, `orcaone.sh`) bleiben deutsch.
