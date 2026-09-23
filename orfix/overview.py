@@ -123,6 +123,8 @@ def _filament_record(res: Resolver, p, in_list: bool) -> dict:
     }
     if colours:
         record["colours"] = colours
+    if p.bundle:
+        record["bundle"] = res.scan.bundles.get(p.bundle, "")
     if not p.package:
         state = res.state(p)
         record["file"] = p.file
@@ -173,7 +175,8 @@ def _only_on(res: Resolver, printer_names: set) -> list:
     """Own filaments and processes usable on these printers only: offered for deleting along."""
     out = []
     for q in res.own_profiles():
-        if q.kind == "machine":
+        # Bundle profiles stay: Orfix never deletes them.
+        if q.kind == "machine" or q.bundle:
             continue
         chain, complete = res.chain(q)
         printers = res.compatible_printers(q) if complete else strings(q.values.get("compatible_printers"))
@@ -220,9 +223,11 @@ def _printers_page(res: Resolver, system_models: list, system_printers: list, se
             "package": base.package if base else None,
             "model": model, "variant": first(res.value(p, "printer_variant")) if complete else None,
             "cover": COVERS.get(model, PLACEHOLDER_COVER), "visible": p.name in loadable, "default": p.name == selected,
-            "origin": "project" if PROJECT_NAME.search(p.name) else "own",
+            "origin": "bundle" if p.bundle else "project" if PROJECT_NAME.search(p.name) else "own",
             "file": p.file, "info": _info(p), "only_here": _only_on(res, {p.name}),
         }
+        if p.bundle:
+            entry["bundle"] = scan.bundles.get(p.bundle, "")
         problem = _problem(res, p, complete)
         if problem:
             entry["status"] = STATUS_OF_PROBLEM[problem]
@@ -489,7 +494,8 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
     out_models = system_models + [
         {"model": o["printer"].name, "origin": o["package"], "own": True, "based_on": o["model"],
          "printers": [variant_entry(o["variant"], o["printer"])],
-         "cover": COVERS.get(o["model"], PLACEHOLDER_COVER)}
+         "cover": COVERS.get(o["model"], PLACEHOLDER_COVER),
+         **({"bundle": scan.bundles.get(o["printer"].bundle, "")} if o["printer"].bundle else {})}
         for o in own_models]
 
     without_printer = []

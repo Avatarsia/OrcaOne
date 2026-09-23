@@ -2,7 +2,7 @@
 // The data comes live from GET /api/data (orfix/overview.py): load() fetches it at the start
 // and again for "Neu einlesen". Pages are plain component objects; app.js picks one by the hash
 // route and mounts it fresh for every route and every load.
-import { T } from "./texts.js";
+import { T, plainName } from "./texts.js";
 import { api } from "./api.js";
 
 const { reactive, ref, shallowReactive, computed } = Vue;
@@ -149,7 +149,7 @@ export function printerText(inst, name) {
     const p = m.printers.find((x) => x.name === name);
     if (p) return T.printerWithNozzle(printerShortName(p.name), nozzleLabel(p.variant));
   }
-  return name;
+  return plainName(name);
 }
 
 // Pending changes of the pages "Drucker" and "Slicer": where `live` differs from the data.
@@ -276,7 +276,7 @@ export async function removeDataDir(inst) {
 
 // ------------------------------------------------------------ formatting
 export const nozzleLabel = (v) => v.split("+").map((d) => d.replace(".", ",")).join(" + ");
-export const printerShortName = (name) => name.replace(/\s*\(?[\d.+]+ nozzle\)?$/, "");
+export const printerShortName = (name) => plainName(name).replace(/\s*\(?[\d.+]+ nozzle\)?$/, "");
 export const plural = (n, one, many) => n.toLocaleString(LOCALE) + " " + (n === 1 ? one : many);
 
 // Decimal units (kB, MB), as the file managers on Linux show them.
@@ -323,6 +323,7 @@ export const ICONS = {
   lock: '<rect x="5.5" y="10.5" width="13" height="9.5" rx="1.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
   user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.8 3.6-6 7-6s6.2 2.2 7 6"/>',
   factory: '<path d="M3.5 20.5h17M5 20.5V12l4.5 3v-3l4.5 3v-3l4.5 3v5.5M15.5 12.5V4.5h3v8.2"/>',
+  package: '<path d="m12 3.5 8 4v9l-8 4-8-4v-9z"/><path d="m4 7.5 8 4 8-4M12 11.5v9M8 5.5l8 4"/>',
   books: '<rect x="3.5" y="4.5" width="4" height="15.5" rx="1"/><rect x="9" y="4.5" width="4" height="15.5" rx="1"/><path d="m14.7 6.2 3.8-1 3 14.4-3.8 1z"/>',
   temp: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>',
   bed: '<rect x="3" y="15" width="18" height="3.5" rx="1"/><path d="M8 12c1-1.2-.6-2.3.4-4M12 12c1-1.2-.6-2.3.4-4M16 12c1-1.2-.6-2.3.4-4"/>',

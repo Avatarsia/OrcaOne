@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from conftest import FIXTURES, copy_fixture
+from conftest import BUNDLE, FIXTURES, add_bundle, copy_fixture
 from orfix import backup, guard, instances, operations, overview
 from orfix.conf import ConfFile, dump_conf, parse_conf
 from orfix.guard import SlicerProcess
@@ -808,3 +808,24 @@ def test_restore_brings_back_names_that_are_not_utf8(snorca):
     assert restorable_files(snorca) == start
     with open(raw_name, "rb") as file:
         assert file.read().startswith(b'{"version": "2.4.0"')
+
+
+def test_bundle_profiles_are_never_changed(orca):
+    folder = add_bundle(orca.data_dir)
+    files = lambda: {p: p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
+    before = files()
+    pla, u1 = f"{BUNDLE}/Paket PLA", f"{BUNDLE}/Paket U1"
+    for change in ({"op": "filament_update", "name": pla, "values": {"nozzle_temperature": "215"}},
+                   {"op": "filament_rename", "name": pla, "new_name": "Neu"},
+                   {"op": "filament_delete", "name": pla},
+                   {"op": "filament_create", "base": pla, "name": "Kopie", "values": {}},
+                   {"op": "printer_delete", "name": u1}):
+        made = plan(orca, change)
+        assert (made["blocked"], made["blocked_params"]["name"]) == ("bundle_profile", change.get("base", change["name"])), change
+    # Its printer can be the default one and carry own filaments: that changes the .conf and
+    # own files only.
+    run(orca, {"op": "default_printer", "printer": u1},
+        {"op": "filament_create", "base": "Generic PLA @System", "name": "Mein PLA", "values": {}, "printers": [u1]})
+    assert json.loads(conf_path(orca).read_text(encoding="utf-8"))["presets"]["machine"] == u1
+    assert json.loads((orca.data_dir / FOLDER / "Mein PLA.json").read_text(encoding="utf-8"))["compatible_printers"] == [u1]
+    assert files() == before

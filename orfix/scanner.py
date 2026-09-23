@@ -67,6 +67,9 @@ class Profile:
 
     @property
     def origin_kind(self) -> str:
+        # A bundle belongs to OrcaSlicer: Orfix shows it, but never changes it.
+        if self.bundle:
+            return "bundle"
         if not self.package:
             return "user"
         return "library" if self.package == LIBRARY else "vendor"
@@ -97,6 +100,7 @@ class Scan:
     packages: list = field(default_factory=list)
     profiles: dict = field(default_factory=dict)  # (package, kind, name) -> system Profile
     own: list = field(default_factory=list)       # own profiles in load order
+    bundles: dict = field(default_factory=dict)   # "_local/<id>" -> name of the bundle, for the page
     colours: dict = field(default_factory=dict)   # (package, alias) -> [{"hex", "name"}]
     # (package, printer model) -> default_materials: the slicer switches them on again for a
     # printer without any filament in "filaments" that fits it (FINDINGS 4.6).
@@ -388,9 +392,11 @@ def load_own(scan: Scan) -> None:
         if scan.snorca or not base.is_dir():
             continue
         for bundle in sorted(d for d in base.iterdir() if (d / "bundle_metadata.json").is_file()):
-            bundle_id = _bundle_id(_read_json(bundle / "bundle_metadata.json"))
+            meta = _read_json(bundle / "bundle_metadata.json")
+            bundle_id = _bundle_id(meta)
             if bundle_id is None:
                 continue
+            scan.bundles[f"{bundle_dir}/{bundle_id}"] = meta.get("name") or bundle_id or bundle.name
             # Order as in PresetBundle::load_user_presets: process, filament, machine.
             for kind in ("process", "filament", "machine"):
                 next_pass = _load_kind_folder(scan, bundle / kind, kind, next_pass, f"{bundle_dir}/{bundle_id}")

@@ -372,7 +372,10 @@ class Planner:
         self.style = (cf.indent, cf.crlf)
         self.version = profile_version(instance.version)
         self.folder = f"user/{self.scan.active_folder}"
+        # Bundle profiles belong to OrcaSlicer: never changed, but their printers can be chosen.
         self.own = [self._load(p) for p in self.scan.own if not p.bundle]
+        self.bundle_printers = [p for p in self.scan.own if p.bundle and p.kind == "machine"
+                                and self.res.loaded(p) and self.res.chain(p)[1]]
         self.warnings = []
         self.unlock_add, self.unlock_remove = set(), set()
         self.gone = set()  # printers the slicer no longer lists after the changes so far
@@ -402,12 +405,19 @@ class Planner:
     def live(self, kind: str | None = None) -> list:
         return [o for o in self.own if not o.deleted and (kind is None or o.kind == kind)]
 
+    def not_own(self, name: str, kinds) -> Blocked:
+        """Why name is no own profile Orfix may change: it sits in a bundle, is a system profile
+        or does not exist."""
+        if any(p.bundle and p.kind in kinds and p.name == name for p in self.scan.own):
+            return Blocked("bundle_profile", name=name)
+        if any(p.kind in kinds and p.name == name for p in self.scan.profiles.values()):
+            return Blocked("not_own_profile", name=name)
+        return Blocked("unknown_profile", name=name)
+
     def find_own(self, kind: str, name: str, need_data: bool = True) -> Own:
         found = [o for o in self.live(kind) if o.name == name]
         if not found:
-            if any(p.kind == kind and p.name == name for p in self.scan.profiles.values()):
-                raise Blocked("not_own_profile", name=name)
-            raise Blocked("unknown_profile", name=name)
+            raise self.not_own(name, (kind,))
         # Of two files with one name the slicer loads the first; that is the one meant.
         own = next((o for o in found if o.loaded), found[0])
         if need_data and own.data is None:
@@ -475,6 +485,7 @@ class Planner:
     def printers(self, names: list) -> list:
         known = {p.name for p in self.res.collection["machine"].values()}
         known |= {o.name for o in self.live("machine") if o.loaded}
+        known |= {p.name for p in self.bundle_printers}
         for name in names:
             if name not in known:
                 raise Blocked("unknown_profile", name=name)
@@ -485,6 +496,7 @@ class Planner:
         printers, then own ones."""
         out = [p.name for m in self.res.installed_printers() for _, p in m["printers"]]
         out += sorted(o.name for o in self.live("machine") if o.loaded)
+        out += sorted(p.name for p in self.bundle_printers)
         return [n for n in out if n not in self.gone]
 
     def filament_names(self):
@@ -497,7 +509,9 @@ class Planner:
         if found is not None:
             return found
         own = next((o for o in self.live("machine") if o.name == name and o.loaded), None)
-        return own.profile if own else None
+        if own:
+            return own.profile
+        return next((p for p in self.bundle_printers if p.name == name), None)
 
     def replacement(self, machine: str, gone: set) -> str | None:
         """A filament the slicer shows for this printer, to replace a deleted one in orca_presets."""
@@ -764,8 +778,7 @@ class Planner:
         for other in along:
             found = [o for o in self.live() if o.name == other and o.kind in ("filament", "process")]
             if not found:
-                known = any(p.name == other and p.kind != "machine" for p in self.scan.profiles.values())
-                raise Blocked("not_own_profile" if known else "unknown_profile", name=other)
+                raise self.not_own(other, ("filament", "process"))
             doomed += [o for o in found if o not in doomed]
         children = self.children(doomed)
         if children:

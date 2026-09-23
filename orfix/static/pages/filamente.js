@@ -10,7 +10,7 @@ import {
   INSTANCES, FIELDS, live, flash, go, hashOf, plural, nozzleLabel, printerShortName,
   setLeaveGuard, clearLeaveGuard, onReset,
 } from "../common.js";
-import { T } from "../texts.js";
+import { T, plainName } from "../texts.js";
 import FilamentEditor, { hexOf, changeText } from "./filament-editor.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
@@ -33,8 +33,9 @@ const VALUES = [
   { key: "filament_cost", icon: "price" },
 ].map((v) => ({ ...v, ...F.values[v.key] }));
 // Own profiles first: they are few and the ones people change.
-const KIND_ORDER = ["user", "vendor", "library"];
-const KIND_ICON = { user: "user", vendor: "factory", library: "books" };
+// Bundles next: imported by the user, but OrcaSlicer's to change.
+const KIND_ORDER = ["user", "bundle", "vendor", "library"];
+const KIND_ICON = { user: "user", bundle: "package", vendor: "factory", library: "books" };
 const ALL_PRINTERS = "*";  // a list profile of the Orca library counts for every printer
 
 const materialGroup = (m) => MATERIALS.find((g) => g.test(m || ""));
@@ -46,8 +47,12 @@ const key = (profile, printer) => profile + "|" + printer;
 function shortName(e) {
   const b = e.brand.toLowerCase() + " ";
   const rest = e.name.slice(b.length).trim();
-  return e.kind !== "user" && e.brand && e.name.toLowerCase().startsWith(b) && rest ? rest : e.name;
+  return e.kind !== "user" && e.kind !== "bundle" && e.brand && e.name.toLowerCase().startsWith(b) && rest ? rest : e.name;
 }
+// The tree groups manufacturer and library filaments by brand, bundle profiles by their bundle.
+const groupOf = (e) => e.kind === "bundle" ? e.pack : e.brand;
+// Rows nobody can switch or build on: not loaded by the slicer, or part of a bundle.
+const fixed = (e) => e.orphan || e.kind === "bundle";
 const subOf = (e) => e.kind === "user" ? F.ownShort : e.brand || e.material || "";
 // The slicer does not load it: its template is missing or the file is broken. "unresolved": its
 // template may sit in a package Orfix cannot read, so Orfix cannot show or change it either.
@@ -144,7 +149,7 @@ function withEdits(inst, e) {
 let uid = 0;
 function makeEntry(kind, name, f) {
   return {
-    uid: ++uid, id: kind + ":" + name, kind, name, brand: f.vendor || "", material: f.material || "",
+    uid: ++uid, id: kind + ":" + name, kind, name: plainName(name), pack: f.bundle || "", brand: f.vendor || "", material: f.material || "",
     colours: f.colours || null, slots: {}, record: null, parent: null, orphan: false, template: null, fresh: false,
   };
 }
@@ -350,7 +355,8 @@ export default {
         const all = m.printers.map((p) => p.name);
         const active = entriesOf(i, m).filter((e) => ["on", "some"].includes(stateOf(i, e, all))).sort(byName);
         const name = printerShortName(m.printers[0]?.name || m.model);
-        return { m, idx, name, sub: m.own ? F.ownPrinter : name === m.model ? "" : m.model, active };
+        const own = m.bundle !== undefined ? F.bundlePrinter(m.bundle) : F.ownPrinter;
+        return { m, idx, name, sub: m.own ? own : name === m.model ? "" : m.model, active };
       }),
     })));
 
@@ -359,6 +365,7 @@ export default {
       user: F.kinds.user,
       vendor: model.value && model.value.origin && model.value.origin !== "Custom" ? F.kinds.vendorFrom(model.value.origin) : F.kinds.vendor,
       library: F.kinds.library,
+      bundle: F.kinds.bundle,
     })[kind];
     const labelsOf = (names) => model.value.printers.filter((p) => names.includes(p.name))
       .map((p) => nozzleLabel(p.variant)).join(" · ");
@@ -374,7 +381,7 @@ export default {
       if (!model.value) return counts;
       for (const p of model.value.printers) counts[p.name] = 0;
       for (const e of entries.value) {
-        if (e.kind === "user") continue;
+        if (e.kind === "user" || e.kind === "bundle") continue;
         for (const p in counts) if (isOn(inst.value, e, p)) counts[p]++;
       }
       return counts;
@@ -404,10 +411,11 @@ export default {
       }
       return leaving > 0 && on - leaving < 1;
     }
-    const lockText = (e) => e.kind === "user" ? F.lastNozzle : F.lastOne;
+    const lockText = (e) => e.kind === "bundle" ? F.bundleLocked : e.kind === "user" ? F.lastNozzle : F.lastOne;
     function rowOf(e) {
       const i = inst.value, st = stateOf(i, e, printers.value);
-      const row = { e, st, hint: null, locked: st === "on" && lockedOff(e), ownCount: ownCounts.value.get(e.id) || 0 };
+      const locked = e.kind === "bundle" || (st === "on" && lockedOff(e));
+      const row = { e, st, hint: null, locked, ownCount: ownCounts.value.get(e.id) || 0 };
       if (e.orphan) row.hint = e.unresolved ? { text: F.hints.unresolved, cls: "" } : { text: F.hints.notLoaded, cls: "bad" };
       else if (e.pending) row.hint = { text: F.hints.pending, cls: "changed" };
       else if (st === "some") row.hint = { text: F.hints.activeAt(labelsOf(printers.value.filter((p) => isOn(i, e, p)))), cls: "on" };
@@ -417,6 +425,8 @@ export default {
     const rows = computed(() => entries.value.map(rowOf).filter((r) => r.st !== "na" || r.e.orphan));
     const isActive = (r) => r.st === "on" || r.st === "some";
     const shelf = computed(() => rows.value.filter(isActive).sort((a, b) => byName(a.e, b.e)));
+    // Templates for "Neues Filament": a bundle profile is none, OrcaSlicer keeps it to itself.
+    const pickShelf = computed(() => shelf.value.filter((r) => !fixed(r.e)));
     const tree = computed(() => {
       const q = query.value.trim().toLowerCase();
       const match = (e) => (!q || (e.name + " " + e.brand + " " + e.material).toLowerCase().includes(q))
@@ -432,24 +442,25 @@ export default {
         } else {
           const brands = new Map();
           for (const r of all) {
-            const k = r.e.brand.toLowerCase();
-            if (!brands.has(k)) brands.set(k, { key: kind + "|" + k, label: r.e.brand || F.noBrand, rows: [], total: 0, active: [] });
+            const g = groupOf(r.e), k = g.toLowerCase();
+            if (!brands.has(k)) brands.set(k, { key: kind + "|" + k, label: g || F.noBrand, rows: [], total: 0, active: [] });
             const b = brands.get(k);
             b.total++;
             if (isActive(r)) b.active.push(r.e);
-            if (!/^[A-Z]/.test(b.label) && /^[A-Z]/.test(r.e.brand)) b.label = r.e.brand;
+            if (!/^[A-Z]/.test(b.label) && /^[A-Z]/.test(g)) b.label = g;
           }
           for (const b of brands.values()) {
             b.on = b.active.length;
             b.active.sort(byName);
           }
-          for (const r of shown) brands.get(r.e.brand.toLowerCase()).rows.push(r);
+          for (const r of shown) brands.get(groupOf(r.e).toLowerCase()).rows.push(r);
           groups = [...brands.values()].filter((b) => !filterActive.value || b.rows.length)
             .sort((a, b) => a.label.localeCompare(b.label, "de", { sensitivity: "base" }));
         }
         const on = all.filter(isActive).length;
         let note = null;
         if (kind === "library") note = !inst.value.snorca ? F.libraryNote.orca : on ? null : F.libraryNote.snorcaOff;
+        if (kind === "bundle") note = F.bundleNote;
         return { kind, title: kindTitle(kind), icon: KIND_ICON[kind], total: all.length, on, hits: shown.length, groups, note };
       }).filter((k) => k && (!filterActive.value || k.hits || k.kind === "user"));
     });
@@ -472,19 +483,19 @@ export default {
       }
     }
     function toggle(e) {
-      if (readOnly.value || e.orphan) return;
+      if (readOnly.value || fixed(e)) return;
       const st = stateOf(inst.value, e, printers.value);
       if (st === "on" && lockedOff(e)) return flash(lockText(e));
       setEntry(e, printers.value, st !== "on");
     }
     function switchOn(e, on) {
-      if (readOnly.value || e.orphan) return;
+      if (readOnly.value || fixed(e)) return;
       if (!on && lockedOff(e)) return flash(lockText(e));
       setEntry(e, printers.value, on);
       flash(F.switched(e.name, on));
     }
     function toggleAt(e, p) {
-      if (readOnly.value) return;
+      if (readOnly.value || fixed(e)) return;
       const on = isOn(inst.value, e, p);
       if (on && lockedOff(e, [p])) return flash(lockText(e));
       setEntry(e, [p], !on);
@@ -601,7 +612,7 @@ export default {
     // Buttons per nozzle only where one nozzle can really be switched alone: own profiles and
     // the SnOrca library bind per printer, list profiles only if each nozzle has its own profile.
     const nozzleSwitches = computed(() => {
-      if (!detail.value) return false;
+      if (!detail.value || fixed(detail.value.e)) return false;
       const e = detail.value.e, ps = detailPrinters.value;
       return ps.length > 1 && (!usesList(inst.value, e) || new Set(ps.map((p) => e.slots[p.name])).size === ps.length);
     });
@@ -619,7 +630,7 @@ export default {
       query.value = "";
       materials.clear();
       closedKinds.delete(e.kind);
-      expanded.add(e.kind + "|" + e.brand.toLowerCase());
+      expanded.add(e.kind + "|" + groupOf(e).toLowerCase());
       openDetails(e);
       nextTick(() => scrollToRow(e));
     }
@@ -637,7 +648,7 @@ export default {
     const templateHits = computed(() => {
       const q = pickQuery.value.trim().toLowerCase();
       if (!q) return [];
-      return rows.value.filter((r) => !r.e.orphan && (r.e.name + " " + r.e.brand + " " + r.e.material).toLowerCase().includes(q))
+      return rows.value.filter((r) => !fixed(r.e) && (r.e.name + " " + r.e.brand + " " + r.e.material).toLowerCase().includes(q))
         .map((r) => r.e).sort(byName);
     });
     function openPicker() {
@@ -707,7 +718,7 @@ export default {
     // template and its own values.
     let editSeq = 0;
     function openEditor(e, mode) {
-      if (readOnly.value || e.orphan) return;
+      if (readOnly.value || fixed(e)) return;
       if (!panel.value) lastFocus = document.activeElement;
       panel.value = { type: "edit", id: e.id, mode, seq: ++editSeq };
       nextTick(() => document.getElementById("edit-name")?.focus());
@@ -761,7 +772,7 @@ export default {
     // Rows are dragged as a whole; drop on "Aktiv" = on, back on the list = off, on the dock
     // target "Neues Filament daraus" = new filament. The switch and the buttons do the same by keyboard.
     function dragStart(ev, e, from) {
-      if (readOnly.value || e.orphan) return ev.preventDefault();
+      if (readOnly.value || fixed(e)) return ev.preventDefault();
       ev.dataTransfer.setData("text/plain", e.name);
       ev.dataTransfer.effectAllowed = "copyMove";
       dragSource = { e, from };
@@ -811,7 +822,7 @@ export default {
     return {
       T, F, MATERIALS, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText,
       query, materials, closedKinds, panel, dragging, pickQuery,
-      homeGroups, lostText, tree, shelf, detail, detailValues, detailPrinters, nozzleSwitches, scopeText, problemText,
+      homeGroups, lostText, tree, shelf, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, scopeText, problemText,
       templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
@@ -900,7 +911,7 @@ export default {
             <span class="sub">{{ F.shelfSub(nozzleText) }}</span>
           </div>
           <ul v-if="shelf.length" class="shelf-grid">
-            <li v-for="r in shelf" :key="r.e.uid" class="tile" :draggable="!readOnly"
+            <li v-for="r in shelf" :key="r.e.uid" class="tile" :draggable="!readOnly && !fixed(r.e)"
                 @dragstart="dragStart($event, r.e, 'shelf')" @dragend="dragEnd">
               <div class="tile-main" role="button" tabindex="0" :aria-current="panel && panel.id === r.e.id ? 'true' : null"
                    @click="pickRow(r.e)" @keydown="activate($event, () => pickRow(r.e, true))">
@@ -956,7 +967,7 @@ export default {
                     <ul v-if="!g.label || brandOpen(g.key)" class="rows">
                       <li v-for="r in g.rows" :key="r.e.uid" :id="'row-' + r.e.uid"
                           :class="['row', 'is-' + (r.st === 'na' ? 'off' : r.st), { 'is-selected': panel && panel.id === r.e.id, 'is-fresh': r.e.fresh }]"
-                          :draggable="!readOnly && !r.e.orphan" @dragstart="dragStart($event, r.e, 'tree')" @dragend="dragEnd">
+                          :draggable="!readOnly && !fixed(r.e)" @dragstart="dragStart($event, r.e, 'tree')" @dragend="dragEnd">
                         <span class="grip" aria-hidden="true"><ui-icon name="grip"/></span>
                         <div class="row-main" role="button" tabindex="0" @click="pickRow(r.e)" @keydown="activate($event, () => pickRow(r.e, true))">
                           <spool-icon :colour="colourOf(r.e)" :size="28"/>
@@ -1032,6 +1043,7 @@ export default {
               </div>
             </div>
             <p v-if="detail.e.orphan" class="alert">{{ problemText(detail.e) }}</p>
+            <p v-if="detail.e.kind === 'bundle'" class="from"><ui-icon name="package"/> {{ F.fromBundle(detail.e.pack) }}</p>
             <p v-if="detail.e.parent" class="from">{{ F.templateLabel }} <button class="link" type="button" @click="jumpTo(detail.e.parent.id)">{{ detail.e.parent.name }}</button></p>
 
             <template v-if="detail.e.colours && detail.e.kind !== 'user'">
@@ -1064,7 +1076,7 @@ export default {
 
             <!-- One way per result: "Bearbeiten" on a manufacturer or library profile creates the own copy. -->
             <div class="actions">
-              <button v-if="!detail.e.orphan" class="btn btn-primary" type="button" :disabled="readOnly"
+              <button v-if="!fixed(detail.e)" class="btn btn-primary" type="button" :disabled="readOnly"
                       @click="openEditor(detail.e, detail.e.kind === 'user' ? 'edit' : 'copy')"><ui-icon name="pencil"/>{{ F.edit }}</button>
               <button v-if="detail.e.kind === 'user' && !detail.e.orphan" class="btn" type="button" :disabled="readOnly"
                       @click="openEditor(detail.e, 'new')"><ui-icon name="plus"/>{{ F.newFrom }}</button>
@@ -1075,9 +1087,9 @@ export default {
 
         <template v-else-if="panel.type === 'pick'">
           <p class="note pick-lead">{{ F.pick.lead }}</p>
-          <h3 v-if="shelf.length">{{ F.active }}</h3>
-          <div v-if="shelf.length" class="pick-grid">
-            <button v-for="r in shelf" :key="r.e.uid" type="button" class="pick" :title="r.e.name" @click="openEditor(r.e, 'new')">
+          <h3 v-if="pickShelf.length">{{ F.active }}</h3>
+          <div v-if="pickShelf.length" class="pick-grid">
+            <button v-for="r in pickShelf" :key="r.e.uid" type="button" class="pick" :title="r.e.name" @click="openEditor(r.e, 'new')">
               <spool-icon :colour="colourOf(r.e)" :size="36"/>
               <span class="pick-name">{{ shortName(r.e) }}</span>
               <span class="pick-sub">{{ subOf(r.e) }}</span>

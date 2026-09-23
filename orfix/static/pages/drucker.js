@@ -10,7 +10,7 @@
 import {
   INSTANCES, live, flash, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON,
 } from "../common.js";
-import { T } from "../texts.js";
+import { T, plainName } from "../texts.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -34,7 +34,7 @@ export default {
         if (!s.models.has(m.model)) continue;
         const name = printerShortName(m.printers[0]?.name || m.model);
         out.push({
-          id: "model:" + m.model, system: true, model: m.model, name, sub: name === m.model ? "" : m.model,
+          id: "model:" + m.model, system: true, model: m.model, name, label: name, sub: name === m.model ? "" : m.model,
           cover: m.cover, printers: m.printers, tag: P.tags.vendor, tagIcon: "factory",
           visible: true, problem: null, package: m.origin, dropsPackage: m.drops_package,
           isDefault: m.printers.some((p) => p.name === s.defaultPrinter),
@@ -45,16 +45,17 @@ export default {
       }
       for (const p of pp.own) {
         if (!s.own.has(p.name)) continue;
-        const project = p.origin === "project";
+        const project = p.origin === "project", bundle = p.origin === "bundle";
         // Its template sits in a vendor package the slicer deletes at its next start.
         const packageGone = !!p.package && !s.packages.has(p.package);
         const visible = p.visible && !packageGone;
         const problem = T.profileProblems[p.problem];
         out.push({
-          id: "own:" + p.name, system: false, model: p.model, name: p.name,
+          id: "own:" + p.name, system: false, model: p.model, name: p.name, label: plainName(p.name), bundle,
           sub: p.based_on ? T.filaments.template(p.based_on_found ? printerText(i, p.based_on) : p.based_on) : "",
           cover: p.cover, printers: visible ? [{ name: p.name, variant: p.variant }] : [],
-          tag: project ? T.printerOrigins.project : P.tags.own, tagIcon: project ? "file" : "user",
+          tag: bundle ? p.bundle : project ? T.printerOrigins.project : P.tags.own,
+          tagIcon: bundle ? "package" : project ? "file" : "user",
           visible, package: p.package, unresolved: p.status === "unresolved",
           problem: packageGone ? P.packageGone(p.package) : problem ? problem(p) : null,
           isDefault: p.name === s.defaultPrinter, onlyHere: mine(p.only_here), keepsOwn: [],
@@ -143,7 +144,7 @@ export default {
     // Own profiles that belong to this printer only are ticked, unless an own printer built on it
     // stays: it may still use them (FINDINGS 4.6, compatibility over the direct parent).
     function openRemove(c) {
-      if (readOnly.value || locked(c)) return;
+      if (readOnly.value || locked(c) || c.bundle) return;
       along.clear();
       if (!c.keepsOwn.length) c.onlyHere.forEach((x) => along.add(x.name));
       openPanel({ type: "remove", id: c.id });
@@ -234,10 +235,10 @@ export default {
           <span class="sub">{{ P.inSlicer(cards.filter((c) => c.visible).length) }}</span>
         </div>
         <div class="cards pcards">
-          <article v-for="c in cards" :key="c.id" :class="['pcard', { 'is-default': c.isDefault }]" :aria-label="c.name">
+          <article v-for="c in cards" :key="c.id" :class="['pcard', { 'is-default': c.isDefault }]" :aria-label="c.label">
             <span class="card-img"><img :src="c.cover" alt="" width="170" height="170" :class="{ dim: !c.visible }"></span>
             <div class="pcard-body">
-              <h3 class="card-name">{{ c.name }}</h3>
+              <h3 class="card-name">{{ c.label }}</h3>
               <span v-if="c.sub" class="card-sub">{{ c.sub }}</span>
               <p class="tags">
                 <span v-if="c.isDefault" class="tag tag-default"><ui-icon name="star" :size="14"/>{{ P.tags.default }}</span>
@@ -258,8 +259,9 @@ export default {
                       :disabled="readOnly" @click="openDefault(c)">
                 <ui-icon name="star"/>{{ c.isDefault ? P.otherNozzle : P.asDefault }}
               </button>
-              <button class="btn btn-danger" type="button" :disabled="readOnly || locked(c)" :title="locked(c) ? P.lastOne : null" @click="openRemove(c)">
-                <ui-icon :name="locked(c) ? 'lock' : 'trash'"/>{{ c.system ? P.remove : P.delete }}
+              <button class="btn btn-danger" type="button" :disabled="readOnly || locked(c) || c.bundle"
+                      :title="c.bundle ? P.bundleLocked : locked(c) ? P.lastOne : null" @click="openRemove(c)">
+                <ui-icon :name="locked(c) || c.bundle ? 'lock' : 'trash'"/>{{ c.system ? P.remove : P.delete }}
               </button>
             </div>
           </article>
@@ -302,7 +304,7 @@ export default {
           <div class="hero">
             <img class="hero-img" :src="pcard.cover" alt="" width="96" height="96" :class="{ dim: !pcard.visible }">
             <div class="hero-text">
-              <p class="hero-name">{{ pcard.name }}</p>
+              <p class="hero-name">{{ pcard.label }}</p>
               <p v-if="pcard.sub" class="hero-sub">{{ pcard.sub }}</p>
               <p class="tags hero-tags">
                 <span v-if="pcard.isDefault" class="tag tag-default"><ui-icon name="star" :size="14"/>{{ P.tags.default }}</span>

@@ -5,6 +5,8 @@
 
 const n = (x) => x.toLocaleString("de-DE");
 const q = (name) => `„${name}“`;
+// A bundle profile of OrcaSlicer 2.5 is called "_local/<id>/<name>" inside (scanner.py); people see <name>.
+export const plainName = (name) => name.replace(/^_(?:local|subscribed)\/.*\//, "");
 
 export const T = {
   appName: "Orfix",
@@ -132,6 +134,7 @@ export const T = {
     name_taken: (inst, d) => `${d.name ? `Den Namen ${q(d.name)}` : "Einen der Namen"} gibt es schon. Wähle unter „Filamente“ einen anderen.`,
     name_invalid: (inst, d) => `${d.name ? `Der Name ${q(d.name)}` : "Ein Name"} enthält Zeichen, die der Slicer nicht annimmt. Ändere ihn unter „Filamente“.`,
     name_too_long: () => "Ein Name ist zu lang, erlaubt sind höchstens 120 Zeichen. Kürze ihn unter „Filamente“.",
+    bundle_profile: (inst, d) => `${d.name ? q(plainName(d.name)) : "Dieses Profil"} stammt aus einem Profilpaket. Pakete ändert nur ${inst.slicer} selbst.`,
     not_own_profile: (inst, d) => `${d.name ? q(d.name) + " ist kein eigenes Profil." : "Das ist kein eigenes Profil."} Orfix ändert nur eigene Profile. Lies neu ein und versuche es erneut.`,
     parent_not_selectable: (inst, d) => `${d.name ? `Die Vorlage ${q(d.name)}` : "Diese Vorlage"} nimmt der Slicer nicht an. Lege das Filament auf einer anderen Vorlage an.`,
     unknown_profile: (inst, d) => `${d.name ? q(d.name) : "Ein Profil aus der Liste"} gibt es nicht mehr. Lies neu ein und versuche es erneut.`,
@@ -266,6 +269,7 @@ export const T = {
     noPrinter: "Kein Drucker eingerichtet. Richte im Slicer einen ein und lies dann neu ein.",
     credits: "Druckerbilder und Symbole aus OrcaSlicer",
     ownPrinter: "Eigener Drucker",
+    bundlePrinter: (pack) => `Aus Paket ${q(pack)}`,
     allPrinters: "Alle Drucker",
     backToPrinters: "Zurück zur Druckerauswahl",
     printerGone: "Diesen Drucker zeigt der Slicer nicht mehr, sobald die Änderungen übernommen sind.",
@@ -292,6 +296,7 @@ export const T = {
       vendor: "Vom Hersteller",
       vendorFrom: (vendor) => `Von ${vendor}`,
       library: "Orca-Bibliothek",
+      bundle: "Aus Paketen",
     },
     ownShort: "Eigenes",
     noBrand: "Ohne Marke",
@@ -302,6 +307,9 @@ export const T = {
       orca: "Ein Schalter gilt hier für alle Drucker.",
       snorcaOff: "Ausgeschaltet – einzeln einschalten",
     },
+    bundleNote: "Aus Profilpaketen, die OrcaSlicer importiert hat. Ändern lassen sie sich nur dort.",
+    fromBundle: (pack) => `Aus dem Profilpaket ${q(pack)}. Ändern lässt es sich nur in OrcaSlicer.`,
+    bundleLocked: "Aus einem Profilpaket. Ändern lässt es sich nur in OrcaSlicer.",
     hints: {
       notLoaded: "Im Slicer nicht sichtbar",
       unresolved: "Vorlage für Orfix nicht lesbar",
@@ -398,6 +406,7 @@ export const T = {
     yours: "Deine Drucker",
     inSlicer: (k) => `${n(k)} Drucker im Slicer`,
     tags: { vendor: "Vom Hersteller", own: "Eigener", default: "Standard" },
+    bundleLocked: "Aus einem Profilpaket. Entfernen lässt er sich nur in OrcaSlicer.",
     nozzlesLabel: "Düsen:",
     notVisible: "Im Slicer nicht sichtbar",
     unresolved: "Vorlage für Orfix nicht lesbar",
@@ -637,7 +646,7 @@ export const T = {
   },
   labels: {
     status: { visible: "Sichtbar", hidden: "Ausgeblendet", displaced: "Verdrängt", orphaned: "Verwaist", ignored: "Wird ignoriert", unresolved: "Nicht auflösbar" },
-    origin_kind: { vendor: "Herstellerpaket", library: "Orca-Bibliothek", user: "Eigenes Profil" },
+    origin_kind: { vendor: "Herstellerpaket", library: "Orca-Bibliothek", user: "Eigenes Profil", bundle: "Profilpaket" },
     // Folder tree on the page "Slicer".
     category: { managed: "Verwaltet Orfix", system: "Vom Hersteller", unmanaged: "Gehört dem Slicer", sensitive: "Vertraulich", temp: "Flüchtig" },
     kind: { machine: "Drucker", process: "Prozesse", filament: "Filamente" },
@@ -756,7 +765,7 @@ export const T = {
   },
 
   // printers_page
-  printerOrigins: { own: "Eigener Drucker", project: "Aus einem Projekt übernommen" },
+  printerOrigins: { own: "Eigener Drucker", project: "Aus einem Projekt übernommen", bundle: "Aus einem Profilpaket" },
   deadEntries: {
     default_printer: "Platzhalter vom ersten Start, bevor ein Drucker eingerichtet war.",
     project: "Drucker aus einem Projekt, das einmal geöffnet war.",

@@ -37,6 +37,24 @@ def copy_fixture(name: str, target: Path) -> Path:
     return target
 
 
+BUNDLE = "_local/abc123"  # prefix of the profiles add_bundle puts in
+
+
+def add_bundle(data_dir: Path) -> Path:
+    """A bundle as OrcaSlicer 2.5 imports it (FINDINGS 4.2) into a copy of tests/fixtures/orca:
+    a filament for the U1 with 0.4 nozzle only, and a printer on the U1 with 0.4 nozzle."""
+    folder = data_dir / "user" / "default" / "_local" / "paket1"
+    profiles = {"filament": ("Paket PLA", {"inherits": "Generic PLA @System",
+                                           "compatible_printers": ["Snapmaker U1 (0.4 nozzle)"]}),
+                "machine": ("Paket U1", {"inherits": "Snapmaker U1 (0.4 nozzle)"})}
+    for kind, (name, data) in profiles.items():
+        (folder / kind).mkdir(parents=True)
+        body = {"name": name, "from": "Bundle", "version": "2.5.0", **data}
+        (folder / kind / f"{name}.json").write_text(json.dumps(body, indent=4) + "\n", encoding="utf-8")
+    (folder / "bundle_metadata.json").write_text(json.dumps({"id": "abc123", "name": "Mein Paket"}), encoding="utf-8")
+    return folder
+
+
 @pytest.fixture
 def server(fake_home, monkeypatch):
     """The real app on 127.0.0.1, isolated from the real slicers."""

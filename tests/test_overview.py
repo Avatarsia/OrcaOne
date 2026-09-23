@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from conftest import FIXTURES, copy_fixture
+from conftest import BUNDLE, FIXTURES, add_bundle, copy_fixture
 from orfix import instances, overview
 from orfix.guard import SlicerProcess
 from test_opc import patched
@@ -236,3 +236,18 @@ def test_odd_types_in_hand_edited_files(fake_home, tmp_path):
     assert mein_pla["info"]["updated_time"] is None
     assert [m["model"] for m in data["models"] if not m.get("own")] == ["Snapmaker U1"]
     assert all(isinstance(d["machine"], str) for d in data["printers_page"]["dead_entries"])
+
+
+def test_bundle_profiles_are_marked(fake_home, tmp_path):
+    data_dir = copy_fixture("orca", tmp_path / "OrcaSlicer")
+    add_bundle(data_dir)
+    data = build(data_dir)
+    record = by_name(data)[f"{BUNDLE}/Paket PLA"]
+    assert (record["origin_kind"], record["bundle"]) == ("bundle", "Mein Paket")
+    assert record["printers"]["Snapmaker U1 (0.4 nozzle)"]["status"] == "visible"
+    printer = next(p for p in data["printers_page"]["own"] if p["name"] == f"{BUNDLE}/Paket U1")
+    assert (printer["origin"], printer["bundle"], printer["visible"]) == ("bundle", "Mein Paket", True)
+    assert next(m for m in data["models"] if m["model"] == f"{BUNDLE}/Paket U1")["bundle"] == "Mein Paket"
+    # Removing the U1 does not offer the bundle filament for deleting along: Orfix never deletes it.
+    u1 = next(m for m in data["printers_page"]["system"] if m["model"] == "Snapmaker U1")
+    assert all(x["name"] != f"{BUNDLE}/Paket PLA" for x in u1["only_here"])

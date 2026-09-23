@@ -74,6 +74,7 @@ In eine Installation, in die Orfix nicht schreiben darf, ist „Übernehmen“ a
   - Standarddrucker festlegen, Drucker entfernen, tote `orca_presets`-Einträge aufräumen.
 - Vor jedem Schreiben eine ZIP-Sicherung in `~/.local/share/orfix/backups/<id>/` bzw. `%LOCALAPPDATA%\orfix\backups\<id>\`, nur für den Nutzer lesbar. Lässt sich ein Ordner nicht lesen, legt Orfix keine Sicherung an und schreibt nichts. Wiederherstellen schreibt `.conf` und `user/` zurück, vorher sichert Orfix den jetzigen Stand. Das geht auch, wenn die `.conf` beschädigt ist; alle anderen Änderungen sperrt Orfix dann.
 - Nie über Symlinks schreiben: Ein Ordner in `user/`, der ein Symlink ist, fehlt in der Sicherung. Änderungen dort sperrt Orfix (`path_outside_backup`).
+- Profilpakete von OrcaSlicer 2.5 (`_local/`, `_subscribed/`) stehen unter „Aus Paketen“, gruppiert nach Paket und ohne den internen Vorsatz `_local/<id>/`. Ändern, löschen oder als Vorlage nehmen lassen sie sich nicht, das bleibt OrcaSlicer vorbehalten. Einen Drucker aus einem Paket kann man als Standard wählen.
 - Meldet, wenn der Einrichtungsassistent ein freigeschaltetes Bibliotheksfilament wieder ausgeblendet hat („Freischaltung verloren“), auf „Filamente“ und unter „Slicer“ → „Hinweise“.
 - Hell- und Dunkelmodus folgen der Systemeinstellung.
 
@@ -128,7 +129,6 @@ Die Entwürfe D, E und E2 liegen nur noch in der Git-Geschichte, zuletzt in Comm
 
 ## Offene Punkte
 
-- **Profilpakete von OrcaSlicer 2.5** (`_local/`, `_subscribed/`) zeigt Orfix wie eigene Profile und ließe sie bearbeiten. Das soll gesperrt werden.
 - **Sichtprüfung im Browser fehlt** für „Das passiert“, die Meldungen nach dem Schreiben und die Seite „Sicherungen“. Die Abläufe sind nur mit dem echten Seitencode ohne Browser durchgespielt.
 - **Praxistest Teil B mit SnOrca steht aus.** Er läuft nach `docs/TEST-VERGLEICH.md` direkt im echten Ordner. Ohne SnOrca liefen die Schritte schon auf einer Kopie des echten Ordners, geprüft mit dem Resolver von Orfix: alles wie erwartet.
 - **`version` neuer Profile** kommt aus der Slicerversion (2.4.0 bzw. 2.5.0). SnOrca übernimmt beim Speichern die Version der Vorlage. Laut Quellcode zählt nur gültiges Semver, am Slicer ist das noch nicht geprüft.

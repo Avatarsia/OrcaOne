@@ -90,6 +90,8 @@ def test_orca_takes_the_file_name_and_reads_bundles(tmp_path):
     # (PresetBundle::load_user_presets), a folder without metadata is ignored.
     assert names == [("_local/abc123/Paket PLA", None, None, "_local/abc123"),
                      ("Datei", "Anderer Name", None, None)]
+    assert [p.origin_kind for p in scan.own] == ["bundle", "user"]
+    assert scan.bundles == {"_local/abc123": "Paket"}
 
 
 def test_orca_packages_come_from_opc():

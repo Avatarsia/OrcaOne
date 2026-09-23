@@ -118,6 +118,6 @@ Die Seite soll die Prozessprofile im Überblick zeigen, als neuer Menüpunkt zwi
   - ein neues eigenes Profil baut auf einem Profil aus `Snapmaker.opc` auf, `version` 2.5.0, `.info` mit `base_id` aus der `.opc`;
   - die `.conf` bleibt mit Tab eingerückt, Wiederherstellen ergibt die Kopie Byte für Byte.
   - Das Format eigener Profile ist in Orca main unverändert: JSON plus `.info` (`Preset::save`, `load_presets` in `Preset.cpp`). `.opc` liegt nur in `system/`, dort schreibt Orfix nie.
-- **Offen:** Profile aus Profilpaketen von Orca 2.5 (`user/<ordner>/_local/`, `_subscribed/`) zählt Orfix zu den eigenen und ließe sie bearbeiten. Sperren, bevor jemand Pakete importiert.
+- **Profilpakete von Orca 2.5 (23.09.):** eigene Herkunft `bundle`, auf „Filamente“ unter „Aus Paketen“ nach Paketname, auf „Drucker“ mit dem Paketnamen als Etikett. Ändern, Löschen und „Neues Filament daraus“ sperrt Orfix (Code `bundle_profile`). Drucker aus Paketen lassen sich als Standard wählen und an eigene Filamente binden. Im Browser mit einem Beispielpaket geprüft.
 - **Danach:** Seite „Prozesse“ **nur zum Anzeigen**, ohne Bearbeiten. Das hat der Nutzer am 22.09. entschieden: „klingt fast wie ein Slicer-Nachbau … Overkill“.
   - Gezeigt werden die eingestellten Werte in den Gruppen Qualität, Stabilität, Geschwindigkeit, Stützen und Haftung, dazu „Alle Werte“ aufklappbar.
