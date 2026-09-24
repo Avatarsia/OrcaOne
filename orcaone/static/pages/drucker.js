@@ -60,7 +60,8 @@ export default {
     // A U1 card can look for Snapmaker printers in the LAN, as Snapmaker Orca does (mDNS, only in
     // the same LAN, not over a VPN); a hit goes in with one click.
     const isU1 = (c) => U1_MODELS.includes(c.model);
-    // Any printer with Klipper and an address may have SSH; the page "SSH" opens with it chosen.
+    // Any printer with Klipper and an address has a G-code console and maybe SSH; those pages open
+    // with it chosen.
     function openFor(c, page) {
       ui.printerFor = addressKey(c);
       go(null, hashOf(page, inst.value.id));
@@ -458,6 +459,7 @@ export default {
               <a class="link" :href="'http://' + hostOf(c) + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
               <a v-if="isU1(c)" class="link" :href="hashOf('dateien', inst.id)">{{ P.live.files }}</a>
               <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)">{{ P.live.camera }}</a>
+              <a class="link" :href="hashOf('konsole', inst.id)" @click.prevent="openFor(c, 'konsole')">{{ P.live.console }}</a>
               <a class="link" :href="hashOf('ssh', inst.id)" @click.prevent="openFor(c, 'ssh')">{{ P.live.ssh }}</a>
             </p>
             <div class="card-actions">

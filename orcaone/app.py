@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import (__version__, backup, calibration, camera, guard, importer, instances, logs, operations, overview, printer_files,
+from . import (__version__, backup, calibration, camera, console, guard, importer, instances, logs, operations, overview, printer_files,
                scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
@@ -98,7 +98,7 @@ async def ssh_terminal(websocket: WebSocket, model: str = ""):
 def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "search_failed": 500,
               "camera_every_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
-              "folder_read_only": 400, "print_invalid": 400, "print_refused": 409}.get(exc.code, 502)
+              "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
 
@@ -393,6 +393,18 @@ def printer_info(model: str = ""):
 def printer_status(model: str = ""):
     # Read only: state, progress and heads for the card, as "Kamera" reads them (camera.status).
     return camera.status(camera.host_of(model))
+
+
+@app.get("/api/printers/gcode")
+def gcode_history(model: str = "", since: float = 0):
+    # The page "Konsole" (orcaone/console.py): what Klipper said since then.
+    return console.history(camera.host_of(model), since)
+
+
+@app.post("/api/printers/gcode")
+def gcode_send(payload: dict = Body(...)):
+    # G-code the user typed or chose, for any printer with Klipper and an address.
+    return console.send(camera.host_of(payload.get("model")), payload.get("script"))
 
 
 @app.post("/api/printers/search")

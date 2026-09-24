@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "dateien", "kamera", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs"];
+export const PAGE_IDS = ["filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -74,7 +74,7 @@ export function go(ev, hash) {
 // detailsFor: a filament the page "Details" opens with (from the page "Filamente"), and
 // filamentFocus the other way round: the page "Filamente" shows that filament's row and panel.
 // calibrateFor: the own filament the page "Kalibrieren" opens with.
-// printerFor: the printer model the page "SSH" opens with, from its card on "Drucker".
+// printerFor: the printer model the pages "Konsole" and "SSH" open with, from its card on "Drucker".
 export const ui = reactive({ instId: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null, printerFor: null });
 
 // One word per state on every page.
@@ -367,6 +367,7 @@ export function whenText(d) {
 export const ICONS = {
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
   menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
+  code: '<path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"/>',
   terminal: '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="m7.5 10 2.5 2-2.5 2M12.5 14.5h4"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z"/>',
   download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19.5h14"/>',

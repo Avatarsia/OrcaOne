@@ -54,7 +54,7 @@ const T = {
   nav: {
     label: "Hauptmenü",
     toggle: "Menü ein- und ausblenden",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", dateien: "Dateien (U1)", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", dateien: "Dateien (U1)", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "Änderungen seit dem letzten Mal",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -804,6 +804,36 @@ const T = {
     },
   },
 
+  // ---------------------------------------------------------------- page "Konsole"
+  console: {
+    title: "Konsole",
+    lead: "G-Code direkt an Klipper, über Moonraker, auf jedem Klipper-Drucker mit IP-Adresse. Dafür braucht es kein SSH und keinen Root Access. Im Verlauf stehen Befehle und Antworten, auch die anderer Programme wie Mainsail.",
+    none: "Noch kein Drucker mit IP-Adresse. Trage sie auf der Seite „Drucker“ ein.",
+    toPrinters: "Zur Seite „Drucker“",
+    printer: "Drucker",
+    commandsLabel: "Befehl",
+    commandsPick: "Befehl wählen …",
+    clear: "Leeren",
+    placeholder: "G-Code, etwa STATUS oder M115",
+    send: "Senden",
+    clearHint: "Leert den Verlauf in dieser Ansicht. Vor jedem Befehl, den du hier schickst, geschieht das von selbst.",
+    empty: "Noch keine Befehle und Antworten.",
+    historyHint: "Pfeil hoch und runter holt die hier gesendeten Befehle zurück.",
+    commandsHint: "„Abfragen“ schickt den Befehl gleich ab. Befehle aus „Eintragen“ landen in der Eingabezeile, abgeschickt wird mit Enter.",
+    groups: { look: "Abfragen, läuft sofort", act: "Eintragen, Enter drückst du" },
+    commands: {
+      status: "Zustand (STATUS)", firmware: "Firmware (M115)", temperatures: "Temperaturen (M105)", position: "Position (GET_POSITION)",
+      endstops: "Endschalter (QUERY_ENDSTOPS)", probe: "Taster (QUERY_PROBE)", mesh: "Bettnetz (BED_MESH_OUTPUT)", help: "Alle Befehle (HELP)",
+      home: "Referenzfahrt (G28)", motorsOff: "Motoren aus (M84)", heatersOff: "Heizungen aus (TURN_OFF_HEATERS)",
+      restart: "Konfiguration neu laden (RESTART)", firmwareRestart: "Firmware neu starten (FIRMWARE_RESTART)", lightOn: "Licht an", lightOff: "Licht aus",
+    },
+    errors: {
+      gcode_invalid: "Eine Zeile G-Code, höchstens 2000 Zeichen.",
+      camera_unreachable: "Drucker nicht erreichbar. Ist er an und im selben Netz?",
+      printer_not_found: "Dieser Drucker hat keine IP-Adresse mehr. Lade die Seite neu.",
+    },
+  },
+
   // ---------------------------------------------------------------- page "Änderungen"
   news: {
     title: "Änderungen seit dem letzten Mal",
@@ -1109,6 +1139,7 @@ const T = {
       web: "Weboberfläche",
       camera: "Kamera",
       files: "Dateien",
+      console: "Konsole",
       ssh: "SSH",
     },
     notVisible: "Im Slicer nicht sichtbar",

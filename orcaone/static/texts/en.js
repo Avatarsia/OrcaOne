@@ -52,7 +52,7 @@ const T = {
   nav: {
     label: "Main menu",
     toggle: "Show or hide the menu",
-    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", dateien: "Files (U1)", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", dateien: "Files (U1)", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "changes since last time",
     pending: "queued changes",
     backups: "Backups",
@@ -801,6 +801,36 @@ const T = {
     },
   },
 
+  // ---------------------------------------------------------------- page "Konsole"
+  console: {
+    title: "Console",
+    lead: "G-code straight to Klipper, through Moonraker, on every Klipper printer with an IP address. It needs no SSH and no Root Access. The log shows commands and answers, those of other programs such as Mainsail too.",
+    none: "No printer with an IP address yet. Enter it on the page “Printers”.",
+    toPrinters: "To the page “Printers”",
+    printer: "Printer",
+    commandsLabel: "Command",
+    commandsPick: "Choose a command …",
+    clear: "Clear",
+    placeholder: "G-code, such as STATUS or M115",
+    send: "Send",
+    clearHint: "Clears the log in this view. Before every command you send here this happens by itself.",
+    empty: "No commands and answers yet.",
+    historyHint: "Arrow up and down bring back the commands sent here.",
+    commandsHint: "“Ask” sends the command at once. Commands from “Type in” land in the input line and go out with Enter.",
+    groups: { look: "Ask, runs at once", act: "Type in, you press Enter" },
+    commands: {
+      status: "State (STATUS)", firmware: "Firmware (M115)", temperatures: "Temperatures (M105)", position: "Position (GET_POSITION)",
+      endstops: "Endstops (QUERY_ENDSTOPS)", probe: "Probe (QUERY_PROBE)", mesh: "Bed mesh (BED_MESH_OUTPUT)", help: "All commands (HELP)",
+      home: "Home (G28)", motorsOff: "Motors off (M84)", heatersOff: "Heaters off (TURN_OFF_HEATERS)",
+      restart: "Reload the configuration (RESTART)", firmwareRestart: "Restart the firmware (FIRMWARE_RESTART)", lightOn: "Light on", lightOff: "Light off",
+    },
+    errors: {
+      gcode_invalid: "One line of G-code, at most 2000 characters.",
+      camera_unreachable: "Printer not reachable. Is it on and in the same network?",
+      printer_not_found: "This printer has no IP address any more. Reload the page.",
+    },
+  },
+
   // ---------------------------------------------------------------- page "Änderungen"
   news: {
     title: "Changes since last time",
@@ -1106,6 +1136,7 @@ const T = {
       web: "Web interface",
       camera: "Camera",
       files: "Files",
+      console: "Console",
       ssh: "SSH",
     },
     notVisible: "Not visible in the slicer",
