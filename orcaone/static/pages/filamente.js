@@ -1073,20 +1073,22 @@ export default {
               <div class="nz-toggles">
                 <button v-for="p in detailPrinters" :key="p.name" class="nz-toggle" type="button" role="checkbox"
                         :aria-checked="isOn(inst, detail.e, p.name) ? 'true' : 'false'" :disabled="readOnly" @click="toggleAt(detail.e, p.name)">
-                  <ui-icon :name="isOn(inst, detail.e, p.name) ? 'check' : 'box'"/>{{ nozzleLabel(p.variant) }} mm
+                  <ui-icon :name="isOn(inst, detail.e, p.name) ? 'check' : 'box'"/>{{ nozzleLabel(p.variant) }}
                 </button>
               </div>
               <p v-if="scopeText" class="scope"><nozzle-icon :sizes="[0.4]" :height="20"/>{{ scopeText }}</p>
             </template>
             <p v-else-if="scopeText" class="scope"><nozzle-icon :sizes="[0.4]" :height="20"/>{{ scopeText }}</p>
 
-            <!-- One way per result: "Bearbeiten" on a manufacturer or library profile creates the own copy. -->
-            <div class="actions">
+            <!-- One way per result: "Bearbeiten" on a manufacturer or library profile creates the own copy.
+                 One row in the narrow panel: "Löschen" as an icon with its word as tooltip. -->
+            <div class="actions panel-actions">
               <button v-if="!fixed(detail.e)" class="btn btn-primary" type="button" :disabled="readOnly"
                       @click="openEditor(detail.e, detail.e.kind === 'user' ? 'edit' : 'copy')"><ui-icon name="pencil"/>{{ F.edit }}</button>
               <button v-if="detail.e.kind === 'user' && !detail.e.orphan" class="btn" type="button" :disabled="readOnly"
                       @click="openEditor(detail.e, 'new')"><ui-icon name="plus"/>{{ F.newFrom }}</button>
-              <button v-if="detail.e.kind === 'user'" class="btn btn-danger right" type="button" :disabled="readOnly" @click="removeOwn(detail.e)"><ui-icon name="trash"/>{{ F.delete }}</button>
+              <button v-if="detail.e.kind === 'user'" class="btn btn-danger btn-icon right" type="button" :disabled="readOnly" :title="F.delete" :aria-label="F.delete"
+                      @click="removeOwn(detail.e)"><ui-icon name="trash"/></button>
             </div>
             <p v-if="!detail.e.fresh" class="details-link">
               <button class="link" type="button" @click="guarded(() => toDetails(detail.e))"><ui-icon name="info"/>{{ T.details.toDetails }}</button>

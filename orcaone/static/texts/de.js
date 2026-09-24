@@ -314,7 +314,7 @@ const T = {
     allFilaments: "Alle Filamente",
     search: "Filament suchen",
     newFilament: "Neues Filament",
-    newFrom: "Neues Filament daraus",
+    newFrom: "Neu daraus",
     material: "Material",
     materials: { pla: "PLA", petg: "PETG", abs: "ABS/ASA", tpu: "TPU", other: "Weitere" },
     kinds: {
@@ -372,7 +372,7 @@ const T = {
     },
     ownValue: "selbst geändert",
     ownLegend: "selbst geändert, der Rest kommt von der Vorlage",
-    activeAtNozzle: "Aktiv bei Düse",
+    activeAtNozzle: "Aktiv bei Düse (mm)",
     state: { on: "An", some: "Teilweise an", off: "Aus", na: "Für diese Düse nicht da" },
     scope: {
       everywhere: "Gilt für alle Düsen und alle Drucker.",

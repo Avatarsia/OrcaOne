@@ -312,7 +312,7 @@ const T = {
     allFilaments: "All filaments",
     search: "Search filaments",
     newFilament: "New filament",
-    newFrom: "New filament from this",
+    newFrom: "New from this",
     material: "Material",
     materials: { pla: "PLA", petg: "PETG", abs: "ABS/ASA", tpu: "TPU", other: "Other" },
     kinds: {
@@ -370,7 +370,7 @@ const T = {
     },
     ownValue: "changed by you",
     ownLegend: "changed by you, the rest comes from the template",
-    activeAtNozzle: "Active for nozzle",
+    activeAtNozzle: "Active for nozzle (mm)",
     state: { on: "On", some: "Partly on", off: "Off", na: "Not there for this nozzle" },
     scope: {
       everywhere: "Applies to all nozzles and all printers.",

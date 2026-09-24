@@ -417,6 +417,9 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .own-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--changed); vertical-align: middle; }
 .legend { margin-top: 6px; color: var(--muted); font-size: 12px; }
 .nz-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The panel is narrow: every nozzle in one row, the buttons share its width. */
+.panel .nz-toggles { flex-wrap: nowrap; gap: 4px; }
+.panel .nz-toggle { flex: 1 1 auto; justify-content: center; gap: 4px; padding: 0 6px; white-space: nowrap; }
 .scope { display: flex; align-items: center; gap: 8px; margin-top: 20px; color: var(--label); }
 .nz-toggle { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--line-input); border-radius: 4px; background: var(--surface); cursor: pointer; }
 .nz-toggle:hover { border-color: var(--accent-line); }
@@ -425,6 +428,8 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .note { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
 .actions .right { margin-left: auto; }
+.panel-actions { flex-wrap: nowrap; }
+.btn-icon { width: 32px; padding: 0; }
 .field { display: flex; flex-direction: column; gap: 4px; margin-top: 16px; }
 .picker { min-width: 0; margin: 0; padding: 0; border: 0; }
 .picker legend { padding: 0; font-size: 16px; font-weight: 700; }
