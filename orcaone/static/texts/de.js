@@ -56,7 +56,6 @@ const T = {
     toggle: "Menü ein- und ausblenden",
     pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "Änderungen seit dem letzten Mal",
-    technik: "Technik",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
     language: "Sprache",

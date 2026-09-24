@@ -30,26 +30,27 @@ const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmoun
 
 document.documentElement.lang = LANG;
 
-// Order = reading order. "Slicer" sits under its own heading, so it reads as the technical extra.
-// sub: a page about the one above, set in a little under it: Kalibrieren, Übertragen, Vergleichen and Import/Export
-// work on filament profiles, the camera belongs to the printer (its address is on the printer's card),
-// "Änderungen" sits under "Drucker" as the user suggested. "3MF bereinigen" is a quick tool of its own.
+// Order = reading order, as the user set it on 24.09.2026: Drucker first, then Prozesse and
+// Filamente, the quick tool "3MF bereinigen", and Slicer.
+// sub: a page about the one above, set in a little under it: the camera of the printer (its
+// address is on the printer's card); Übertragen, Vergleichen, Kalibrieren, Import/Export and
+// Details work on filament profiles; backups, "Änderungen" and logs are the slicer's.
 const PAGES = [
-  { id: "filamente", icon: "spool", component: FilamentePage },
-  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
-  { id: "transfer", icon: "transfer", component: TransferPage, sub: true },
-  { id: "vergleichen", icon: "compare", component: VergleichenPage, sub: true },
-  { id: "import", icon: "import", component: ImportPage, sub: true },
-  { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Needs no slicer data: shows at once and stays through "Neu einlesen".
   { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true },
-  { id: "aenderungen", icon: "diff", component: AenderungenPage, sub: true },
+  { id: "prozesse", icon: "layers", component: ProzessePage },
+  { id: "filamente", icon: "spool", component: FilamentePage },
+  { id: "transfer", icon: "transfer", component: TransferPage, sub: true },
+  { id: "vergleichen", icon: "compare", component: VergleichenPage, sub: true },
+  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
+  { id: "import", icon: "import", component: ImportPage, sub: true },
+  { id: "details", icon: "info", component: DetailsPage, sub: true },
   { id: "bereinigen", icon: "broom", component: BereinigenPage, standalone: true },
-  { id: "sicherungen", icon: "backup", component: SicherungenPage },
-  { id: "slicer", icon: "folder", group: T.nav.technik, component: SlicerPage },
-  { id: "details", icon: "info", component: DetailsPage },
-  { id: "logs", icon: "log", component: LogsPage },
+  { id: "slicer", icon: "folder", component: SlicerPage },
+  { id: "sicherungen", icon: "backup", component: SicherungenPage, sub: true },
+  { id: "aenderungen", icon: "diff", component: AenderungenPage, sub: true },
+  { id: "logs", icon: "log", component: LogsPage, sub: true },
 ].map((p) => ({ ...p, label: T.nav.pages[p.id] }));
 
 // Icon and colour class per type of change; the verbs are in texts.js.
@@ -361,7 +362,7 @@ const app = createApp({
     <header class="topbar">
       <button ref="navBtn" class="bar-btn nav-toggle" type="button" aria-controls="main-nav" :aria-expanded="navShown ? 'true' : 'false'"
               :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
-      <a class="brand" :href="hashOf('filamente', ui.instId)" @click="go($event, hashOf('filamente', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
+      <a class="brand" :href="hashOf('drucker', ui.instId)" @click="go($event, hashOf('drucker', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
       <span class="spacer"></span>
       <div v-if="INSTANCES.length > 1" class="inst" @keydown="instKey">
         <button ref="instBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="instOpen ? 'true' : 'false'"
@@ -392,15 +393,12 @@ const app = createApp({
 
     <div :class="['shell', { 'nav-collapsed': !narrow && navCollapsed, 'nav-open': narrow && navOpen }]">
       <nav id="main-nav" class="nav" :aria-label="T.nav.label">
-        <template v-for="p in PAGES" :key="p.id">
-          <div v-if="p.group" class="nav-label">{{ p.group }}</div>
-          <a :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)" :aria-current="route.page === p.id ? 'page' : null"
-             @click="navOpen = false; go($event, navHash(p))">
-            <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
-            <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
-                  :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
-          </a>
-        </template>
+        <a v-for="p in PAGES" :key="p.id" :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)"
+           :aria-current="route.page === p.id ? 'page' : null" @click="navOpen = false; go($event, navHash(p))">
+          <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
+          <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
+                :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
+        </a>
         <div class="nav-lang" role="group" :aria-label="T.nav.language">
           <button v-for="l in LANGUAGES" :key="l.code" class="nav-lang-btn" type="button" :lang="l.code"
                   :aria-pressed="l.code === LANG ? 'true' : 'false'" @click="setLanguage(l.code)">{{ l.name }}</button>

@@ -162,8 +162,6 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
   display: flex; flex-direction: column; gap: 2px; padding: 12px 8px;
   background: var(--surface); border-right: 1px solid var(--line-box);
 }
-/* ionpy .list-section-label, sentence case instead of uppercase */
-.nav-label { margin: 14px 12px 4px; color: var(--muted); font-size: 12px; font-weight: 600; }
 /* Language at the bottom of the menu */
 .nav-lang { display: flex; gap: 4px; margin: auto 4px 0; padding-top: 12px; }
 .nav-lang-btn { flex: 1; height: 26px; border: 1px solid var(--line-input); border-radius: 13px; background: var(--surface); color: var(--muted); font-size: 12px; cursor: pointer; }

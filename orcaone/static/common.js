@@ -34,7 +34,8 @@ export const U1_MODELS = ["Snapmaker U1"];
 
 export function parseHash(hash) {
   const [page, instId, idx] = hash.replace(/^#\/?/, "").split("/");
-  if (!PAGE_IDS.includes(page)) return { page: "filamente", instId: null, modelIdx: null };
+  // Without a page the app starts on "Drucker", first in the menu (the user's wish of 24.09.2026).
+  if (!PAGE_IDS.includes(page)) return { page: "drucker", instId: null, modelIdx: null };
   const inst = INSTANCES.find((i) => i.id === instId) || null;
   const ok = PRINTER_PAGES.includes(page) && !!inst && /^\d+$/.test(idx || "") && !!inst.models[+idx];
   return { page, instId: inst ? inst.id : null, modelIdx: ok ? +idx : null };
