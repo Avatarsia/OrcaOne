@@ -131,6 +131,38 @@ def test_info_only_for_a_printer_with_an_address(server, moonraker):
     assert call(f"{server}/api/printers/info?model=Unbekannt")[0] == 404
 
 
+def test_a_picture_cut_off_while_the_printer_rewrites_it():
+    """The U1 now and then overwrites monitor.jpg while sending it: the answer ends short of its
+    Content-Length. One more try gets the new picture whole; short twice is "unreachable"."""
+    state, sent = {"cuts": 1}, []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            whole, short = b"\xff\xd8" + b"x" * 98, len(sent) < state["cuts"]
+            sent.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(whole)))
+            self.end_headers()
+            self.wfile.write(whole[:40] if short else whole)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    host = f"127.0.0.1:{server.server_address[1]}"
+    try:
+        data, _ = camera.image(host)
+        assert len(data) == 100 and len(sent) == 2
+        state["cuts"] = 99
+        with pytest.raises(camera.CameraError) as err:
+            camera.image(host)
+        assert err.value.code == "camera_unreachable" and len(sent) == 4
+    finally:
+        server.shutdown()
+
+
 def test_the_one_command_the_light(server, monkeypatch):
     """The light in the U1 on and off: SET_LED on its white channel, as Moonraker's own web page sends it."""
     sent = []

@@ -19,6 +19,7 @@ elsewhere. Standard library only.
 
 import base64
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -451,11 +452,18 @@ def image(host: str) -> tuple[bytes, float | None]:
     """The picture the printer wrote last, and its age in seconds when sent: Date minus
     Last-Modified, both by the printer's clock, so the computer's clock does not matter."""
     url = f"http://{host}/server/files/camera/monitor.jpg?t={time.time():.0f}"
-    try:
-        with _direct.open(url, timeout=TIMEOUT) as response:
-            data, headers = response.read(), response.headers
-    except OSError as exc:
-        raise CameraError("camera_unreachable", str(exc)) from None
+    for attempt in range(2):
+        try:
+            with _direct.open(url, timeout=TIMEOUT) as response:
+                data, headers = response.read(), response.headers
+            break
+        except http.client.IncompleteRead as exc:
+            # The printer rewrote the picture while sending it (seen on the U1, 24.09.2026);
+            # asking again gets the new one whole.
+            if attempt:
+                raise CameraError("camera_unreachable", str(exc)) from None
+        except (OSError, http.client.HTTPException) as exc:
+            raise CameraError("camera_unreachable", str(exc)) from None
     try:
         age = (parsedate_to_datetime(headers["Date"]) - parsedate_to_datetime(headers["Last-Modified"])).total_seconds()
     except (TypeError, ValueError):
