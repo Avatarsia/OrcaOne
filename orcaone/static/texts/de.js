@@ -661,6 +661,8 @@ const T = {
     lastImage: (s) => s < 2 ? "Bild ist aktuell" : `Letztes Bild vor ${n(s)} s`,
     stale: (s) => `Kein neues Bild seit ${n(s)} s`,
     wakeFailed: "Wecken klappt gerade nicht",
+    lightOff: "Licht im Drucker ist aus",
+    light: { on: "Licht einschalten", off: "Licht ausschalten", turnOn: "Einschalten", failed: "Das Licht ließ sich nicht schalten." },
     every: "Bild alle",
     // The three views: in the page, filling the browser window, the whole screen.
     views: { window: "Fensterfüllend", screen: "Vollbild", normal: "Zurück zur Seite" },
@@ -671,9 +673,6 @@ const T = {
       left: (time) => `noch ${time}`,
       printed: (time) => `Druckzeit ${time}`,
       duration: (h, m) => h ? `${n(h)} h ${m} min` : `${m} min`,
-      temp: (now, target) => target ? `${now} / ${target} °C` : `${now} °C`,
-      bed: "Bett",
-      cavity: "Bauraum",
     },
     errors: {
       camera_unreachable: "Drucker nicht erreichbar. Ist er an und im selben Netz?",

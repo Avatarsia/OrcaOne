@@ -9,6 +9,9 @@ printer's WebSocket as its own web page does. Then the printer writes
 /server/files/camera/monitor.jpg every few seconds. OrcaOne wakes it while the page shows the
 picture and passes the picture through, so the browser needs no access of its own to the printer.
 
+In this module OrcaOne sends a printer one command, on the user's wish of 24.09.2026: the light in
+the U1 on or off (set_light), since the camera sees nothing without it.
+
 Only addresses the user typed in are asked (section "printers" of OrcaOne's settings): the pages
 name a camera by its id, never by an address, so no other page can make OrcaOne fetch from
 elsewhere. Standard library only.
@@ -22,6 +25,7 @@ import re
 import socket
 import struct
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from email.utils import parsedate_to_datetime
@@ -327,10 +331,11 @@ def status(host: str) -> dict:
     pressure advance the firmware uses now. A value the Flow Calibration at print start measured
     is not round (0.017665), one from the slicer or the firmware is (0.02). Plus what the printer
     is doing: the job, whether it calibrates, layer, time printed and left, the temperatures of
-    heads, bed and inside the printer."""
+    heads, bed and inside the printer. light: whether the LED in the printer is on (None without one);
+    off, the camera sends a black picture (checked on the U1 on 24.09.2026)."""
     objects = [f"{h}=pressure_advance,temperature,target" for h in HEADS]
     objects += ["print_stats", "display_status=progress", "toolhead=extruder", "heater_bed=temperature,target",
-                "temperature_sensor%20cavity=temperature", "print_task_config", "filament_detect"]
+                "temperature_sensor%20cavity=temperature", "print_task_config", "filament_detect", "led%20cavity_led=color_data"]
     try:
         with _direct.open(f"http://{host}/printer/objects/query?{'&'.join(objects)}", timeout=TIMEOUT) as response:
             found = json.loads(response.read())["result"]["status"]
@@ -369,7 +374,30 @@ def status(host: str) -> dict:
             "layer": info.get("current_layer"), "layers": info.get("total_layer"),
             "printed": stats.get("print_duration"), "left": _left(host, stats, progress),
             "bed": {"temp": bed.get("temperature"), "target": bed.get("target")},
-            "cavity": _part(found, "temperature_sensor cavity").get("temperature")}
+            "cavity": _part(found, "temperature_sensor cavity").get("temperature"), "light": _light(_part(found, "led cavity_led"))}
+
+
+def set_light(host: str, on: bool) -> bool:
+    """The light in the U1 on or off: its LED has a white channel only (printer.cfg, [led
+    cavity_led] white_pin), so Klipper's SET_LED with WHITE, sent as Moonraker's web page sends G-code."""
+    script = urllib.parse.quote(f"SET_LED LED=cavity_led WHITE={1 if on else 0}")
+    request = urllib.request.Request(f"http://{host}/printer/gcode/script?script={script}", data=b"", method="POST")
+    try:
+        with _direct.open(request, timeout=TIMEOUT) as response:
+            json.loads(response.read())["result"]
+    except urllib.error.HTTPError as exc:
+        raise CameraError("camera_refused", f"HTTP {exc.code}") from None
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise CameraError("camera_unreachable", str(exc)) from None
+    return on
+
+
+def _light(led: dict) -> bool | None:
+    """On if any channel of any LED of the chain shines: color_data is [[r, g, b, w], …]."""
+    data = led.get("color_data")
+    if not isinstance(data, list) or not data:
+        return None
+    return any(isinstance(v, (int, float)) and v > 0 for colour in data if isinstance(colour, list) for v in colour)
 
 
 def _get(host: str, path: str):

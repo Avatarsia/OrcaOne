@@ -131,6 +131,42 @@ def test_info_only_for_a_printer_with_an_address(server, moonraker):
     assert call(f"{server}/api/printers/info?model=Unbekannt")[0] == 404
 
 
+def test_the_one_command_the_light(server, monkeypatch):
+    """The light in the U1 on and off: SET_LED on its white channel, as Moonraker's own web page sends it."""
+    sent = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            sent.append(self.path)
+            body = json.dumps({"result": "ok"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    printer = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=printer.serve_forever, daemon=True).start()
+    try:
+        host = f"127.0.0.1:{printer.server_address[1]}"
+        assert camera.set_light(host, True) is True and camera.set_light(host, False) is False
+        assert sent == ["/printer/gcode/script?script=SET_LED%20LED%3Dcavity_led%20WHITE%3D1",
+                        "/printer/gcode/script?script=SET_LED%20LED%3Dcavity_led%20WHITE%3D0"]
+        camera.set_host("Snapmaker U1", host)
+        cam = json.loads(call(f"{server}/api/cameras")[1])["cameras"][0]
+        status, body = call(f"{server}/api/cameras/{cam['id']}/light", "POST", {"on": True})
+        assert (status, json.loads(body)) == (200, {"light": True})
+        assert call(f"{server}/api/cameras/{cam['id']}/light", "POST", {"on": "ja"})[0] == 400
+    finally:
+        printer.shutdown()
+    with pytest.raises(camera.CameraError) as err:
+        camera.set_light("127.0.0.1:9", True)
+    assert err.value.code == "camera_unreachable"
+
+
 def test_api(server, monkeypatch):
     status, body = call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": "10.30.40.174"})
     mine = {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone"}}

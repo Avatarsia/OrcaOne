@@ -78,6 +78,16 @@ def test_status_of_the_printer(moonraker):
     assert (last["extruder"], last["pa"], last["calibrate"]) == ("extruder3", 0.017665, True)
 
 
+def test_whether_the_light_is_on(moonraker, monkeypatch):
+    # The U1 on 24.09.2026: the LED off, the camera sent a black picture.
+    host, _ = moonraker
+    assert camera.status(host)["light"] is None   # a printer without that LED
+    monkeypatch.setitem(STATUS, "led cavity_led", {"color_data": [[0.0, 0.0, 0.0, 0.0]]})
+    assert camera.status(host)["light"] is False
+    monkeypatch.setitem(STATUS, "led cavity_led", {"color_data": [[0.0, 0.0, 0.0, 1.0]]})
+    assert camera.status(host)["light"] is True
+
+
 def test_print_progress(moonraker, monkeypatch):
     """What the page "Kamera" shows about a print: layer, time printed and left, temperatures."""
     host, asked = moonraker

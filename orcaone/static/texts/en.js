@@ -659,6 +659,8 @@ const T = {
     lastImage: (s) => s < 2 ? "Picture is current" : `Last picture ${n(s)} s ago`,
     stale: (s) => `No new picture for ${n(s)} s`,
     wakeFailed: "Waking does not work right now",
+    lightOff: "The light in the printer is off",
+    light: { on: "Turn light on", off: "Turn light off", turnOn: "Turn on", failed: "The light could not be switched." },
     every: "Picture every",
     // The three views: in the page, filling the browser window, the whole screen.
     views: { window: "Fill window", screen: "Full screen", normal: "Back to the page" },
@@ -669,9 +671,6 @@ const T = {
       left: (time) => `${time} left`,
       printed: (time) => `Print time ${time}`,
       duration: (h, m) => h ? `${n(h)} h ${m} min` : `${m} min`,
-      temp: (now, target) => target ? `${now} / ${target} °C` : `${now} °C`,
-      bed: "Bed",
-      cavity: "Chamber",
     },
     errors: {
       camera_unreachable: "Printer not reachable. Is it on and in the same network?",

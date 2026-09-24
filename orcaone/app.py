@@ -406,6 +406,15 @@ def wake_camera(camera_id: str):
     return {"result": camera.wake(camera.find(camera_id)["host"])}
 
 
+@app.post("/api/cameras/{camera_id}/light")
+def camera_light(camera_id: str, payload: dict = Body(...)):
+    # On the user's wish (24.09.2026): the light in the U1 on or off.
+    on = payload.get("on")
+    if not isinstance(on, bool):
+        return _error("light_invalid")
+    return {"light": camera.set_light(camera.find(camera_id)["host"], on)}
+
+
 @app.get("/api/cameras/{camera_id}/status")
 def camera_status(camera_id: str):
     # Read only: spools, pressure advance and print state for the page "Kalibrieren".

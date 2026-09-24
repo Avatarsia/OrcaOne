@@ -1014,7 +1014,12 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .cam-status.is-err .cam-dot { background: var(--error); }
 .cam-status.is-err { color: var(--error); }
 .cam-status.is-wait { color: var(--muted); }
-.cam-frame { display: grid; place-items: center; overflow: hidden; aspect-ratio: 16 / 9; border-radius: 8px; background: #111; }
+.cam-frame { position: relative; display: grid; place-items: center; overflow: hidden; aspect-ratio: 16 / 9; border-radius: 8px; background: #111; }
+/* Over the picture: the light in the printer is off, so it stays black. */
+.cam-light { position: absolute; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+             border-radius: 4px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 13px; }
+.cam-light-btn { margin-left: 4px; padding: 2px 8px; border: 1px solid rgba(255, 255, 255, .6); border-radius: 4px; background: none; color: #fff; font-size: 12px; cursor: pointer; }
+.cam-light-btn:hover { background: rgba(255, 255, 255, .15); }
 .cam-frame img { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
 .cam-empty { display: grid; justify-items: center; gap: 8px; color: #9a9890; font-size: 13px; }
 .cam-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
@@ -1031,9 +1036,7 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .cam-percent { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
 .cam-bar { height: 6px; overflow: hidden; border-radius: 3px; background: var(--surface-2); }
 .cam-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s; }
-.cam-facts, .cam-temps { display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.cam-temps .is-heating { color: var(--accent-text); }
-.cam-temps .is-active { color: var(--text); font-weight: 700; }
+.cam-facts { display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The big views: the whole browser window, or the whole screen (the same element in full screen).
    The bar hides after a few seconds without a mouse move (is-idle); the print line stays. */
 .cam-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #000; }

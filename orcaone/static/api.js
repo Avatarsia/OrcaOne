@@ -86,6 +86,8 @@ export const api = {
   cameras: () => request("GET", "/api/cameras"),
   cameraEvery: (id, every) => request("POST", `/api/cameras/${encodeURIComponent(id)}`, { every }),
   wakeCamera: (id) => request("POST", `/api/cameras/${encodeURIComponent(id)}/wake`),
+  // The light in the U1 on or off.
+  cameraLight: (id, on) => request("POST", `/api/cameras/${encodeURIComponent(id)}/light`, { on }),
   // Page "Kalibrieren": the printer read live (spools, pressure advance), and the ticks.
   printerStatus: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/status`),
   calibration: (id) => request("GET", `${instUrl(id)}/calibration`),
