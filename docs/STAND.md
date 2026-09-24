@@ -6,7 +6,7 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 
 - **Seiten:**
   - Übersicht, die Startseite;
-  - Drucker, darunter Status, Dateien (U1), Kamera (U1, mit Druckstatus), Konsole (G-Code) und SSH;
+  - Drucker, darunter Status, 3D-Ansicht, 2D-Ansicht, Dateien (U1), Kamera (U1, mit Druckstatus), Konsole (G-Code) und SSH;
   - Prozesse, nur zum Ansehen;
   - Filamente, darunter Übertragen, Vergleichen, Kalibrieren (U1), Import/Export und Details;
   - 3MF bereinigen;
@@ -14,8 +14,21 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 - **Sprachen:** Deutsch und Englisch.
 - **Start:** `./orcaone.sh` bzw. `orcaone.cmd`, Port 4711, auf Wunsch als App-Fenster mit eigenem Symbol ([STARTEN-UND-BAUEN](STARTEN-UND-BAUEN.md)).
 - **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. An den U1 schickt OrcaOne nur Licht, Löschen und Druckstart, sonst liest es ihn über Moonraker; dazu G-Code auf der Seite „Konsole“ und SSH auf der Seite „SSH“.
-- **Tests:** 269, alle grün (`.lenv/bin/python -m pytest`).
-- **Zuletzt gebaut (24.09.):** Nach dem Aufteilen der Arbeit des Tages in 13 Commits zwei neue Seiten auf Wunsch des Nutzers.
+- **Tests:** 271, alle grün (`.lenv/bin/python -m pytest`).
+- **Zuletzt gebaut (24.09.):** „2D-Ansicht“ unter „Drucker“ (Wunsch des Nutzers: „etwas technischer, mit ein paar mehr Infos“), noch nicht committet, ebenso die 3D-Ansicht darunter.
+  - `pages/druck2d.js`, Canvas 2D: eine Schicht von oben, Farben nach Filament, Linienart, Geschwindigkeit, Volumenstrom, Beschleunigung, Lüfter, Temperatur, Linienbreite; Fahrwege und Rückzüge; Linien einzeln durchgehen; Linie zeigen oder anklicken mit Werten und G-Code. Seite: Schicht und Datei mit allen Einstellungen.
+  - Auf Rückmeldung des Nutzers („schlecht erkennbar, was gerade gedruckt wird und was die vorherige Schicht ist“): Gedrucktes voll und mindestens 1,6 px breit, was noch kommt als feine Linie, die letzten 30 Linien mit Leuchtrand, die Schicht darunter blaugrau; Legende dazu.
+  - Gemeinsam mit 3D in `pages/print-view.js`: Dateiwahl, Einlesen, Zwischenspeicher, Folgen, Teilabruf. Der Einleser (`gcode-worker.js`) teilt jetzt Bögen (G2/G3) in Stücke wie Klipper, merkt je Linie Geschwindigkeit, Beschleunigung, Lüfter, Temperatur und Zeile, dazu Fahrwege, Rückzüge, `M73 R` und Filament je Schicht, alle Einstellungen der Datei. Die 3D-Ansicht hat „2D-Ansicht“ oben, die 2D-Ansicht „3D-Ansicht“, jeweils mit Datei und Schicht; „Dateien“ hat „3D“ und „2D“.
+  - Backend: `/api/printers/file` reicht `Range` an Moonraker durch (206), Test gegen den nachgebauten Moonraker.
+  - Geprüft im Browserfenster der App mit Dateien des U1 (Puzzle, Dragon mit 60.000 Bögen), hell und dunkel, Handybreite, G-Code-Zeilen gegen die Datei; 3D nach dem Umbau in Firefox ohne Fenster.
+  - Fragen des Nutzers nebenbei beantwortet: ETA vom Drucker (Klipper meldet keine, siehe IDEEN) und Spoolman (REST-API, siehe IDEEN).
+- **Davor (24.09.):** „3D-Ansicht“ unter „Drucker“ (Wunsch des Nutzers: „die Superlative von Mainsail 3D View“).
+  - `pages/druck3d.js` mit three.js 0.186 (`vendor/three`, vom Nutzer freigegeben), `pages/gcode-worker.js` liest die Datei im Web Worker während des Ladens (Bytes statt Text, Typed Arrays, 1/50 mm). Gezeichnet über Instancing, ein Strang je Linie in echter Breite und Höhe.
+  - Datei aus der Liste des Druckers (mit Größe), vom Rechner oder hineingezogen; „3D“ auf „Dateien“. Farben nach Filament oder Linienart, Schichtregler, schräg oder von oben, hell und dunkel.
+  - Beim Druck der gezeigten Datei alle 3 s `file_position`: Gedrucktes fest, der Rest als eine durchsichtige Hülle (Tiefe zuerst, dann Farbe einmal je Pixel über den Stencil), die Düse bleibt auf dem Bildschirm gleich groß.
+  - Neu im Backend: `GET /api/printers/files` und `/api/printers/file` (je mit `model`), Tests gegen den nachgebauten Moonraker.
+  - Geprüft in Firefox ohne Fenster (WebGL mit llvmpipe, das Browserfenster der App hat keins) mit Dateien des U1 bis 98,8 MB und dem Druckfall mit eingesetzten Werten. **Offen:** in einem Browser mit Grafikkarte ansehen und einem echten Druck folgen.
+- **Davor (24.09.):** Nach dem Aufteilen der Arbeit des Tages in 13 Commits zwei neue Seiten auf Wunsch des Nutzers.
   - **Bewegung auf „Status“ neu (Nutzer: „komisch“, X Y Z „sinnlos im Raum“):** die Druckplatte von oben aus dem Bereich des Bettnetzes (U1: Netz 3 bis 267 mm, Platte 0 bis 270), dahinter blass der Rest der Achsen (beim U1 der Parkbereich bis Y 335), 50-mm-Raster ab dem Nullpunkt, der Kopf mit Fadenkreuz und X und Y an den Linien, Z als Lineal mit Marke, die Geschwindigkeit als Tacho bis `max_velocity`. Nicht referenziert: kein Punkt, nur der Hinweis.
   - **Status umgebaut (nach dem Commit), Wunsch des Nutzers („trocken“):** Druck als Ring, die Köpfe als Bühne wie auf der Übersicht (jetzt `printer-stage` in common.js) mit Düse, PA, Wechseln, Fehlern und Filamentsensor je Kopf, Temperaturbalken mit Sollmarke, der Kopf auf einer Karte des Betts (Achsgrenzen aus `toolhead`, U1: X 0–271, Y 0–335, Z −6–275 mm), Lüfter, die sich mit ihrer Leistung drehen, System als Kacheln. Den Druckfall mit eingesetzten Werten im Browser angesehen, auch dunkel und in Handybreite.
   - **Zwei Schalter unten im Menü:** Sprache DE/EN und hell/dunkel. Das Design steht als `"theme"` in `data/settings.json`, `GET /` liefert die Seite schon mit `data-theme` (kein Aufblitzen). Die Farben stehen dafür nur noch einmal im CSS, als `light-dark()`; `color-scheme` wählt. Das SSH-Terminal folgt dem Schalter.
@@ -62,7 +75,7 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 - **Import** ([IMPORT-QUELLEN](IMPORT-QUELLEN.md)): G-Code und Drucke direkt vom U1, Profile aus anderen Benutzerordnern (`user/<id>/`, etwa nach einer Anmeldung), die Orca-Bibliothek von GitHub. „An Drucker hängen“ gibt es bisher nur für Filamente, nicht für Prozesse.
 - **Drucker übertragen** zwischen den Installationen, bisher zurückgestellt (FINDINGS, „Übertragung“).
 - **„Details“** auch für Prozesse und Drucker. Die Abfrage im Backend kann das schon.
-- **Ideen** ([IDEEN](IDEEN.md)): Druck in 3D, dafür braucht es das Okay für three.js. Ein Datei-Browser für den U1; Löschen oder Hochladen hieße, dass OrcaOne erstmals auf den U1 schreibt.
+- **Ideen** ([IDEEN](IDEEN.md)): genauere Restzeit und „fertig um“ aus `M73 R`; Spoolman anbinden; Live-Daten über Moonrakers WebSocket statt Abfragen; Diagramme auf „Status“.
 
 ## Offene Prüfpunkte
 

@@ -1,10 +1,12 @@
 # Ideen
 
-Stand 23.09.2026. Ideen des Nutzers, noch nicht beauftragt. Was geprüft ist, steht mit Quelle dabei; am U1 nur lesend über Moonraker abgefragt.
+Stand 24.09.2026. Ideen des Nutzers; was davon gebaut ist, steht bei der Idee. Was geprüft ist, steht mit Quelle dabei; am U1 nur lesend über Moonraker abgefragt.
 
 ## 1. Druck in 3D
 
 Wunsch: die Druckdatei in 3D ansehen und den Druck live mitverfolgen. Mainsail kann das auch, aber „hakelig“ und ohne Farben.
+
+**Gebaut am 24.09.2026** als Seite „3D-Ansicht“ unter „Drucker“ (three.js, vom Nutzer freigegeben): Datei vom Drucker oder vom Rechner, Farben nach Filament oder Linienart, Schichtregler, beim laufenden Druck Gedrucktes fest und der Rest als durchsichtige Hülle mit der Düse; „Dateien“ verlinkt jede Druckdatei. Dazu am selben Tag die Seite „2D-Ansicht“: eine Schicht von oben mit Geschwindigkeit, Volumenstrom, Beschleunigung, Lüfter und Temperatur als Farbe, Fahrwegen, Linien einzeln und dem G-Code jeder Linie. Noch offen aus dieser Idee: Kamerabild daneben, die Farben nach Geschwindigkeit usw. auch in 3D, Spulenfarben vom U1 statt aus der Datei, eine WebSocket-Brücke zu Moonraker (`printer.objects.subscribe`) für schnellere Live-Daten.
 
 **Was da ist (geprüft):**
 - **In der Druckdatei:**
@@ -99,3 +101,24 @@ Die Seite „Status“ gibt es seit dem 24.09.2026, bewusst ohne Diagramme: die 
 **Was da ist (geprüft am U1):** Moonraker hält die Temperaturen der letzten 20 Minuten selbst, je Heizung und Sensor 1200 Werte, bei Heizungen auch Soll und Heizleistung (`/server/temperature_store`, FINDINGS „Was ein Drucker gerade tut“). Ein Diagramm bräuchte also keinen eigenen Speicher. Für laufende Werte ginge Moonrakers WebSocket mit Abo (`printer.objects.subscribe`), wie Mainsail es nutzt, statt Abfragen alle zwei Sekunden.
 
 **Offen:** zeichnen mit schlichtem SVG oder mit einer Bibliothek (neue Abhängigkeit, braucht das Okay des Nutzers).
+
+## 4. Genauere Restzeit und „fertig um“
+
+Frage des Nutzers (24.09.2026): Kann man vom Drucker die ETA auslesen?
+
+**Was da ist (geprüft am U1):**
+- Klipper meldet keine Restzeit: `display_status` hat nur `progress` und `message`, `print_stats` Druckdauer und Filament. Die Restzeit aus `M73 … R…` im G-Code liest Klipper nicht aus.
+- OrcaOne rechnet heute auf Status, Übersicht und Kamera: Zeit des Slicers aus den Metadaten minus gedruckte Zeit (`camera._left`).
+- Snapmaker Orca schreibt `M73 P<Prozent> R<Minuten>` etwa jede Minute Druckzeit in die Datei (188-mal im Puzzle-Druck von 1 h 28 min). Die 2D-Ansicht nutzt das schon für die Zeit je Schicht.
+
+**Was ginge:** Die letzte `M73`-Zeile vor `virtual_sdcard.file_position` lesen, per Teilabruf von wenigen KB (Moonraker kann Range). Das ist die Restzeit laut Slicer an genau dieser Stelle; dazu „fertig um 17:40“. Abweichungen im Tempo (Geschwindigkeitsfaktor, Pausen) ließen sich mit dem Verhältnis aus tatsächlicher und geplanter Zeit bis hier ausgleichen.
+
+## 5. Spoolman anbinden
+
+Frage des Nutzers (24.09.2026): Hat Spoolman eine REST-API?
+
+**Was da ist (geprüft):**
+- Spoolman hat eine REST-API unter `/api/v1`: `spool`, `filament`, `vendor` lesen und anlegen, `PUT /api/v1/spool/{id}/use` bucht Verbrauch ab, dazu `info`, `health` und ein WebSocket für Änderungen. Quelle: [Spoolman](https://github.com/Donkie/Spoolman), [API-Doku](https://donkie.github.io/Spoolman/).
+- Moonraker bringt eine Anbindung mit (`[spoolman]` in `moonraker.conf`, Endpunkte `/server/spoolman/…`). Auf dem U1 ist sie nicht geladen: Moonraker 1.6.0 ohne Komponente `spoolman`, `/server/spoolman/status` gibt 404.
+
+**Was ginge:** OrcaOne spricht Spoolman direkt an (Adresse in `data/settings.json`): Spulen mit Restgewicht auf Übersicht und Status, ein Spoolman-Filament als Vorlage für ein eigenes Filamentprofil (Material, Farbe, Dichte, Durchmesser, Temperaturen), Abgleich mit den RFID-Spulen des U1. Schreiben in Spoolman nur auf Wunsch.

@@ -33,7 +33,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 - **Umgebung:** `.lenv` im Projektordner und `requirements.txt`. Start mit `./orcaone.sh` bzw. `orcaone.cmd` oder `.lenv/bin/python -m orcaone`. Tests mit `.lenv/bin/python -m pytest`.
 - **Zusätzliche Abhängigkeiten** nur nach Rücksprache.
 - **Eigene Daten** nur im Ordner `data/` im OrcaOne-Ordner (nicht im Git): alle Einstellungen in der einen Datei `data/settings.json` (`orcaone/settings.py`), dazu `data/backups/` und `data/snapshots/` (Seite „Änderungen“). Keine weiteren Dateien oder Orte.
-- **Frontend:** Vue 3 und für „SSH“ xterm.js (beide lokal in `orcaone/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
+- **Frontend:** Vue 3, für „SSH“ xterm.js und für „3D-Ansicht“ three.js (vom Nutzer freigegeben am 24.09.2026; alle lokal in `orcaone/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
   - Stil wie die heutige Oberfläche in `orcaone/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orcaone/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
   - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
   - App-Symbol: ein eigenes (`tools/make_icons.py`), nichts aus OrcaSlicer oder Snapmaker Orca.
@@ -42,7 +42,8 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
   - **Übersicht:** die Startseite, bildhaft statt Wertelisten (der Nutzer: kein Snapmaker-Orca-Nachbau, etwas Eigenes). Der gewählte Drucker live mit seinen Köpfen als eigene Zeichnung (Spule, Filament, Temperatur, heiße Düse, aktiver Kopf), darunter das Bett; Kacheln mit großer Zahl für Filamente, Prozesse, Sicherungen, Änderungen, die ganze Kachel führt zur Seite; „3MF bereinigen“ zum Hineinziehen.
   - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen, `print_host` aus dem Slicer oder beim U1 im LAN gesucht). Mit Adresse zeigt die Karte, was der Drucker über sich sagt (Zustand, Firmware, Speicher, Drucke; beim U1 Köpfe und Spulen), nur lesend und schlicht, Einzelheiten im Tooltip.
     - **Status:** was der Drucker gerade tut, für jeden Klipper-Drucker mit IP, alle 2 s über Moonrakers REST-API (`orcaone/monitor.py`), nur lesend und bildhaft: Druck als Ring, die Köpfe wie auf der Übersicht (beim U1 mit Düse, PA, Kopfwechseln, Filamentsensor), Temperaturbalken, der Kopf auf der Druckplatte von oben mit Z als Lineal und der Geschwindigkeit als Tacho, drehende Lüfter, System als Kacheln. Diagramme über die Zeit sind ein eigenes Thema.
-  - Unten im Menü zwei Schalter: Sprache (DE/EN) und hell/dunkel (`data/settings.json`, ohne Wahl Browser bzw. System).
+    - **3D-Ansicht:** eine Druckdatei vom Drucker (jeder Klipper-Drucker mit IP) oder vom Rechner in 3D, eingelesen in einem Web Worker (`pages/gcode-worker.js`), gezeichnet mit three.js über Instancing (`pages/druck3d.js`); Dateiwahl, Einlesen und Folgen teilt sie mit der 2D-Ansicht (`pages/print-view.js`). Farben nach Filament oder Linienart, Schichtregler, Ansicht schräg oder von oben. Folgt dem laufenden Druck (`virtual_sdcard.file_position`): Gedrucktes fest, der Rest als durchsichtige Hülle, dazu die Düse. Nur lesend; „Dateien“ verlinkt jede Druckdatei hierher.
+    - **2D-Ansicht:** dieselbe Datei, eine Schicht von oben, technischer (Wunsch des Nutzers): Farben auch nach Geschwindigkeit, Volumenstrom, Beschleunigung, Lüfter, Temperatur, Linienbreite; Fahrwege und Rückzüge; die Linien der Schicht einzeln durchgehen; zu jeder Linie ihre Werte und ihr G-Code (Teilabruf per Range). An der Seite Schicht (Zeit laut Slicer aus `M73 R`, Filament, Linienarten) und Datei (Slicer, Profile, Filament je Kopf, alle Einstellungen). Gedruckt, noch offen und die Schicht darunter klar unterscheidbar (der Nutzer). Canvas 2D, ohne WebGL (`pages/druck2d.js`).
     - **Dateien:** die Ordner jedes U1 mit IP-Adresse (Druckdateien, Zeitraffer, Logs, Einstellungen), nur lesbare gekennzeichnet. Druckdateien und Zeitraffer löschen (einzeln, Auswahl, alle), Druckdateien drucken mit den Optionen des Displays (Bett vermessen, Fluss, Schwingungen, Zeitraffer, Kopf je Filament). Befehle an einen Drucker nur auf Klick des Nutzers: Licht, Löschen, Druckstart, G-Code auf „Konsole“.
     - **Kamera:** Bild jedes U1 mit IP-Adresse samt Druckstatus (Fortschritt, Schicht, Restzeit), in der Seite, fensterfüllend oder im Vollbild; das Licht im Drucker ein- und ausschalten.
     - **Konsole:** G-Code an Klipper über Moonraker (`orcaone/console.py`), für jeden Klipper-Drucker mit IP, ohne SSH; Verlauf aus Moonrakers Speicher, Abfragen aus der Liste sofort, Befehle wie G28 nur eintragen.
@@ -59,6 +60,7 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
     - **Sicherungen.**
     - **Änderungen:** was sich seit dem letzten „Als gesehen markieren“ geändert hat (Update, Anmeldung, Cloud-Abgleich), je Profil; was OrcaOne selbst schreibt, zählt als gesehen.
     - **Logs** (Logdateien der Slicer, nur lesen).
+  - Unten im Menü zwei Schalter: Sprache (DE/EN) und hell/dunkel (`data/settings.json`, ohne Wahl Browser bzw. System).
 
   Details nur auf Anforderung im Seitenpanel. Kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos.
 - **Plattformen:** Linux und Windows gleichwertig. Pfade nur mit `pathlib`.
