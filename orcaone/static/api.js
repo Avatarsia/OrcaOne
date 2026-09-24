@@ -58,9 +58,10 @@ const backupUrl = (id, name) => `${instUrl(id)}/backups/${encodeURIComponent(nam
 
 export const api = {
   data: () => request("GET", "/api/data"),
-  // OrcaOne's own settings (data/settings.json): so far the language of the page.
+  // OrcaOne's own settings (data/settings.json): the language of the page and the folded menu.
   settings: () => request("GET", "/api/settings"),
   setLanguage: (language) => request("POST", "/api/settings", { language }),
+  setMenuCollapsed: (collapsed) => request("POST", "/api/settings", { menu_collapsed: collapsed }),
   addManual: (path) => request("POST", "/api/instances/manual", { path }),
   removeManual: (path) => request("DELETE", `/api/instances/manual?path=${encodeURIComponent(path)}`),
   // Writing takes two steps (hard rule 5): the plan shows what would happen, only its id goes to

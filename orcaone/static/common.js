@@ -364,6 +364,7 @@ export function whenText(d) {
 // 24x24, stroke = currentColor, so hover, the active menu entry and dark mode colour them.
 export const ICONS = {
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
   chevron: '<path d="m9.5 6 6 6-6 6"/>',
   chevronDown: '<path d="m6 9.5 6 6 6-6"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',

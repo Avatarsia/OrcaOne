@@ -135,20 +135,23 @@ LANGUAGES = ("de", "en")
 
 @app.get("/api/settings")
 def get_settings():
-    language = settings.load().get("language")
-    return {"language": language if language in LANGUAGES else None}
+    stored = settings.load()
+    language = stored.get("language")
+    return {"language": language if language in LANGUAGES else None, "menu_collapsed": stored.get("menu_collapsed") is True}
 
 
 @app.post("/api/settings")
 def set_settings(payload: dict = Body(...)):
-    language = payload.get("language")
-    if language not in LANGUAGES:
+    """Either or both: "language" ("de", "en") and "menu_collapsed" (the menu folded away)."""
+    changed = {key: payload[key] for key in ("language", "menu_collapsed") if key in payload}
+    if (not changed or ("language" in changed and changed["language"] not in LANGUAGES)
+            or not isinstance(changed.get("menu_collapsed", False), bool)):
         return _error("setting_invalid")
     try:
-        settings.change(lambda data: data.update(language=language))
+        settings.change(lambda data: data.update(changed))
     except OSError:
         return _error("save_failed", 500)
-    return {"language": language}
+    return get_settings()
 
 
 @app.get("/api/data")

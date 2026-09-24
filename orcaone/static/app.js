@@ -7,7 +7,7 @@ import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon,
 } from "./common.js";
-import { T, LANG, LANGUAGES } from "./texts.js";
+import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
 import { changesOf } from "./ops.js";
 import PlanView, { DoneView, problemText } from "./plan.js";
@@ -193,11 +193,41 @@ const app = createApp({
       done.value = { inst: INSTANCES.find((i) => i.id === p.inst.id) || p.inst, warnings, text: T.changes.appliedCheck };
       focusTitle();
     }
-    // Escape closes the change list first; the page's own panel lies below it.
+    // The menu: in a wide window a column that the button in the top bar folds away (saved in
+    // data/settings.json), in a narrow one a drawer over the page that the button opens.
+    const narrowQuery = window.matchMedia("(max-width: 900px)");
+    const narrow = ref(narrowQuery.matches);
+    const navOpen = ref(false);
+    const navCollapsed = ref(SETTINGS.menu_collapsed === true);
+    const navBtn = ref(null);
+    narrowQuery.addEventListener("change", (ev) => {
+      narrow.value = ev.matches;
+      navOpen.value = false;
+    });
+    const navShown = computed(() => narrow.value ? navOpen.value : !navCollapsed.value);
+    async function toggleNav() {
+      if (narrow.value) {
+        navOpen.value = !navOpen.value;
+        return;
+      }
+      navCollapsed.value = !navCollapsed.value;
+      try {
+        await api.setMenuCollapsed(navCollapsed.value);
+      } catch (err) {
+        flash(T.errors[err.code] || T.errors.unknown);
+      }
+    }
+    function closeNav() {
+      navOpen.value = false;
+      navBtn.value?.focus();
+    }
+    // Escape closes the change list first, then the menu drawer; the page's own panel lies below.
     const onKey = (ev) => {
-      if (ev.key !== "Escape" || !changesOpen.value) return;
+      if (ev.key !== "Escape") return;
+      if (changesOpen.value) closeChanges();
+      else if (narrow.value && navOpen.value) closeNav();
+      else return;
       ev.stopPropagation();
-      closeChanges();
     };
     onMounted(() => window.addEventListener("keydown", onKey, true));
     onUnmounted(() => window.removeEventListener("keydown", onKey, true));
@@ -272,9 +302,10 @@ const app = createApp({
       if (r.instId) ui.instId = r.instId;
       else if (ui.instId) history.replaceState(null, "", hashOf(r.page, ui.instId));
     }, { immediate: true });
-    // After a page switch the focus moves to the page title.
+    // After a page switch the focus moves to the page title; the drawer closes.
     watch(route, () => {
       instOpen.value = false;
+      navOpen.value = false;
       window.scrollTo(0, 0);
       nextTick(() => document.getElementById("page-title")?.focus());
     });
@@ -322,11 +353,14 @@ const app = createApp({
       statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage,
+      narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav,
     };
   },
 
   template: `
     <header class="topbar">
+      <button ref="navBtn" class="bar-btn nav-toggle" type="button" aria-controls="main-nav" :aria-expanded="navShown ? 'true' : 'false'"
+              :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
       <a class="brand" :href="hashOf('filamente', ui.instId)" @click="go($event, hashOf('filamente', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
       <span class="spacer"></span>
       <div v-if="INSTANCES.length > 1" class="inst" @keydown="instKey">
@@ -356,11 +390,12 @@ const app = createApp({
       </button>
     </header>
 
-    <div class="shell">
-      <nav class="nav" :aria-label="T.nav.label">
+    <div :class="['shell', { 'nav-collapsed': !narrow && navCollapsed, 'nav-open': narrow && navOpen }]">
+      <nav id="main-nav" class="nav" :aria-label="T.nav.label">
         <template v-for="p in PAGES" :key="p.id">
           <div v-if="p.group" class="nav-label">{{ p.group }}</div>
-          <a :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)" :aria-current="route.page === p.id ? 'page' : null" @click="go($event, navHash(p))">
+          <a :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)" :aria-current="route.page === p.id ? 'page' : null"
+             @click="navOpen = false; go($event, navHash(p))">
             <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
             <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
                   :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
@@ -371,6 +406,7 @@ const app = createApp({
                   :aria-pressed="l.code === LANG ? 'true' : 'false'" @click="setLanguage(l.code)">{{ l.name }}</button>
         </div>
       </nav>
+      <div v-if="narrow && navOpen" class="nav-backdrop" @click="navOpen = false"></div>
       <main class="main">
         <div v-if="FAILED.length" class="page failed-list" role="alert">
           <p v-for="f in FAILED" :key="f.id" class="alert">

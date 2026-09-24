@@ -119,6 +119,8 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 }
 .bar-btn:hover { background: rgba(255, 255, 255, .12); }
 .bar-btn:disabled { opacity: .6; cursor: progress; }
+/* The menu button, first in the top bar */
+.nav-toggle { margin-left: -8px; padding: 0 6px; border-color: transparent; }
 
 /* Installation picker in the dark top bar (ionpy .tb-dropdown, opened by click) */
 .inst { position: relative; min-width: 0; }
@@ -150,6 +152,10 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 
 /* Nav left, content right (ionpy .selector-frame--with-side: 180px 1fr) */
 .shell { display: grid; grid-template-columns: var(--nav-w) minmax(0, 1fr); }
+/* Folded away with the button in the top bar (app.js): the page takes the full width */
+.shell.nav-collapsed { grid-template-columns: minmax(0, 1fr); }
+.shell.nav-collapsed .nav { display: none; }
+.shell.nav-collapsed ~ .changebar { left: 0; }
 /* ionpy .selector-frame-side + .list */
 .nav {
   position: sticky; top: 48px; align-self: start; height: calc(100vh - 48px); overflow-y: auto;
@@ -790,25 +796,22 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .file-list { display: flex; flex-direction: column; gap: 3px; margin: 6px 0 0; padding: 0; list-style: none; }
 
 @media (max-width: 900px) {
-  /* The menu becomes a row of four tabs under the top bar; the change bar keeps the bottom. */
+  /* The menu is a drawer over the page, from the left under the top bar; the button in the top
+     bar opens it (app.js). The change bar keeps the bottom. */
   .shell { grid-template-columns: minmax(0, 1fr); }
   .changebar { left: 0; }
   .nav {
-    z-index: 18; height: auto; flex-direction: row; gap: 0; padding: 0;
-    border-right: 0; border-bottom: 1px solid var(--line-box);
+    /* stretch: "start" from the column would size it to its content (align-self acts on fixed boxes) */
+    position: fixed; top: 48px; bottom: 0; left: 0; z-index: 30; align-self: stretch; width: min(280px, 85vw); height: auto;
+    box-shadow: 6px 0 20px rgba(0, 0, 0, .2); transform: translateX(-100%); visibility: hidden;
+    transition: transform .2s ease, visibility 0s linear .2s;
   }
-  .nav-label { display: none; }
-  .nav-item {
-    flex: 1; flex-direction: column; justify-content: center; gap: 2px;
-    height: 56px; padding: 0 4px; border-radius: 0; font-size: 12px;
-  }
-  .nav-item[aria-current="page"]::before { top: auto; bottom: 0; left: 8px; right: 8px; width: auto; height: 3px; }
-  .nav-text { flex: none; }
-  .nav-count { position: absolute; top: 4px; left: calc(50% + 6px); height: 18px; min-width: 18px; padding: 0 5px; font-size: 11px; }
+  .shell.nav-open .nav { transform: none; visibility: visible; transition: transform .2s ease; }
+  .nav-backdrop { position: fixed; inset: 48px 0 0; z-index: 29; background: rgba(0, 0, 0, .3); }
   .page-host.with-panel { padding-right: 0; }
   body:has(.panel) .changebar { right: 0; }
   .main:has(.changes-panel) .page-host { padding-right: 0; }
-  /* Over the tab row, so its head with the close button stays visible */
+  /* Over the page, under the drawer */
   .panel { z-index: 19; width: min(var(--panel-w), 100%); box-shadow: -6px 0 20px rgba(0, 0, 0, .2); }
   .scope-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -829,12 +832,10 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   .fs-meta { grid-column: 3; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding-top: 2px; }
   .fs-bytes { min-width: 0; }
   .fs-children { margin-left: 6px; padding-left: 8px; }
-  /* Printer cards keep one column, their buttons need the width */
+  /* Printer cards keep one column, their buttons need the width; a smaller picture */
   .pcards { grid-template-columns: minmax(0, 1fr); }
-  .pcard { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 12px; align-items: start; }
-  .pcard .card-img { height: 96px; margin: 0; }
-  .pcard .card-img img { width: 84px; height: 84px; }
-  .card-actions { grid-column: 1 / -1; padding-top: 0; }
+  .pcard .pcard-top .card-img { width: 84px; height: 84px; }
+  .pcard .pcard-top .card-img img { width: 72px; height: 72px; }
 }
 @media (max-width: 480px) {
   .topbar { gap: 8px; }
@@ -1168,6 +1169,11 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .log-time { color: var(--muted); }
 .log-level { font-weight: 700; }
 .log-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* On a phone the message gets the full width, under time and level */
+@media (max-width: 480px) {
+  .log-row { grid-template-columns: 64px minmax(0, 1fr); }
+  .log-text { grid-column: 1 / -1; }
+}
 .log-more { color: var(--muted); font-family: var(--font); font-style: normal; }
 .lv-info .log-level, .lv-debug .log-level, .lv-trace .log-level { color: var(--muted); font-weight: 400; }
 /* Only errors get a background: Snapmaker Orca writes almost everything as a warning. */
