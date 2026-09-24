@@ -420,6 +420,13 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 /* The panel is narrow: every nozzle in one row, the buttons share its width. */
 .panel .nz-toggles { flex-wrap: nowrap; gap: 4px; }
 .panel .nz-toggle { flex: 1 1 auto; justify-content: center; gap: 4px; padding: 0 6px; white-space: nowrap; }
+/* "Für andere Düse": nozzles the filament lacks, one row like the switches above. */
+.attach-row { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.attach-label { flex: none; margin-right: 4px; color: var(--label); font-size: 13px; }
+.panel .attach-btn { flex: 0 1 auto; border-style: dashed; }
+.attach-note { display: flex; align-items: flex-start; gap: 4px; margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+.attach-note .icon { flex: none; margin-top: 2px; }
+.panel .attach-btn.is-queued { border-style: solid; border-color: var(--accent-line); background: var(--focus-bg); color: var(--accent-text); font-weight: 700; }
 .scope { display: flex; align-items: center; gap: 8px; margin-top: 20px; color: var(--label); }
 .nz-toggle { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--line-input); border-radius: 4px; background: var(--surface); cursor: pointer; }
 .nz-toggle:hover { border-color: var(--accent-line); }

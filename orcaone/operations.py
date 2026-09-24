@@ -710,6 +710,27 @@ class Planner:
             data["compatible_printers"] = self.printers(printers)
         self.new_own("filament", name, data, parent, base_id)
 
+    def op_filament_attach(self, c: dict, i: int) -> None:
+        """A filament for a nozzle it lacks (page "Filamente", "Für andere Düse"): a new own one
+        hung onto a filament of that printer with the source's material values (importer.attach)."""
+        source = _field(c, "source", i, str)
+        printer = _field(c, "printer", i, str)
+        p = self.res.collection["filament"].get(source)
+        if p is None:
+            own = next((o for o in self.live("filament") if o.name == source and o.loaded), None)
+            p = own.profile if own else None
+        if p is None:
+            raise Blocked("unknown_profile", name=source)
+        try:
+            copy = importer.attach_here(self.res, self.instance.slicer, p, printer)
+        except importer.ImportFailed as exc:
+            raise Blocked(exc.code, **exc.params) from None
+        data = {}
+        self.set_values(data, copy.data, copy.parent, "filament")
+        name = self.free_name("filament", copy.name)
+        self.new_own("filament", name, data, copy.parent, copy.base_id)
+        self.warnings.append({"code": "filament_attached", "name": name, "source": source, "printer": printer, "parent": copy.parent.name})
+
     def op_filament_update(self, c: dict, i: int) -> None:
         name = _field(c, "name", i, str)
         values = _values(c, i)

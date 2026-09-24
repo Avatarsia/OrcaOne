@@ -275,6 +275,7 @@ const T = {
     filament_hidden: (w, names) => `${q(names.filament(w.name))} ist dann bei keiner Düse an und im Slicer ausgeblendet. Die Datei bleibt, eine Düse anwählen holt es zurück.`,
     filament_shown: (w, names) => `${q(names.filament(w.name))} ist wieder im Slicer zu sehen.`,
     // Copies from the page "Übertragen" (orcaone/transfer.py).
+    filament_attached: (w) => `${q(plainName(w.name))} hängt an ${q(plainName(w.printer))} und baut auf ${q(plainName(w.parent))} auf. Von ${q(plainName(w.source))} kommen nur die Werte des Materials.`,
     import_attached: (w) => `${q(plainName(w.name))} hängt an ${q(plainName(w.printer))} und baut auf ${q(plainName(w.parent))} auf. Vom Filament aus der Datei kommen nur die Werte des Materials.`,
     import_from: (w) => `${q(plainName(w.name))} kommt aus ${w.source || "einer Datei"}${w.replaced ? " und ersetzt das vorhandene" : ""}.`,
     transfer_from: (w) => `${q(plainName(w.name))} ist eine Kopie von ${q(plainName(w.source))} aus ${w.slicer}.`,
@@ -373,6 +374,15 @@ const T = {
     ownValue: "selbst geändert",
     ownLegend: "selbst geändert, der Rest kommt von der Vorlage",
     activeAtNozzle: "Aktiv bei Düse (mm)",
+    attach: {
+      label: "Für andere Düse:",
+      title: (d) => `Eigenes Filament für ${d} mm anlegen. Es baut auf dem Filament dieser Düse mit demselben Material auf und übernimmt von diesem nur die Werte des Materials.`,
+      undo: "Vorgemerkt, noch einmal klicken nimmt es zurück",
+      // "Gibt es nur für 0,4 mm (siehe Details). Für eine andere …", "siehe Details" a link.
+      note: { only: (have) => `Gibt es nur für ${have} mm`, see: "siehe Details", other: "Für eine andere Düse legt OrcaOne ein eigenes Filament an." },
+      queued: (name) => `${q(name)} als eigenes Filament vorgemerkt. „Übernehmen“ unten legt es an.`,
+      where: (d, source) => `für ${d} mm, aus ${q(source)}`,
+    },
     state: { on: "An", some: "Teilweise an", off: "Aus", na: "Für diese Düse nicht da" },
     scope: {
       everywhere: "Gilt für alle Düsen und alle Drucker.",

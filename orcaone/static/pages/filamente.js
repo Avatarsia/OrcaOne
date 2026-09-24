@@ -95,7 +95,8 @@ onReset(() => {
   for (const id of Object.keys(store)) delete store[id];
   for (const inst of INSTANCES) {
     const { listed, bound } = initialState(inst);
-    store[inst.id] = { listed, bound, created: [], deleted: new Set(), edits: {}, base: { listed: new Set(listed), bound: new Set(bound) } };
+    // attached: "Für andere Düse", { source, printer, target, variant } per filament and nozzle.
+    store[inst.id] = { listed, bound, created: [], attached: [], deleted: new Set(), edits: {}, base: { listed: new Set(listed), bound: new Set(bound) } };
   }
 });
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -274,6 +275,7 @@ export const changes = computed(() => {
       note(shownName(n, f ? f.alias : n), on, [k.slice(cut + 1)]);
     }
     for (const a of agg.values()) add(a.type, a.name, whereText(i, a.printers));
+    for (const a of s.attached) add("new", a.target, F.attach.where(nozzleLabel(a.variant), plainName(a.source)));
     for (const c of s.created) {
       if (s.deleted.has(c.entry.id)) continue;
       const now = s.edits[c.entry.id] || c.entry, count = Object.keys(now.own || {}).length;
@@ -596,6 +598,39 @@ export default {
     // The nozzles are the switches: one button each, also for a single nozzle. Nozzles that share
     // one list profile go on and off together, the note below says so.
     const nozzleSwitches = computed(() => !!detail.value && !fixed(detail.value.e) && detailPrinters.value.length > 0);
+    // "Für andere Düse": nozzles of this printer the filament lacks, where a manufacturer filament of
+    // the same material exists for it to hang onto (importer.attach picks it, "Generic …" first).
+    // Snapmaker ships e.g. "Polymaker General PLA Family @U1" for the 0.4 nozzle only.
+    const attachSource = computed(() => {
+      const e = detail.value?.e;
+      if (!e || e.kind === "library" || e.fresh) return null;
+      const here = model.value.printers.find((p) => e.slots[p.name] && inst.value.byName.get(e.slots[p.name]));
+      return here ? inst.value.byName.get(e.slots[here.name]) : null;
+    });
+    // The name importer.attach gives the new filament (alias_of(source) @printer).
+    const attachName = (source, p) =>
+      `${(source.includes("@") ? source.slice(0, source.indexOf("@")).trimEnd() : "") || source} @${p.name}`;
+    // A nozzle that has this filament already, made here before, is not offered again: the
+    // operation would only add a second one with " (2)" (operations.free_name).
+    const attachable = computed(() => {
+      const src = attachSource.value, e = detail.value?.e;
+      if (!src?.material) return [];
+      return model.value.printers.filter((p) => !e.slots[p.name] && !inst.value.byName.has(attachName(src.name, p)) &&
+        inst.value.filaments.some((f) =>
+          f.origin_kind === "vendor" && f.material === src.material && (f.compatible_printers || []).includes(p.name)));
+    });
+    const attachedAt = (p) => store[inst.value.id].attached.find((a) => a.source === attachSource.value?.name && a.printer === p.name);
+    function toggleAttach(p) {
+      if (readOnly.value) return;
+      const list = store[inst.value.id].attached, queued = attachedAt(p);
+      if (queued) {
+        list.splice(list.indexOf(queued), 1);
+        return;
+      }
+      const source = attachSource.value.name, target = attachName(source, p);
+      list.push({ source, printer: p.name, target, variant: p.variant });
+      flash(F.attach.queued(plainName(target)));
+    }
     const scopeText = computed(() => {
       const ps = detailPrinters.value;
       if (!detail.value || !ps.length) return "";
@@ -831,7 +866,7 @@ export default {
     return {
       T, F, MATERIALS, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText,
       query, materials, closedKinds, panel, dragging, pickQuery,
-      homeGroups, lostText, tree, shelf, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, scopeText, problemText,
+      homeGroups, lostText, tree, shelf, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, attachable, attachedAt, toggleAttach, scopeText, problemText,
       templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
@@ -1078,6 +1113,14 @@ export default {
               </div>
               <p v-if="scopeText" class="scope"><nozzle-icon :sizes="[0.4]" :height="20"/>{{ scopeText }}</p>
             </template>
+            <p v-if="attachable.length" class="attach-note"><ui-icon name="info" :size="14"/><span>{{ F.attach.note.only(detailPrinters.map((p) => nozzleLabel(p.variant)).join(", ")) }}
+              (<button class="link" type="button" @click="guarded(() => toDetails(detail.e))">{{ F.attach.note.see }}</button>). {{ F.attach.note.other }}</span></p>
+            <div v-if="attachable.length" class="attach-row">
+              <span class="attach-label">{{ F.attach.label }}</span>
+              <button v-for="p in attachable" :key="p.name" :class="['nz-toggle', 'attach-btn', { 'is-queued': attachedAt(p) }]" type="button"
+                      :disabled="readOnly" :aria-pressed="attachedAt(p) ? 'true' : 'false'" :title="attachedAt(p) ? F.attach.undo : F.attach.title(nozzleLabel(p.variant))"
+                      @click="toggleAttach(p)"><ui-icon :name="attachedAt(p) ? 'check' : 'plus'"/>{{ nozzleLabel(p.variant) }}</button>
+            </div>
             <p v-else-if="scopeText" class="scope"><nozzle-icon :sizes="[0.4]" :height="20"/>{{ scopeText }}</p>
 
             <!-- One way per result: "Bearbeiten" on a manufacturer or library profile creates the own copy.

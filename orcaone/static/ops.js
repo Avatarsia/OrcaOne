@@ -11,7 +11,7 @@ import { importQueue } from "./pages/import.js";
 import { pending as calibrated } from "./pages/kalibrieren.js";
 
 const ORDER = [
-  "profile_copy", "profile_import", "filament_create", "filament_bind", "filament_update", "filament_rename", "filament_visible",
+  "profile_copy", "profile_import", "filament_create", "filament_attach", "filament_bind", "filament_update", "filament_rename", "filament_visible",
   "filament_delete", "printer_model_off", "printer_delete", "default_printer", "cleanup_presets",
 ];
 
@@ -199,6 +199,8 @@ export function changesOf(inst) {
     const inherits = !on.size || (!!base && sameSet(on, new Set(visibleAt(base).filter((p) => seen.has(p)))));
     add({ op: "filament_create", base: e.base, name: cur.name, values: valuesOf(cur.own), printers: inherits ? null : [...on].sort() });
   }
+  // "Für andere Düse": a filament onto a nozzle it lacks (operations.op_filament_attach).
+  for (const a of s.attached) add({ op: "filament_attach", source: a.source, printer: a.printer });
 
   // Changed own filaments on disk: values, the printer list from the switches, then the new name.
   const createdIds = new Set(s.created.map((c) => c.entry.id));

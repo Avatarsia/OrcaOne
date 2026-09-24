@@ -11,7 +11,7 @@ import pytest
 
 from conftest import call, copy_fixture
 from orcaone import importer, scanner
-from orcaone.resolver import Resolver
+from orcaone.resolver import Resolver, first
 
 U1_04 = "Snapmaker U1 (0.4 nozzle)"
 BASIC = "Snapmaker PLA Basic @U1"
@@ -312,6 +312,27 @@ def test_import_hung_onto_a_printer_and_renamed(server, fake_home):
     made = json.loads(call(f"{base}/plan", "POST", {"changes": [{**change, "name": "a/b"}]})[1])["plan"]
     assert made["blocked"] == "name_invalid"
     assert call(f"{base}/import/attach", "POST", {"profile": foreign, "printer": ""})[0] == 400
+
+
+def test_filament_for_a_nozzle_it_lacks(server, fake_home):
+    # "Für andere Düse" on the page "Filamente": Snapmaker's PLA Basic is there for the 0.4 nozzle only.
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    base = f"{server}/api/instances/{inst['id']}"
+    u1_02 = "Snapmaker U1 (0.2 nozzle)"
+    plan = apply(server, base, [{"op": "filament_attach", "source": BASIC, "printer": u1_02}])
+    assert "filament_attached" in {w["code"] for w in plan["warnings"]}
+    name = f"Snapmaker PLA Basic @{u1_02}"
+    written = json.loads((data_dir / "user" / "default" / "filament" / f"{name}.json").read_text(encoding="utf-8"))
+    assert written["inherits"] == "Generic PLA @U1 0.2 nozzle"
+    res = Resolver(scanner.scan(data_dir, "Snapmaker_Orca"))
+    mine = next(o for o in res.own_profiles("filament") if o.name == name)
+    assert res.loaded(mine) and res.compatible_printers(mine) == [u1_02]
+    # The material's values are those of PLA Basic, the rest those of the 0.2 nozzle's PLA.
+    basic = res.collection["filament"][BASIC]
+    assert first(res.value(mine, "nozzle_temperature")) == first(res.value(basic, "nozzle_temperature"))
+    made = json.loads(call(f"{base}/plan", "POST", {"changes": [{"op": "filament_attach", "source": "Gibt es nicht", "printer": u1_02}]})[1])["plan"]
+    assert made["blocked"] == "unknown_profile"
 
 
 def test_import_from_the_slicers_backup(server, fake_home):

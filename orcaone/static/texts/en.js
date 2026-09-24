@@ -273,6 +273,7 @@ const T = {
     filament_hidden: (w, names) => `${q(names.filament(w.name))} is then on for no nozzle and hidden in the slicer. The file stays; choosing a nozzle brings it back.`,
     filament_shown: (w, names) => `${q(names.filament(w.name))} is visible in the slicer again.`,
     // Copies from the page "Übertragen" (orcaone/transfer.py).
+    filament_attached: (w) => `${q(plainName(w.name))} hangs onto ${q(plainName(w.printer))} and builds on ${q(plainName(w.parent))}. Only the material's values come from ${q(plainName(w.source))}.`,
     import_attached: (w) => `${q(plainName(w.name))} hangs onto ${q(plainName(w.printer))} and builds on ${q(plainName(w.parent))}. Only the material's values come from the filament in the file.`,
     import_from: (w) => `${q(plainName(w.name))} comes from ${w.source || "a file"}${w.replaced ? " and replaces the one here" : ""}.`,
     transfer_from: (w) => `${q(plainName(w.name))} is a copy of ${q(plainName(w.source))} from ${w.slicer}.`,
@@ -371,6 +372,15 @@ const T = {
     ownValue: "changed by you",
     ownLegend: "changed by you, the rest comes from the template",
     activeAtNozzle: "Active for nozzle (mm)",
+    attach: {
+      label: "For another nozzle:",
+      title: (d) => `Make an own filament for ${d} mm. It builds on the filament of that nozzle with the same material and takes only the material's values from this one.`,
+      undo: "Queued, click again to take it back",
+      // "Only for 0.4 mm (see details). For another …", "see details" a link.
+      note: { only: (have) => `Only for ${have} mm`, see: "see details", other: "For another nozzle OrcaOne makes an own filament." },
+      queued: (name) => `${q(name)} queued as an own filament. “Apply” below makes it.`,
+      where: (d, source) => `for ${d} mm, from ${q(source)}`,
+    },
     state: { on: "On", some: "Partly on", off: "Off", na: "Not there for this nozzle" },
     scope: {
       everywhere: "Applies to all nozzles and all printers.",

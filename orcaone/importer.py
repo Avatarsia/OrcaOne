@@ -504,6 +504,12 @@ def _outcome(res: Resolver, app: str, kind: str, copy: transfer.Copy) -> dict:
             "values": {k: as_list(resolved[k])[0] for k in CORE[kind] if as_list(resolved.get(k))}}
 
 
+def attach_here(res: Resolver, app: str, p, printer_name: str) -> transfer.Copy:
+    """attach() for a filament of the installation itself: the page "Filamente" makes one for a
+    nozzle it lacks ("Für andere Düse"), with its material values on that nozzle's filament."""
+    return attach(res, app, {**_chain_values(res, p), "name": p.name}, [], printer_name)
+
+
 def analyse_attach(res: Resolver, app: str, profile: dict, parents: list, printer: str) -> dict:
     """What analyse() says of a filament when it is hung onto printer instead (attach), plus the
     keys it takes from the file."""
