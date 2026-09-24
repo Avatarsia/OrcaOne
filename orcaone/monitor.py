@@ -92,6 +92,9 @@ def read(host: str) -> dict:
         "motion": {"speed": _number(motion.get("live_velocity")),
                    "flow": extrusion * FILAMENT_AREA if extrusion is not None else None,
                    "position": [_number(v) for v in position[:3]], "homed": toolhead.get("homed_axes") or "",
+                   # Where the head can go (U1: X 0 to 271, Y 0 to 335, Z -6 to 275 mm), for the map of the bed.
+                   "min": [_number(v) for v in (toolhead.get("axis_minimum") or [])[:3]],
+                   "max": [_number(v) for v in (toolhead.get("axis_maximum") or [])[:3]],
                    "max_velocity": _number(toolhead.get("max_velocity")), "max_accel": _number(toolhead.get("max_accel"))},
         "system": {"cpu": _number((system.get("system_cpu_usage") or {}).get("cpu")), "cpu_temp": _number(system.get("cpu_temp")),
                    "memory": {"total": _number(memory.get("total")), "used": _number(memory.get("used"))},

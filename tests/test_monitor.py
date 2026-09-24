@@ -19,7 +19,8 @@ COMMON = {
                     "message": "", "info": {"total_layer": 100, "current_layer": 12}},
     "display_status": {"progress": 0.25, "message": None},
     "gcode_move": {"speed_factor": 1.1, "extrude_factor": 0.95},
-    "toolhead": {"extruder": "extruder", "homed_axes": "xyz", "max_velocity": 300.0, "max_accel": 5000.0, "position": [1, 2, 3, 4]},
+    "toolhead": {"extruder": "extruder", "homed_axes": "xyz", "max_velocity": 300.0, "max_accel": 5000.0, "position": [1, 2, 3, 4],
+                 "axis_minimum": [0.0, 0.0, -6.0, 0.0], "axis_maximum": [271.0, 335.0, 275.0, 0.0]},
     "motion_report": {"live_velocity": 120.5, "live_extruder_velocity": 2.0, "live_position": [10.25, 20.5, 0.4, 100.0]},
     "heater_bed": {"temperature": 59.8, "target": 60.0, "power": 0.35},
 }
@@ -114,6 +115,7 @@ def test_a_plain_klipper_printer(moonraker):
     assert [(h["extruder"], h["pa"], h["spool"], h["changes"]) for h in got["heads"]] == [("extruder", 0.04, None, None)]
     motion = got["motion"]
     assert (motion["speed"], motion["position"], motion["homed"]) == (120.5, [10.25, 20.5, 0.4], "xyz")
+    assert (motion["min"], motion["max"]) == ([0.0, 0.0, -6.0], [271.0, 335.0, 275.0])
     assert motion["flow"] == pytest.approx(2.0 * math.pi * 0.875 ** 2)
     system = got["system"]
     assert (system["cpu"], system["cpu_temp"], system["uptime"]) == (3.8, 40.1, 21980.0)

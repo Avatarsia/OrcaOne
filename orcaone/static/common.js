@@ -379,6 +379,7 @@ export function whenText(d) {
 // 24x24, stroke = currentColor, so hover, the active menu entry and dark mode colour them.
 export const ICONS = {
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  fan: '<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2c-1-3.1-.5-6.1 2-6.7 2.2-.5 3.3 2.2 1 4.3L13.4 10.1M13.6 12.8c3.2.6 5.5 2.6 4.9 4.9-.6 2.2-3.5 2.3-4.4-.6l-.6-2.8M10.5 12.9c-2.3 2.3-5.3 3.1-6.8 1.4-1.5-1.7 0-4.2 2.9-3.6l2.8.8"/>',
   pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>',
   home: '<path d="M4 11 12 4.5l8 6.5"/><path d="M6.5 9.5v10h11v-10"/><path d="M10 19.5v-5h4v5"/>',
   menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
@@ -475,6 +476,65 @@ export function registerCommon(app) {
     props: { name: { type: String, required: true }, size: { type: Number, default: 18 } },
     computed: { paths() { return ICONS[this.name] || ""; } },
     template: `<svg class="icon" viewBox="0 0 24 24" :width="size" :height="size" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="paths"></svg>`,
+  });
+
+  // The heads of a printer as a picture (pages "Übersicht" and "Status"): spool, filament and head,
+  // the nozzle orange while it is hot; in a print the working head sits lower, as if picked up (the
+  // U1 changes heads). The bed below. p: camera.status. details: also nozzle, pressure advance,
+  // tool changes and errors per head (monitor.py); sensors: the filament sensor of each head.
+  app.component("printer-stage", {
+    props: {
+      p: { type: Object, required: true }, u1: { type: Boolean, default: false },
+      details: { type: Boolean, default: false }, sensors: { type: Array, default: () => [] },
+    },
+    setup(props) {
+      const M = T.monitor, NO_COLOUR = "#D9D9D9";
+      const printing = computed(() => ["printing", "paused"].includes(props.p.state));
+      const hot = (x) => (x?.target || 0) > 0 || (x?.temp || 0) >= 50;
+      const deg = (v) => (v == null ? "–" : `${Math.round(v)} °C`);
+      const num = (v, digits) => v.toLocaleString(LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+      // A printer that knows its spools (the U1) colours the filament; other printers do not say.
+      const colour = (h) => (props.u1 ? h.spool?.colour || NO_COLOUR : "var(--icon)");
+      const material = (h) => (h.spool ? [h.spool.type, h.spool.subtype].filter(Boolean).join(" ") : T.printers.live.empty);
+      const title = (h, i) => [T.u1.head(i + 1), h.spool ? [h.spool.vendor, material(h)].filter(Boolean).join(" ") : null,
+        deg(h.temp) + (h.target ? ` → ${deg(h.target)}` : "")].filter(Boolean).join(" · ");
+      return { T, M, NO_COLOUR, printing, hot, deg, num, colour, material, title, nozzleLabel };
+    },
+    template: `
+      <div class="stage">
+        <div class="stage-heads">
+          <div v-for="(h, i) in p.heads" :key="h.extruder" :title="title(h, i)"
+               :class="['stage-head', { 'is-active': printing && p.active === h.extruder, 'is-hot': hot(h), 'is-empty': u1 && !h.spool }]">
+            <spool-icon v-if="u1" :colour="h.spool?.colour || NO_COLOUR" :size="40"/>
+            <svg class="head-art" viewBox="0 0 64 92" width="64" height="92" aria-hidden="true">
+              <rect class="head-filament" x="29" y="0" width="6" height="24" :style="{ fill: colour(h) }"/>
+              <rect class="head-top" x="21" y="12" width="22" height="12" rx="3"/>
+              <rect class="head-body" x="8" y="22" width="48" height="48" rx="12"/>
+              <circle class="head-window" cx="32" cy="39" r="9" :style="{ fill: colour(h) }"/>
+              <text class="head-num" x="32" y="62" text-anchor="middle">{{ i + 1 }}</text>
+              <path class="head-block" d="M22 70h20l-3 9H25z"/>
+              <path class="head-tip" d="M28.5 79h7L32 86z"/>
+            </svg>
+            <strong class="stage-temp">{{ deg(h.temp) }}</strong>
+            <small class="stage-target">{{ h.target ? '→ ' + deg(h.target) : M.off }}</small>
+            <small v-if="u1" class="stage-material">{{ material(h) }}</small>
+            <template v-if="details">
+              <small v-if="h.nozzle != null || h.pa != null" class="stage-detail">
+                {{ [h.nozzle != null ? nozzleLabel(String(h.nozzle)) + ' mm' : '', h.pa != null ? 'PA ' + num(h.pa, 3) : ''].filter(Boolean).join(' · ') }}</small>
+              <small v-if="h.changes != null" class="stage-detail" :title="M.retries(num(h.retries || 0, 0))">{{ M.changesN(num(h.changes, 0)) }}</small>
+              <small v-if="h.errors" class="stage-detail is-bad">{{ M.errorsN(h.errors) }}</small>
+              <small v-if="sensors[i]" :class="['stage-detail', sensors[i].detected ? 'st-on' : 'is-warn']">
+                {{ sensors[i].enabled === false ? M.disabled : sensors[i].detected ? M.filamentIn : M.filamentOut }}</small>
+            </template>
+          </div>
+        </div>
+        <div :class="['stage-bed', { 'is-hot': hot(p.bed) }]"></div>
+        <p class="stage-facts">
+          <span :class="{ 'is-hot': hot(p.bed) }">{{ M.names.bed }} {{ deg(p.bed?.temp) }}<template v-if="p.bed?.target"> → {{ deg(p.bed.target) }}</template></span>
+          <span v-if="p.cavity != null">{{ M.names.cavity }} {{ deg(p.cavity) }}</span>
+          <span v-if="p.light != null"><ui-icon name="bulb" :size="14"/>{{ p.light ? M.lightOn : M.lightOff }}</span>
+        </p>
+      </div>`,
   });
 
   // State of an installation as text plus colour, the same words on every page.
