@@ -390,7 +390,9 @@ def _name_state(res: Resolver, app: str, kind: str, copy: transfer.Copy) -> str:
     if own is None:
         return "new"
     mine = {**(_chain_values(res, copy.parent) if copy.parent is not None else {}), **copy.data}
-    same = res.loaded(own) and _comparable(mine, app, kind) == _comparable(_chain_values(res, own), app, kind)
+    # Hidden (instantiation "false") still counts: the slicer loads it, it only does not show it.
+    state = res.state(own)
+    same = bool(state and state.loaded) and _comparable(mine, app, kind) == _comparable(_chain_values(res, own), app, kind)
     return "same" if same else "name_taken"
 
 
@@ -414,6 +416,11 @@ def analyse(source: dict, res: Resolver, app: str) -> list:
                  "profile": f.data, "parents": [p.data for p in parents], "from_file": [p.name for p in parents]}
         if (f.kind, f.name) in templates and f.data.get("instantiation") == "false":
             out.append({**entry, "status": "template", "params": {}})
+            continue
+        if str(f.data.get("from", "")).lower() == "system" and any(p.kind == f.kind and p.name == f.name for p in res.scan.profiles.values()):
+            # A system profile the slicer's export wrote out in full (a printer bundle holds its
+            # printer so): the installation has it; a copy would only double it.
+            out.append({**entry, "status": "system_here", "params": {}})
             continue
         try:
             copy = convert(res, app, f.kind, f.data, entry["parents"], f.full)

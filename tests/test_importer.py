@@ -199,6 +199,17 @@ def test_analysis_against_the_installation(target):
     assert importer.analyse(other, target, "Snapmaker_Orca")[0]["status"] == "name_taken"
     system = importer.read(json.dumps(filament(BASIC, inherits=BASIC)).encode(), "x.json")
     assert importer.analyse(system, target, "Snapmaker_Orca")[0]["status"] == "system_name"
+    # A printer bundle of the slicer holds its system printer written out in full: here already, no copy.
+    bundle = {"bundle_structure.json": {"bundle_type": "printer config bundle", "printer_preset_name": U1_04},
+              f"printer/{U1_04}.json": {"name": U1_04, "printer_settings_id": U1_04, "from": "System", "inherits": "", "printer_model": "Snapmaker U1"},
+              "filament/Mein PLA.json": MINE}
+    got = {e["name"]: e["status"] for e in importer.analyse(importer.read(zip_of(bundle), f"{U1_04}.orca_printer"), target, "Snapmaker_Orca")}
+    assert got == {U1_04: "system_here", "Mein PLA": "same"}
+    # Hidden with instantiation "false" is still here: the slicer loads it and only does not show it.
+    folder = target.scan.data_dir / "user" / "default" / "filament"
+    (folder / "Mein PLA.json").write_text(json.dumps({**MINE, "instantiation": "false"}), encoding="utf-8")
+    hidden = Resolver(scanner.scan(target.scan.data_dir, "Snapmaker_Orca"))
+    assert importer.analyse(importer.read(json.dumps(MINE).encode(), "Mein PLA.json"), hidden, "Snapmaker_Orca")[0]["status"] == "same"
     # Complete, from a 3MF: lands even without its parent, as a root profile.
     alone = {"Metadata/filament_settings_1.config": filament("Alleine", inherits="Fehlt @X", nozzle_temperature=["210"], filament_type=["PLA"])}
     entry = importer.analyse(importer.read(zip_of(alone), "p.3mf"), target, "Snapmaker_Orca")[0]

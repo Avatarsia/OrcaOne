@@ -835,11 +835,12 @@ const T = {
     skipped: { not_readable: "nicht lesbar", not_a_profile: "kein Profil", twice: "doppelt", too_big: "zu groß" },
     kindsTitle: { filament: "Filamente", process: "Prozesse", machine: "Drucker" },
     status: {
-      new: "neu", same: "schon da", name_taken: "Name vergeben", system_name: "Name eines Systemprofils",
+      new: "neu", same: "schon da", system_here: "Systemprofil, gibt es hier", name_taken: "Name vergeben", system_name: "Name eines Systemprofils",
       parent_missing: "Elternprofil fehlt", no_target_printer: "kein passender Drucker", unknown_kind: "unbekannt", template: "Vorlage",
     },
     queued: "vorgemerkt",
     template: "Kommt mit den Profilen, die darauf aufbauen.",
+    systemHere: "Der Export schreibt es vollständig mit, der Slicer hat es hier schon. Eine Kopie würde es nur doppeln.",
     asCopy: "als Kopie mit neuem Namen",
     replace: "das vorhandene ersetzen",
     parent: (name) => `baut auf ${q(name)} auf`,

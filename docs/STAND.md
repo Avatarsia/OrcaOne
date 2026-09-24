@@ -16,6 +16,7 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 - **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. Den U1 liest OrcaOne nur, über Moonraker.
 - **Tests:** 244, alle grün (`.lenv/bin/python -m pytest`).
 - **Zuletzt gebaut (24.09.):** Import aus den Sicherungskopien des Slicers (`user_backup-v*`) auf „Import/Export“. Geprüft mit Tests und im Browser; die Kopien auf diesem Rechner sind leer, weil es beim ersten Start noch keine eigenen Profile gab.
+- **Behoben (24.09.), nach dem Test des Nutzers mit `data/Snapmaker U1 (0.4 nozzle).orca_printer`:** Ein Druckerbündel des Slicers enthält den Systemdrucker komplett ausgeschrieben. OrcaOne hielt ihn für ein fremdes Profil gleichen Namens und hätte ihn als „… (2)“ gedoppelt, vorab angehakt. Jetzt „Systemprofil, gibt es hier“, nicht wählbar. „Schon da“ lässt sich nicht mehr anhaken, und ausgeblendete eigene Profile zählen als schon da.
 - **Davor (23.09.):** Import/Export mit „Hier passend“ und „Was ein Import braucht“, die Seite „3MF bereinigen“, „Änderungen“, „Vergleichen“, der Druckstatus auf „Kamera“ und das App-Fenster. Ideen des Nutzers stehen in [IDEEN](IDEEN.md).
 
 ## Offen beim Nutzer

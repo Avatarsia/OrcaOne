@@ -305,7 +305,7 @@ Weg B testet man genauso. Beide Tests stehen noch aus.
 
 **Inhalt der Bundles beim Export:**
 
-- `printer/` enthält Vollkopien der Drucker ohne `print_host` und `printhost_*`.
+- `printer/` enthält Vollkopien der Drucker ohne `print_host` und `printhost_*`. Auch ein Systemdrucker steht so darin, mit `"from": "System"` und ohne `inherits` (SnOrca, `Snapmaker U1 (0.4 nozzle).orca_printer` vom Nutzer, 24.09.2026). OrcaOne nennt ihn beim Import „Systemprofil, gibt es hier“ und übernimmt ihn nicht.
 - `filament/` und `process/` enthalten die Rohdateien mit `inherits`.
 - Elternprofile sind nie dabei.
 

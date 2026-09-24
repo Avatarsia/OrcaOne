@@ -833,11 +833,12 @@ const T = {
     skipped: { not_readable: "not readable", not_a_profile: "no profile", twice: "twice", too_big: "too big" },
     kindsTitle: { filament: "Filaments", process: "Processes", machine: "Printers" },
     status: {
-      new: "new", same: "already here", name_taken: "name taken", system_name: "name of a system profile",
+      new: "new", same: "already here", system_here: "system profile, is here", name_taken: "name taken", system_name: "name of a system profile",
       parent_missing: "parent missing", no_target_printer: "no fitting printer", unknown_kind: "unknown", template: "template",
     },
     queued: "queued",
     template: "Comes along with the profiles built on it.",
+    systemHere: "The export writes it out in full, the slicer has it here already. A copy would only double it.",
     asCopy: "as a copy with a new name",
     replace: "replace the one here",
     parent: (name) => `builds on ${q(name)}`,

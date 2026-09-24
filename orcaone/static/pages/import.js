@@ -11,9 +11,10 @@ const { ref, reactive, computed, watch } = Vue;
 const I = T.importExport;
 const KINDS = ["filament", "process", "machine"];
 const KIND_ICON = { filament: "spool", process: "layers", machine: "printer" };
-// Status as text plus colour: what can be taken, what needs a choice, what cannot.
-const STATUS_CLASS = { new: "is-new", same: "is-same", name_taken: "is-choice", system_name: "is-choice", template: "is-same" };
-const TAKES = new Set(["new", "same", "name_taken", "system_name"]);
+// Status as text plus colour: what can be taken, what needs a choice, what cannot. What is here
+// already cannot be taken: it would only land a second time as a copy.
+const STATUS_CLASS = { new: "is-new", same: "is-same", system_here: "is-same", name_taken: "is-choice", system_name: "is-choice", template: "is-same" };
+const TAKES = new Set(["new", "name_taken", "system_name"]);
 
 // Profiles ticked and queued, per target installation; the change list and ops.js read them.
 export const importQueue = reactive([]);
@@ -119,6 +120,7 @@ export default {
       if (p.status === "parent_missing") return I.missingParent(p.params.parent);
       if (p.status === "no_target_printer") return I.noPrinter((p.params.printers || []).map(plainName).join(", "));
       if (p.status === "template") return I.template;
+      if (p.status === "system_here") return I.systemHere;
       if (!TAKES.has(p.status)) return "";
       const parts = [p.parent ? I.parent(plainName(p.parent)) : I.root];
       if (p.from_file.length) parts.push(I.fromFile(p.from_file.map(plainName)));
