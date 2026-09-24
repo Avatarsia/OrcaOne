@@ -23,6 +23,7 @@ import ImportPage, { importChanges } from "./pages/import.js";
 import AenderungenPage from "./pages/aenderungen.js";
 import BereinigenPage from "./pages/bereinigen.js";
 import KameraPage from "./pages/kamera.js";
+import DateienPage from "./pages/dateien.js";
 import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
 
@@ -32,12 +33,13 @@ document.documentElement.lang = LANG;
 
 // Order = reading order, as the user set it on 24.09.2026: Drucker first, then Prozesse and
 // Filamente, the quick tool "3MF bereinigen", and Slicer.
-// sub: a page about the one above, set in a little under it: the camera of the printer (its
+// sub: a page about the one above, set in a little under it: files and camera of the printer (its
 // address is on the printer's card); Übertragen, Vergleichen, Kalibrieren, Import/Export and
 // Details work on filament profiles; backups, "Änderungen" and logs are the slicer's.
 const PAGES = [
   { id: "drucker", icon: "printer", component: DruckerPage },
-  // Needs no slicer data: shows at once and stays through "Neu einlesen".
+  // Need no slicer data: show at once and stay through "Neu einlesen".
+  { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true },
   { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true },
   { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "filamente", icon: "spool", component: FilamentePage },

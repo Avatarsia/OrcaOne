@@ -89,6 +89,14 @@ export const api = {
   wakeCamera: (id) => request("POST", `/api/cameras/${encodeURIComponent(id)}/wake`),
   // The light in the U1 on or off.
   cameraLight: (id, on) => request("POST", `/api/cameras/${encodeURIComponent(id)}/light`, { on }),
+  // Page "Dateien" (orcaone/printer_files.py): a folder of the U1, deleting print files and
+  // videos, and a print with the options of the printer's display.
+  printerFiles: (id, folder) => request("GET", `/api/cameras/${encodeURIComponent(id)}/files?folder=${encodeURIComponent(folder)}`),
+  printerFileUrl: (id, folder, path, download = false) =>
+    `/api/cameras/${encodeURIComponent(id)}/file?folder=${encodeURIComponent(folder)}&path=${encodeURIComponent(path)}${download ? "&download=true" : ""}`,
+  deletePrinterFiles: (id, folder, names) => request("POST", `/api/cameras/${encodeURIComponent(id)}/files/delete`, { folder, names }),
+  printSetup: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/print`),
+  startPrint: (id, path, options, map) => request("POST", `/api/cameras/${encodeURIComponent(id)}/print`, { path, options, map }),
   // Page "Kalibrieren": the printer read live (spools, pressure advance), and the ticks.
   printerStatus: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/status`),
   calibration: (id) => request("GET", `${instUrl(id)}/calibration`),

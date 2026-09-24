@@ -1241,3 +1241,48 @@ span.cal-check { cursor: default; }
 .cal-queued { margin-top: 12px; padding: 8px 10px; border-radius: 6px; background: var(--changed-bg); font-size: 13px; }
 .cal-queued .link { margin-left: 8px; }
 .cal-once .cal-body { padding-bottom: 10px; }
+
+/* Page "Dateien" (pages/dateien.js) */
+.files-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 16px 0 12px; }
+.files-printer { display: flex; align-items: center; gap: 8px; color: var(--label); font-size: 13px; }
+.files-ro-tag { margin-left: 2px; padding: 0 6px; border-radius: 8px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 400; }
+.files-disk { margin-left: auto; color: var(--muted); font-size: 13px; }
+.files-busy { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--warn); font-weight: 600; }
+.files-box { padding: 0; overflow: hidden; }
+.files-box > .alert, .files-box > .note, .files-box > .empty { margin: 14px; }
+.files-ro { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--divider); color: var(--muted); font-size: 13px; }
+.files-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 14px; border-bottom: 1px solid var(--divider); background: var(--surface-2); }
+.files-all { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.files-count { flex: 1; color: var(--muted); font-size: 13px; }
+.files-ask { color: var(--danger); }
+.files-list { margin: 0; padding: 0; list-style: none; }
+.files-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--divider); }
+.files-row:last-child { border-bottom: 0; }
+.files-row.is-picked { background: var(--focus-bg); }
+.files-pick { flex: none; }
+.files-thumb { flex: none; width: 48px; height: 48px; border-radius: 4px; object-fit: contain; background: var(--surface-2); }
+.files-thumb.is-empty { display: grid; place-items: center; color: var(--icon); }
+.files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.files-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.files-meta { color: var(--muted); font-size: 12px; }
+.files-tools { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
+.files-tool { display: inline-flex; align-items: center; gap: 4px; }
+.files-dot { flex: none; width: 10px; height: 10px; border: 1px solid var(--line-input); border-radius: 50%; }
+.files-actions { flex: none; display: flex; gap: 6px; }
+/* The print panel, with the options of the U1's display */
+.print-file { display: flex; align-items: center; gap: 12px; }
+.print-file img { flex: none; width: 96px; height: 96px; border-radius: 6px; object-fit: contain; background: var(--surface-2); }
+.print-file-text { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.print-name { overflow-wrap: anywhere; }
+.print-option { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.print-note { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.print-map { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 4px 0; }
+.print-map-from { min-width: 56px; }
+.print-map .input { flex: 1 1 160px; min-width: 0; }
+.print-warn { flex-basis: 100%; color: var(--warn); font-size: 12px; }
+.print-check { display: flex; align-items: center; gap: 6px; margin: 20px 0 0; color: var(--warn); font-weight: 700; }
+.print-actions { display: flex; gap: 8px; margin-top: 12px; }
+@media (max-width: 700px) {
+  .files-row { flex-wrap: wrap; }
+  .files-actions { flex-basis: 100%; justify-content: flex-end; }
+}

@@ -451,6 +451,7 @@ export default {
             </dl>
             <p v-if="hostOf(c)" class="live-links">
               <a class="link" :href="'http://' + hostOf(c) + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
+              <a v-if="isU1(c)" class="link" :href="hashOf('dateien', inst.id)">{{ P.live.files }}</a>
               <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)">{{ P.live.camera }}</a>
             </p>
             <div class="card-actions">

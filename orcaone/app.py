@@ -4,15 +4,15 @@ import json
 import mimetypes
 from dataclasses import asdict
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from fastapi import Body, FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import (__version__, backup, calibration, camera, guard, importer, instances, logs, operations, overview, scanner,
-               settings, snapshot)
+from . import (__version__, backup, calibration, camera, guard, importer, instances, logs, operations, overview, printer_files,
+               scanner, settings, snapshot)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -84,7 +84,8 @@ def _backup_error(request: Request, exc: backup.BackupError):
 @app.exception_handler(camera.CameraError)
 def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "search_failed": 500,
-              "camera_every_invalid": 400}.get(exc.code, 502)
+              "camera_every_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
+              "folder_read_only": 400, "print_invalid": 400, "print_refused": 409}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
 
@@ -428,6 +429,55 @@ def camera_status(camera_id: str):
 def camera_image(camera_id: str):
     data, age = camera.image(camera.find(camera_id)["host"])
     return Response(content=data, media_type="image/jpeg", headers={} if age is None else {"X-Image-Age": f"{age:.0f}"})
+
+
+# ---------------------------------------------------------------- files on the U1 (orcaone/printer_files.py)
+# By camera id as the page "Kamera": every U1 with an address. Text files open as text in the browser.
+_TEXT_FILES = (".gcode", ".log", ".cfg", ".conf", ".json", ".txt", ".bkp")
+
+
+@app.get("/api/cameras/{camera_id}/files")
+def printer_folder(camera_id: str, folder: str = "gcodes"):
+    host = camera.find(camera_id)["host"]
+    return {"folders": printer_files.folders(host), "folder": folder, **printer_files.listing(host, folder)}
+
+
+@app.get("/api/cameras/{camera_id}/file")
+def printer_file(camera_id: str, folder: str = "", path: str = "", download: bool = False):
+    # Pictures, videos and files pass through OrcaOne: the browser never talks to the printer itself.
+    response = printer_files.open_file(camera.find(camera_id)["host"], folder, path)
+    name = path.rsplit("/", 1)[-1]
+    kind = response.headers.get("Content-Type") or mimetypes.guess_type(name)[0] or "application/octet-stream"
+    if not download and name.lower().endswith(_TEXT_FILES):
+        kind = "text/plain; charset=utf-8"
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"} if download else {}
+    if response.headers.get("Content-Length"):
+        headers["Content-Length"] = response.headers["Content-Length"]
+
+    def chunks():
+        try:
+            while block := response.read(65536):
+                yield block
+        finally:
+            response.close()
+    return StreamingResponse(chunks(), media_type=kind, headers=headers)
+
+
+@app.post("/api/cameras/{camera_id}/files/delete")
+def delete_printer_files(camera_id: str, payload: dict = Body(...)):
+    # Print files and videos, on the user's wish (orcaone/printer_files.py).
+    return printer_files.delete(camera.find(camera_id)["host"], payload.get("folder"), payload.get("names"))
+
+
+@app.get("/api/cameras/{camera_id}/print")
+def print_setup(camera_id: str):
+    return printer_files.print_setup(camera.find(camera_id)["host"])
+
+
+@app.post("/api/cameras/{camera_id}/print")
+def start_print(camera_id: str, payload: dict = Body(...)):
+    # On the user's wish: a print with the options of the printer's display.
+    return printer_files.start_print(camera.find(camera_id)["host"], payload.get("path"), payload.get("options"), payload.get("map"))
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
