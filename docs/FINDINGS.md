@@ -430,6 +430,7 @@ Nil-Werte: NaN, `INT_MAX` bzw. 255.
 - Nur `CACHE_VERSION` 1 parsen, vorher Magic, Größe und CRC prüfen.
 - Bei unbekannter Version nicht raten. Liegt daneben ein JSON, dieses lesen. Sonst den Hersteller als „vorhanden, Format nicht unterstützt“ zeigen und abhängige Benutzerprofile als „nicht auflösbar“ markieren.
 - Liegen `.opc` und JSON nebeneinander, nimmt Orca den Cache, wenn dessen Stempel mindestens so neu ist wie das JSON (`cache_covers`). OrcaOne wendet dieselbe Regel an.
+- Eigene Profile schreibt Orca main weiter als JSON plus `.info` (`Preset::save`, `load_presets` in `Preset.cpp`), `.opc` gibt es nur in `system/`. Auf einer Kopie des echten Ordners geprüft (23.09.2026): Ein neues eigenes Profil auf einem Profil aus `Snapmaker.opc` bekommt `version` 2.5.0 und eine `.info` mit der `base_id` aus der `.opc`. Die `.conf` bleibt mit Tab eingerückt, Wiederherstellen ergibt die Kopie Byte für Byte.
 
 ---
 
@@ -498,6 +499,8 @@ Anlass: Die Bibliothek der Orca-Nightly (`OrcaFilamentLibrary.opc` 2.4.0.8) hat 
 - Name `<Alias> @U1`, nicht `@System`: Nimmt SnOrca das Filament später in seine Bibliothek auf, bliebe die eigene Datei sonst still ungeladen. Die Seitenleiste zeigt den Teil vor „@“.
 - Ein Beispiel für „Elegoo PLA @U1“ (71 Schlüssel) besteht OrcaOnes `check_profile` und lädt im Scanner für alle U1-Düsen.
 
+**Probelauf ohne Schreiben (23.09.2026), mit allen echten Profilen:** Orca-Bibliothek → SnOrca 145 von 166 ohne Verlust, 21 abgelehnt, weil ihre Drucker in SnOrca fehlen. SnOrca → Orca alle 222 Filamente und 85 Prozesse; weg fallen nur Einstellungen, die es nur in SnOrca oder bei Bambu gibt.
+
 **Gegenrichtung und Drucker (Stichpunkte):** Orca main lädt kein Profil ohne Elternprofil und bindet eine leere Druckerliste an den Text nach „@“, also immer eine Liste setzen. Von SnOrcas Mehrfachwerten nur den ersten übernehmen. Druckerprofile: Etwa 50 Schlüssel von main kennt SnOrca nicht. `nozzle_volume_type` hat in beiden Slicern andere Werte, SnOrca ersetzt sie still. Bei Druckern nie `is_custom_defined: "1"` setzen, das sperrt „3MF drucken“ (`slic3r/GUI/MainFrame.cpp:1640`).
 
 **Nebenbefund aus Teil B:** SnOrca hat OrcaOnes Hilfsprofil `SUNLU PLA+ (DS)` (Weg B, Kind eines Bibliotheksprofils) geladen, auch mit der Farbe als einzelnem String. „Speichern unter“ machte daraus `SUNLU PLA+ (1DS)` mit `version "2.4.0.0"` und `sync_info = create`.
@@ -526,6 +529,8 @@ Anlass: Die Anleitung des Nutzers `prototypes/U1 Filament Kalibrierung.md` wird 
 - Kopf 4 steht nach dem letzten Druck auf 0,017665, die anderen auf 0,02. Der letzte Druck nutzte Kopf 4 nicht; bei den anderen setzte der G-Code beim Werkzeugwechsel 0,02 („// pressure_advance: 0.020000“ in der Konsole). Eine krumme Zahl ist also ein Messwert, und er bleibt in der Firmware, bis ein Druck den Kopf mit einem anderen Wert belegt. OrcaOne liest das über `printer/objects/query`, ohne etwas an den Drucker zu senden.
 - Laut Snapmaker-Forum gilt der Messwert für den Kalibrierdruck; danach setzt ein eingeschalteter Slicer-Wert ihn wieder.
 
+**Kamera der Stock-Firmware (am U1 geprüft 23.09.2026):** Die WebSocket-Methode `camera.start_monitor` mit `{"domain": "lan", "interval": 0}` weckt die Kamera (Antwort „success“ nach 185 ms). Danach liegt das Bild unter `/server/files/camera/monitor.jpg` (117 KB). Wie alt es ist, ergibt die Uhr des Druckers: `Date` minus `Last-Modified`. Das Skript des Nutzers `prototypes/U1Cam/u1cam.py` weckt alle 10 s.
+
 **Wo die Slicer die Adresse des Druckers ablegen:** Der Dialog „Physischer Drucker“ (Symbol neben der Druckerwahl) speichert „Hostname, IP or URL“ als `print_host`, dazu `host_type`, `print_host_webui` und `printhost_apikey`, in ein eigenes Druckerprofil, dessen Namen man dort vergibt (`PhysicalPrinterDialog::OnOK` → `save_preset`, in OrcaSlicer main und SnOrca gleich). Ein leeres Feld wird nicht gespeichert. Den U1 selbst findet SnOrca ohne gespeicherte Adresse per mDNS (`slic3r/GUI/SSWCP.cpp`, `sw_WakeupFind` und `sw_StartMachineFind`; `slic3r/Utils/Bonjour.cpp`):
 - ein UDP-Socket auf Port 5353 mit `SO_REUSEADDR`, der Gruppe 224.0.0.251 auf jeder Schnittstelle beigetreten; die Antworten kommen per Multicast;
 - erst „aufwärmen“ mit einer PTR-Anfrage nach `_services._dns-sd._udp.local` (laut Kommentar baut das bei Access Points die Multicast-Weiterleitung auf), dann einmal `_snapmaker._tcp.local`, dann bis zu 20 s lang `_snapmaker._tcp.local` mit 3 Wiederholungen;
@@ -540,6 +545,22 @@ Auf diesem Rechner stand die IP in keiner Datei der beiden Slicer (am 23.09. all
 - `/server/files/metadata?filename=…` liefert die Schätzung des Slicers als `estimated_time`, dazu `layer_count`, `filament_weight_total`, die Filamentnamen und Vorschaubilder. Beim letzten Druck schätzte SnOrca 2.3.6 5289 s, `print_duration` am Ende betrug 5333 s. Die Restzeit in OrcaOne ist deshalb `estimated_time` minus `print_duration`, ohne Schätzung rechnet sie aus dem Fortschritt (`camera._left`).
 
 **Nicht geprüft:** der genaue Text der Konsolenmeldung („Got pressure advance“ laut Anleitung, „measure k“ laut Forum), die 32 mm³/s des Hotends und der Rat zur 0,2-mm-Düse (die Snapmaker-Wiki zeigt ihren Inhalt nur per JavaScript).
+
+## Logdateien der Slicer (23.09.2026)
+
+- Eine Datei je Start in `<Datenordner>/log/`. Zeilenformat beider Slicer: `[warning]⇥2026-09-23 09:24:21.294249[Thread 0x…]:Text`. Zeilen ohne diesen Anfang gehören zum Eintrag davor, etwa OrcaSlicers Systeminfo.
+- SnOrca schreibt fast alles als `warning`, OrcaSlicer als `info`.
+- OrcaSlicers Logs erreichen 10 MB mit rund 21.600 Einträgen. Zwei davon sind je 2,7 MB groß, die ganze Profilliste als JSON (`SaveProfile`, `on_profile_loaded`). OrcaOne filtert deshalb auf dem Server und schickt nur die letzten 2000 Einträge mit höchstens 2000 Zeichen.
+- SnOrcas Updater meldet in allen 16 Logs dieses Rechners „Update install failed“ für `printers/`. Das ist ein Problem von Snapmaker.
+
+## Windows (per Quellcode geprüft, 23.09.2026)
+
+Ohne Windows-Rechner geprüft; die Prüfliste für den echten Rechner steht in [STAND](STAND.md).
+
+- Python öffnet Dateien unter Windows ohne `FILE_SHARE_DELETE`. Solange ein Leser `settings.json` offen hat, scheitert das atomare Ersetzen. OrcaOne liest deshalb unter derselben Sperre, unter der es schreibt, und versucht `os.replace` bei `PermissionError` dreimal (Virenscanner).
+- `recvfrom` meldet bei UDP ein früheres ICMP „unreachable“ als `ConnectionResetError`. Die LAN-Suche läuft dann weiter.
+- `urllib` nimmt unter Windows den System-Proxy aus der Registry. Anfragen an den U1 gehen deshalb ohne Proxy.
+- Passt schon: die Programmnamen `snapmaker-orca.exe` und `orca-slicer.exe` (`OUTPUT_NAME` in `src/CMakeLists.txt`); `fcntl` und `chmod` nur unter POSIX; Logs lesen, während der Slicer schreibt, denn MSVC öffnet sie ohne Schreibsperre für andere; `SO_REUSEPORT` gibt es unter Windows nicht und wird übersprungen.
 
 ## Offen: nur am laufenden Slicer prüfbar
 

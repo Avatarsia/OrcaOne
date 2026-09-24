@@ -166,7 +166,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `tools/make_icons.py` | das eigene App-Symbol: zeichnet es als SVG, PNG und ICO |
 | `prototypes/opc/` | Prototyp für das `.opc`-Format, jetzt in `orcaone/opc.py` |
 | `prototypes/U1Cam/` | Skript des Nutzers, Vorlage für die Seite „Kamera“ |
-| `docs/` | Befunde (`FINDINGS.md`), Plan (`PLAN.md`), Arbeitsstand (`STAND.md`) |
+| `docs/` | Befunde (`FINDINGS.md`), Plan (`PLAN.md`), Arbeitsstand (`STAND.md`), Ideen (`IDEEN.md`), Import-Quellen, Recherche, Test-Vergleich, Starten und Bauen |
 | `ORCAONE_SPEC.md` | Spezifikation |
 
 Die Entwürfe D, E und E2 liegen nur noch in der Git-Geschichte, zuletzt in Commit `deee0f2` unter `prototypes/ui-overview/`.
