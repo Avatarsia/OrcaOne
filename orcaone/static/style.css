@@ -1286,3 +1286,27 @@ span.cal-check { cursor: default; }
   .files-row { flex-wrap: wrap; }
   .files-actions { flex-basis: 100%; justify-content: flex-end; }
 }
+
+/* Page "SSH" (pages/ssh.js); xterm.js brings its own styles (vendor/xterm/xterm.css) */
+/* The terminal takes the height that is left, so the page itself never scrolls. */
+.main:has(.fill-page) { display: flex; flex-direction: column; height: calc(100vh - 48px); height: calc(100dvh - 48px); padding-bottom: 16px; }
+.page.fill-page { display: flex; flex: 1; flex-direction: column; width: 100%; max-width: 1200px; min-height: 0; }
+.ssh-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin: 16px 0 12px; }
+.ssh-field { display: flex; flex-direction: column; gap: 4px; color: var(--label); font-size: 13px; font-weight: 700; }
+.ssh-user { width: 120px; font-family: var(--mono); }
+/* On the line of the fields and buttons, not in the middle of fields with their labels */
+.ssh-bar .cam-status { align-self: flex-end; height: 32px; margin-left: 0; }
+.ssh-password { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--accent-line); border-radius: 6px; background: var(--focus-bg); }
+.ssh-password label { font-weight: 700; }
+.ssh-password .input { width: 220px; }
+.ssh-detail { display: block; margin-top: 4px; font-family: var(--mono); font-size: 12px; }
+/* The command list and the printer's key, on the line above the terminal */
+.ssh-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 8px; }
+.ssh-commands { display: flex; align-items: center; gap: 8px; color: var(--label); font-size: 13px; font-weight: 700; }
+.ssh-commands .input { width: 240px; font-weight: 400; }
+.ssh-key { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+/* Like the other boxes of the page; xterm takes its colours from the same variables (pages/ssh.js) */
+.ssh-screen { display: flex; flex: 1; min-height: 240px; padding: 8px; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface); }
+/* xterm's fit addon measures its parent's full height: so a parent without padding and border */
+.ssh-term { flex: 1; min-width: 0; min-height: 0; }
+.ssh-pass { width: 150px; }

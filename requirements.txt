@@ -1,4 +1,7 @@
 fastapi==0.141.1
 uvicorn==0.53.0
 psutil==7.2.2
+# Page "Terminal" (orcaone/ssh.py), agreed with the user on 24.09.2026: WebSockets for uvicorn, SSH
+websockets==17.1
+paramiko==5.0.0
 pytest==9.1.1

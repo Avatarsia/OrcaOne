@@ -14,7 +14,7 @@
 // printer says of itself, read only: any Klipper printer its state, versions, storage, prints in
 // total and system; a U1 also its name, firmware and the nozzle and spool of every head.
 import {
-  INSTANCES, LOCALE, live, flash, fmtSize, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON, U1_MODELS,
+  INSTANCES, LOCALE, live, flash, fmtSize, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON, U1_MODELS, ui,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
@@ -60,6 +60,11 @@ export default {
     // A U1 card can look for Snapmaker printers in the LAN, as Snapmaker Orca does (mDNS, only in
     // the same LAN, not over a VPN); a hit goes in with one click.
     const isU1 = (c) => U1_MODELS.includes(c.model);
+    // Any printer with Klipper and an address may have SSH; the page "SSH" opens with it chosen.
+    function openFor(c, page) {
+      ui.printerFor = addressKey(c);
+      go(null, hashOf(page, inst.value.id));
+    }
     const searching = ref(null);  // card id
     const found = ref({});        // card id -> printers found
     async function search(c) {
@@ -351,7 +356,7 @@ export default {
 
     return {
       T, P, KIND_ICON, inst, state, readOnly, cards, locked, nozzlesOf, defaultCard, defaultText,
-      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost, isU1, searching, found, search, take,
+      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost, isU1, openFor, searching, found, search, take,
       machineOf, stateOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)),
       dead, remembered, clean, panel, choice, along, pcard, plan, panelTitle,
       openDefault, setDefault, openRemove, toggleAlong, remove, closePanel,
@@ -453,6 +458,7 @@ export default {
               <a class="link" :href="'http://' + hostOf(c) + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
               <a v-if="isU1(c)" class="link" :href="hashOf('dateien', inst.id)">{{ P.live.files }}</a>
               <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)">{{ P.live.camera }}</a>
+              <a class="link" :href="hashOf('ssh', inst.id)" @click.prevent="openFor(c, 'ssh')">{{ P.live.ssh }}</a>
             </p>
             <div class="card-actions">
               <button v-if="c.printers.length && !(c.isDefault && c.printers.length < 2)" class="btn" type="button"

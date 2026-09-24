@@ -6,13 +6,13 @@ from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
-from fastapi import Body, FastAPI, Request
+from fastapi import Body, FastAPI, Request, WebSocket
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import (__version__, backup, calibration, camera, guard, importer, instances, logs, operations, overview, printer_files,
-               scanner, settings, snapshot)
+               scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -21,6 +21,7 @@ _LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 # On Windows the registry can map .js to text/plain, and browsers then refuse to
 # run ES modules.
 mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("text/javascript", ".mjs")
 mimetypes.add_type("text/css", ".css")
 
 
@@ -79,6 +80,18 @@ def _invalid_change(request: Request, exc: operations.InvalidChange):
 @app.exception_handler(backup.BackupError)
 def _backup_error(request: Request, exc: backup.BackupError):
     return _error(exc.code, 404 if exc.code == "backup_not_found" else 500)
+
+
+@app.websocket("/api/ssh")
+async def ssh_terminal(websocket: WebSocket, model: str = ""):
+    # The page "SSH" (orcaone/ssh.py). The HTTP guard above does not see WebSockets, and
+    # browsers let any page open one: so Host and Origin are checked here, and closing before
+    # accepting refuses the connection.
+    host = websocket.headers.get("host", "")
+    if _hostname(host) not in _LOCAL_HOSTS or websocket.headers.get("origin") != f"http://{host}":
+        await websocket.close(code=1008)
+        return
+    await ssh.session(websocket, model)
 
 
 @app.exception_handler(camera.CameraError)
