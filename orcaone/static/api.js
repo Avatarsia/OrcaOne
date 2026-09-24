@@ -77,6 +77,9 @@ export const api = {
   // The address of a printer model (page "Drucker"); every U1 with one has a camera
   // (orcaone/camera.py). The picture itself comes as image/jpeg.
   printers: () => request("GET", "/api/printers"),
+  // Read only, by model: what a printer with an address says of itself and what it is doing.
+  printerInfo: (model) => request("GET", `/api/printers/info?model=${encodeURIComponent(model)}`),
+  printerState: (model) => request("GET", `/api/printers/status?model=${encodeURIComponent(model)}`),
   setPrinterHost: (model, host) => request("POST", "/api/printers", { model, host }),
   // About 6 s: Snapmaker printers that answer in the LAN (mDNS, as Snapmaker Orca looks for them).
   searchPrinters: () => request("POST", "/api/printers/search"),

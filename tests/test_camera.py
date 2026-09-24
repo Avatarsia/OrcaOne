@@ -5,6 +5,7 @@ import json
 import socket
 import struct
 import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
@@ -59,6 +60,75 @@ def test_address_from_the_slicer():
     assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.9", "from": "orcaone", "every": 2}
     camera.set_host("Snapmaker U1", "")
     assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.174:7125", "from": "slicer", "slicer": "OrcaSlicer", "every": 2}
+
+
+# Trimmed from the answers of the user's U1 on 24.09.2026. "logs" is missing: that part stays None.
+U1_SYSTEM = {"system_info": {
+    "product_info": {"device_name": "Dr. Klippers U1", "firmware_version": "1.6.0", "nozzle_diameter": [0.4, 0.4, 0.4, 0.4],
+                     "machine_type": "Snapmaker U1", "serial_number": "GEHEIM"},
+    "distribution": {"name": "Buildroot 2024.02"},
+    "network": {"lo": {"ip_addresses": [{"family": "ipv4", "address": "127.0.0.1"}]},
+                "wlan0": {"ip_addresses": [{"family": "ipv4", "address": "10.30.40.174"}]}}}}
+ANSWERS = {
+    "/printer/info": {"state": "ready", "software_version": "1.6.0.267_20260815150420"},
+    "/server/info": {"moonraker_version": "1.6.0"},
+    "/server/files/directory?path=gcodes&extended=false": {"disk_usage": {"total": 27_400_000_000, "used": 3_200_000_000, "free": 24_200_000_000}},
+    "/server/files/list?root=gcodes": [{"path": "a.gcode", "size": 300}, {"path": "b.gcode", "size": 200}],
+    "/server/files/list?root=camera": [{"path": "x.mp4", "size": 1000}, {"path": "x_cover.jpg", "size": 10}],
+    "/server/history/totals": {"job_totals": {"total_jobs": 28.0, "total_print_time": 318806.1, "total_filament_used": 759323.5, "longest_print": 74923.7}},
+    "/machine/proc_stats": {"system_uptime": 5078.2, "cpu_temp": 40.1, "system_memory": {"total": 984740, "used": 187516}},
+}
+
+
+@pytest.fixture
+def moonraker():
+    """Answers the GETs of camera.info with ANSWERS, /machine/system_info with answers["system"]."""
+    answers = {**ANSWERS, "/machine/system_info": U1_SYSTEM}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            result = answers.get(self.path)
+            body = json.dumps({"result": result} if result is not None else {"error": {"code": 404}}).encode()
+            self.send_response(200 if result is not None else 404)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"127.0.0.1:{server.server_address[1]}", answers
+    server.shutdown()
+
+
+def test_info_of_a_klipper_printer(moonraker):
+    host, answers = moonraker
+    got = camera.info(host)
+    assert (got["name"], got["firmware"], got["nozzles"], got["os"], got["network"]) == (
+        "Dr. Klippers U1", "1.6.0", [0.4, 0.4, 0.4, 0.4], "Buildroot 2024.02", "wlan0")
+    assert (got["klipper"], got["state"], got["moonraker"]) == ("1.6.0.267_20260815150420", "ready", "1.6.0")
+    assert got["disk"]["free"] == 24_200_000_000 and got["folders"] == {"gcodes": 500, "camera": 1010, "logs": None}
+    assert got["videos"] == 1 and got["jobs"]["total_jobs"] == 28.0 and got["system"]["cpu_temp"] == 40.1
+    assert "GEHEIM" not in json.dumps(got)
+    # Any other Klipper printer: no product_info, the rest as it is.
+    answers["/machine/system_info"] = {"system_info": {"distribution": {"name": "Debian GNU/Linux 12"}}}
+    plain = camera.info(host)
+    assert (plain["name"], plain["firmware"], plain["nozzles"], plain["os"], plain["klipper"]) == (
+        None, None, [], "Debian GNU/Linux 12", "1.6.0.267_20260815150420")
+    with pytest.raises(camera.CameraError) as err:
+        camera.info("127.0.0.1:9")
+    assert err.value.code == "camera_unreachable"
+
+
+def test_info_only_for_a_printer_with_an_address(server, moonraker):
+    host, _ = moonraker
+    camera.set_host("MyKlipper", host)
+    status, body = call(f"{server}/api/printers/info?model=MyKlipper")
+    assert status == 200 and json.loads(body)["name"] == "Dr. Klippers U1"
+    assert call(f"{server}/api/printers/info?model=Unbekannt")[0] == 404
 
 
 def test_api(server, monkeypatch):

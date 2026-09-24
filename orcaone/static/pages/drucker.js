@@ -10,9 +10,11 @@
 // Each card also shows the printer's network address: the one typed in here (OrcaOne's own
 // setting by model, saved at once), else the one of the slicer's dialog "Physical Printer"
 // (print_host of an own printer). A U1 with one gets its camera and live values on the pages
-// "Kamera" and "Kalibrieren" (orcaone/camera.py).
+// "Kamera" and "Kalibrieren" (orcaone/camera.py). With an address the card also shows what the
+// printer says of itself, read only: any Klipper printer its state, versions, storage, prints in
+// total and system; a U1 also its name, firmware and the nozzle and spool of every head.
 import {
-  INSTANCES, live, flash, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON, U1_MODELS,
+  INSTANCES, LOCALE, live, flash, fmtSize, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON, U1_MODELS,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
@@ -47,6 +49,8 @@ export default {
     async function saveHost(c) {
       try {
         hosts.value = (await api.setPrinterHost(addressKey(c), hostDraft.value)).printers;
+        delete machine[addressKey(c)];
+        if (hostOf(c)) readMachine(addressKey(c));
         editing.value = null;
         flash(hostDraft.value.trim() ? P.address.saved : P.address.removed);
       } catch (err) {
@@ -79,7 +83,95 @@ export default {
       } catch {
         hosts.value = {};
       }
+      for (const model of withHost()) readMachine(model);
+      timer = setInterval(() => {
+        if (document.visibilityState === "visible") for (const model of withHost()) readState(model);
+      }, 10000);
     });
+
+    // ------------------------------------------------------------ the printer itself (camera.info, status)
+    // By model, like the address. The state again every 10 s while the page is visible.
+    const machine = reactive({});  // model -> { info, state, error }
+    let timer = 0;
+    onUnmounted(() => clearInterval(timer));
+    const withHost = () => [...new Set(cards.value.map(addressKey))].filter((m) => hosts.value[m]?.host);
+    async function readState(model) {
+      try {
+        machine[model] = { ...machine[model], state: await api.printerState(model) };
+      } catch { /* the info says whether it answers */ }
+    }
+    async function readMachine(model) {
+      machine[model] = { ...machine[model], asking: true };
+      try {
+        machine[model] = { ...machine[model], info: await api.printerInfo(model), error: "", asking: false };
+      } catch (err) {
+        machine[model] = { ...machine[model], info: null, error: err.code || "unknown", asking: false };
+      }
+      readState(model);
+    }
+    const machineOf = (c) => (hostOf(c) ? machine[addressKey(c)] || { asking: true } : null);
+    const number = (v, digits = 0) => v.toLocaleString(LOCALE, { maximumFractionDigits: digits });
+    function duration(seconds) {
+      const minutes = Math.round(seconds / 60);
+      if (minutes < 60) return P.live.minutes(minutes);
+      if (minutes < 48 * 60) return P.live.hours(Math.floor(minutes / 60), minutes % 60);
+      return P.live.days(Math.floor(minutes / 1440));
+    }
+    // State as text plus colour, as on "Kamera": what Klipper and the job say.
+    function stateOf(c) {
+      const m = machineOf(c);
+      if (!m) return null;
+      if (m.error) return { cls: "is-err", text: P.live.unreachable };
+      if (m.asking && !m.info) return { cls: "is-wait", text: P.live.asking };
+      if (m.info?.state && m.info.state !== "ready") return { cls: "is-err", text: P.live.klipper(m.info.state) };
+      const s = m.state || {};
+      const job = s.state || "standby";
+      const parts = [T.u1.states[job] || job];
+      if ((job === "printing" || job === "paused") && s.progress != null) parts.push(`${Math.round(s.progress * 100)} %`);
+      return { cls: { printing: "is-ok", complete: "is-ok", standby: "is-ok", paused: "is-warn", cancelled: "is-warn", error: "is-err" }[job] || "is-wait",
+               text: parts.join(" · ") };
+    }
+    // The heads with nozzle and spool: only where the printer knows its spools (the U1).
+    function headsOf(c) {
+      const m = machineOf(c), heads = m?.state?.heads || [];
+      if (!heads.some((h) => h.spool)) return [];
+      return heads.map((h, i) => ({ ...h, nozzle: m.info?.nozzles?.[i] }));
+    }
+    const headTitle = (h) => (h.spool ? [h.spool.vendor, h.spool.type, h.spool.subtype, h.spool.rfid ? P.live.rfid : null].filter(Boolean).join(" · ") : P.live.empty);
+    // Four rows on the card, the details in their tooltips: not too much at first glance.
+    const klipperOf = (info) => (info.klipper ? String(info.klipper).replace(/_\d+$/, "") : "");
+    function firmwareOf(info) {
+      const s = info.system || {};
+      const memory = s.memory?.total ? Math.round(s.memory.used / s.memory.total * 100) : null;
+      return {
+        text: info.firmware || klipperOf(info),
+        title: [klipperOf(info) && P.live.klipperVersion(klipperOf(info)), info.moonraker && P.live.moonraker(info.moonraker), info.os,
+                s.uptime != null && P.live.uptime(duration(s.uptime)), s.cpu_temp != null && P.live.cpu(Math.round(s.cpu_temp)),
+                memory != null && P.live.memory(memory)].filter(Boolean).join("\n"),
+      };
+    }
+    function storageOf(info) {
+      const d = info.disk;
+      if (!d || !d.total) return null;
+      const f = info.folders || {};
+      const parts = [["gcodes", f.gcodes], ["camera", f.camera], ["logs", f.logs]].filter(([, size]) => size)
+        .map(([root, size]) => root === "camera" && info.videos ? P.live.videos(fmtSize(size), info.videos) : `${P.live.folders[root]}: ${fmtSize(size)}`);
+      return { pct: Math.min(100, Math.round(d.used / d.total * 100)), text: P.live.used(fmtSize(d.used), fmtSize(d.total)),
+               title: [P.live.free(fmtSize(d.free)), ...parts].join("\n") };
+    }
+    function jobsOf(info) {
+      const j = info.jobs;
+      if (!j || !j.total_jobs) return null;
+      return { text: [P.live.prints(j.total_jobs), j.total_print_time && P.live.printed(number(j.total_print_time / 3600))].filter(Boolean).join(" · "),
+               title: [j.total_filament_used && P.live.filament(number(j.total_filament_used / 1000)),
+                       j.longest_print && P.live.longest(duration(j.longest_print))].filter(Boolean).join("\n") };
+    }
+    // Per card id: the rows it shows of the printer itself, null without an answer.
+    const rowsOf = computed(() => Object.fromEntries(cards.value.map((c) => {
+      const info = machineOf(c)?.info;
+      return [c.id, info ? { firmware: firmwareOf(info), heads: headsOf(c), storage: storageOf(info), jobs: jobsOf(info) } : null];
+    })));
+    const networkOf = (info) => (!info?.network ? "" : /^wl/.test(info.network) ? P.live.wlan : /^(eth|en)/.test(info.network) ? P.live.lan : info.network);
 
     // ------------------------------------------------------------ cards
     const cards = computed(() => {
@@ -260,6 +352,7 @@ export default {
     return {
       T, P, KIND_ICON, inst, state, readOnly, cards, locked, nozzlesOf, defaultCard, defaultText,
       hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost, isU1, searching, found, search, take,
+      machineOf, stateOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)),
       dead, remembered, clean, panel, choice, along, pcard, plan, panelTitle,
       openDefault, setDefault, openRemove, toggleAlong, remove, closePanel,
       go, hashOf, plural, nozzleLabel, printerText, profileSub,
@@ -293,14 +386,17 @@ export default {
         </div>
         <div class="cards pcards">
           <article v-for="c in cards" :key="c.id" :class="['pcard', { 'is-default': c.isDefault }]" :aria-label="c.label">
-            <span class="card-img"><img :src="c.cover" alt="" width="170" height="170" :class="{ dim: !c.visible }"></span>
+            <div class="pcard-top">
+            <span class="card-img"><img :src="c.cover" alt="" width="104" height="104" :class="{ dim: !c.visible }"></span>
             <div class="pcard-body">
               <h3 class="card-name">{{ c.label }}</h3>
+              <span v-if="machineOf(c)?.info?.name" class="card-device">{{ machineOf(c).info.name }}</span>
               <span v-if="c.sub" class="card-sub">{{ c.sub }}</span>
               <p class="tags">
                 <span v-if="c.isDefault" class="tag tag-default"><ui-icon name="star" :size="14"/>{{ P.tags.default }}</span>
                 <span class="tag"><ui-icon :name="c.tagIcon" :size="14"/>{{ c.tag }}</span>
               </p>
+              <p v-if="stateOf(c)" :class="['cam-status', 'card-state', stateOf(c).cls]"><span class="cam-dot"></span>{{ stateOf(c).text }}</p>
               <p v-if="nozzlesOf(c).length" class="card-meta">
                 <nozzle-icon :sizes="[0.4]" :height="20"/><span class="sr-only">{{ P.nozzlesLabel }}</span>
                 <span class="nz-chips">
@@ -322,6 +418,7 @@ export default {
                 <ui-icon name="network" :size="16"/>
                 <template v-if="hostOf(c)">
                   <span class="card-host-value">{{ hostOf(c) }}</span>
+                  <small v-if="networkOf(machineOf(c)?.info)" class="card-host-from">{{ networkOf(machineOf(c).info) }}</small>
                   <small v-if="hostFrom(c)" class="card-host-from">{{ P.address.fromSlicer(hostFrom(c)) }}</small>
                 </template>
                 <span v-else>{{ P.address.none }}</span>
@@ -338,6 +435,24 @@ export default {
                 <li v-if="!found[c.id].length" class="card-found-none">{{ P.address.foundNone }}</li>
               </ul>
             </div>
+            </div>
+            <dl v-if="rowsOf[c.id]" class="pcard-live">
+              <div :title="rowsOf[c.id].firmware.title"><dt>{{ P.live.firmware }}</dt><dd>{{ rowsOf[c.id].firmware.text }}</dd></div>
+              <div v-if="rowsOf[c.id].heads.length"><dt>{{ P.live.heads }}</dt>
+                <dd class="live-heads">
+                  <span v-for="(h, i) in rowsOf[c.id].heads" :key="i" class="live-head" :title="T.u1.head(i + 1) + ': ' + headTitle(h)">
+                    <spool-icon :colour="h.spool?.colour || '#D9D9D9'" :size="22"/>
+                    <span><strong>{{ h.spool?.type || P.live.empty }}</strong><small>{{ h.nozzle ? nozzleText(h.nozzle) + ' mm' : T.u1.head(i + 1) }}</small></span>
+                  </span>
+                </dd></div>
+              <div v-if="rowsOf[c.id].storage" :title="rowsOf[c.id].storage.title"><dt>{{ P.live.storage }}</dt>
+                <dd><span class="live-bar"><span :style="{ width: rowsOf[c.id].storage.pct + '%' }"></span></span>{{ rowsOf[c.id].storage.text }}</dd></div>
+              <div v-if="rowsOf[c.id].jobs" :title="rowsOf[c.id].jobs.title"><dt>{{ P.live.jobs }}</dt><dd>{{ rowsOf[c.id].jobs.text }}</dd></div>
+            </dl>
+            <p v-if="hostOf(c)" class="live-links">
+              <a class="link" :href="'http://' + hostOf(c) + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
+              <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)">{{ P.live.camera }}</a>
+            </p>
             <div class="card-actions">
               <button v-if="c.printers.length && !(c.isDefault && c.printers.length < 2)" class="btn" type="button"
                       :disabled="readOnly" @click="openDefault(c)">

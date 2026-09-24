@@ -699,7 +699,24 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .start-box { display: flex; align-items: center; gap: 14px; }
 .start-label { color: var(--muted); font-size: 12px; font-weight: 600; }
 .start-name { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; }
-.pcards { margin-bottom: 24px; }
+.pcards { margin-bottom: 24px; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); }
+.pcard-top { display: flex; gap: 14px; min-width: 0; }
+.pcard .pcard-top .card-img { flex: none; width: 120px; height: 120px; margin: 0; }
+.pcard .pcard-top .card-img img { width: 104px; height: 104px; }
+.pcard-top .pcard-body { flex: 1; }
+.card-device { margin-top: -4px; color: var(--label); font-size: 13px; }
+.pcard .card-state { margin-left: 0; font-weight: 600; }
+/* What the printer says of itself: four rows, the details in their tooltips. */
+.pcard-live { display: grid; gap: 6px; margin: 4px 0 0; padding-top: 10px; border-top: 1px solid var(--divider); font-size: 13px; }
+.pcard-live > div { display: grid; grid-template-columns: 84px 1fr; gap: 10px; align-items: center; }
+.pcard-live dt { color: var(--label); }
+.pcard-live dd { margin: 0; min-width: 0; }
+.live-heads { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.live-head { display: inline-flex; align-items: center; gap: 4px; line-height: 1.15; }
+.live-head small { display: block; color: var(--muted); font-size: 11px; }
+.live-bar { display: block; height: 6px; margin-bottom: 3px; overflow: hidden; border-radius: 3px; background: var(--surface-2); }
+.live-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.live-links { display: flex; gap: 14px; font-size: 13px; }
 .pcard { display: flex; flex-direction: column; gap: 6px; padding: 12px 12px 14px; background: var(--surface); border: 1px solid var(--line-box); border-radius: 8px; }
 .pcard.is-default { padding: 11px 11px 13px; border: 2px solid var(--accent-line); }
 .pcard .card-img { margin-bottom: 4px; }

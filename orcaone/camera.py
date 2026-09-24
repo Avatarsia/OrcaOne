@@ -1,7 +1,8 @@
 """Printers in the network: the address of a printer, typed in at its card on the page "Drucker",
 and what OrcaOne does with it for a Snapmaker U1 with its stock firmware: the camera (page
 "Kamera", after the user's prototypes/U1Cam/u1cam.py) and the status the pages "Kamera" and
-"Kalibrieren" read (status()).
+"Kalibrieren" read (status()). For any printer with Klipper and Moonraker, the card on the page
+"Drucker" shows what info() and status() read.
 
 The camera sleeps until Moonraker's JSON-RPC method camera.start_monitor wakes it, sent over the
 printer's WebSocket as its own web page does. Then the printer writes
@@ -107,6 +108,15 @@ def set_host(model, raw) -> dict:
 
     settings.change(edit)
     return printers()
+
+
+def host_of(model) -> str:
+    """The address of a printer model, only one printers() knows: the page "Drucker" names a
+    printer by its model, never by an address."""
+    found = printers().get(model) if isinstance(model, str) else None
+    if not found:
+        raise CameraError("printer_not_found")
+    return found["host"]
 
 
 def _id(model: str) -> str:
@@ -360,6 +370,53 @@ def status(host: str) -> dict:
             "printed": stats.get("print_duration"), "left": _left(host, stats, progress),
             "bed": {"temp": bed.get("temperature"), "target": bed.get("target")},
             "cavity": _part(found, "temperature_sensor cavity").get("temperature")}
+
+
+def _get(host: str, path: str):
+    """The "result" of a GET to Moonraker."""
+    try:
+        with _direct.open(f"http://{host}{path}", timeout=TIMEOUT) as response:
+            return json.loads(response.read())["result"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise CameraError("camera_unreachable", str(exc)) from None
+
+
+def info(host: str) -> dict:
+    """Read only, standard Moonraker of any Klipper printer (checked on the U1 on 24.09.2026): what
+    the card on the page "Drucker" shows. A Snapmaker printer adds its name, firmware and the nozzle
+    per head (product_info of /machine/system_info; snapmaker/product_info.json in its config folder
+    kept an older firmware). Then Klipper and Moonraker, the storage and what fills it, the prints in
+    total and the computer inside. Nothing of the serial number. A part the printer does not answer
+    is None; without /machine/system_info the printer counts as unreachable."""
+    system = _get(host, "/machine/system_info").get("system_info") or {}
+    product = system.get("product_info") if isinstance(system.get("product_info"), dict) else {}
+    network = system.get("network") if isinstance(system.get("network"), dict) else {}
+
+    def optional(path, pick):
+        try:
+            return pick(_get(host, path))
+        except (CameraError, AttributeError, KeyError, TypeError, ValueError):
+            return None
+
+    klipper = optional("/printer/info", lambda r: {"version": r.get("software_version"), "state": r.get("state")}) or {}
+    return {
+        "name": product.get("device_name") or None, "firmware": product.get("firmware_version") or None,
+        "nozzles": [d for d in product.get("nozzle_diameter") or [] if isinstance(d, (int, float))],
+        "os": (system.get("distribution") or {}).get("name") or None,
+        # The interface that carries the address: wlan… or eth…
+        "network": next((name for name, i in network.items() if name != "lo" and isinstance(i, dict)
+                         and any(a.get("family") == "ipv4" for a in i.get("ip_addresses") or [])), None),
+        "klipper": klipper.get("version"), "state": klipper.get("state"),
+        "moonraker": optional("/server/info", lambda r: r.get("moonraker_version")),
+        "disk": optional("/server/files/directory?path=gcodes&extended=false", lambda r: r["disk_usage"]),
+        "folders": {root: optional(f"/server/files/list?root={root}", lambda r: sum(f.get("size", 0) for f in r))
+                    for root in ("gcodes", "camera", "logs")},
+        # The U1 keeps its time-lapse videos in "camera" (FINDINGS, "Dateien auf dem U1").
+        "videos": optional("/server/files/list?root=camera", lambda r: sum(1 for f in r if str(f.get("path", "")).endswith(".mp4"))),
+        "jobs": optional("/server/history/totals", lambda r: r["job_totals"]),
+        "system": optional("/machine/proc_stats", lambda r: {"uptime": r.get("system_uptime"), "cpu_temp": r.get("cpu_temp"),
+                                                             "memory": r.get("system_memory")}),
+    }
 
 
 def image(host: str) -> tuple[bytes, float | None]:
