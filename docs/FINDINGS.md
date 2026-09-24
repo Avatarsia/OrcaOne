@@ -545,6 +545,16 @@ Auf diesem Rechner stand die IP in keiner Datei der beiden Slicer (am 23.09. all
 - Standard-Moonraker, also bei jedem Klipper-Drucker: `/printer/info` (Zustand, Klipper `1.6.0.267_20260815150420`), `/server/info` (Moonraker 1.6.0), `/server/files/directory?path=gcodes` (`disk_usage`: 27,4 GB, 24,2 GB frei), `/server/files/list?root=…` (Größen je Ordner), `/server/history/totals` (28 Drucke, 88,6 h Druckzeit, 759 m Filament, längster Druck 20,8 h), `/machine/proc_stats` (Laufzeit, CPU 40 °C, Arbeitsspeicher 187 von 985 MB) und `/machine/system_info` (Betriebssystem Buildroot 2024.02, WLAN `wlan0`).
 - Nur Snapmaker: `product_info` in `/machine/system_info` mit dem Namen am Drucker („Dr. Klippers U1“), `firmware_version` 1.6.0, `nozzle_diameter` je Kopf (4 × 0,4) und der Seriennummer, die OrcaOne nicht zeigt. `snapmaker/product_info.json` im Konfigurationsordner nennt noch 1.4.0 und ist veraltet.
 
+**Was ein Drucker gerade tut (24.09.2026, am U1 nur gelesen; für die Seite „Status“, `orcaone/monitor.py`):**
+- `/printer/objects/list` nennt 196 Objekte. Heizungen und Temperatursensoren nennt Klipper selbst im Objekt `heaters` (`available_heaters`: Bett und vier Köpfe; `available_sensors`: dazu `temperature_sensor cavity`); Sensoren liefern auch `measured_min_temp` und `measured_max_temp`.
+- Lüfter mit `speed` (0 bis 1) und `rpm`: `fan` ist laut `printer.cfg` der Bauteillüfter von Kopf 1 (Pin `e0:PB3`), `fan_generic e1_fan` bis `e3_fan` die der Köpfe 2 bis 4, `heater_fan e0_nozzle_fan` bis `e3_nozzle_fan` die Hotend-Lüfter, dazu `heater_fan power_fan` (ohne Drehzahl) und `fan_generic cavity_fan`.
+- Je Kopf `filament_motion_sensor eN_filament` (`filament_detected`, `enabled`) und `filament_entangle_detect eN_filament` (nur `detect_factor`); `filament_feed left` und `right` mit dem Zustand der Zuführung je Kanal.
+- Das Objekt `extruder` des U1 hat mehr als bei Klipper üblich: `nozzle_diameter`, `switch_count` (Kopfwechsel, bei Kopf 1 665), `retry_count`, `error_count`, `state` (`PARKED`).
+- `motion_report` (`live_velocity`, `live_extruder_velocity`, `live_position`), `gcode_move` (`speed_factor`, `extrude_factor`), `toolhead` (`homed_axes`, `max_velocity` 500, `max_accel` 20000), `webhooks` (Zustand von Klipper).
+- `/machine/proc_stats`: CPU-Last je Kern, `cpu_temp` (40 °C), Arbeitsspeicher (962 MB), je Netzwerkschnittstelle Bytes und `bandwidth` (`wlan0`, ein unbenutztes `wlan1`, `can0`), Laufzeit, WebSocket-Verbindungen; `throttled_state` ist leer.
+- `/server/temperature_store` hält je Heizung und Sensor 1200 Werte, also 20 Minuten, bei Heizungen auch Soll und Heizleistung: genug für Diagramme ohne eigenen Speicher.
+- Eine Abfrage für „Status“ (Liste, Abfrage, `proc_stats`) dauerte von hier über WireGuard 0,4 bis 0,5 s.
+
 **Druckstatus für die Seite „Kamera“ (23.09., am U1 nur gelesen):**
 - `print_stats` liefert `state`, `filename`, `print_duration`, `total_duration`, `filament_used` und `info` mit `current_layer` und `total_layer`; die Schichten setzt der G-Code mit `SET_PRINT_STATS_INFO`. `print_duration` zählt laut Klipper ohne das Aufheizen vor der ersten Extrusion und ohne Pausen.
 - Weitere Temperaturen: `heater_bed` und `temperature_sensor cavity` (Bauraum). `printer/objects/list` nennt außerdem `machine_state_manager`, `timelapse`, `defect_detection` und `purifier`; OrcaOne nutzt sie nicht.

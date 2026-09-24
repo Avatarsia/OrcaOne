@@ -91,3 +91,11 @@ Wunsch: ein brauchbarer Datei-Browser für den U1, etwa für Druckdateien und Ka
   - Druckdateien löschen, umbenennen, in Ordner sortieren oder hochladen; `gcodes` ist beschreibbar.
   - Einen Druck starten.
   - Videos, Logs und Konfiguration kann Moonraker nicht löschen, diese Ordner sind nur lesbar.
+
+## 3. Diagramme auf „Status“
+
+Die Seite „Status“ gibt es seit dem 24.09.2026, bewusst ohne Diagramme: die sind ein eigenes Thema (der Nutzer).
+
+**Was da ist (geprüft am U1):** Moonraker hält die Temperaturen der letzten 20 Minuten selbst, je Heizung und Sensor 1200 Werte, bei Heizungen auch Soll und Heizleistung (`/server/temperature_store`, FINDINGS „Was ein Drucker gerade tut“). Ein Diagramm bräuchte also keinen eigenen Speicher. Für laufende Werte ginge Moonrakers WebSocket mit Abo (`printer.objects.subscribe`), wie Mainsail es nutzt, statt Abfragen alle zwei Sekunden.
+
+**Offen:** zeichnen mit schlichtem SVG oder mit einer Bibliothek (neue Abhängigkeit, braucht das Okay des Nutzers).
