@@ -61,7 +61,7 @@ export default {
     // the same LAN, not over a VPN); a hit goes in with one click.
     const isU1 = (c) => U1_MODELS.includes(c.model);
     // The printer OrcaOne works with, chosen in the top bar (app.js): a click on a card chooses it,
-    // and the links to its files, camera, console and SSH choose it first.
+    // and the links to its status, files, camera, console and SSH choose it first.
     const isActive = (c) => c.model === ui.printer;
     function choose(c) {
       if (c.model) ui.printer = c.model;
@@ -463,6 +463,7 @@ export default {
             </dl>
             <p v-if="hostOf(c)" class="live-links">
               <a class="link" :href="'http://' + hostOf(c) + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
+              <a class="link" :href="hashOf('status', inst.id)" @click.prevent="openFor(c, 'status')">{{ P.live.status }}</a>
               <a v-if="isU1(c)" class="link" :href="hashOf('dateien', inst.id)" @click.prevent="openFor(c, 'dateien')">{{ P.live.files }}</a>
               <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)" @click.prevent="openFor(c, 'kamera')">{{ P.live.camera }}</a>
               <a class="link" :href="hashOf('konsole', inst.id)" @click.prevent="openFor(c, 'konsole')">{{ P.live.console }}</a>

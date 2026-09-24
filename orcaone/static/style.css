@@ -1376,3 +1376,32 @@ span.cal-check { cursor: default; }
 @media (max-width: 480px) {
   .home-printer-img { width: 84px; height: 84px; }
 }
+
+/* Page "Status" (pages/status.js): the job on top, the rest in boxes side by side */
+.page.status-page { max-width: 1100px; }
+.mon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.mon-grid .box { margin-bottom: 0; }
+.mon-wide { grid-column: 1 / -1; }
+.mon-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; font-weight: 700; }
+.mon-title .icon { color: var(--accent-text); }
+.mon-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; color: var(--label); font-size: 13px; }
+.mon-facts span { display: inline-flex; align-items: center; gap: 4px; }
+.mon-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.mon-table th, .mon-table td { padding: 5px 10px 5px 0; text-align: left; white-space: nowrap; }
+.mon-table thead th { padding-top: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+.mon-table tbody th { font-weight: 600; }
+.mon-table tbody tr { border-top: 1px solid var(--divider); }
+/* Heating or turning: its value in the colour of the page */
+.mon-table tr.is-heating td:first-of-type { color: var(--accent-text); font-weight: 700; }
+.mon-table th small { margin-left: 6px; color: var(--accent-text); font-size: 11px; font-weight: 700; }
+.mon-quiet { color: var(--muted); }
+.mon-scroll { overflow-x: auto; }
+.mon-spool { display: inline-flex; align-items: center; gap: 6px; }
+.mon-list { display: grid; gap: 6px; margin: 0; font-size: 13px; }
+.mon-list > div { display: grid; grid-template-columns: 130px 1fr; gap: 10px; }
+.mon-list dt { color: var(--label); }
+.mon-list dd { margin: 0; font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) {
+  .mon-grid { grid-template-columns: minmax(0, 1fr); }
+  .mon-list > div { grid-template-columns: 110px 1fr; }
+}

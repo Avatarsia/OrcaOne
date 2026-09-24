@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import (__version__, backup, calibration, camera, console, guard, importer, instances, logs, operations, overview, printer_files,
-               scanner, settings, snapshot, ssh)
+from . import (__version__, backup, calibration, camera, console, guard, importer, instances, logs, monitor, operations, overview,
+               printer_files, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -393,6 +393,12 @@ def printer_info(model: str = ""):
 def printer_status(model: str = ""):
     # Read only: state, progress and heads for the card, as "Kamera" reads them (camera.status).
     return camera.status(camera.host_of(model))
+
+
+@app.get("/api/printers/monitor")
+def printer_monitor(model: str = ""):
+    # The page "Status" (orcaone/monitor.py): what the printer is doing now, read only.
+    return monitor.read(camera.host_of(model))
 
 
 @app.get("/api/printers/gcode")

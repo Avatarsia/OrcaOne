@@ -107,6 +107,7 @@ export default {
           </div>
           <div class="home-actions">
             <template v-if="host">
+              <a class="btn btn-primary" :href="to('status')" @click="go($event, to('status'))"><ui-icon name="pulse"/>{{ T.nav.pages.status }}</a>
               <a v-if="isU1" class="btn" :href="to('kamera')" @click="go($event, to('kamera'))"><ui-icon name="camera"/>{{ T.nav.pages.kamera }}</a>
               <a v-if="isU1" class="btn" :href="to('dateien')" @click="go($event, to('dateien'))"><ui-icon name="folderOpen"/>{{ T.nav.pages.dateien }}</a>
               <a class="btn" :href="to('konsole')" @click="go($event, to('konsole'))"><ui-icon name="code"/>{{ T.nav.pages.konsole }}</a>

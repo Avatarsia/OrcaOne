@@ -326,6 +326,26 @@ def _left(host: str, stats: dict, progress) -> float | None:
     return None
 
 
+# What status() asks Klipper for, "object=field,field" for some fields only.
+STATUS_OBJECTS = [f"{h}=pressure_advance,temperature,target" for h in HEADS] + [
+    "print_stats", "display_status=progress", "toolhead=extruder", "heater_bed=temperature,target",
+    "temperature_sensor cavity=temperature", "print_task_config", "filament_detect", "led cavity_led=color_data"]
+
+
+def query(host: str, objects: list) -> dict:
+    """Klipper's objects by name, in one query to Moonraker; objects the printer lacks are missing
+    in the answer. Raises CameraError."""
+    names = "&".join(urllib.parse.quote(o, safe="=,") for o in objects)
+    try:
+        with _direct.open(f"http://{host}/printer/objects/query?{names}", timeout=TIMEOUT) as response:
+            found = json.loads(response.read())["result"]["status"]
+        if not isinstance(found, dict):
+            raise ValueError("no status")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise CameraError("camera_unreachable", str(exc)) from None
+    return found
+
+
 def status(host: str) -> dict:
     """Read only, one query to Moonraker (checked on the U1 on 23.09.2026): per head the spool the
     printer knows (print_task_config; with RFID also its data from filament_detect) and the
@@ -334,16 +354,11 @@ def status(host: str) -> dict:
     is doing: the job, whether it calibrates, layer, time printed and left, the temperatures of
     heads, bed and inside the printer. light: whether the LED in the printer is on (None without one);
     off, the camera sends a black picture (checked on the U1 on 24.09.2026)."""
-    objects = [f"{h}=pressure_advance,temperature,target" for h in HEADS]
-    objects += ["print_stats", "display_status=progress", "toolhead=extruder", "heater_bed=temperature,target",
-                "temperature_sensor%20cavity=temperature", "print_task_config", "filament_detect", "led%20cavity_led=color_data"]
-    try:
-        with _direct.open(f"http://{host}/printer/objects/query?{'&'.join(objects)}", timeout=TIMEOUT) as response:
-            found = json.loads(response.read())["result"]["status"]
-        if not isinstance(found, dict):
-            raise ValueError("no status")
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise CameraError("camera_unreachable", str(exc)) from None
+    return status_of(host, query(host, STATUS_OBJECTS))
+
+
+def status_of(host: str, found: dict) -> dict:
+    """status() from objects read already: those of STATUS_OBJECTS, or more of them (monitor.py)."""
     task = _part(found, "print_task_config")
     rfid = _part(found, "filament_detect").get("info")
     heads = []

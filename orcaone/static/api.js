@@ -81,6 +81,8 @@ export const api = {
   // Read only, by model: what a printer with an address says of itself and what it is doing.
   printerInfo: (model) => request("GET", `/api/printers/info?model=${encodeURIComponent(model)}`),
   printerState: (model) => request("GET", `/api/printers/status?model=${encodeURIComponent(model)}`),
+  // Page "Status" (orcaone/monitor.py): job, temperatures, motion, fans, sensors and the computer inside.
+  printerMonitor: (model) => request("GET", `/api/printers/monitor?model=${encodeURIComponent(model)}`),
   // The G-code console on the page "Konsole" (orcaone/console.py).
   gcodeHistory: (model, since) => request("GET", `/api/printers/gcode?model=${encodeURIComponent(model)}&since=${since}`),
   gcodeSend: (model, script) => request("POST", "/api/printers/gcode", { model, script }),

@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs"];
+export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -379,6 +379,7 @@ export function whenText(d) {
 // 24x24, stroke = currentColor, so hover, the active menu entry and dark mode colour them.
 export const ICONS = {
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>',
   home: '<path d="M4 11 12 4.5l8 6.5"/><path d="M6.5 9.5v10h11v-10"/><path d="M10 19.5v-5h4v5"/>',
   menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
   code: '<path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"/>',
