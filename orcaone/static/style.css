@@ -229,14 +229,7 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
 .status--busy::before { background: var(--warn); }
 
-/* Filamente: printer cards */
-.home h1 { margin-bottom: 20px; font-size: 20px; font-weight: 700; }
-.install { margin-bottom: 28px; }
-.install-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; }
-.install-head h2 { font-size: 16px; font-weight: 700; }
-.install-head .version { color: var(--muted); }
-.install-head .inst-path { color: var(--muted); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
-.install-head .status { margin-left: auto; }
+/* Cards, as for the printers on "Drucker" */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .card {
   display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 14px;
@@ -249,7 +242,6 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .card-name { font-size: 16px; font-weight: 700; }
 .card-sub { margin-top: -4px; color: var(--muted); font-size: 12px; }
 .card-meta { display: flex; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
-.card-spools { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; min-height: 30px; margin-top: 6px; color: var(--muted); font-size: 12px; }
 .spool { flex: none; }
 .credits { margin-top: 36px; color: var(--muted); font-size: 12px; }
 
@@ -1348,4 +1340,39 @@ span.cal-check { cursor: default; }
   .inst-btn { gap: 4px; padding: 0 6px; }
   .inst-pick { flex-shrink: 4; }
   .inst-pick .status { display: none; }
+}
+
+/* Page "Übersicht", the start page (pages/uebersicht.js): the printer on top, three boxes below,
+   wider than the other pages so the boxes keep their buttons in few rows */
+.page.home-page { max-width: 1100px; }
+.home-printer-top { display: flex; gap: 16px; min-width: 0; }
+.home-printer-img { flex: none; width: 120px; height: 120px; padding: 6px; border-radius: 6px; background: var(--surface-2); object-fit: contain; }
+.home-printer-body { flex: 1; min-width: 0; display: grid; align-content: start; gap: 8px; }
+.home-name { font-size: 18px; font-weight: 700; }
+.home-state { margin-left: 0; font-weight: 600; }
+.live-head.is-active strong { color: var(--accent-text); }
+.home-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.home-card { display: flex; flex-direction: column; gap: 8px; margin-bottom: 0; }
+.home-card .home-actions { margin-top: auto; padding-top: 6px; }
+.home-card-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+.home-card-title .icon { color: var(--accent-text); }
+.home-fact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
+.home-fact .icon { flex: none; color: var(--icon); }
+/* Icon and text: the text wraps next to the icon, not under it */
+.home-line { flex-wrap: nowrap; align-items: flex-start; }
+.home-line .icon { margin-top: 1px; }
+.home-fact.is-news { color: var(--accent-text); font-weight: 600; }
+.home-counts { gap: 4px 16px; font-size: 14px; }
+.home-counts strong { color: var(--text); font-size: 18px; }
+.home-own { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-height: 32px; }
+.home-own .home-fact { margin-left: 6px; }
+.home-insts { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.home-insts li { display: flex; align-items: center; gap: 8px; }
+.home-insts li.is-current { font-weight: 700; }
+.home-insts .version { color: var(--muted); font-weight: 400; }
+.home-insts .status { margin-left: auto; }
+.home-card .imp-drop { padding: 14px 12px; }
+@media (max-width: 480px) {
+  .home-printer-img { width: 84px; height: 84px; }
 }

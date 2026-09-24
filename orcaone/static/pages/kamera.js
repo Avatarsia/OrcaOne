@@ -20,8 +20,9 @@ const IDLE = 3000;          // ms without a mouse move before the bar of a big v
 // ------------------------------------------------------------ how far a print is (camera.py, status)
 const running = (p) => !!p && (p.state === "printing" || p.state === "paused");
 const percent = (p) => Math.round(Math.min(1, Math.max(0, p.progress || 0)) * 100);
-// The colours of the picture's state line: status always as text plus colour.
-const jobClass = (p) => ({ printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" })[p.state] || "wait";
+// The colours of the picture's state line: status always as text plus colour; "Bereit" green, as
+// on the printer cards of "Drucker".
+const jobClass = (p) => ({ standby: "ok", printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" })[p.state] || "wait";
 const hasLayer = (p) => !!p.layers && p.layer != null;
 function time(seconds) {
   const minutes = Math.max(1, Math.round(seconds / 60));
@@ -34,7 +35,8 @@ function printFacts(p) {
     .filter(Boolean).join(" · ");
 }
 
-const PrintStatus = {
+// Also on the page "Übersicht".
+export const PrintStatus = {
   name: "PrintStatus",
   props: { p: { type: Object, required: true } },
   setup: () => ({ K, U1, running, percent, jobClass, hasLayer, time }),

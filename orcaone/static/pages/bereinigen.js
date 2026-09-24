@@ -9,8 +9,9 @@ import { api } from "../api.js";
 const { ref } = Vue;
 const C = T.clean3mf;
 
-export default {
-  name: "BereinigenPage",
+// The field to drop a 3MF on, and what came of it; also on the page "Übersicht".
+export const CleanDrop = {
+  name: "CleanDrop",
 
   setup() {
     const busy = ref(false);
@@ -39,18 +40,29 @@ export default {
   },
 
   template: `
+    <div class="clean-drop">
+      <label :class="['imp-drop', { 'is-over': dragging }]" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
+        <ui-icon name="broom" :size="28"/>
+        <span><strong>{{ C.pick }}</strong> {{ C.drop }}</span>
+        <input type="file" accept=".3mf" @change="onPick">
+      </label>
+      <p v-if="busy" class="note">{{ C.busy }}</p>
+      <p v-else-if="error" class="alert" role="alert">{{ error }}</p>
+      <p v-else-if="saved" class="clean-done st-on" role="status"><ui-icon name="check"/>{{ C.done(saved) }}</p>
+    </div>
+  `,
+};
+
+export default {
+  name: "BereinigenPage",
+  components: { CleanDrop },
+  setup: () => ({ C }),
+  template: `
     <div class="page">
       <h1 id="page-title" tabindex="-1">{{ C.title }}</h1>
       <p class="note">{{ C.lead }}</p>
       <section class="box">
-        <label :class="['imp-drop', { 'is-over': dragging }]" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
-          <ui-icon name="broom" :size="28"/>
-          <span><strong>{{ C.pick }}</strong> {{ C.drop }}</span>
-          <input type="file" accept=".3mf" @change="onPick">
-        </label>
-        <p v-if="busy" class="note">{{ C.busy }}</p>
-        <p v-else-if="error" class="alert" role="alert">{{ error }}</p>
-        <p v-else-if="saved" class="clean-done st-on" role="status"><ui-icon name="check"/>{{ C.done(saved) }}</p>
+        <clean-drop/>
         <p class="note">{{ C.leftover }}</p>
       </section>
     </div>

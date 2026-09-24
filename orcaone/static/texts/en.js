@@ -52,7 +52,7 @@ const T = {
   nav: {
     label: "Main menu",
     toggle: "Show or hide the menu",
-    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { uebersicht: "Overview", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "changes since last time",
     pending: "queued changes",
     backups: "Backups",
@@ -287,6 +287,26 @@ const T = {
     conf_unreadable: () => "The settings file could not be read afterwards. Restore the backup just made under “Backups”.",
     not_loaded: (w) => `The slicer does not load ${q(w.name)} like this. Restore the backup just made under “Backups”.`,
     unlocks_not_saved: () => "OrcaOne could not remember which library filaments it unlocked. So it will not report when an unlock gets lost.",
+  },
+
+  // ---------------------------------------------------------------- page "Übersicht"
+  home: {
+    title: "Overview",
+    printer: "Printer in OrcaOne",
+    noPrinter: "No printer in the slicer yet.",
+    noHost: "No IP address, so nothing live",
+    addHost: "Enter IP address",
+    profiles: "Filaments and processes",
+    atNozzle: (d) => `Visible in the slicer at ${d} mm:`,
+    filaments: (k) => (k === 1 ? "filament" : "filaments"),
+    processes: (k) => (k === 1 ? "process" : "processes"),
+    own: (k) => (k === 0 ? "No own filaments yet" : k === 1 ? "1 own filament" : `${n(k)} own filaments`),
+    more: (k) => `${n(k)} more`,
+    lastBackup: (when) => `Last backup: ${when}`,
+    noBackup: "No backup yet",
+    news: (k) => (k === 1 ? "1 change since last time" : `${n(k)} changes since last time`),
+    noNews: "Nothing changed since last time",
+    cleanLead: "Comes back without a foreign printer, process and filaments.",
   },
 
   // ---------------------------------------------------------------- page "Filamente"

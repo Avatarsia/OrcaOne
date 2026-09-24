@@ -12,6 +12,7 @@ import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
 import { changesOf } from "./ops.js";
 import PlanView, { DoneView, problemText } from "./plan.js";
+import UebersichtPage from "./pages/uebersicht.js";
 import FilamentePage, { changes as filamentChanges } from "./pages/filamente.js";
 import DruckerPage from "./pages/drucker.js";
 import SicherungenPage from "./pages/sicherungen.js";
@@ -34,14 +35,15 @@ const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmoun
 
 document.documentElement.lang = LANG;
 
-// Order = reading order, as the user set it on 24.09.2026: Drucker first, then Prozesse and
-// Filamente, the quick tool "3MF bereinigen", and Slicer.
+// Order = reading order, as the user set it on 24.09.2026: the start page "Übersicht", Drucker,
+// then Prozesse and Filamente, the quick tool "3MF bereinigen", and Slicer.
 // sub: a page about the one above, set in a little under it: files, camera, G-code console and SSH
 // of the printer (its address is on the printer's card); Übertragen, Vergleichen, Kalibrieren,
 // Import/Export and Details work on filament profiles; backups, "Änderungen" and logs are the
 // slicer's. u1: in the menu only while a U1 is the printer in the top bar (the user's wish);
 // printer: built anew for another printer there ("Filamente" and "Prozesse" have it in the address).
 const PAGES = [
+  { id: "uebersicht", icon: "home", component: UebersichtPage, printer: true },
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Need no slicer data: show at once and stay through "Neu einlesen".
   { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true, u1: true, printer: true },
@@ -421,7 +423,7 @@ const app = createApp({
     <header class="topbar">
       <button ref="navBtn" class="bar-btn nav-toggle" type="button" aria-controls="main-nav" :aria-expanded="navShown ? 'true' : 'false'"
               :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
-      <a class="brand" :href="hashOf('drucker', ui.instId)" @click="go($event, hashOf('drucker', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
+      <a class="brand" :href="hashOf('uebersicht', ui.instId)" @click="go($event, hashOf('uebersicht', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
       <span class="spacer"></span>
       <div v-if="INSTANCES.length > 1" class="inst inst-pick" @keydown="instKey">
         <button ref="instBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="instOpen ? 'true' : 'false'"

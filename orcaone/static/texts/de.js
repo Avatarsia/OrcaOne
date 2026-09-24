@@ -54,7 +54,7 @@ const T = {
   nav: {
     label: "Hauptmenü",
     toggle: "Menü ein- und ausblenden",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { uebersicht: "Übersicht", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "Änderungen seit dem letzten Mal",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -289,6 +289,26 @@ const T = {
     conf_unreadable: () => "Die Einstellungsdatei ließ sich danach nicht lesen. Stelle unter „Sicherungen“ die Sicherung von eben wieder her.",
     not_loaded: (w) => `${q(w.name)} lädt der Slicer so nicht. Stelle unter „Sicherungen“ die Sicherung von eben wieder her.`,
     unlocks_not_saved: () => "OrcaOne konnte sich nicht merken, welche Filamente der Bibliothek es freigeschaltet hat. Geht eine Freischaltung verloren, meldet es das deshalb nicht.",
+  },
+
+  // ---------------------------------------------------------------- page "Übersicht"
+  home: {
+    title: "Übersicht",
+    printer: "Drucker in OrcaOne",
+    noPrinter: "Noch kein Drucker im Slicer.",
+    noHost: "Keine IP-Adresse, deshalb nichts live",
+    addHost: "IP-Adresse eintragen",
+    profiles: "Filamente und Prozesse",
+    atNozzle: (d) => `Im Slicer bei ${d} mm sichtbar:`,
+    filaments: (k) => (k === 1 ? "Filament" : "Filamente"),
+    processes: (k) => (k === 1 ? "Prozess" : "Prozesse"),
+    own: (k) => (k === 0 ? "Noch keine eigenen Filamente" : k === 1 ? "1 eigenes Filament" : `${n(k)} eigene Filamente`),
+    more: (k) => `${n(k)} weitere`,
+    lastBackup: (when) => `Letzte Sicherung: ${when}`,
+    noBackup: "Noch keine Sicherung",
+    news: (k) => (k === 1 ? "1 Änderung seit dem letzten Mal" : `${n(k)} Änderungen seit dem letzten Mal`),
+    noNews: "Nichts geändert seit dem letzten Mal",
+    cleanLead: "Kommt ohne fremden Drucker, Prozess und Filamente zurück.",
   },
 
   // ---------------------------------------------------------------- page "Filamente"
