@@ -23,7 +23,7 @@ EXTRUDER = re.compile(r"extruder\d*")
 # Always asked for, the objects of camera.status among them; what a printer lacks is missing in
 # the answer.
 FIXED = ["webhooks", "print_stats", "display_status", "gcode_move", "toolhead", "motion_report", "heaters",
-         "print_task_config", "filament_detect", "led cavity_led"]
+         "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max"]
 # mm² of 1.75 mm filament, as on the U1: the flow from the speed of the extruder. Klipper keeps the
 # diameter in its configuration only, which is too big to read every two seconds.
 FILAMENT_AREA = math.pi * (1.75 / 2) ** 2
@@ -71,6 +71,7 @@ def read(host: str) -> dict:
     task = part("print_task_config")
     options = {o: task.get(key) is True for o, key in printer_files.OPTIONS.items()} if task else None
     stats, gcode, toolhead, motion = part("print_stats"), part("gcode_move"), part("toolhead"), part("motion_report")
+    mesh = part("bed_mesh")
     extrusion = _number(motion.get("live_extruder_velocity"))
     position = motion.get("live_position") or toolhead.get("position") or []
     webhooks = part("webhooks")
@@ -95,6 +96,9 @@ def read(host: str) -> dict:
                    # Where the head can go (U1: X 0 to 271, Y 0 to 335, Z -6 to 275 mm), for the map of the bed.
                    "min": [_number(v) for v in (toolhead.get("axis_minimum") or [])[:3]],
                    "max": [_number(v) for v in (toolhead.get("axis_maximum") or [])[:3]],
+                   # The area the bed mesh covers (U1: 3 to 267 mm): nearly the whole bed, while the axes
+                   # reach further, on the U1 to the heads parked behind it (Y 335).
+                   "mesh": [[_number(v) for v in mesh.get(k) or []] for k in ("mesh_min", "mesh_max")],
                    "max_velocity": _number(toolhead.get("max_velocity")), "max_accel": _number(toolhead.get("max_accel"))},
         "system": {"cpu": _number((system.get("system_cpu_usage") or {}).get("cpu")), "cpu_temp": _number(system.get("cpu_temp")),
                    "memory": {"total": _number(memory.get("total")), "used": _number(memory.get("used"))},

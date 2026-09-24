@@ -23,6 +23,7 @@ COMMON = {
                  "axis_minimum": [0.0, 0.0, -6.0, 0.0], "axis_maximum": [271.0, 335.0, 275.0, 0.0]},
     "motion_report": {"live_velocity": 120.5, "live_extruder_velocity": 2.0, "live_position": [10.25, 20.5, 0.4, 100.0]},
     "heater_bed": {"temperature": 59.8, "target": 60.0, "power": 0.35},
+    "bed_mesh": {"mesh_min": [3.0, 3.0], "mesh_max": [267.0, 267.0], "profile_name": "default", "probed_matrix": [[0.1]]},
 }
 PLAIN = {**COMMON,
          "heaters": {"available_heaters": ["heater_bed", "extruder"],
@@ -116,6 +117,7 @@ def test_a_plain_klipper_printer(moonraker):
     motion = got["motion"]
     assert (motion["speed"], motion["position"], motion["homed"]) == (120.5, [10.25, 20.5, 0.4], "xyz")
     assert (motion["min"], motion["max"]) == ([0.0, 0.0, -6.0], [271.0, 335.0, 275.0])
+    assert motion["mesh"] == [[3.0, 3.0], [267.0, 267.0]]
     assert motion["flow"] == pytest.approx(2.0 * math.pi * 0.875 ** 2)
     system = got["system"]
     assert (system["cpu"], system["cpu_temp"], system["uptime"]) == (3.8, 40.1, 21980.0)

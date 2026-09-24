@@ -15,6 +15,8 @@ const U1 = T.u1;
 const K = T.camera.print;
 const EVERY = 2000;              // ms between two looks at the printer
 const RING = 2 * Math.PI * 52;   // length of the progress ring, radius 52
+const ARC = Math.PI * 50;        // length of the speed gauge, a half circle of radius 50
+const GRID = 50;                 // mm between two lines on the bed
 // Where a temperature bar ends: heads and bed as hot as they get, sensors as warm as a room gets.
 const scaleOf = (name) => (/^extruder\d*$/.test(name) ? 300 : name === "heater_bed" ? 120 : 80);
 const JOB_CLASS = { standby: "ok", printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" };
@@ -100,15 +102,31 @@ export default {
     // ------------------------------------------------------------ bars, map, fans, tiles
     const barOf = (t) => `${Math.min(100, Math.max(0, (t.temp || 0) / scaleOf(t.name) * 100))}%`;
     const markOf = (t) => `${Math.min(100, (t.target || 0) / scaleOf(t.name) * 100)}%`;
-    // The map of the bed: the area the head can reach, Y upwards as seen from the front.
+    // The map, seen from above with the front at the bottom: the area the axes reach, in it the bed,
+    // the head with its X and Y at its lines, the height as a ruler beside it. The bed is the area of
+    // the bed mesh widened by its margin (U1: mesh 3 to 267 mm, bed 0 to 270); the axes reach
+    // further, on the U1 to the heads parked behind the bed (Y 335). Without a mesh: the whole area.
     const map = computed(() => {
       const m = data.value?.motion;
       if (!m || m.min.length < 3 || m.max.length < 3) return null;
       const [x0, y0, z0] = m.min, [x1, y1, z1] = m.max, [x, y, z] = m.position.map((v) => v ?? 0);
       const w = x1 - x0, h = y1 - y0;
-      if (!(w > 0 && h > 0)) return null;
-      return { w, h, x: Math.min(w, Math.max(0, x - x0)), y: h - Math.min(h, Math.max(0, y - y0)),
-               z: `${Math.min(100, Math.max(0, (z - z0) / (z1 - z0) * 100))}%`, homed: m.homed.includes("x") && m.homed.includes("y") };
+      if (!(w > 0 && h > 0 && z1 > z0)) return null;
+      const [lo, hi] = m.mesh || [];
+      const meshed = lo?.length === 2 && hi?.length === 2 && hi[0] > lo[0] && hi[1] > lo[1];
+      const bw = meshed ? Math.min(x1, hi[0] + lo[0] - x0) - x0 : w, bh = meshed ? Math.min(y1, hi[1] + lo[1] - y0) - y0 : h;
+      const share = (v, from, span) => Math.min(100, Math.max(0, (v - from) / span * 100));
+      return {
+        ratio: `${w} / ${h}`,
+        bed: { left: 0, bottom: 0, width: `${bw / w * 100}%`, height: `${bh / h * 100}%`,
+               backgroundSize: `${GRID / bw * 100}% ${GRID / bh * 100}%` },
+        hx: share(x, x0, w), hy: share(y, y0, h), zp: share(z, z0, z1 - z0), top: z1,
+        homed: m.homed.includes("x") && m.homed.includes("y"), zHomed: m.homed.includes("z"),
+      };
+    });
+    const speedShare = computed(() => {
+      const m = data.value?.motion;
+      return m?.max_velocity ? Math.min(1, Math.max(0, (m.speed || 0) / m.max_velocity)) : 0;
     });
     // A fan turns faster with its speed; standing still it does not turn.
     const spin = (f) => (f.speed > 0 ? { animationDuration: `${(0.6 / f.speed).toFixed(2)}s` } : null);
@@ -119,7 +137,7 @@ export default {
 
     return {
       T, S, U1, K, RING, host, data, failed, isU1, job, running, progress, jobClass, options, stage, headSensors, otherSensors,
-      barOf, markOf, map, spin, memory, num, pct, deg, duration, label, netLabel, activeName, fmtSize, go, hashOf,
+      barOf, markOf, map, speedShare, ARC, spin, memory, num, pct, deg, duration, label, netLabel, activeName, fmtSize, go, hashOf,
     };
   },
 
@@ -181,27 +199,40 @@ export default {
               </div>
             </section>
 
-            <!-- The head on a map of the bed, the height beside it -->
+            <!-- The bed from above with the head on it, the height as a ruler, the speed as a gauge -->
             <section class="box" aria-labelledby="mon-motion">
               <h2 id="mon-motion" class="mon-title"><ui-icon name="arrowRight"/>{{ S.motion }}</h2>
-              <div v-if="map" class="bedmap-wrap">
-                <svg :class="['bedmap', { 'is-unhomed': !map.homed }]" :viewBox="'-8 -8 ' + (map.w + 16) + ' ' + (map.h + 16)" role="img" :aria-label="S.mapLabel">
-                  <rect class="bedmap-bed" :width="map.w" :height="map.h" rx="8"/>
-                  <line class="bedmap-line" :x1="map.x" :x2="map.x" y1="0" :y2="map.h"/>
-                  <line class="bedmap-line" x1="0" :x2="map.w" :y1="map.y" :y2="map.y"/>
-                  <circle class="bedmap-head" :cx="map.x" :cy="map.y" r="11"/>
-                </svg>
-                <div class="zbar" :title="'Z ' + num(data.motion.position[2], 2) + ' mm'"><span :style="{ bottom: map.z }"></span></div>
-                <dl class="mon-list mon-pos">
-                  <div><dt>X</dt><dd>{{ num(data.motion.position[0], 1) }}</dd></div>
-                  <div><dt>Y</dt><dd>{{ num(data.motion.position[1], 1) }}</dd></div>
-                  <div><dt>Z</dt><dd>{{ num(data.motion.position[2], 2) }}</dd></div>
-                </dl>
+              <div v-if="map" class="motion-map">
+                <div class="xy-frame">
+                  <div class="xy" :style="{ aspectRatio: map.ratio }" role="img"
+                       :aria-label="map.homed ? S.headAt(num(data.motion.position[0], 1), num(data.motion.position[1], 1)) : S.notHomed">
+                    <div class="xy-bed" :style="map.bed"><span v-if="!map.homed" class="xy-note">{{ S.notHomed }}</span></div>
+                    <template v-if="map.homed">
+                      <span class="xy-vline" :style="{ left: map.hx + '%' }"></span>
+                      <span class="xy-hline" :style="{ bottom: map.hy + '%' }"></span>
+                      <span class="xy-head" :style="{ left: map.hx + '%', bottom: map.hy + '%' }"></span>
+                      <span class="xy-label is-x" :style="{ left: map.hx + '%' }">X {{ num(data.motion.position[0], 1) }}</span>
+                      <span class="xy-label is-y" :style="{ bottom: map.hy + '%' }">Y {{ num(data.motion.position[1], 1) }}</span>
+                    </template>
+                  </div>
+                </div>
+                <div class="zruler" :title="S.height">
+                  <span>{{ num(map.top) }}</span>
+                  <span class="zruler-bar">
+                    <span v-if="map.zHomed" class="zruler-mark" :style="{ bottom: map.zp + '%' }"><b>Z {{ num(data.motion.position[2], 1) }}</b></span>
+                  </span>
+                  <span>0 mm</span>
+                </div>
               </div>
-              <p v-if="map && !map.homed" class="mon-quiet">{{ S.notHomedNote }}</p>
-              <div class="mon-numbers">
-                <div class="mon-number"><strong>{{ num(data.motion.speed) }}</strong><small>{{ S.speed }} mm/s</small></div>
-                <div class="mon-number"><strong>{{ num(data.motion.flow, 1) }}</strong><small>{{ S.flow }} mm³/s</small></div>
+              <div class="motion-gauges">
+                <div class="gauge">
+                  <svg viewBox="0 0 120 66" aria-hidden="true">
+                    <path class="gauge-track" d="M10 60 A50 50 0 0 1 110 60"/>
+                    <path class="gauge-fill" d="M10 60 A50 50 0 0 1 110 60" :stroke-dasharray="ARC" :stroke-dashoffset="ARC * (1 - speedShare)"/>
+                  </svg>
+                  <strong>{{ num(data.motion.speed) }}</strong><small>mm/s · {{ S.speed }}</small>
+                </div>
+                <div class="gauge is-flat"><strong>{{ num(data.motion.flow, 1) }}</strong><small>mm³/s · {{ S.flow }}</small></div>
               </div>
               <p class="mon-quiet mon-limits">{{ S.limits }}: {{ num(data.motion.max_velocity) }} mm/s · {{ num(data.motion.max_accel) }} mm/s²</p>
             </section>
