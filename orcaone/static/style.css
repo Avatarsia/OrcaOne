@@ -1112,6 +1112,10 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .imp-tag.is-choice { color: var(--warn); }
 .imp-tag.is-no { color: var(--error); }
 .imp-choice { width: auto; height: 26px; padding: 0 6px; font-size: 12px; }
+.imp-edit { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 2px; }
+.imp-field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.imp-field .input { width: auto; height: 28px; padding: 0 8px; color: var(--text); font-size: 13px; }
+.imp-field .imp-name { width: 260px; max-width: 100%; }
 .imp-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 16px; margin-top: 14px; }
 .imp-all { margin-left: 4px; font-size: 12px; font-weight: 400; }
 .imp-export { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 10px; }

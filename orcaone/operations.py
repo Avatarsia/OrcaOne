@@ -821,21 +821,30 @@ class Planner:
     def op_profile_import(self, c: dict, i: int) -> None:
         """A profile from a file (orcaone/importer.py) as a new own one, or in place of the own
         one of that name. profile, parents and full as importer.analyse gave them to the page;
-        converted again here, for the installation as it is now."""
+        converted again here, for the installation as it is now. printer: a filament hung onto that
+        printer instead (importer.attach); name: the name the user gave it on the page."""
         kind = _field(c, "kind", i, str)
         profile = _field(c, "profile", i, dict)
         parents = _field(c, "parents", i, list, required=False) or []
         full = _field(c, "full", i, bool, required=False) or False
         replace = _field(c, "replace", i, bool, required=False) or False
         source = _field(c, "source", i, str, required=False) or ""
+        printer = _field(c, "printer", i, str, required=False) or ""
+        rename = _field(c, "name", i, str, required=False) or ""
         if kind not in importer.KINDS:
             raise InvalidChange(i, "kind")
         if not all(isinstance(p, dict) for p in parents):
             raise InvalidChange(i, "parents")
+        if printer and kind != "filament":
+            raise InvalidChange(i, "printer")
         try:
-            copy = importer.convert(self.res, self.instance.slicer, kind, profile, parents, full)
+            copy = (importer.attach(self.res, self.instance.slicer, profile, parents, printer) if printer
+                    else importer.convert(self.res, self.instance.slicer, kind, profile, parents, full))
         except importer.ImportFailed as exc:
             raise Blocked(exc.code, **exc.params) from None
+        if rename:
+            # free_name and find_own below check it like every new name (check_new_name).
+            copy.name = rename
         data = {}
         self.set_values(data, copy.data, copy.parent, kind)
         if replace:
@@ -854,6 +863,8 @@ class Planner:
                 data["filament_id"] = importer.filament_id(name)
             self.new_own(kind, name, data, copy.parent, copy.base_id)
         self.warnings.append({"code": "import_from", "name": name, "source": source, "replaced": replace})
+        if printer:
+            self.warnings.append({"code": "import_attached", "name": name, "printer": printer, "parent": copy.parent.name})
         if copy.dropped:
             self.warnings.append({"code": "transfer_dropped", "name": name, "keys": copy.dropped})
         if copy.printers_left:

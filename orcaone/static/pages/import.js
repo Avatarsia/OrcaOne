@@ -3,7 +3,7 @@
 // backend, which says per profile what an import would do here;
 // the user ticks what to take, it joins the change list, and "Übernehmen" writes it with plan and
 // backup ("profile_import" in ops.js). Export: own profiles as a ZIP, as they are or complete.
-import { INSTANCES, LOCALE, DECIMAL, flash, loadState, onReset, saveBlob, timeText, writeBlock } from "../common.js";
+import { INSTANCES, LOCALE, DECIMAL, flash, loadState, onReset, printerText, saveBlob, timeText, writeBlock } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 
@@ -21,10 +21,20 @@ export const importQueue = reactive([]);
 onReset(() => importQueue.splice(0));
 export const importChanges = computed(() => importQueue.map((q) => {
   const inst = INSTANCES.find((i) => i.id === q.to);
-  return inst ? { inst, page: "import", type: "import", name: plainName(q.name), where: q.replace ? I.replaces(q.source) : q.source } : null;
+  return inst ? { inst, page: "import", type: "import", name: plainName(q.target || q.name), where: q.replace ? I.replaces(q.source) : q.source } : null;
 }).filter(Boolean));
 
 const keyOf = (p) => `${p.kind}/${p.name}`;
+// What a filament hung onto a printer takes from the file (importer.MATERIAL_KEYS), as a few words.
+const GROUPS = ["temps", "flow", "volumetric", "fans", "vendor", "type", "colour", "density", "cost", "diameter", "shrink", "support", "hardness", "other"];
+const GROUP_OF = {
+  filament_flow_ratio: "flow", filament_max_volumetric_speed: "volumetric", filament_vendor: "vendor", filament_type: "type",
+  default_filament_colour: "colour", filament_density: "density", filament_cost: "cost", filament_diameter: "diameter",
+  filament_shrink: "shrink", filament_shrinkage_compensation_z: "shrink", filament_soluble: "support", filament_is_support: "support",
+  required_nozzle_HRC: "hardness",
+};
+const groupOf = (key) => GROUP_OF[key] || (key.includes("temp") ? "temps" : key.includes("fan") || key.startsWith("slow_down") ? "fans" : "other");
+const groupsText = (keys) => GROUPS.filter((g) => keys.some((k) => groupOf(k) === g)).map((g) => I.groups[g]).join(", ");
 // The name up to "@", by which the slicers group profiles (alias_of in scanner.py).
 const aliasOf = (name) => (name.includes("@") ? name.slice(0, name.indexOf("@")).trimEnd() : "") || name;
 const nozzles = (variant) => String(variant).split("+").map(Number);  // "0.4+0.6": a U1 with two kinds
@@ -58,7 +68,8 @@ export default {
     const result = ref(null);     // POST /import, GET /import/slicer-backup
     const error = ref("");
     const reading = ref(false);
-    const picked = reactive({});  // key -> { on, replace }
+    const picked = reactive({});  // key -> { on, replace, name }
+    const attached = reactive({}); // key -> { printer, ...what the backend says of it hung onto that printer }
     const dragging = ref(false);
     let seq = 0;
 
@@ -74,8 +85,10 @@ export default {
           : await api.importSlicerBackup(props.instId, from.backup);
         if (mine !== seq) return;
         for (const k of Object.keys(picked)) delete picked[k];
+        for (const k of Object.keys(attached)) delete attached[k];
         // Ticked at first: what lands as it is or under another name; not what is there already.
-        for (const p of got.profiles) picked[keyOf(p)] = { on: p.status === "new" || p.status === "name_taken" || p.status === "system_name", replace: false };
+        // name: null until the user types another one.
+        for (const p of got.profiles) picked[keyOf(p)] = { on: TAKES.has(p.status), replace: false, name: null };
         result.value = got;
       } catch (err) {
         if (mine === seq) {
@@ -103,28 +116,65 @@ export default {
     const queuedHere = (p) => importQueue.some((q) => q.to === props.instId && keyOf(q) === keyOf(p));
     const groups = computed(() => KINDS.map((kind) => ({ kind, rows: (result.value?.profiles || []).filter((p) => p.kind === kind) }))
       .filter((g) => g.rows.length));
-    const toQueue = computed(() => (result.value?.profiles || []).filter((p) => TAKES.has(p.status) && picked[keyOf(p)]?.on && !queuedHere(p)));
+    // A row as it would land: hung onto a printer (attached) it says what the backend said then.
+    const view = (p) => ({ ...p, ...(attached[keyOf(p)] || {}) });
+    const target = (p) => view(p).target || p.name;
+    // A name the user typed that differs from the one it would get.
+    const renamed = (p) => { const n = picked[keyOf(p)]?.name; return n != null && n.trim() !== target(p); };
+    const nameOk = (p) => !renamed(p) || !!picked[keyOf(p)].name.trim();
+    const toQueue = computed(() => (result.value?.profiles || []).filter((p) => TAKES.has(view(p).status) && picked[keyOf(p)]?.on
+      && !queuedHere(p) && nameOk(p)));
     function queue() {
       const count = toQueue.value.length;
       for (const p of toQueue.value) {
+        const key = keyOf(p), pick = picked[key];
         importQueue.push({ to: props.instId, kind: p.kind, name: p.name, profile: p.profile, parents: p.parents, full: p.full,
-                           replace: p.status === "name_taken" && picked[keyOf(p)].replace, source: result.value.file });
+                           replace: view(p).status === "name_taken" && !renamed(p) && pick.replace, source: result.value.file,
+                           printer: attached[key]?.printer || "", rename: renamed(p) ? pick.name.trim() : "",
+                           target: renamed(p) ? pick.name.trim() : target(p) });
       }
       flash(I.queuedDone(count));
     }
-    function statusText(p) {
-      if (p.status === "parent_missing") return I.status.parent_missing;
-      return I.status[p.status] || I.status.unknown_kind;
+
+    // "An Drucker hängen": a filament of the file onto a printer here, as the child of one of its
+    // filaments with only the material's values (importer.attach). Every source, also a filament the
+    // file made for a printer that is not here.
+    const canAttach = (p) => p.kind === "filament" && !["same", "system_here", "template"].includes(p.status);
+    const printerOptions = computed(() => (inst.value?.models || []).flatMap((m) => m.printers)
+      .map((pr) => ({ name: pr.name, label: printerText(inst.value, pr.name) })));
+    async function attachTo(p, printer) {
+      const key = keyOf(p);
+      if (!printer) {
+        delete attached[key];
+        picked[key] = { on: TAKES.has(p.status), replace: false, name: null };
+        return;
+      }
+      try {
+        const got = await api.importAttach(props.instId, { profile: p.profile, parents: p.parents, printer });
+        attached[key] = { params: {}, ...got, printer };
+        picked[key] = { on: TAKES.has(got.status), replace: false, name: null };
+      } catch (err) {
+        flash(errorText(err.code));
+      }
     }
+
+    function statusText(p) {
+      if (renamed(p)) return I.status.renamed;
+      return I.status[view(p).status] || I.status.unknown_kind;
+    }
+    const tagClass = (p) => (renamed(p) ? "is-new" : STATUS_CLASS[view(p).status] || "is-no");
     function detailText(p) {
-      if (p.status === "parent_missing") return I.missingParent(p.params.parent);
-      if (p.status === "no_target_printer") return I.noPrinter((p.params.printers || []).map(plainName).join(", "));
-      if (p.status === "template") return I.template;
-      if (p.status === "system_here") return I.systemHere;
-      if (!TAKES.has(p.status)) return "";
-      const parts = [p.parent ? I.parent(plainName(p.parent)) : I.root];
-      if (p.from_file.length) parts.push(I.fromFile(p.from_file.map(plainName)));
-      if (p.kind !== "machine") parts.push(p.printers.length ? I.printers(p.printers.map(plainName).join(", ")) : I.allPrinters);
+      const v = view(p);
+      if (v.status === "parent_missing") return I.missingParent(v.params.parent);
+      if (v.status === "no_target_printer") return I.noPrinter((v.params.printers || []).map(plainName).join(", "));
+      if (v.status === "no_base" || v.status === "unknown_printer") return T.blocked[v.status](inst.value, v.params);
+      if (v.status === "template") return I.template;
+      if (v.status === "system_here") return I.systemHere;
+      if (!TAKES.has(v.status)) return "";
+      const parts = [v.parent ? I.parent(plainName(v.parent)) : I.root];
+      if (!attached[keyOf(p)] && p.from_file.length) parts.push(I.fromFile(p.from_file.map(plainName)));
+      if (p.kind !== "machine") parts.push(v.printers.length ? I.printers(v.printers.map(plainName).join(", ")) : I.allPrinters);
+      if (attached[keyOf(p)]) parts.push(v.taken.length ? I.takes(groupsText(v.taken)) : I.takesNothing);
       return parts.join(" · ");
     }
 
@@ -188,6 +238,7 @@ export default {
 
     return {
       T, I, KIND_ICON, STATUS_CLASS, TAKES, inst, block, result, error, reading, picked, dragging, onPick, onDrop, groups,
+      attached, view, target, renamed, canAttach, printerOptions, attachTo, tagClass,
       backups, readBackup, timeText,
       toQueue, queue, queuedHere, keyOf, statusText, detailText, valuesText, uses, fittingText, foreignPrinter, own, exportPicked,
       flat, exporting, toggleGroup, exportNow, plainName,
@@ -251,21 +302,31 @@ export default {
           <div v-for="g in groups" :key="g.kind" class="imp-group">
             <h3><ui-icon :name="KIND_ICON[g.kind]"/>{{ I.kindsTitle[g.kind] }}</h3>
             <ul class="imp-list">
-              <li v-for="p in g.rows" :key="keyOf(p)" :class="{ 'is-off': !TAKES.has(p.status) }">
-                <input type="checkbox" :aria-label="plainName(p.name)" :disabled="!TAKES.has(p.status) || queuedHere(p)"
+              <li v-for="p in g.rows" :key="keyOf(p)" :class="{ 'is-off': !TAKES.has(view(p).status) }">
+                <input type="checkbox" :aria-label="plainName(p.name)" :disabled="!TAKES.has(view(p).status) || queuedHere(p)"
                        :checked="queuedHere(p) || !!picked[keyOf(p)]?.on" @change="picked[keyOf(p)].on = $event.target.checked">
                 <div class="imp-main">
                   <div class="imp-line">
                     <strong>{{ plainName(p.name) }}</strong>
-                    <span :class="['imp-tag', STATUS_CLASS[p.status] || 'is-no']">{{ queuedHere(p) ? I.queued : statusText(p) }}</span>
-                    <select v-if="p.status === 'name_taken' && !queuedHere(p)" class="input imp-choice" :value="picked[keyOf(p)].replace ? 'replace' : 'copy'"
-                            @change="picked[keyOf(p)].replace = $event.target.value === 'replace'">
+                    <span :class="['imp-tag', tagClass(p)]">{{ queuedHere(p) ? I.queued : statusText(p) }}</span>
+                    <select v-if="view(p).status === 'name_taken' && !renamed(p) && !queuedHere(p)" class="input imp-choice"
+                            :value="picked[keyOf(p)].replace ? 'replace' : 'copy'" @change="picked[keyOf(p)].replace = $event.target.value === 'replace'">
                       <option value="copy">{{ I.asCopy }}</option>
                       <option value="replace">{{ I.replace }}</option>
                     </select>
                   </div>
+                  <div v-if="!queuedHere(p) && (TAKES.has(view(p).status) || canAttach(p))" class="imp-edit">
+                    <label v-if="TAKES.has(view(p).status)" class="imp-field"><span>{{ I.newName }}</span>
+                      <input class="input imp-name" type="text" spellcheck="false" :value="picked[keyOf(p)].name ?? plainName(target(p))"
+                             @input="picked[keyOf(p)].name = $event.target.value"></label>
+                    <label v-if="canAttach(p)" class="imp-field"><span>{{ I.attachTo }}</span>
+                      <select class="input" :value="attached[keyOf(p)]?.printer || ''" @change="attachTo(p, $event.target.value)">
+                        <option value="">{{ TAKES.has(p.status) ? I.asInFile : I.choosePrinter }}</option>
+                        <option v-for="o in printerOptions" :key="o.name" :value="o.name">{{ o.label }}</option>
+                      </select></label>
+                  </div>
                   <small v-if="detailText(p)" class="imp-note">{{ detailText(p) }}</small>
-                  <small v-if="valuesText(p)" class="imp-values">{{ valuesText(p) }}</small>
+                  <small v-if="valuesText(view(p))" class="imp-values">{{ valuesText(view(p)) }}</small>
                   <small class="imp-where">{{ p.where }}</small>
                 </div>
               </li>

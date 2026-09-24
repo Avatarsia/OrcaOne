@@ -302,6 +302,19 @@ def import_slicer_backup(instance_id: str, name: str = ""):
     return _answer(instance, importer.read_backup(instance.data_dir, name), name)
 
 
+@app.post("/api/instances/{instance_id}/import/attach")
+def import_attach(instance_id: str, payload: dict = Body(...)):
+    """What a filament of the file would become, hung onto a printer here (importer.attach);
+    writes nothing."""
+    profile, parents, printer = payload.get("profile"), payload.get("parents") or [], payload.get("printer")
+    if not isinstance(profile, dict) or not isinstance(parents, list) or not all(isinstance(p, dict) for p in parents) \
+            or not isinstance(printer, str) or not printer:
+        return _error("attach_invalid")
+    instance = operations.find_instance(instance_id)[0]
+    res = Resolver(scanner.scan(instance.data_dir, instance.slicer))
+    return importer.analyse_attach(res, instance.slicer, profile, parents, printer)
+
+
 @app.post("/api/clean-3mf")
 async def clean_3mf(request: Request):
     """Page "3MF bereinigen": the 3MF back without the printer, process and filaments of its project,

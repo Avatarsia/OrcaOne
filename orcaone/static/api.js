@@ -91,6 +91,8 @@ export const api = {
   // Page "Import/Export" (orcaone/importer.py): what a file holds, and own profiles as a ZIP.
   importFile: (id, file, name) => upload(`${instUrl(id)}/import?name=${encodeURIComponent(name)}`, file),
   // The slicer's own copies of user/ (user_backup-v…), and what one of them holds.
+  // A filament of the file hung onto a printer here: what it would become (importer.attach).
+  importAttach: (id, body) => request("POST", `${instUrl(id)}/import/attach`, body),
   slicerBackups: (id) => request("GET", `${instUrl(id)}/import/slicer-backups`),
   importSlicerBackup: (id, name) => request("GET", `${instUrl(id)}/import/slicer-backup?name=${encodeURIComponent(name)}`),
   exportProfiles: (id, profiles, flat) => download(`${instUrl(id)}/export`, { profiles, flat }),

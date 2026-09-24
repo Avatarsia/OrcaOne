@@ -12,7 +12,8 @@ memory with limits, never unpacked to disk.
 How a profile lands (convert): as the child of its parent if the installation has that one,
 else as a root profile with every value, the way the page "Übertragen" copies (transfer.py).
 Parents from the same file go into it. A 3MF holds complete profiles, so these land even without
-their parent.
+their parent. A filament can instead be hung onto a printer here (attach): the child of a
+filament of that printer, with only the material's values from the file.
 
 The page "3MF bereinigen" gets a 3MF back without its project's printer (clean_3mf).
 """
@@ -29,7 +30,7 @@ from pathlib import Path, PurePosixPath
 
 from . import transfer
 from .resolver import Resolver, as_list, first
-from .scanner import META_KEYS
+from .scanner import META_KEYS, alias_of
 
 KINDS = ("filament", "process", "machine")
 SETTINGS_ID = {"filament": "filament_settings_id", "process": "print_settings_id", "machine": "printer_settings_id"}
@@ -62,6 +63,20 @@ _COLOUR = re.compile(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?")
 CORE = {"filament": ("filament_vendor", "filament_type", "nozzle_temperature", "filament_flow_ratio", "filament_max_volumetric_speed"),
         "process": ("layer_height", "wall_loops", "sparse_infill_density"),
         "machine": ("printer_model", "nozzle_diameter")}
+# Values of the material, not of the printer (ORCAONE_SPEC, "An Zielprofil hängen"): a filament
+# hung onto a printer here takes these from the file, all else from a filament of that printer.
+MATERIAL_KEYS = (
+    "filament_vendor", "filament_type", "default_filament_colour", "filament_density", "filament_cost", "filament_diameter",
+    "filament_flow_ratio", "filament_max_volumetric_speed", "nozzle_temperature", "nozzle_temperature_initial_layer",
+    "nozzle_temperature_range_low", "nozzle_temperature_range_high", "hot_plate_temp", "hot_plate_temp_initial_layer",
+    "cool_plate_temp", "cool_plate_temp_initial_layer", "eng_plate_temp", "eng_plate_temp_initial_layer",
+    "textured_plate_temp", "textured_plate_temp_initial_layer", "supertack_plate_temp", "supertack_plate_temp_initial_layer",
+    "textured_cool_plate_temp", "textured_cool_plate_temp_initial_layer", "chamber_temperature", "temperature_vitrification",
+    "fan_min_speed", "fan_max_speed", "fan_cooling_layer_time", "slow_down_layer_time", "slow_down_min_speed",
+    "overhang_fan_speed", "overhang_fan_threshold", "close_fan_the_first_x_layers", "full_fan_speed_layer",
+    "reduce_fan_stop_start_freq", "filament_shrink", "filament_shrinkage_compensation_z", "filament_soluble",
+    "filament_is_support", "required_nozzle_HRC",
+)
 MAX_FILE = 300 * 1024 * 1024   # the whole upload: a 3MF carries its meshes
 MAX_ENTRY = 8 * 1024 * 1024    # one profile or config in an archive
 MAX_ENTRIES = 50000
@@ -335,12 +350,10 @@ def _selectable(res: Resolver, kind: str, name: str):
     return next((p for p in res.own_profiles(kind) if p.name == name and not p.bundle and res.loaded(p)), None)
 
 
-def convert(res: Resolver, app: str, kind: str, profile: dict, parents: list, full: bool) -> transfer.Copy:
-    """How profile lands in the installation of res: its values in the form the slicer app reads,
-    and the parent there, None for a root profile. parents: its parents from the same file,
-    nearest first. Raises ImportFailed."""
-    if kind not in KINDS:
-        raise ImportFailed("unknown_kind")
+def _resolved(res: Resolver, kind: str, profile: dict, parents: list, full: bool) -> tuple:
+    """(values, parent here or None): the profile's values over those of its parents from the same
+    file (nearest first). A template (@base, fdm_*) cannot be a parent (FINDINGS 4.4): its values
+    go in. Raises ImportFailed if the parent is missing and the profile holds only differences."""
     chain = [profile] + parents
     values = {}
     for q in reversed(chain):
@@ -348,12 +361,21 @@ def convert(res: Resolver, app: str, kind: str, profile: dict, parents: list, fu
     wanted = chain[-1].get("inherits") if isinstance(chain[-1].get("inherits"), str) else ""
     target_parent = _selectable(res, kind, wanted) if wanted else None
     if wanted and target_parent is None:
-        # A template (@base, fdm_*) cannot be a parent (FINDINGS 4.4): its values go in.
         template = next((p for p in res.scan.profiles.values() if p.kind == kind and p.name == wanted), None)
         if template is not None and res.chain(template)[1]:
             values = {**_chain_values(res, template), **values}
         elif not full:
             raise ImportFailed("parent_missing", parent=wanted)
+    return values, target_parent
+
+
+def convert(res: Resolver, app: str, kind: str, profile: dict, parents: list, full: bool) -> transfer.Copy:
+    """How profile lands in the installation of res: its values in the form the slicer app reads,
+    and the parent there, None for a root profile. parents: its parents from the same file,
+    nearest first. Raises ImportFailed."""
+    if kind not in KINDS:
+        raise ImportFailed("unknown_kind")
+    values, target_parent = _resolved(res, kind, profile, parents, full)
     if kind == "machine":
         values = {k: v for k, v in values.items() if not _CONNECTION.match(k)}
     printers_wanted = [n for n in as_list(values.get("compatible_printers")) if isinstance(n, str)] if kind != "machine" else []
@@ -374,6 +396,44 @@ def convert(res: Resolver, app: str, kind: str, profile: dict, parents: list, fu
     return transfer.Copy(name=name, data=data, parent=target_parent,
                          base_id=target_parent.setting_id if target_parent is not None else "",
                          dropped=dropped, cut=cut, printers_left=[n for n in printers_wanted if n not in have])
+
+
+def _printer_here(res: Resolver, name: str):
+    found = res.collection["machine"].get(name)
+    return found or next((p for p in res.own_profiles("machine") if p.name == name and res.loaded(p)), None)
+
+
+def _base_for(res: Resolver, printer, material: str):
+    """The system filament of that material a filament for printer hangs onto: one made for this
+    printer (with a printer list, not the library), "Generic …" first."""
+    fits = [p for p in res.collection["filament"].values() if first(res.value(p, "filament_type")) == material
+            and res.compatible_printers(p) and res.fits(printer, p) == "yes"]
+    return min(fits, key=lambda p: (not p.alias.startswith("Generic"), p.name), default=None)
+
+
+def attach(res: Resolver, app: str, profile: dict, parents: list, printer_name: str) -> transfer.Copy:
+    """A filament of the file hung onto printer_name here (ORCAONE_SPEC, "An Zielprofil hängen"): the
+    child of a system filament of that printer and material, with the file's material values
+    (MATERIAL_KEYS) where they differ from it. Also for a filament whose own parent is missing: what
+    the file holds is taken, the page names it. Named like the slicer's "Filament erstellen" names
+    its filaments, "<name up to @> @<printer>". Raises ImportFailed."""
+    printer = _printer_here(res, printer_name)
+    if printer is None:
+        raise ImportFailed("unknown_printer", printer=printer_name)
+    values, parent = _resolved(res, "filament", profile, parents, True)
+    if parent is not None:
+        values = {**_chain_values(res, parent), **values}
+    material = first(values.get("filament_type"))
+    base = _base_for(res, printer, material) if isinstance(material, str) else None
+    if base is None:
+        raise ImportFailed("no_base", printer=printer_name, material=material if isinstance(material, str) else "")
+    inherited = _chain_values(res, base)
+    taken = {k: values[k] for k in MATERIAL_KEYS if k in values and as_list(values[k]) != as_list(inherited.get(k))}
+    data, dropped, cut = transfer.adapt(taken, transfer.OPTIONS[app], "filament", same_app=True)
+    data["compatible_printers"] = [printer_name]
+    name = profile.get("name") if isinstance(profile.get("name"), str) and profile["name"].strip() else "Filament"
+    return transfer.Copy(name=f"{alias_of(name)} @{printer_name}", data=data, parent=base, base_id=base.setting_id,
+                         dropped=dropped, cut=cut)
 
 
 def _comparable(values: dict, app: str, kind: str) -> dict:
@@ -428,13 +488,30 @@ def analyse(source: dict, res: Resolver, app: str) -> list:
             entry.update(status=exc.code, params=exc.params)
             out.append(entry)
             continue
-        resolved = {**(_chain_values(res, copy.parent) if copy.parent is not None else {}), **copy.data}
-        printers = [n for n in as_list(resolved.get("compatible_printers")) if isinstance(n, str)]
-        entry.update(status=_name_state(res, app, f.kind, copy), parent=copy.parent.name if copy.parent is not None else None,
-                     printers=printers, dropped=copy.dropped, printers_left=copy.printers_left,
-                     values={k: as_list(resolved[k])[0] for k in CORE[f.kind] if as_list(resolved.get(k))})
+        entry.update(_outcome(res, app, f.kind, copy))
         out.append(entry)
     return out
+
+
+def _outcome(res: Resolver, app: str, kind: str, copy: transfer.Copy) -> dict:
+    """What the page shows of a profile as it would land: status, the name it gets, parent,
+    printers and the main values."""
+    resolved = {**(_chain_values(res, copy.parent) if copy.parent is not None else {}), **copy.data}
+    return {"status": _name_state(res, app, kind, copy), "target": copy.name,
+            "parent": copy.parent.name if copy.parent is not None else None,
+            "printers": [n for n in as_list(resolved.get("compatible_printers")) if isinstance(n, str)],
+            "dropped": copy.dropped, "printers_left": copy.printers_left,
+            "values": {k: as_list(resolved[k])[0] for k in CORE[kind] if as_list(resolved.get(k))}}
+
+
+def analyse_attach(res: Resolver, app: str, profile: dict, parents: list, printer: str) -> dict:
+    """What analyse() says of a filament when it is hung onto printer instead (attach), plus the
+    keys it takes from the file."""
+    try:
+        copy = attach(res, app, profile, parents, printer)
+    except ImportFailed as exc:
+        return {"status": exc.code, "params": exc.params}
+    return {**_outcome(res, app, "filament", copy), "taken": sorted(k for k in copy.data if k != "compatible_printers")}
 
 
 def uses(source: dict, res: Resolver) -> list:

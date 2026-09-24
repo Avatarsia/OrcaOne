@@ -234,7 +234,10 @@ export function changesOf(inst) {
 
   // ---------------------------------------------------------- page "Import/Export"
   for (const q of importQueue) {
-    if (q.to === inst.id) add({ op: "profile_import", kind: q.kind, profile: q.profile, parents: q.parents, full: q.full, replace: q.replace, source: q.source });
+    if (q.to === inst.id) {
+      add({ op: "profile_import", kind: q.kind, profile: q.profile, parents: q.parents, full: q.full, replace: q.replace, source: q.source,
+            ...(q.printer ? { printer: q.printer } : {}), ...(q.rename ? { name: q.rename } : {}) });
+    }
   }
 
   // Array.prototype.sort is stable: the order within one kind of op stays.

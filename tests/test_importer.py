@@ -216,6 +216,26 @@ def test_analysis_against_the_installation(target):
     assert (entry["status"], entry["parent"]) == ("new", None)
 
 
+def test_hang_a_filament_onto_a_printer_here(target):
+    # Made for a printer that is not here; its base in the file holds the brand's values.
+    base = filament("Fremd PLA @base", inherits="fdm_filament_pla", instantiation="false", filament_vendor=["Fremd"],
+                    filament_type=["PLA"], nozzle_temperature=["215"], filament_flow_ratio=["0.95"], filament_start_gcode=["M142 P1"])
+    child = filament("Fremd PLA @BBL X1C", inherits="Fremd PLA @base", compatible_printers=["Bambu Lab X1 Carbon 0.4 nozzle"],
+                     filament_max_volumetric_speed=["18"])
+    entry = {e["name"]: e for e in importer.analyse(importer.read(zip_of({"a.json": base, "b.json": child}), "fremd.zip"),
+                                                    target, "Snapmaker_Orca")}["Fremd PLA @BBL X1C"]
+    assert entry["status"] == "no_target_printer"
+    # Hung onto the U1: the child of its "Generic PLA", with the material's values only, not the start G-code.
+    got = importer.analyse_attach(target, "Snapmaker_Orca", entry["profile"], entry["parents"], U1_04)
+    assert (got["status"], got["target"], got["parent"], got["printers"]) == ("new", f"Fremd PLA @{U1_04}", "Generic PLA", [U1_04])
+    assert {"filament_vendor", "nozzle_temperature", "filament_flow_ratio", "filament_max_volumetric_speed"} <= set(got["taken"])
+    assert "filament_start_gcode" not in got["taken"] and got["values"]["nozzle_temperature"] == "215"
+    # Nothing of that material for the U1 here, or no such printer: nothing to hang it onto.
+    assert importer.analyse_attach(target, "Snapmaker_Orca", filament("Hart", filament_type=["PPS"]), [], U1_04) == {
+        "status": "no_base", "params": {"printer": U1_04, "material": "PPS"}}
+    assert importer.analyse_attach(target, "Snapmaker_Orca", filament("X", filament_type=["PLA"]), [], "Gibt es nicht")["status"] == "unknown_printer"
+
+
 def upload(server, inst_id, raw, name):
     request = urllib.request.Request(f"{server}/api/instances/{inst_id}/import?name={urllib.request.quote(name)}", data=raw,
                                      method="POST", headers={"Content-Type": "application/octet-stream"})
@@ -267,6 +287,31 @@ def test_import_through_the_plan(server, fake_home):
     assert [(u["name"], u["here"]) for u in got["project"]["uses"]] == [
         ("0.20mm Standard @Snapmaker U1 (0.4 nozzle)", True), (BASIC, True), ("Bambu Lab A1 0.4 nozzle", False)]
     assert got["project"]["uses"][1]["colours"] == ["#0080FF"]
+
+
+def test_import_hung_onto_a_printer_and_renamed(server, fake_home):
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    base = f"{server}/api/instances/{inst['id']}"
+    foreign = filament("Fremd PLA @BBL X1C", compatible_printers=["Bambu Lab X1 Carbon 0.4 nozzle"], filament_type=["PLA"],
+                       nozzle_temperature=["215"], filament_start_gcode=["M142 P1"])
+    status, body = call(f"{base}/import/attach", "POST", {"profile": foreign, "parents": [], "printer": U1_04})
+    assert (status, json.loads(body)["parent"]) == (200, "Generic PLA")
+    change = {"op": "profile_import", "kind": "filament", "profile": foreign, "parents": [], "full": False, "source": "fremd.json",
+              "printer": U1_04, "name": "Fremdes PLA für den U1"}
+    plan = apply(server, base, [change])
+    assert {w["code"] for w in plan["warnings"]} >= {"import_from", "import_attached"}
+    written = json.loads((data_dir / "user" / "default" / "filament" / "Fremdes PLA für den U1.json").read_text(encoding="utf-8"))
+    assert (written["inherits"], written["nozzle_temperature"]) == ("Generic PLA", ["215"])
+    # Only what differs from "Generic PLA" is written: its printer list is the U1 0.4 already.
+    assert "filament_start_gcode" not in written and "compatible_printers" not in written
+    res = Resolver(scanner.scan(data_dir, "Snapmaker_Orca"))
+    mine = next(o for o in res.own_profiles("filament") if o.name == "Fremdes PLA für den U1")
+    assert res.loaded(mine) and res.compatible_printers(mine) == [U1_04]
+    # A name the slicer cannot take stops the plan; a request without printer is refused.
+    made = json.loads(call(f"{base}/plan", "POST", {"changes": [{**change, "name": "a/b"}]})[1])["plan"]
+    assert made["blocked"] == "name_invalid"
+    assert call(f"{base}/import/attach", "POST", {"profile": foreign, "printer": ""})[0] == 400
 
 
 def test_import_from_the_slicers_backup(server, fake_home):
