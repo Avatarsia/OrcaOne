@@ -90,6 +90,9 @@ export const api = {
   deleteBackup: (id, name) => request("DELETE", backupUrl(id, name)),
   // Page "Import/Export" (orcaone/importer.py): what a file holds, and own profiles as a ZIP.
   importFile: (id, file, name) => upload(`${instUrl(id)}/import?name=${encodeURIComponent(name)}`, file),
+  // The slicer's own copies of user/ (user_backup-v…), and what one of them holds.
+  slicerBackups: (id) => request("GET", `${instUrl(id)}/import/slicer-backups`),
+  importSlicerBackup: (id, name) => request("GET", `${instUrl(id)}/import/slicer-backup?name=${encodeURIComponent(name)}`),
   exportProfiles: (id, profiles, flat) => download(`${instUrl(id)}/export`, { profiles, flat }),
   clean3mf: (file) => download("/api/clean-3mf", file),
   // Page "Änderungen": what changed since the installation was last marked seen (orcaone/snapshot.py).

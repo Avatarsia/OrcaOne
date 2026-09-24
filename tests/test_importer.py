@@ -128,6 +128,37 @@ def test_a_cleaned_3mf_keeps_the_model_and_leaves_the_printer_out():
         assert err.value.code == code
 
 
+def test_reads_the_slicers_own_backup(tmp_path):
+    # user_backup-v<version>: the slicer's copy of user/ at the first start of a version (FINDINGS 4.2).
+    data_dir = tmp_path / "Snapmaker_Orca"
+    old = data_dir / "user_backup-v2.3.0" / "default"
+    (old / "filament" / "base").mkdir(parents=True)
+    (old / "machine").mkdir()
+    (old / "filament" / "Alt PLA.json").write_text(json.dumps(filament("Alt PLA", inherits=BASIC)), encoding="utf-8")
+    (old / "filament" / "Alt PLA.info").write_text("sync_info = \n", encoding="utf-8")
+    (old / "filament" / "base" / "Wurzel.json").write_text(json.dumps(filament("Wurzel")), encoding="utf-8")
+    (old / "machine" / "kaputt.json").write_text("{", encoding="utf-8")
+    outside = tmp_path / "Woanders.json"
+    outside.write_text(json.dumps(filament("Woanders")), encoding="utf-8")
+    try:
+        (old / "filament" / "Link.json").symlink_to(outside)
+    except OSError:
+        pass  # Windows without the right to make symlinks
+    (data_dir / "user_backup-v2.4.0").mkdir()
+    (data_dir / "user").mkdir()
+
+    assert {b["name"]: b["profiles"] for b in importer.slicer_backups(data_dir)} == {"user_backup-v2.3.0": 3, "user_backup-v2.4.0": 0}
+    got = importer.read_backup(data_dir, "user_backup-v2.3.0")
+    assert got["format"] == "slicer_backup" and sorted(f.name for f in got["profiles"]) == ["Alt PLA", "Wurzel"]
+    assert got["profiles"][0].where == "user_backup-v2.3.0/default/filament/Alt PLA.json"
+    assert got["skipped"] == [{"where": "user_backup-v2.3.0/default/machine/kaputt.json", "code": "not_readable"}]
+    # Only a copy the slicer made, by its name: no other folder, nothing outside the data directory.
+    for name in ("user", "../Snapmaker_Orca/user_backup-v2.3.0", "user_backup-v9.9.9", ""):
+        with pytest.raises(importer.ImportFailed) as err:
+            importer.read_backup(data_dir, name)
+        assert err.value.code == "folder_unknown"
+
+
 def test_an_entry_too_big_is_left_out(monkeypatch):
     monkeypatch.setattr(importer, "MAX_ENTRY", 50)
     got = importer.read(zip_of({"a.json": filament("A" * 80)}), "a.zip")
@@ -225,6 +256,26 @@ def test_import_through_the_plan(server, fake_home):
     assert [(u["name"], u["here"]) for u in got["project"]["uses"]] == [
         ("0.20mm Standard @Snapmaker U1 (0.4 nozzle)", True), (BASIC, True), ("Bambu Lab A1 0.4 nozzle", False)]
     assert got["project"]["uses"][1]["colours"] == ["#0080FF"]
+
+
+def test_import_from_the_slicers_backup(server, fake_home):
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    old = data_dir / "user_backup-v2.3.0" / "default" / "filament"
+    old.mkdir(parents=True)
+    (old / "Alt PLA.json").write_text(json.dumps(filament("Alt PLA", inherits=BASIC, nozzle_temperature=["205"])), encoding="utf-8")
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    base = f"{server}/api/instances/{inst['id']}"
+    backups = json.loads(call(f"{base}/import/slicer-backups")[1])["backups"]
+    assert [(b["name"], b["profiles"]) for b in backups] == [("user_backup-v2.3.0", 1)]
+    got = json.loads(call(f"{base}/import/slicer-backup?name=user_backup-v2.3.0")[1])
+    assert (got["file"], got["format"], [(p["name"], p["status"]) for p in got["profiles"]]) == (
+        "user_backup-v2.3.0", "slicer_backup", [("Alt PLA", "new")])
+    p = got["profiles"][0]
+    apply(server, base, [{"op": "profile_import", "kind": p["kind"], "profile": p["profile"], "parents": p["parents"],
+                          "full": p["full"], "source": got["file"]}])
+    written = json.loads((data_dir / "user" / "default" / "filament" / "Alt PLA.json").read_text(encoding="utf-8"))
+    assert (written["inherits"], written["nozzle_temperature"]) == (BASIC, ["205"])
+    assert call(f"{base}/import/slicer-backup?name=user")[0] == 404
 
 
 def test_clean_3mf_over_the_api(server):

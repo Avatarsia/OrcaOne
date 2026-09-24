@@ -105,7 +105,7 @@ def _snapshot_error(request: Request, exc: snapshot.SnapshotError):
 
 @app.exception_handler(importer.ImportFailed)
 def _import_error(request: Request, exc: importer.ImportFailed):
-    status = {"file_too_big": 413, "unknown_profile": 404, "profile_invalid": 409}.get(exc.code, 400)
+    status = {"file_too_big": 413, "unknown_profile": 404, "folder_unknown": 404, "profile_invalid": 409}.get(exc.code, 400)
     return _error(exc.code, status, **exc.params)
 
 
@@ -266,13 +266,16 @@ def news_seen(instance_id: str):
 
 # ---------------------------------------------------------------- page "Import/Export" (orcaone/importer.py)
 
-def _read_file(instance_id: str, raw: bytes, name: str) -> dict:
-    instance = operations.find_instance(instance_id)[0]
-    source = importer.read(raw, name)
+def _answer(instance, source: dict, name: str) -> dict:
+    """What a file or folder holds (importer.read, read_backup) and what an import would do here."""
     res = Resolver(scanner.scan(instance.data_dir, instance.slicer))
     project = {**source["project"], "uses": importer.uses(source, res)} if source.get("project") else None
     return {"file": name, "format": source["format"], "skipped": source["skipped"], "project": project,
             "profiles": importer.analyse(source, res, instance.slicer)}
+
+
+def _read_file(instance_id: str, raw: bytes, name: str) -> dict:
+    return _answer(operations.find_instance(instance_id)[0], importer.read(raw, name), name)
 
 
 @app.post("/api/instances/{instance_id}/import")
@@ -284,6 +287,19 @@ async def import_read(instance_id: str, request: Request, name: str = ""):
     raw = await request.body()
     # A 3MF of many megabytes takes a moment: not on the server's event loop.
     return await run_in_threadpool(_read_file, instance_id, raw, name or "import")
+
+
+@app.get("/api/instances/{instance_id}/import/slicer-backups")
+def import_slicer_backups(instance_id: str):
+    """The slicer's own copies of user/ (user_backup-v…) in the data directory, to import from."""
+    return {"backups": importer.slicer_backups(operations.find_instance(instance_id)[0].data_dir)}
+
+
+@app.get("/api/instances/{instance_id}/import/slicer-backup")
+def import_slicer_backup(instance_id: str, name: str = ""):
+    """What one of those copies holds and what an import would do; writes nothing."""
+    instance = operations.find_instance(instance_id)[0]
+    return _answer(instance, importer.read_backup(instance.data_dir, name), name)
 
 
 @app.post("/api/clean-3mf")

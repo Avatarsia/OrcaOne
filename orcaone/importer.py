@@ -2,7 +2,8 @@
 
 The import reads what the Orca family writes (docs/IMPORT-QUELLEN.md): a profile JSON, a ZIP of
 profiles (the slicers' export dialog, OrcaOne's export, vendor packs), the bundles .orca_filament,
-.orca_printer and .orca_bundle, OrcaOne's backups (a data directory as ZIP) and 3MF projects. No
+.orca_printer and .orca_bundle, OrcaOne's backups (a data directory as ZIP), 3MF projects and the
+slicer's own copies of user/ in the data directory (user_backup-v<version>, read_backup). No
 slicer shows beforehand what a file holds; here read() lists it, analyse() tells per profile
 what an import would do in the chosen installation, and the planner writes the chosen ones
 (operations.op_profile_import) like every change: plan, backup, write, scan. Archives are read in
@@ -19,11 +20,12 @@ The page "3MF bereinigen" gets a 3MF back without its project's printer (clean_3
 import hashlib
 import io
 import json
+import os
 import re
 import shutil
 import zipfile
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from . import transfer
 from .resolver import Resolver, as_list, first
@@ -46,6 +48,10 @@ _PRINTER_BOUND = re.compile(r"Metadata/(?:project_settings\.config|slice_info\.c
 _APPLICATION = re.compile(r'<metadata name="Application">([^<]*)</metadata>')
 # A data directory or one of OrcaOne's backups: the own profiles of every user folder.
 _USER_FILE = re.compile(r"user/[^/]+/(machine|process|filament)/(?:base/)?[^/]+\.json")
+# The slicer's own copy of user/, made once per program version at its first start
+# (PresetBundle::backup_user_folder, FINDINGS 4.2): after an update, lost profiles are often there.
+_SLICER_BACKUP = re.compile(r"user_backup-v[^/\\]+")
+_BACKUP_FILE = re.compile(r"[^/]+/(machine|process|filament)/(?:base/)?[^/]+\.json")
 # Files beside the profiles: bundle descriptions, vendor manifests, metadata of archives.
 _NOT_PROFILES = {"bundle_structure.json", "bundle_metadata.json", "orcaone-backup.json", "orfix-backup.json"}
 # A printer's connection and its credentials; the slicers' export drops them too (FINDINGS 4.8).
@@ -164,6 +170,54 @@ def read(raw: bytes, filename: str) -> dict:
                 _add(out, _json(raw_entry), e.filename)
     except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError, EOFError, NotImplementedError, RuntimeError) as exc:
         raise ImportFailed("file_unknown", detail=str(exc)) from None
+    return out
+
+
+def _backup_files(folder: Path):
+    """(relative posix path, Path) of the profiles in a copy of user/. No symlinks and nothing
+    that resolves outside the copy: a junction on Windows is no symlink to is_symlink()."""
+    base = folder.resolve()
+    for root, dirs, names in os.walk(folder):
+        dirs[:] = sorted(d for d in dirs if not (Path(root) / d).is_symlink())
+        for name in sorted(names):
+            path = Path(root) / name
+            rel = path.relative_to(folder).as_posix()
+            if _BACKUP_FILE.fullmatch(rel) and not path.is_symlink() and path.resolve().is_relative_to(base):
+                yield rel, path
+
+
+def slicer_backups(data_dir: Path) -> list:
+    """The slicer's copies of user/ in a data directory, newest first:
+    [{"name", "modified" (seconds since 1970), "profiles" (profile files in it)}]."""
+    out = []
+    for folder in data_dir.iterdir() if data_dir.is_dir() else []:
+        if _SLICER_BACKUP.fullmatch(folder.name) and folder.is_dir() and not folder.is_symlink():
+            out.append({"name": folder.name, "modified": folder.stat().st_mtime,
+                        "profiles": sum(1 for _ in _backup_files(folder))})
+    return sorted(out, key=lambda b: (-b["modified"], b["name"]))
+
+
+def read_backup(data_dir: Path, name: str) -> dict:
+    """What one of the slicer's copies of user/ holds, as read() says it of a file.
+    Raises ImportFailed."""
+    folder = data_dir / name
+    if not _SLICER_BACKUP.fullmatch(name) or folder.is_symlink() or not folder.is_dir():
+        raise ImportFailed("folder_unknown")
+    out = {"format": "slicer_backup", "profiles": [], "skipped": []}
+    for count, (rel, path) in enumerate(_backup_files(folder)):
+        if count >= MAX_ENTRIES:
+            raise ImportFailed("file_too_big")
+        where = f"{name}/{rel}"
+        try:
+            with path.open("rb") as f:
+                raw = f.read(MAX_ENTRY + 1)
+        except OSError:
+            out["skipped"].append({"where": where, "code": "not_readable"})
+            continue
+        if len(raw) > MAX_ENTRY:
+            out["skipped"].append({"where": where, "code": "too_big"})
+            continue
+        _add(out, _json(raw), where)
     return out
 
 

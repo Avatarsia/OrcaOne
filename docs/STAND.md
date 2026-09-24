@@ -14,8 +14,9 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 - **Sprachen:** Deutsch und Englisch.
 - **Start:** `./orcaone.sh` bzw. `orcaone.cmd`, Port 4711, auf Wunsch als App-Fenster mit eigenem Symbol ([STARTEN-UND-BAUEN](STARTEN-UND-BAUEN.md)).
 - **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. Den U1 liest OrcaOne nur, über Moonraker.
-- **Tests:** 242, alle grün (`.lenv/bin/python -m pytest`).
-- **Zuletzt gebaut (23.09.):** Import/Export mit „Hier passend“ und „Was ein Import braucht“, die Seite „3MF bereinigen“, „Änderungen“, „Vergleichen“, der Druckstatus auf „Kamera“ und das App-Fenster. Ideen des Nutzers stehen in [IDEEN](IDEEN.md).
+- **Tests:** 244, alle grün (`.lenv/bin/python -m pytest`).
+- **Zuletzt gebaut (24.09.):** Import aus den Sicherungskopien des Slicers (`user_backup-v*`) auf „Import/Export“. Geprüft mit Tests und im Browser; die Kopien auf diesem Rechner sind leer, weil es beim ersten Start noch keine eigenen Profile gab.
+- **Davor (23.09.):** Import/Export mit „Hier passend“ und „Was ein Import braucht“, die Seite „3MF bereinigen“, „Änderungen“, „Vergleichen“, der Druckstatus auf „Kamera“ und das App-Fenster. Ideen des Nutzers stehen in [IDEEN](IDEEN.md).
 
 ## Offen beim Nutzer
 
@@ -38,7 +39,7 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 
 ## Nächste Bausteine, der Nutzer wählt
 
-- **Import** ([IMPORT-QUELLEN](IMPORT-QUELLEN.md)): G-Code und Drucke direkt vom U1, Profile aus `user_backup-v*` und anderen Benutzerordnern, die Orca-Bibliothek von GitHub, „An Zielprofil hängen“.
+- **Import** ([IMPORT-QUELLEN](IMPORT-QUELLEN.md)): G-Code und Drucke direkt vom U1, Profile aus anderen Benutzerordnern (`user/<id>/`, etwa nach einer Anmeldung), die Orca-Bibliothek von GitHub, „An Zielprofil hängen“.
 - **Drucker übertragen** zwischen den Installationen, bisher zurückgestellt (FINDINGS, „Übertragung“).
 - **„Details“** auch für Prozesse und Drucker. Die Abfrage im Backend kann das schon.
 - **Ideen** ([IDEEN](IDEEN.md)): Druck in 3D, dafür braucht es das Okay für three.js. Ein Datei-Browser für den U1; Löschen oder Hochladen hieße, dass OrcaOne erstmals auf den U1 schreibt.

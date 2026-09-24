@@ -1087,6 +1087,11 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .imp-uses .icon { flex: none; margin-top: 1px; color: var(--accent-text); }
 .imp-spools { display: inline-flex; flex-wrap: wrap; gap: 1px; }
 .imp-help { margin-top: 10px; }
+.imp-backups { margin-top: 12px; }
+.imp-backup-list { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.imp-backup-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.imp-backup-list .icon { color: var(--accent-text); }
+.imp-backup-list .btn { margin-left: auto; }
 .clean-done { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; font-weight: 600; }
 .imp-help ul { display: grid; gap: 4px; margin: 6px 0 0; padding-left: 18px; }
 .imp-note { color: var(--muted); font-size: 12px; }

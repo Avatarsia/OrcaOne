@@ -102,7 +102,7 @@ Schreibweise: **SnOrca** = Snapmaker Orca 2.4.0, **Orca** = OrcaSlicer. Wo Orca-
 |---|---|---|
 | `log/` | Logdateien | nein |
 | `cache/` | Lock-Dateien, bei Orca main auch `cookies.db` | nein |
-| `user_backup-v<Version>/` | Einmalige Kopie von `user/` je Programmversion, wird nie aktualisiert oder zurückgespielt | nein (Slicer-eigen) |
+| `user_backup-v<Version>/` | Einmalige Kopie von `user/` je Programmversion, wird nie aktualisiert oder zurückgespielt. `PresetBundle::backup_user_folder` läuft bei jedem Start (`GUI_App.cpp`) und kopiert nur, wenn es den Ordner für die laufende Version noch nicht gibt; in SnOrca und Orca main gleich. OrcaOne importiert daraus (Seite „Import/Export“) | nein (Slicer-eigen) |
 | `user/Temp/` | Flüchtige Vollkopien aller sichtbaren Drucker, solange der Export-Dialog offen ist | nein |
 | `user/<ordner>/temp/` | Rest eines abgebrochenen Imports. SnOrca nutzt immer `user/default/temp` | nein |
 | `hms/`, `ota/`, `web/`, `log_upload_spool/` | SnOrca: Gerätemeldungen, Hot-Updates, Flutter-Gerätepanel, Telemetrie-Warteschlange | nein |

@@ -64,7 +64,8 @@ Stand 23.09.2026. Übersicht vor dem Bau der Seite „Import/Export“ unter „
 
 - **23.09.2026 gebaut** (Wunsch des Nutzers: „die ersten 3 und 3MF“): Quellen 1 bis 4 und 7 sowie der Export. Code in `orcaone/importer.py`, Seite `pages/import.js`.
 - **23.09.2026 ergänzt:** Bei einem 3MF die Werte und Farben der genutzten Profile und „Hier passend“; die Erklärung „Was ein Import braucht“. Dazu die eigene Seite „3MF bereinigen“: ein 3MF ohne Drucker, Prozess, Filamente und G-Code des Projekts zurück.
-- **Offen:** 5 und 6 (G-Code, Drucke vom U1), 8 (`user_backup-v*`, andere Benutzerordner), 11 (GitHub), „An Zielprofil hängen“, 12 und 13.
+- **24.09.2026 gebaut:** aus Quelle 8 die Sicherungskopien des Slicers (`user_backup-v*`, `importer.read_backup`). Die Seite listet sie je Installation und liest eine davon wie eine Datei.
+- **Offen:** 5 und 6 (G-Code, Drucke vom U1), 8 (andere Benutzerordner `user/<id>/`), 11 (GitHub), „An Zielprofil hängen“, 12 und 13.
 
 ## Vorschlag für die Reihenfolge
 

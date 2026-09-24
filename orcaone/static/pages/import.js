@@ -1,8 +1,9 @@
 // Page "Import/Export" (under "Filamente", orcaone/importer.py). Import: a file of any kind the
-// Orca family writes goes to the backend, which says per profile what an import would do here;
+// Orca family writes, or one of the slicer's own copies of user/ (user_backup-v…), goes to the
+// backend, which says per profile what an import would do here;
 // the user ticks what to take, it joins the change list, and "Übernehmen" writes it with plan and
 // backup ("profile_import" in ops.js). Export: own profiles as a ZIP, as they are or complete.
-import { INSTANCES, LOCALE, DECIMAL, flash, loadState, onReset, saveBlob, writeBlock } from "../common.js";
+import { INSTANCES, LOCALE, DECIMAL, flash, loadState, onReset, saveBlob, timeText, writeBlock } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 
@@ -52,8 +53,8 @@ export default {
     const block = computed(() => inst.value ? writeBlock(inst.value) : null);
 
     // ------------------------------------------------------------ import
-    const file = ref(null);       // the File as picked; read again after every load
-    const result = ref(null);     // POST /import
+    const source = ref(null);     // { file } as picked or dropped, or { backup } by name; read again after every load
+    const result = ref(null);     // POST /import, GET /import/slicer-backup
     const error = ref("");
     const reading = ref(false);
     const picked = reactive({});  // key -> { on, replace }
@@ -62,12 +63,14 @@ export default {
 
     const errorText = (code) => I.errors[code] || T.errors[code] || T.errors.unknown;
     async function read() {
-      if (!file.value) return;
+      const from = source.value;
+      if (!from) return;
       const mine = ++seq;
       reading.value = true;
       error.value = "";
       try {
-        const got = await api.importFile(props.instId, file.value, file.value.name);
+        const got = from.file ? await api.importFile(props.instId, from.file, from.file.name)
+          : await api.importSlicerBackup(props.instId, from.backup);
         if (mine !== seq) return;
         for (const k of Object.keys(picked)) delete picked[k];
         // Ticked at first: what lands as it is or under another name; not what is there already.
@@ -84,9 +87,13 @@ export default {
     }
     function choose(f) {
       if (!f) return;
-      file.value = f;
+      source.value = { file: f };
       read();
     }
+    // The slicer copies user/ at the first start of every new version (FINDINGS 4.2).
+    const backups = ref([]);
+    api.slicerBackups(props.instId).then((got) => { backups.value = got.backups; }).catch(() => {});
+    const readBackup = (name) => { source.value = { backup: name }; read(); };
     const onPick = (ev) => { choose(ev.target.files[0]); ev.target.value = ""; };
     const onDrop = (ev) => { dragging.value = false; choose(ev.dataTransfer.files[0]); };
     // After "Übernehmen" or "Neu einlesen" the installation changed: the same file, analysed again.
@@ -178,7 +185,8 @@ export default {
     }
 
     return {
-      T, I, KIND_ICON, STATUS_CLASS, TAKES, inst, block, file, result, error, reading, picked, dragging, onPick, onDrop, groups,
+      T, I, KIND_ICON, STATUS_CLASS, TAKES, inst, block, result, error, reading, picked, dragging, onPick, onDrop, groups,
+      backups, readBackup, timeText,
       toQueue, queue, queuedHere, keyOf, statusText, detailText, valuesText, uses, fittingText, foreignPrinter, own, exportPicked,
       flat, exporting, toggleGroup, exportNow, plainName,
     };
@@ -197,6 +205,16 @@ export default {
           <small>{{ I.kinds }}</small>
           <input type="file" accept=".json,.zip,.orca_filament,.orca_printer,.orca_bundle,.3mf" @change="onPick">
         </label>
+        <div v-if="backups.length" class="imp-backups">
+          <p class="note">{{ I.slicerBackups }}</p>
+          <ul class="imp-backup-list">
+            <li v-for="b in backups" :key="b.name">
+              <ui-icon name="backup"/>
+              <span><strong>{{ b.name }}</strong> <small class="imp-note">{{ I.slicerBackup(timeText(new Date(b.modified * 1000)), b.profiles) }}</small></span>
+              <button class="btn" type="button" :disabled="!b.profiles || reading" @click="readBackup(b.name)">{{ I.readBackup }}</button>
+            </li>
+          </ul>
+        </div>
         <details class="more imp-help">
           <summary>{{ I.help }}</summary>
           <ul><li v-for="t in I.helpItems" :key="t">{{ t }}</li></ul>
