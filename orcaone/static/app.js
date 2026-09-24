@@ -6,6 +6,7 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon,
+  printerModels, slicerModel, modelName, modelShown, U1_MODELS,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
@@ -38,19 +39,20 @@ document.documentElement.lang = LANG;
 // sub: a page about the one above, set in a little under it: files, camera, G-code console and SSH
 // of the printer (its address is on the printer's card); Übertragen, Vergleichen, Kalibrieren,
 // Import/Export and Details work on filament profiles; backups, "Änderungen" and logs are the
-// slicer's.
+// slicer's. u1: in the menu only while a U1 is the printer in the top bar (the user's wish);
+// printer: built anew for another printer there ("Filamente" and "Prozesse" have it in the address).
 const PAGES = [
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Need no slicer data: show at once and stay through "Neu einlesen".
-  { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true },
-  { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true },
-  { id: "konsole", icon: "code", component: KonsolePage, standalone: true, sub: true },
-  { id: "ssh", icon: "terminal", component: SshPage, standalone: true, sub: true },
+  { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true, u1: true, printer: true },
+  { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true, u1: true, printer: true },
+  { id: "konsole", icon: "code", component: KonsolePage, standalone: true, sub: true, printer: true },
+  { id: "ssh", icon: "terminal", component: SshPage, standalone: true, sub: true, printer: true },
   { id: "prozesse", icon: "layers", component: ProzessePage },
   { id: "filamente", icon: "spool", component: FilamentePage },
   { id: "transfer", icon: "transfer", component: TransferPage, sub: true },
   { id: "vergleichen", icon: "compare", component: VergleichenPage, sub: true },
-  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true },
+  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true, u1: true, printer: true },
   { id: "import", icon: "import", component: ImportPage, sub: true },
   { id: "details", icon: "info", component: DetailsPage, sub: true },
   { id: "bereinigen", icon: "broom", component: BereinigenPage, standalone: true },
@@ -77,14 +79,46 @@ const app = createApp({
     const page = computed(() => PAGES.find((p) => p.id === route.value.page));
     // A new key per route and per load mounts the page fresh, so a printer view never patches
     // over the last one and never keeps state from old data.
-    const pageKey = computed(() => page.value?.standalone ? route.value.page
-      : [route.value.page, ui.instId, route.value.modelIdx, loadState.version].join("|"));
+    const pageKey = computed(() => {
+      const printer = page.value?.printer ? ui.printer : "";
+      return page.value?.standalone ? [route.value.page, printer].join("|")
+        : [route.value.page, ui.instId, route.value.modelIdx, printer, loadState.version].join("|");
+    });
     const pageProps = computed(() => PRINTER_PAGES.includes(route.value.page)
       ? { instId: ui.instId, modelIdx: route.value.modelIdx }
       : { instId: ui.instId });
-    // Between "Filamente" and "Prozesse" the menu keeps the printer.
-    const navHash = (p) => hashOf(p.id, ui.instId,
-      PRINTER_PAGES.includes(p.id) && PRINTER_PAGES.includes(route.value.page) ? route.value.modelIdx : null);
+
+    // ------------------------------------------------------------ the printer in the top bar
+    // The one printer OrcaOne works with, for every page (the user's wish of 24.09.2026): at the
+    // start the one the slicer starts with; another installation keeps the model if it has it.
+    const printers = computed(() => printerModels(inst.value));
+    const activeModel = computed(() => printers.value.find((m) => m.model === ui.printer) || null);
+    const activeIdx = computed(() => (activeModel.value ? inst.value.models.indexOf(activeModel.value) : null));
+    const isU1 = computed(() => U1_MODELS.includes(ui.printer));
+    watch([inst, printers], () => {
+      if (inst.value && !activeModel.value) ui.printer = slicerModel(inst.value)?.model || null;
+    }, { immediate: true });
+    // "Filamente" and "Prozesse" carry the printer in the address (#/filamente/<inst>/<idx>): an
+    // address without one gets it, one with another (the back button) chooses that one.
+    watch([route, activeIdx], ([r]) => {
+      if (!PRINTER_PAGES.includes(r.page) || !inst.value || r.instId !== inst.value.id) return;
+      if (r.modelIdx === null) {
+        if (activeIdx.value === null) return;
+        history.replaceState(null, "", hashOf(r.page, inst.value.id, activeIdx.value));
+        return syncRoute();
+      }
+      const m = inst.value.models[r.modelIdx];
+      if (m && modelShown(inst.value, m) && m.model !== ui.printer) ui.printer = m.model;
+    }, { immediate: true });
+    watch(() => ui.printer, () => {
+      const r = route.value;
+      if (PRINTER_PAGES.includes(r.page) && activeIdx.value !== null && r.modelIdx !== activeIdx.value) {
+        go(null, hashOf(r.page, ui.instId, activeIdx.value));
+      }
+    });
+    const navHash = (p) => hashOf(p.id, ui.instId, PRINTER_PAGES.includes(p.id) ? activeIdx.value : null);
+    // The pages for a U1 only while a U1 is chosen, without "(U1)" in their name.
+    const menuPages = computed(() => PAGES.filter((p) => !p.u1 || isU1.value));
 
     // ------------------------------------------------------------ change list
     // All pages, all installations. Each installation is planned and written on its own, with
@@ -313,6 +347,7 @@ const app = createApp({
     // After a page switch the focus moves to the page title; the drawer closes.
     watch(route, () => {
       instOpen.value = false;
+      printerOpen.value = false;
       navOpen.value = false;
       window.scrollTo(0, 0);
       nextTick(() => document.getElementById("page-title")?.focus());
@@ -320,45 +355,62 @@ const app = createApp({
 
     function toggleInst() {
       instOpen.value = !instOpen.value;
+      printerOpen.value = false;
       if (instOpen.value) nextTick(() => instMenu.value?.querySelector('[aria-checked="true"]')?.focus());
     }
     function closeInst() {
       instOpen.value = false;
       instBtn.value?.focus();
     }
+    // The printer stays if the other installation has the model (watcher above), the page too.
     function pickInst(i) {
       closeInst();
-      if (i.id === ui.instId) return;
-      const r = route.value;
-      const current = r.page === "filamente" && r.modelIdx !== null ? inst.value.models[r.modelIdx] : null;
-      if (!current) return go(null, hashOf(r.page, i.id));
-      // Stay with the same printer model if the other installation has it, else show its printers.
-      const idx = i.models.findIndex((m) => m.model === current.model);
-      go(null, hashOf("filamente", i.id, idx >= 0 ? idx : null));
+      if (i.id !== ui.instId) go(null, hashOf(route.value.page, i.id));
     }
-    function instKey(ev) {
-      if (!instOpen.value) return;
+    const printerOpen = ref(false);
+    const printerBtn = ref(null);
+    const printerMenu = ref(null);
+    function togglePrinter() {
+      printerOpen.value = !printerOpen.value;
+      instOpen.value = false;
+      if (printerOpen.value) nextTick(() => printerMenu.value?.querySelector('[aria-checked="true"]')?.focus());
+    }
+    function closePrinter() {
+      printerOpen.value = false;
+      printerBtn.value?.focus();
+    }
+    function pickPrinter(m) {
+      closePrinter();
+      leave(() => { ui.printer = m.model; });
+    }
+    // Both menus in the top bar: arrows move, Escape and Tab go back to the button.
+    function menuKeys(ev, menu, close) {
       if (ev.key === "Escape") {
         ev.stopPropagation();  // the page's own Escape (side panel) stays untouched
-        closeInst();
+        close();
       } else if (ev.key === "Tab") {
         ev.preventDefault();  // back to the button, as with Escape; the removed item cannot keep the focus
-        closeInst();
+        close();
       } else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
         ev.preventDefault();
-        const items = [...instMenu.value.querySelectorAll(".inst-item")];
+        const items = [...menu.querySelectorAll(".inst-item")];
         const n = items.indexOf(document.activeElement), down = ev.key === "ArrowDown";
         const next = n < 0 ? (down ? 0 : items.length - 1) : (n + (down ? 1 : items.length - 1)) % items.length;
         items[next].focus();
       }
     }
+    const instKey = (ev) => instOpen.value && menuKeys(ev, instMenu.value, closeInst);
+    const printerKey = (ev) => printerOpen.value && menuKeys(ev, printerMenu.value, closePrinter);
     document.addEventListener("pointerdown", (ev) => {
-      if (instOpen.value && !(ev.target instanceof Element && ev.target.closest(".inst"))) instOpen.value = false;
+      const at = (sel) => ev.target instanceof Element && ev.target.closest(sel);
+      if (instOpen.value && !at(".inst-pick")) instOpen.value = false;
+      if (printerOpen.value && !at(".printer-pick")) printerOpen.value = false;
     });
 
     return {
       INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, navHash, badges, go, hashOf, leave,
       statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
+      printers, activeModel, modelName, printerOpen, printerBtn, printerMenu, togglePrinter, pickPrinter, printerKey, menuPages,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav,
@@ -371,27 +423,48 @@ const app = createApp({
               :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
       <a class="brand" :href="hashOf('drucker', ui.instId)" @click="go($event, hashOf('drucker', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
       <span class="spacer"></span>
-      <div v-if="INSTANCES.length > 1" class="inst" @keydown="instKey">
+      <div v-if="INSTANCES.length > 1" class="inst inst-pick" @keydown="instKey">
         <button ref="instBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="instOpen ? 'true' : 'false'"
                 :title="inst.slicer + ' ' + inst.version + ' · ' + statusText(inst)" @click="toggleInst">
-          <span class="inst-name">{{ inst.slicer }}</span>
+          <!-- On a phone the short name, so the printer next to it keeps its name -->
+          <span class="inst-name"><span class="name-long">{{ inst.slicer }}</span><span class="name-short">{{ inst.snorca ? 'SnOrca' : 'Orca' }}</span></span>
           <run-status :inst="inst"/>
           <ui-icon name="chevronDown"/>
         </button>
         <div v-if="instOpen" ref="instMenu" class="inst-menu" role="menu" :aria-label="T.instMenu">
           <div class="inst-menu-label" aria-hidden="true">{{ T.instMenu }}</div>
-          <button v-for="i in INSTANCES" :key="i.id" class="inst-item" type="button" role="menuitemradio"
+          <!-- The data folder as a tooltip only (the user's wish) -->
+          <button v-for="i in INSTANCES" :key="i.id" class="inst-item" type="button" role="menuitemradio" :title="i.path"
                   :aria-checked="i.id === inst.id ? 'true' : 'false'" @click="pickInst(i)">
             <ui-icon name="check" class="check"/>
             <span class="inst-item-text">
               <span>{{ i.slicer }} <span class="version">{{ i.version }}</span></span>
-              <span class="inst-item-path">{{ i.path }}</span>
               <run-status :inst="i"/>
             </span>
           </button>
         </div>
       </div>
       <span v-else-if="inst" class="inst-single">{{ inst.slicer }}</span>
+      <div v-if="printers.length" class="inst printer-pick" @keydown="printerKey">
+        <button ref="printerBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="printerOpen ? 'true' : 'false'"
+                :title="T.printerMenu" @click="togglePrinter">
+          <img v-if="activeModel" class="printer-pick-img" :src="activeModel.cover" alt="" width="24" height="24">
+          <span class="inst-name">{{ activeModel ? modelName(activeModel) : T.printerMenu }}</span>
+          <ui-icon name="chevronDown"/>
+        </button>
+        <div v-if="printerOpen" ref="printerMenu" class="inst-menu" role="menu" :aria-label="T.printerMenu">
+          <div class="inst-menu-label" aria-hidden="true">{{ T.printerMenu }}</div>
+          <button v-for="m in printers" :key="m.model" class="inst-item" type="button" role="menuitemradio"
+                  :aria-checked="m.model === ui.printer ? 'true' : 'false'" @click="pickPrinter(m)">
+            <ui-icon name="check" class="check"/>
+            <img class="printer-pick-img" :src="m.cover" alt="" width="28" height="28">
+            <span class="inst-item-text">
+              <span>{{ modelName(m) }}</span>
+              <span v-if="modelName(m) !== m.model" class="inst-item-path">{{ m.model }}</span>
+            </span>
+          </button>
+        </div>
+      </div>
       <button v-if="loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
               :title="T.dataFrom(generatedText)" @click="leave(reread)">
         <ui-icon name="refresh"/><span class="bar-btn-label">{{ T.reload }}</span>
@@ -400,7 +473,7 @@ const app = createApp({
 
     <div :class="['shell', { 'nav-collapsed': !narrow && navCollapsed, 'nav-open': narrow && navOpen }]">
       <nav id="main-nav" class="nav" :aria-label="T.nav.label">
-        <a v-for="p in PAGES" :key="p.id" :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)"
+        <a v-for="p in menuPages" :key="p.id" :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)"
            :aria-current="route.page === p.id ? 'page' : null" @click="navOpen = false; go($event, navHash(p))">
           <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
           <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"

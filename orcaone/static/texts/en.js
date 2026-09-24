@@ -52,7 +52,7 @@ const T = {
   nav: {
     label: "Main menu",
     toggle: "Show or hide the menu",
-    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate (U1)", drucker: "Printers", kamera: "Camera (U1)", dateien: "Files (U1)", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "changes since last time",
     pending: "queued changes",
     backups: "Backups",
@@ -60,6 +60,7 @@ const T = {
     languageBlocked: "Apply or discard the queued changes first.",
   },
   instMenu: "Installation",
+  printerMenu: "Printer in OrcaOne",
   status: {
     closed: "Closed",
     running: "Running – view only",
@@ -290,15 +291,11 @@ const T = {
 
   // ---------------------------------------------------------------- page "Filamente"
   filaments: {
-    homeTitle: "Which printer do you want to edit?",
     nozzlesLabel: "Nozzles",
     activeCount: (k) => `${n(k)} ${k === 1 ? "filament" : "filaments"} active`,
     noPrinter: "No printer set up. Set one up in the slicer, then rescan.",
-    credits: "Printer images and icons from OrcaSlicer",
     ownPrinter: "Own printer",
     bundlePrinter: (pack) => `From bundle ${q(pack)}`,
-    allPrinters: "All printers",
-    backToPrinters: "Back to the printer choice",
     printerGone: "The slicer no longer shows this printer once the changes are applied.",
     nozzle: "Nozzle",
     allNozzlesTile: "All",
@@ -434,7 +431,6 @@ const T = {
 
   // ---------------------------------------------------------------- page "Prozesse"
   processes: {
-    homeTitle: "Which printer do you want to look at?",
     count: (k) => `${n(k)} ${k === 1 ? "process" : "processes"}`,
     lead: "A process belongs to the nozzle. You choose the filament separately in the slicer.",
     last: "Last chosen",
@@ -492,7 +488,7 @@ const T = {
   calibration: {
     title: "Calibrate a filament",
     lead: "For the Snapmaker U1, step by step to tick off; only flow and pressure advance are required. OrcaOne writes the values into your own filament and reads the U1 live along the way.",
-    onlyU1: "Calibrating is so far only for the Snapmaker U1, and this installation has none. Other printers calibrate differently, for example without a measurement at print start.",
+    onlyU1: "Calibrating is so far only for the Snapmaker U1. Choose it in the top bar; other printers calibrate differently, for example without a measurement at print start.",
     nozzle: "Nozzle",
     nozzleChip: (label) => `${label} mm`,
     filament: "Filament",
@@ -663,6 +659,7 @@ const T = {
     title: "Camera",
     lead: "The camera picture of every Snapmaker U1 with stock firmware whose IP address is set under “Printers”. While this page is open, OrcaOne wakes the camera and fetches the picture.",
     none: "No U1 with an IP address yet. Enter it at your U1 on the page “Printers”.",
+    notU1: "The camera is for the Snapmaker U1 only. Choose it in the top bar.",
     toPrinters: "To the page “Printers”",
     alt: (name) => `Camera picture of ${name}`,
     waking: "Waking the camera …",
@@ -695,8 +692,8 @@ const T = {
     title: "Files",
     lead: "The files on every Snapmaker U1 with an IP address. Print files and time-lapses can be deleted, one, several or all, and print files printed with the options of the display. Logs and settings the U1 only shows.",
     none: "No U1 with an IP address yet. Enter it at your U1 on the page “Printers”.",
+    notU1: "Files are for the Snapmaker U1 only. Choose it in the top bar.",
     toPrinters: "To the page “Printers”",
-    printer: "Printer",
     folders: { gcodes: "Print files", camera: "Time-lapses", logs: "Logs", config: "Settings" },
     readOnly: "read only",
     readOnlyNote: "The U1 only shows this folder. Nothing in it can be changed or deleted.",
@@ -758,7 +755,7 @@ const T = {
   ssh: {
     title: "SSH",
     lead: "A command line on the printer over SSH, for those who know what they are doing. On the U1, Root Access must be on at its touchscreen (Settings → Maintenance → Root Access).",
-    none: "No printer with an IP address yet. Enter it on the page “Printers”.",
+    noHost: (name) => `${name} has no IP address yet. Enter it on the page “Printers”.`,
     toPrinters: "To the page “Printers”",
     printer: "Printer",
     user: "User",
@@ -805,7 +802,7 @@ const T = {
   console: {
     title: "Console",
     lead: "G-code straight to Klipper, through Moonraker, on every Klipper printer with an IP address. It needs no SSH and no Root Access. The log shows commands and answers, those of other programs such as Mainsail too.",
-    none: "No printer with an IP address yet. Enter it on the page “Printers”.",
+    noHost: (name) => `${name} has no IP address yet. Enter it on the page “Printers”.`,
     toPrinters: "To the page “Printers”",
     printer: "Printer",
     commandsLabel: "Command",
@@ -1102,7 +1099,8 @@ const T = {
     defaultGone: "This printer no longer exists here. The slicer takes another one at start.",
     yours: "Your printers",
     inSlicer: (k) => `${n(k)} ${k === 1 ? "printer" : "printers"} in the slicer`,
-    tags: { vendor: "From the vendor", own: "Own", default: "Default" },
+    tags: { vendor: "From the vendor", own: "Own", default: "Default", active: "Chosen in OrcaOne" },
+    makeActive: "Click: OrcaOne works with this printer, as if chosen in the top bar",
     bundleLocked: "From a profile bundle. It can only be removed in OrcaSlicer.",
     nozzlesLabel: "Nozzles:",
     live: {
@@ -1178,7 +1176,7 @@ const T = {
       },
     },
     safeRestore: { before: "OrcaOne makes a backup first. Under ", after: " you can restore everything." },
-    credits: "Printer images from OrcaSlicer",
+    credits: "Printer images and icons from OrcaSlicer",
     plan: {
       title: "What happens",
       switchedOff: "gets switched off in the slicer",

@@ -54,7 +54,7 @@ const T = {
   nav: {
     label: "Hauptmenü",
     toggle: "Menü ein- und ausblenden",
-    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren (U1)", drucker: "Drucker", kamera: "Kamera (U1)", dateien: "Dateien (U1)", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
     news: "Änderungen seit dem letzten Mal",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",
@@ -62,6 +62,7 @@ const T = {
     languageBlocked: "Erst die vorgemerkten Änderungen übernehmen oder verwerfen.",
   },
   instMenu: "Installation",
+  printerMenu: "Drucker in OrcaOne",
   status: {
     closed: "Geschlossen",
     running: "Läuft – nur ansehen",
@@ -292,15 +293,11 @@ const T = {
 
   // ---------------------------------------------------------------- page "Filamente"
   filaments: {
-    homeTitle: "Welchen Drucker möchtest du bearbeiten?",
     nozzlesLabel: "Düsen",
     activeCount: (k) => `${n(k)} ${k === 1 ? "Filament" : "Filamente"} aktiv`,
     noPrinter: "Kein Drucker eingerichtet. Richte im Slicer einen ein und lies dann neu ein.",
-    credits: "Druckerbilder und Symbole aus OrcaSlicer",
     ownPrinter: "Eigener Drucker",
     bundlePrinter: (pack) => `Aus Paket ${q(pack)}`,
-    allPrinters: "Alle Drucker",
-    backToPrinters: "Zurück zur Druckerauswahl",
     printerGone: "Diesen Drucker zeigt der Slicer nicht mehr, sobald die Änderungen übernommen sind.",
     nozzle: "Düse",
     allNozzlesTile: "Alle",
@@ -436,7 +433,6 @@ const T = {
 
   // ---------------------------------------------------------------- page "Prozesse"
   processes: {
-    homeTitle: "Welchen Drucker möchtest du ansehen?",
     count: (k) => `${n(k)} ${k === 1 ? "Prozess" : "Prozesse"}`,
     lead: "Ein Prozess gehört zur Düse. Das Filament wählst du im Slicer getrennt davon.",
     last: "Zuletzt gewählt",
@@ -494,7 +490,7 @@ const T = {
   calibration: {
     title: "Filament kalibrieren",
     lead: "Für den Snapmaker U1, Schritt für Schritt zum Abhaken; Pflicht sind nur Flow und Pressure Advance. Die Werte trägt OrcaOne in dein eigenes Filament ein und liest dabei live vom U1 mit.",
-    onlyU1: "Kalibrieren gibt es bisher nur für den Snapmaker U1, und diese Installation hat keinen. Andere Drucker kalibrieren anders, etwa ohne Messung beim Druckstart.",
+    onlyU1: "Kalibrieren gibt es bisher nur für den Snapmaker U1. Wähle ihn oben in der Leiste; andere Drucker kalibrieren anders, etwa ohne Messung beim Druckstart.",
     nozzle: "Düse",
     nozzleChip: (label) => `${label} mm`,
     filament: "Filament",
@@ -665,6 +661,7 @@ const T = {
     title: "Kamera",
     lead: "Das Kamerabild jedes Snapmaker U1 mit Original-Firmware, dessen IP-Adresse unter „Drucker“ steht. Solange diese Seite offen ist, weckt OrcaOne die Kamera und holt das Bild.",
     none: "Noch kein U1 mit IP-Adresse. Trage sie auf der Seite „Drucker“ bei deinem U1 ein.",
+    notU1: "Die Kamera gibt es nur beim Snapmaker U1. Wähle ihn oben in der Leiste.",
     toPrinters: "Zur Seite „Drucker“",
     alt: (name) => `Kamerabild von ${name}`,
     waking: "Kamera wird geweckt …",
@@ -697,8 +694,8 @@ const T = {
     title: "Dateien",
     lead: "Die Dateien auf jedem Snapmaker U1 mit IP-Adresse. Druckdateien und Zeitraffer lassen sich löschen, einzeln, mehrere oder alle, und Druckdateien mit den Optionen des Displays drucken. Logs und Einstellungen zeigt der U1 nur.",
     none: "Noch kein U1 mit IP-Adresse. Trage sie auf der Seite „Drucker“ bei deinem U1 ein.",
+    notU1: "Dateien gibt es nur beim Snapmaker U1. Wähle ihn oben in der Leiste.",
     toPrinters: "Zur Seite „Drucker“",
-    printer: "Drucker",
     folders: { gcodes: "Druckdateien", camera: "Zeitraffer", logs: "Logs", config: "Einstellungen" },
     readOnly: "nur lesen",
     readOnlyNote: "Diesen Ordner zeigt der U1 nur. Ändern oder löschen lässt sich darin nichts.",
@@ -761,7 +758,7 @@ const T = {
   ssh: {
     title: "SSH",
     lead: "Eine Kommandozeile auf dem Drucker über SSH, für alle, die wissen, was sie tun. Beim U1 muss dafür am Touchscreen Root Access eingeschaltet sein (Settings → Maintenance → Root Access).",
-    none: "Noch kein Drucker mit IP-Adresse. Trage sie auf der Seite „Drucker“ ein.",
+    noHost: (name) => `${name} hat noch keine IP-Adresse. Trage sie auf der Seite „Drucker“ ein.`,
     toPrinters: "Zur Seite „Drucker“",
     printer: "Drucker",
     user: "Benutzer",
@@ -808,7 +805,7 @@ const T = {
   console: {
     title: "Konsole",
     lead: "G-Code direkt an Klipper, über Moonraker, auf jedem Klipper-Drucker mit IP-Adresse. Dafür braucht es kein SSH und keinen Root Access. Im Verlauf stehen Befehle und Antworten, auch die anderer Programme wie Mainsail.",
-    none: "Noch kein Drucker mit IP-Adresse. Trage sie auf der Seite „Drucker“ ein.",
+    noHost: (name) => `${name} hat noch keine IP-Adresse. Trage sie auf der Seite „Drucker“ ein.`,
     toPrinters: "Zur Seite „Drucker“",
     printer: "Drucker",
     commandsLabel: "Befehl",
@@ -1105,7 +1102,8 @@ const T = {
     defaultGone: "Diesen Drucker gibt es hier nicht mehr. Der Slicer nimmt beim Start einen anderen.",
     yours: "Deine Drucker",
     inSlicer: (k) => `${n(k)} Drucker im Slicer`,
-    tags: { vendor: "Vom Hersteller", own: "Eigener", default: "Standard" },
+    tags: { vendor: "Vom Hersteller", own: "Eigener", default: "Standard", active: "In OrcaOne gewählt" },
+    makeActive: "Klicken: OrcaOne arbeitet mit diesem Drucker, wie oben in der Leiste gewählt",
     bundleLocked: "Aus einem Profilpaket. Entfernen lässt er sich nur in OrcaSlicer.",
     nozzlesLabel: "Düsen:",
     live: {
@@ -1181,7 +1179,7 @@ const T = {
       },
     },
     safeRestore: { before: "Vorher legt OrcaOne eine Sicherung an. Unter ", after: " stellst du alles wieder her." },
-    credits: "Druckerbilder aus OrcaSlicer",
+    credits: "Druckerbilder und Symbole aus OrcaSlicer",
     plan: {
       title: "Was passiert",
       switchedOff: "wird im Slicer abgeschaltet",

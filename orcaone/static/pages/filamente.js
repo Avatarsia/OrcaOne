@@ -1,4 +1,4 @@
-// Page "Filamente": printer cards first, then one printer with its nozzle, the active filaments
+// Page "Filamente": the printer chosen in the top bar (app.js) with its nozzle, the active filaments
 // and one tree Eigene / Vom Hersteller / Orca-Bibliothek.
 // app.js mounts it fresh for every route, so no state leaks from one printer to the next.
 // Every way to a new or changed filament opens the form from filament-editor.js ("Bearbeiten",
@@ -8,7 +8,7 @@
 // the state below (`store`) into the ops of POST /plan.
 import {
   INSTANCES, FIELDS, live, ui, flash, go, hashOf, plural, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey,
-  setLeaveGuard, clearLeaveGuard, onReset, DECIMAL, U1_MODELS,
+  setLeaveGuard, clearLeaveGuard, onReset, DECIMAL, U1_MODELS, printerModels,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import FilamentEditor, { hexOf, changeText } from "./filament-editor.js";
@@ -309,6 +309,8 @@ export default {
   setup(props) {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
     const model = computed(() => props.modelIdx === null ? null : inst.value.models[props.modelIdx]);
+    // The printer comes from the top bar (app.js); without any the page says so.
+    const noPrinter = computed(() => !printerModels(inst.value).length);
     // Removed under "Drucker": the change list takes it away.
     const gone = computed(() => !!model.value && !modelShown(inst.value, model.value));
     // Shared with the page "Prozesse" (common.js); a printer that is gone means "all".
@@ -342,28 +344,12 @@ export default {
     const filterActive = computed(() => query.value.trim() !== "" || materials.size > 0);
     watch(() => query.value + "|" + [...materials].join(), () => collapsed.clear());
 
-    // ------------------------------------------------------------ printer cards
-    // All installations; the one chosen in the top bar comes first.
-    // Only printers the slicer shows; idx stays the position in the data, it is part of the address.
     // Library filaments OrcaOne switched on for every nozzle (way A) that the slicer hid again, e.g.
     // after its setup wizard (FINDINGS 4.7). The backend compares on every read ("unlock_lost").
     const lostText = (i) => {
       const w = i.warnings.find((x) => x.code === "unlock_lost");
       return w ? `${T.warnings.unlock_lost.text(w)} ${T.warnings.unlock_lost.action}` : "";
     };
-    const homeGroups = computed(() => [...INSTANCES].sort((a, b) => (b.id === inst.value.id) - (a.id === inst.value.id)).map((i) => ({
-      inst: i,
-      lost: lostText(i),
-      // Two installations of one slicer, e.g. a copy for a test next to the real one: the path tells.
-      twin: INSTANCES.some((x) => x !== i && x.slicer === i.slicer),
-      cards: i.models.map((m, idx) => ({ m, idx })).filter(({ m }) => modelShown(i, m)).map(({ m, idx }) => {
-        const all = m.printers.map((p) => p.name);
-        const active = entriesOf(i, m).filter((e) => ["on", "some"].includes(stateOf(i, e, all))).sort(byName);
-        const name = printerShortName(m.printers[0]?.name || m.model);
-        const own = m.bundle !== undefined ? F.bundlePrinter(m.bundle) : F.ownPrinter;
-        return { m, idx, name, sub: m.own ? own : name === m.model ? "" : m.model, active };
-      }),
-    })));
 
     // ------------------------------------------------------------ tree
     const kindTitle = (kind) => ({
@@ -866,7 +852,7 @@ export default {
     return {
       T, F, MATERIALS, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText,
       query, materials, closedKinds, panel, dragging, pickQuery,
-      homeGroups, lostText, tree, shelf, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, attachable, attachedAt, toggleAttach, scopeText, problemText,
+      noPrinter, lostText, tree, shelf, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, attachable, attachedAt, toggleAttach, scopeText, problemText,
       templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
@@ -878,40 +864,15 @@ export default {
 
   template: `
     <div :class="['page-host', { 'with-panel': panel }]">
-      <!-- Screen 1: printer cards -->
-      <div v-if="!model" class="page home">
-        <h1 id="page-title" tabindex="-1">{{ F.homeTitle }}</h1>
-        <section v-for="g in homeGroups" :key="g.inst.id" class="install" :aria-label="g.inst.slicer">
-          <div class="install-head">
-            <h2>{{ g.inst.slicer }}</h2>
-            <span class="version">{{ g.inst.version }}</span>
-            <span v-if="g.twin" class="inst-path">{{ g.inst.path }}</span>
-            <run-status :inst="g.inst"/>
-          </div>
-          <p v-if="g.lost" class="banner">{{ g.lost }}</p>
-          <div v-if="g.cards.length" class="cards">
-            <a v-for="c in g.cards" :key="c.idx" class="card" :href="hashOf('filamente', g.inst.id, c.idx)"
-               @click="go($event, hashOf('filamente', g.inst.id, c.idx))">
-              <span class="card-img"><img :src="c.m.cover" alt="" width="170" height="170"></span>
-              <span class="card-name">{{ c.name }}</span>
-              <span v-if="c.sub" class="card-sub">{{ c.sub }}</span>
-              <span class="card-meta"><nozzle-icon :sizes="[0.4]" :height="20"/><span class="sr-only">{{ F.nozzlesLabel }}</span> {{ c.m.printers.map((p) => nozzleLabel(p.variant)).join(' · ') }} mm</span>
-              <span class="card-spools" aria-hidden="true">
-                <spool-icon v-for="e in c.active.slice(0, 9)" :key="e.uid" :colour="colourOf(e)" :size="28"/>
-                <span v-if="c.active.length > 9">+{{ c.active.length - 9 }}</span>
-              </span>
-              <span class="card-meta">{{ F.activeCount(c.active.length) }}</span>
-            </a>
-          </div>
-          <p v-else class="empty">{{ F.noPrinter }}</p>
-        </section>
-        <p class="credits">{{ F.credits }}</p>
+      <!-- No printer in this installation; else app.js puts the one of the top bar into the address -->
+      <div v-if="!model" class="page">
+        <h1 id="page-title" tabindex="-1">{{ T.nav.pages.filamente }}</h1>
+        <p v-if="noPrinter" class="empty">{{ F.noPrinter }}</p>
       </div>
 
       <!-- Screen 2 without a printer: removed on the page "Drucker" -->
       <div v-else-if="gone" class="page">
         <div class="printer-bar">
-          <a class="btn" :href="hashOf('filamente', inst.id)" @click="go($event, hashOf('filamente', inst.id))"><ui-icon name="back"/><span class="back-label">{{ F.allPrinters }}</span></a>
           <div class="bar-title">
             <h1 id="page-title" tabindex="-1">{{ printerTitle }}</h1>
             <span>{{ inst.slicer }} {{ inst.version }}</span>
@@ -923,7 +884,6 @@ export default {
       <!-- Screen 2: one printer -->
       <div v-else class="page">
         <div class="printer-bar">
-          <a class="btn" :href="hashOf('filamente', inst.id)" :aria-label="F.backToPrinters" @click="go($event, hashOf('filamente', inst.id))"><ui-icon name="back"/><span class="back-label">{{ F.allPrinters }}</span></a>
           <img class="bar-img" :src="model.cover" alt="" width="48" height="48">
           <div class="bar-title">
             <h1 id="page-title" tabindex="-1">{{ printerTitle }}</h1>

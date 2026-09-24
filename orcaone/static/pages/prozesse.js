@@ -1,12 +1,12 @@
 // Page "Prozesse": the print settings (process profiles) the slicer offers per printer and
 // nozzle, and what they set. Only to look at: editing processes would make OrcaOne a second slicer
-// (decision of 22.09.2026). The printer comes first, as on the page "Filamente", and the nozzle
-// chosen counts for both pages. A process belongs to the printer profile of one nozzle; which
-// filament goes with it is a separate choice in the slicer.
+// (decision of 22.09.2026). The printer comes from the top bar (app.js), as on the page
+// "Filamente", and the nozzle chosen counts for both pages. A process belongs to the printer
+// profile of one nozzle; which filament goes with it is a separate choice in the slicer.
 // Data: GET /api/data (processes, models[].printers[].processes and .process, the last choice);
 // the values of one process on demand from GET /api/instances/{id}/profile.
 import {
-  INSTANCES, go, hashOf, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey, DECIMAL, LOCALE,
+  INSTANCES, go, hashOf, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey, DECIMAL, LOCALE, printerModels,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
@@ -53,7 +53,7 @@ export default {
   name: "ProzessePage",
   props: {
     instId: { type: String, required: true },
-    modelIdx: { type: Number, default: null },  // null = printer cards
+    modelIdx: { type: Number, default: null },  // null only for an installation without a printer
   },
 
   setup(props) {
@@ -63,18 +63,7 @@ export default {
     const byName = computed(() => new Map(inst.value.processes.map((r) => [r.name, r])));
     const printerTitle = computed(() => model.value && printerShortName(model.value.printers[0]?.name || model.value.model));
 
-    // ------------------------------------------------------------ printer cards
-    // All installations, the one chosen in the top bar first, as on the page "Filamente".
-    const homeGroups = computed(() => [...INSTANCES].sort((a, b) => (b.id === inst.value.id) - (a.id === inst.value.id)).map((i) => ({
-      inst: i,
-      twin: INSTANCES.some((x) => x !== i && x.slicer === i.slicer),
-      cards: i.models.map((m, idx) => ({ m, idx })).filter(({ m }) => modelShown(i, m)).map(({ m, idx }) => {
-        const name = printerShortName(m.printers[0]?.name || m.model);
-        const own = m.bundle !== undefined ? F.bundlePrinter(m.bundle) : F.ownPrinter;
-        const count = new Set(m.printers.flatMap((p) => p.processes)).size;
-        return { m, idx, name, sub: m.own ? own : name === m.model ? "" : m.model, count };
-      }),
-    })));
+    const noPrinter = computed(() => !printerModels(inst.value).length);
 
     // ------------------------------------------------------------ nozzle and tiles
     // The nozzle chosen here or on the page "Filamente"; for "all" there, the printer the slicer
@@ -147,41 +136,22 @@ export default {
     onUnmounted(() => window.removeEventListener("keydown", onKey));
 
     return {
-      T, P, F, inst, model, gone, printerTitle, homeGroups, nozzle, pickNozzle, groups, lastTile, panel,
+      T, P, F, inst, model, gone, printerTitle, noPrinter, nozzle, pickNozzle, groups, lastTile, panel,
       openTile, closePanel, originText, shownGroups, twoValues, allValues, nozzleLabel, hashOf, go, plainName,
     };
   },
 
   template: `
     <div :class="['page-host', { 'with-panel': panel }]">
-      <!-- Screen 1: printer cards -->
-      <div v-if="!model" class="page home">
-        <h1 id="page-title" tabindex="-1">{{ P.homeTitle }}</h1>
-        <section v-for="g in homeGroups" :key="g.inst.id" class="install" :aria-label="g.inst.slicer">
-          <div class="install-head">
-            <h2>{{ g.inst.slicer }}</h2>
-            <span class="version">{{ g.inst.version }}</span>
-            <span v-if="g.twin" class="inst-path">{{ g.inst.path }}</span>
-            <run-status :inst="g.inst"/>
-          </div>
-          <div v-if="g.cards.length" class="cards">
-            <a v-for="c in g.cards" :key="c.idx" class="card" :href="hashOf('prozesse', g.inst.id, c.idx)"
-               @click="go($event, hashOf('prozesse', g.inst.id, c.idx))">
-              <span class="card-img"><img :src="c.m.cover" alt="" width="170" height="170"></span>
-              <span class="card-name">{{ c.name }}</span>
-              <span v-if="c.sub" class="card-sub">{{ c.sub }}</span>
-              <span class="card-meta"><nozzle-icon :sizes="[0.4]" :height="20"/><span class="sr-only">{{ F.nozzlesLabel }}</span> {{ c.m.printers.map((p) => nozzleLabel(p.variant)).join(' · ') }} mm</span>
-              <span class="card-meta"><ui-icon name="layers"/>{{ P.count(c.count) }}</span>
-            </a>
-          </div>
-          <p v-else class="empty">{{ F.noPrinter }}</p>
-        </section>
+      <!-- No printer in this installation; else app.js puts the one of the top bar into the address -->
+      <div v-if="!model" class="page">
+        <h1 id="page-title" tabindex="-1">{{ T.nav.pages.prozesse }}</h1>
+        <p v-if="noPrinter" class="empty">{{ F.noPrinter }}</p>
       </div>
 
       <!-- Screen 2 without a printer: removed on the page "Drucker" -->
       <div v-else-if="gone" class="page">
         <div class="printer-bar">
-          <a class="btn" :href="hashOf('prozesse', inst.id)" @click="go($event, hashOf('prozesse', inst.id))"><ui-icon name="back"/><span class="back-label">{{ F.allPrinters }}</span></a>
           <div class="bar-title">
             <h1 id="page-title" tabindex="-1">{{ printerTitle }}</h1>
             <span>{{ inst.slicer }} {{ inst.version }}</span>
@@ -193,7 +163,6 @@ export default {
       <!-- Screen 2: one printer -->
       <div v-else class="page">
         <div class="printer-bar">
-          <a class="btn" :href="hashOf('prozesse', inst.id)" :aria-label="F.backToPrinters" @click="go($event, hashOf('prozesse', inst.id))"><ui-icon name="back"/><span class="back-label">{{ F.allPrinters }}</span></a>
           <img class="bar-img" :src="model.cover" alt="" width="48" height="48">
           <div class="bar-title">
             <h1 id="page-title" tabindex="-1">{{ printerTitle }}</h1>

@@ -3,7 +3,7 @@
 // Root Access. Moonraker keeps the last commands and answers; the page looks at them every second
 // while it is visible, so own commands come back through them and need no echo. Before every
 // command sent from here the view empties, so only its answer shows (the user's wish).
-import { go, hashOf, ui, U1_MODELS, LOCALE } from "../common.js";
+import { go, hashOf, ui, U1_MODELS, LOCALE, activeName } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -30,9 +30,10 @@ export default {
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
-    const printers = ref(null);   // [{model, host}] with an address, null while loading
+    const printers = ref(null);   // the addresses per model (api.printers), null while loading
     const loadError = ref("");
-    const model = ref("");
+    const model = ref("");        // the printer of the top bar (app.js), once it has an address
+    const host = computed(() => printers.value?.[ui.printer]?.host || "");
     const lines = ref([]);
     const failed = ref("");
     const line = ref("");
@@ -115,21 +116,17 @@ export default {
 
     onMounted(async () => {
       try {
-        const found = Object.entries((await api.printers()).printers).map(([m, p]) => ({ model: m, host: p.host }));
-        printers.value = found;
-        // From a printer card (page "Drucker"), else the first U1.
-        const wanted = found.find((p) => p.model === ui.printerFor) || found.find((p) => U1_MODELS.includes(p.model)) || found[0];
-        ui.printerFor = null;
-        model.value = wanted?.model || "";  // the watcher starts reading
+        printers.value = (await api.printers()).printers;
+        model.value = host.value ? ui.printer : "";  // the watcher starts reading
       } catch (err) {
-        printers.value = [];
+        printers.value = {};
         loadError.value = errorText(err);
       }
     });
     onUnmounted(stop);
 
     return {
-      T, C, printers, loadError, model, lines, failed, line, out, gcodes, send, clearLines, historyKey, runCommand,
+      T, C, printers, loadError, model, host, activeName, lines, failed, line, out, gcodes, send, clearLines, historyKey, runCommand,
       lineClass, clock, go, hashOf,
     };
   },
@@ -141,15 +138,11 @@ export default {
 
       <p v-if="loadError" class="alert" role="alert">{{ loadError }}</p>
       <p v-else-if="printers === null" class="note">{{ T.loading }}</p>
-      <p v-else-if="!printers.length" class="empty">{{ C.none }}
+      <p v-else-if="!model" class="empty">{{ C.noHost(activeName()) }}
         <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ C.toPrinters }}</a></p>
       <template v-else>
         <div class="ssh-bar">
-          <label class="ssh-field">{{ C.printer }}
-            <select v-model="model" class="input">
-              <option v-for="p in printers" :key="p.model" :value="p.model">{{ p.model }} · {{ p.host }}</option>
-            </select>
-          </label>
+          <div class="ssh-field">{{ C.printer }}<span class="ssh-static">{{ activeName() }} <small>{{ host }}</small></span></div>
           <label class="ssh-field" :title="C.commandsHint">{{ C.commandsLabel }}
             <select class="input console-commands" @change="runCommand">
               <option value="">{{ C.commandsPick }}</option>

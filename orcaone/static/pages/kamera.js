@@ -5,7 +5,7 @@
 // Three views, as on YouTube: in the page, filling the browser window, and the whole screen
 // (Fullscreen API). In the two big ones the bar hides after a few seconds without a mouse move,
 // so a spare screen shows the picture and how far the print is; Esc goes back.
-import { flash, go, hashOf, loadState } from "../common.js";
+import { flash, go, hashOf, loadState, ui, U1_MODELS } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -159,7 +159,8 @@ export default {
     }
     async function load() {
       try {
-        list.value = (await api.cameras()).cameras;
+        // Only the printer chosen in the top bar (app.js); every U1 with an address has a camera.
+        list.value = (await api.cameras()).cameras.filter((c) => c.model === ui.printer);
         for (const c of list.value) if (c.every) stateOf(c.id).every = c.every;
         loadError.value = "";
         start();
@@ -245,7 +246,7 @@ export default {
     });
 
     return {
-      T, K, U1, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
+      T, K, U1, ui, U1_MODELS, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
       running, percent, jobClass, printFacts, lightBusy, setLight,
     };
   },
@@ -257,6 +258,7 @@ export default {
 
       <p v-if="loadError" class="alert" role="alert">{{ loadError }}</p>
       <p v-else-if="list === null" class="note">{{ T.loading }}</p>
+      <p v-else-if="!U1_MODELS.includes(ui.printer)" class="empty">{{ K.notU1 }}</p>
       <p v-else-if="!list.length" class="empty">{{ K.none }}
         <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ K.toPrinters }}</a></p>
       <div v-else class="cam-grid">

@@ -3,7 +3,7 @@
 // speaks SSH and passes the bytes on over a WebSocket, only to printers with an address from the
 // page "Drucker". The login tries the keys in ~/.ssh first, else the page asks for the password,
 // which only passes through.
-import { go, hashOf, ui, U1_MODELS } from "../common.js";
+import { go, hashOf, ui, U1_MODELS, activeName } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -155,9 +155,10 @@ export default {
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
-    const printers = ref(null);   // [{model, host}] with an address, null while loading
+    const printers = ref(null);   // the addresses per model (api.printers), null while loading
     const loadError = ref("");
-    const model = ref("");
+    const model = ref("");        // the printer of the top bar (app.js), once it has an address
+    const host = computed(() => printers.value?.[ui.printer]?.host || "");
     const user = ref("root");     // the U1 knows root (and lava), other Klipper printers mostly pi
     const typed = ref("");        // a password from the bar; empty: keys, then the U1's default (ssh.py)
     const state = ref("idle");    // idle, connecting, password, open, closed
@@ -188,7 +189,6 @@ export default {
       term?.clear();
       term?.focus();
     }
-    const hostOf = (m) => printers.value?.find((p) => p.model === m)?.host || "";
     const statusText = computed(() => (state.value === "open" ? S.status.open(`${opened.value.user}@${opened.value.host}`) : S.status[state.value]));
     const send = (message) => ws?.readyState === WebSocket.OPEN && ws.send(JSON.stringify(message));
 
@@ -262,14 +262,10 @@ export default {
 
     onMounted(async () => {
       try {
-        const found = Object.entries((await api.printers()).printers).map(([m, p]) => ({ model: m, host: p.host }));
-        printers.value = found;
-        // From a printer card (page "Drucker"), else the first U1.
-        const wanted = found.find((p) => p.model === ui.printerFor) || found.find((p) => U1_MODELS.includes(p.model)) || found[0];
-        ui.printerFor = null;
-        model.value = wanted?.model || "";  // the watcher sets the user to match
+        printers.value = (await api.printers()).printers;
+        model.value = host.value ? ui.printer : "";  // the watcher sets the user to match
       } catch (err) {
-        printers.value = [];
+        printers.value = {};
         loadError.value = T.errors[err.code] || T.errors.unknown;
       }
     });
@@ -281,7 +277,7 @@ export default {
     });
 
     return {
-      T, S, STATUS, GROUPS, U1_MODELS, printers, loadError, model, user, typed, state, isU1, commands, runCommand, opened, error, errorDetail, password, again, box, active, hostOf,
+      T, S, STATUS, GROUPS, U1_MODELS, printers, loadError, model, user, typed, state, isU1, commands, runCommand, opened, error, errorDetail, password, again, box, active, host, activeName,
       statusText, connect, login, disconnect, go, hashOf, clearScreen,
     };
   },
@@ -293,15 +289,11 @@ export default {
 
       <p v-if="loadError" class="alert" role="alert">{{ loadError }}</p>
       <p v-else-if="printers === null" class="note">{{ T.loading }}</p>
-      <p v-else-if="!printers.length" class="empty">{{ S.none }}
+      <p v-else-if="!model" class="empty">{{ S.noHost(activeName()) }}
         <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ S.toPrinters }}</a></p>
       <template v-else>
         <form class="ssh-bar" @submit.prevent="connect">
-          <label class="ssh-field">{{ S.printer }}
-            <select v-model="model" class="input" :disabled="active">
-              <option v-for="p in printers" :key="p.model" :value="p.model">{{ p.model }} · {{ p.host }}</option>
-            </select>
-          </label>
+          <div class="ssh-field">{{ S.printer }}<span class="ssh-static">{{ activeName() }} <small>{{ host }}</small></span></div>
           <label class="ssh-field">{{ S.user }}
             <input v-model="user" class="input ssh-user" type="text" autocomplete="off" spellcheck="false" :disabled="active">
           </label>
@@ -314,7 +306,7 @@ export default {
           <span :class="['cam-status', 'is-' + STATUS[state]]"><span class="cam-dot"></span>{{ statusText }}</span>
         </form>
         <form v-if="state === 'password'" class="ssh-password" @submit.prevent="login">
-          <label for="ssh-password">{{ again ? S.passwordAgain : S.passwordAsk(user.trim() + '@' + hostOf(model)) }}</label>
+          <label for="ssh-password">{{ again ? S.passwordAgain : S.passwordAsk(user.trim() + '@' + host) }}</label>
           <input id="ssh-password" v-model="password" class="input" type="password" autocomplete="off">
           <button class="btn btn-primary" type="submit" :disabled="!password">{{ S.login }}</button>
         </form>

@@ -3,7 +3,7 @@
 // two the U1 only shows say so. Print files and time-lapse videos can be deleted, one, several or
 // all, and a print file printed with the options of the printer's display. Pictures, videos and
 // files come through OrcaOne: the browser never talks to the printer itself.
-import { flash, go, hashOf, fmtSize, whenText } from "../common.js";
+import { flash, go, hashOf, fmtSize, whenText, ui, U1_MODELS } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -25,7 +25,7 @@ export default {
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
-    const printers = ref(null);   // the U1s with an address (api.cameras), null while loading
+    const printers = ref(null);   // the U1 of the top bar if it has an address (api.cameras), null while loading
     const loadError = ref("");
     const chosen = ref("");       // camera id of the U1 shown
     const folder = ref("gcodes");
@@ -168,9 +168,9 @@ export default {
 
     onMounted(async () => {
       try {
-        const data = await api.cameras();
-        printers.value = data.cameras;
-        if (data.cameras.length) choose(data.cameras[0].id);
+        // The printer chosen in the top bar (app.js); every U1 with an address has its files here.
+        printers.value = (await api.cameras()).cameras.filter((c) => c.model === ui.printer);
+        if (printers.value.length) choose(printers.value[0].id);
       } catch (err) {
         printers.value = [];
         loadError.value = errorText(err);
@@ -180,7 +180,7 @@ export default {
     return {
       T, D, ICON, OPTIONS, printers, loadError, chosen, folder, folders, files, disk, listError, picked, asking, deleting, setup,
       printing, choice, starting, printError, current, videos, keyOf, pathOf, fileUrl, busy, allPicked, facts, openFolder, choose,
-      toggle, pickAll, remove, openPrint, closePrint, headOf, otherType, startPrint, spoolText, fmtSize, go, hashOf,
+      toggle, pickAll, remove, openPrint, closePrint, headOf, otherType, startPrint, spoolText, fmtSize, go, hashOf, ui, U1_MODELS,
     };
   },
 
@@ -192,15 +192,11 @@ export default {
 
         <p v-if="loadError" class="alert" role="alert">{{ loadError }}</p>
         <p v-else-if="printers === null" class="note">{{ T.loading }}</p>
+        <p v-else-if="!U1_MODELS.includes(ui.printer)" class="empty">{{ D.notU1 }}</p>
         <p v-else-if="!printers.length" class="empty">{{ D.none }}
           <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ D.toPrinters }}</a></p>
         <template v-else>
           <div class="files-head">
-            <label v-if="printers.length > 1" class="files-printer">{{ D.printer }}
-              <select class="input" :value="chosen" @change="choose($event.target.value)">
-                <option v-for="p in printers" :key="p.id" :value="p.id">{{ p.model }} · {{ p.host }}</option>
-              </select>
-            </label>
             <div class="chips" role="group" :aria-label="D.title">
               <button v-for="f in folders" :key="f.name" class="chip" type="button" :aria-pressed="f.name === folder ? 'true' : 'false'"
                       @click="openFolder(f.name)">

@@ -70,7 +70,8 @@ export default {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
     const errorText = (code) => C.errors[code] || T.errors[code] || T.errors.unknown;
     // ------------------------------------------------------------ printer and filament
-    const u1Models = computed(() => inst.value.models.filter((m) => U1_MODELS.includes(m.model)));
+    // The U1 chosen in the top bar (app.js); with another printer there the page says it is for a U1.
+    const u1Models = computed(() => inst.value.models.filter((m) => U1_MODELS.includes(m.model) && m.model === ui.printer));
     const u1Printers = computed(() => u1Models.value.flatMap((m) => m.printers.map((p) => p.name)));
     const byName = (a, b) => a.localeCompare(b, "de", { sensitivity: "base" });
     // Own filaments that fit a printer, on or off there.

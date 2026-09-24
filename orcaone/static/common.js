@@ -74,8 +74,8 @@ export function go(ev, hash) {
 // detailsFor: a filament the page "Details" opens with (from the page "Filamente"), and
 // filamentFocus the other way round: the page "Filamente" shows that filament's row and panel.
 // calibrateFor: the own filament the page "Kalibrieren" opens with.
-// printerFor: the printer model the pages "Konsole" and "SSH" open with, from its card on "Drucker".
-export const ui = reactive({ instId: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null, printerFor: null });
+// printer: the model OrcaOne works with, chosen in the top bar for every page (app.js).
+export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null });
 
 // One word per state on every page.
 export function statusText(inst) {
@@ -129,6 +129,19 @@ export const live = reactive({});
 export function modelShown(inst, m) {
   const s = live[inst.id];
   return m.own ? s.own.has(m.model) && (!m.origin || s.packages.has(m.origin)) : s.models.has(m.model);
+}
+// The printers of an installation for the choice in the top bar, and the one the slicer starts
+// with; its name as on the cards: "MyKlipper" rather than "Generic Klipper Printer".
+export const printerModels = (inst) => (inst ? inst.models.filter((m) => modelShown(inst, m)) : []);
+export function slicerModel(inst) {
+  const models = printerModels(inst), start = live[inst.id]?.defaultPrinter;
+  return models.find((m) => m.printers.some((p) => p.name === start)) || models[0] || null;
+}
+export const modelName = (m) => (m ? printerShortName(m.printers[0]?.name || m.model) : "");
+// The printer of the top bar by that name, for the pages that talk to it.
+export function activeName() {
+  const m = printerModels(INSTANCES.find((i) => i.id === ui.instId)).find((x) => x.model === ui.printer);
+  return m ? modelName(m) : ui.printer || "";
 }
 
 // Heading of a profile in the lists of the pages "Details" and "Übertragen", as in the tree on

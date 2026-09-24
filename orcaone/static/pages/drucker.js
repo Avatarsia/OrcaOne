@@ -60,10 +60,14 @@ export default {
     // A U1 card can look for Snapmaker printers in the LAN, as Snapmaker Orca does (mDNS, only in
     // the same LAN, not over a VPN); a hit goes in with one click.
     const isU1 = (c) => U1_MODELS.includes(c.model);
-    // Any printer with Klipper and an address has a G-code console and maybe SSH; those pages open
-    // with it chosen.
+    // The printer OrcaOne works with, chosen in the top bar (app.js): a click on a card chooses it,
+    // and the links to its files, camera, console and SSH choose it first.
+    const isActive = (c) => c.model === ui.printer;
+    function choose(c) {
+      if (c.model) ui.printer = c.model;
+    }
     function openFor(c, page) {
-      ui.printerFor = addressKey(c);
+      choose(c);
       go(null, hashOf(page, inst.value.id));
     }
     const searching = ref(null);  // card id
@@ -357,7 +361,7 @@ export default {
 
     return {
       T, P, KIND_ICON, inst, state, readOnly, cards, locked, nozzlesOf, defaultCard, defaultText,
-      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost, isU1, openFor, searching, found, search, take,
+      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost, isU1, isActive, choose, openFor, searching, found, search, take,
       machineOf, stateOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)),
       dead, remembered, clean, panel, choice, along, pcard, plan, panelTitle,
       openDefault, setDefault, openRemove, toggleAlong, remove, closePanel,
@@ -391,14 +395,16 @@ export default {
           <span class="sub">{{ P.inSlicer(cards.filter((c) => c.visible).length) }}</span>
         </div>
         <div class="cards pcards">
-          <article v-for="c in cards" :key="c.id" :class="['pcard', { 'is-default': c.isDefault }]" :aria-label="c.label">
+          <article v-for="c in cards" :key="c.id" :class="['pcard', { 'is-active': isActive(c) }]" :aria-label="c.label">
             <div class="pcard-top">
-            <span class="card-img"><img :src="c.cover" alt="" width="104" height="104" :class="{ dim: !c.visible }"></span>
+            <span class="card-img" :title="P.makeActive" @click="choose(c)"><img :src="c.cover" alt="" width="104" height="104" :class="{ dim: !c.visible }"></span>
             <div class="pcard-body">
-              <h3 class="card-name">{{ c.label }}</h3>
+              <h3 class="card-name"><button class="card-pick" type="button" :aria-pressed="isActive(c) ? 'true' : 'false'" :title="P.makeActive"
+                                            @click="choose(c)">{{ c.label }}</button></h3>
               <span v-if="machineOf(c)?.info?.name" class="card-device">{{ machineOf(c).info.name }}</span>
               <span v-if="c.sub" class="card-sub">{{ c.sub }}</span>
               <p class="tags">
+                <span v-if="isActive(c)" class="tag tag-active"><ui-icon name="check" :size="14"/>{{ P.tags.active }}</span>
                 <span v-if="c.isDefault" class="tag tag-default"><ui-icon name="star" :size="14"/>{{ P.tags.default }}</span>
                 <span class="tag"><ui-icon :name="c.tagIcon" :size="14"/>{{ c.tag }}</span>
               </p>
@@ -457,8 +463,8 @@ export default {
             </dl>
             <p v-if="hostOf(c)" class="live-links">
               <a class="link" :href="'http://' + hostOf(c) + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
-              <a v-if="isU1(c)" class="link" :href="hashOf('dateien', inst.id)">{{ P.live.files }}</a>
-              <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)">{{ P.live.camera }}</a>
+              <a v-if="isU1(c)" class="link" :href="hashOf('dateien', inst.id)" @click.prevent="openFor(c, 'dateien')">{{ P.live.files }}</a>
+              <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)" @click.prevent="openFor(c, 'kamera')">{{ P.live.camera }}</a>
               <a class="link" :href="hashOf('konsole', inst.id)" @click.prevent="openFor(c, 'konsole')">{{ P.live.console }}</a>
               <a class="link" :href="hashOf('ssh', inst.id)" @click.prevent="openFor(c, 'ssh')">{{ P.live.ssh }}</a>
             </p>
