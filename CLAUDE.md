@@ -29,28 +29,33 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 
 ## Stack und Konventionen
 
-- **Backend:** Python ≥ 3.11, FastAPI mit uvicorn, Dataclasses, sonst Standardbibliothek. Einzige Zusatzabhängigkeit ist `psutil`. Keine Pydantic-Modelle, kein ORM, keine Datenbank. Das Dateisystem ist die einzige Quelle der Wahrheit.
+- **Backend:** Python ≥ 3.11, FastAPI mit uvicorn, Dataclasses, sonst Standardbibliothek. Zusatzabhängigkeiten: `psutil`, dazu für die Seite „SSH“ `websockets` und `paramiko` (mit dem Nutzer abgestimmt am 24.09.2026). Keine Pydantic-Modelle, kein ORM, keine Datenbank. Das Dateisystem ist die einzige Quelle der Wahrheit.
 - **Umgebung:** `.lenv` im Projektordner und `requirements.txt`. Start mit `./orcaone.sh` bzw. `orcaone.cmd` oder `.lenv/bin/python -m orcaone`. Tests mit `.lenv/bin/python -m pytest`.
 - **Zusätzliche Abhängigkeiten** nur nach Rücksprache.
 - **Eigene Daten** nur im Ordner `data/` im OrcaOne-Ordner (nicht im Git): alle Einstellungen in der einen Datei `data/settings.json` (`orcaone/settings.py`), dazu `data/backups/` und `data/snapshots/` (Seite „Änderungen“). Keine weiteren Dateien oder Orte.
-- **Frontend:** Vue 3 (lokal in `orcaone/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
+- **Frontend:** Vue 3 und für „SSH“ xterm.js (beide lokal in `orcaone/static/vendor/`) ohne Build-Schritt, ES-Module, eine CSS-Datei.
   - Stil wie die heutige Oberfläche in `orcaone/static/` (hervorgegangen aus Entwurf E und E2): Farben von OrcaSlicer (Teal `#009688`), Schrift Inter (`orcaone/static/vendor/inter/`), Druckerbilder, Spulen, wenig Text.
   - Alle Fremddateien kopieren, nie auf andere Projekte verweisen.
   - App-Symbol: ein eigenes (`tools/make_icons.py`), nichts aus OrcaSlicer oder Snapmaker Orca.
   - Satzschreibung, Status immer als Text plus Farbe.
-- **Oberfläche:**
-  - **Filamente:** Drucker wählen → Düse → Baum aus Eigene, Vom Hersteller und Orca-Bibliothek.
-    - **Kalibrieren:** nur für den U1: U1 und Düse wählen, dann ein passendes eigenes Filament; die Kalibrieranleitung des Nutzers als Liste zum Abhaken, liest den U1 live und nur lesend.
+- **Oberfläche** (Menü in dieser Reihenfolge, vom Nutzer festgelegt am 24.09.2026). Oben neben der Installation die Wahl des Druckers, mit dem OrcaOne arbeitet (`ui.printer`), für alle Seiten, die einen Drucker brauchen; beim Start der Standarddrucker des Slicers. Seiten nur für den U1 (Kalibrieren, Dateien, Kamera) stehen nur bei einem U1 im Menü:
+  - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen, `print_host` aus dem Slicer oder beim U1 im LAN gesucht). Mit Adresse zeigt die Karte, was der Drucker über sich sagt (Zustand, Firmware, Speicher, Drucke; beim U1 Köpfe und Spulen), nur lesend und schlicht, Einzelheiten im Tooltip.
+    - **Dateien:** die Ordner jedes U1 mit IP-Adresse (Druckdateien, Zeitraffer, Logs, Einstellungen), nur lesbare gekennzeichnet. Druckdateien und Zeitraffer löschen (einzeln, Auswahl, alle), Druckdateien drucken mit den Optionen des Displays (Bett vermessen, Fluss, Schwingungen, Zeitraffer, Kopf je Filament). Befehle an einen Drucker nur auf Klick des Nutzers: Licht, Löschen, Druckstart, G-Code auf „Konsole“.
+    - **Kamera:** Bild jedes U1 mit IP-Adresse samt Druckstatus (Fortschritt, Schicht, Restzeit), in der Seite, fensterfüllend oder im Vollbild; das Licht im Drucker ein- und ausschalten.
+    - **Konsole:** G-Code an Klipper über Moonraker (`orcaone/console.py`), für jeden Klipper-Drucker mit IP, ohne SSH; Verlauf aus Moonrakers Speicher, Abfragen aus der Liste sofort, Befehle wie G28 nur eintragen.
+    - **SSH:** SSH auf jeden Drucker mit IP-Adresse (xterm.js, paramiko), verlinkt von jeder Druckerkarte mit IP. Ein eingetipptes Passwort, sonst die Schlüssel des Rechners, beim U1 dann sein Standardpasswort „snapmaker“, sonst fragt die Seite; Passwörter werden nicht gespeichert. Eine Befehlsliste je Druckerart (U1: `/userdata`, Init-Skripte; sonst `~/printer_data`, systemd): Ansehen läuft sofort, Neustarts nur eintragen. Beim U1 muss Root Access an sein.
+  - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
+  - **Filamente:** Drucker wählen → Düse → Baum aus Eigene, Vom Hersteller und Orca-Bibliothek. Fehlt ein Filament an einer Düse, legt „Für andere Düse“ ein eigenes an (wie „An Drucker hängen“).
     - **Übertragen:** Profile zwischen zwei Installationen in beide Richtungen kopieren.
     - **Vergleichen:** zwei Filamente nebeneinander, auch aus zwei Installationen; welche Werte sich unterscheiden und woher sie kommen. Nur zum Ansehen.
-    - **Import/Export:** Profile aus Dateien holen (JSON, ZIP, `.orca_*`, Sicherungen, 3MF) und aus den Sicherungskopien des Slicers (`user_backup-v*`), vorher auswerten, auswählen, über die Änderungsliste schreiben; eigene Profile als ZIP exportieren.
-  - **Prozesse:** dieselbe Drucker- und Düsenwahl, nur zum Ansehen.
-  - **Drucker:** Standard festlegen, aufräumen, IP-Adresse je Drucker (selbst eingetragen, `print_host` aus dem Slicer oder beim U1 im LAN gesucht).
-    - **Kamera:** Bild jedes U1 mit IP-Adresse samt Druckstatus (Fortschritt, Schicht, Restzeit, Temperaturen), in der Seite, fensterfüllend oder im Vollbild.
-    - **Änderungen:** was sich seit dem letzten „Als gesehen markieren“ geändert hat (Update, Anmeldung, Cloud-Abgleich), je Profil; was OrcaOne selbst schreibt, zählt als gesehen.
+    - **Kalibrieren:** nur für den U1: U1 und Düse wählen, dann ein passendes eigenes Filament; die Kalibrieranleitung des Nutzers als Liste zum Abhaken, liest den U1 live und nur lesend.
+    - **Import/Export:** Profile aus Dateien holen (JSON, ZIP, `.orca_*`, Sicherungen, 3MF) und aus den Sicherungskopien des Slicers (`user_backup-v*`), vorher auswerten, auswählen, Filamente an einen Drucker hängen, umbenennen, über die Änderungsliste schreiben; eigene Profile als ZIP exportieren.
+    - **Details:** alles zu einem Filament (Drucker, Düsen, Dateien, Vererbung, Werte).
   - **3MF bereinigen:** ein Schnellwerkzeug. 3MF hineinziehen, zurück kommt es als Download ohne Drucker, Prozess, Filamente und G-Code des Projekts, damit der Slicer keinen fremden Drucker anlegt.
-  - **Sicherungen.**
-  - Unter „Technik“: **Slicer** (Datenordner), **Details** (alles zu einem Filament) und **Logs** (Logdateien der Slicer, nur lesen).
+  - **Slicer** (Datenordner):
+    - **Sicherungen.**
+    - **Änderungen:** was sich seit dem letzten „Als gesehen markieren“ geändert hat (Update, Anmeldung, Cloud-Abgleich), je Profil; was OrcaOne selbst schreibt, zählt als gesehen.
+    - **Logs** (Logdateien der Slicer, nur lesen).
 
   Details nur auf Anforderung im Seitenpanel. Kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos.
 - **Plattformen:** Linux und Windows gleichwertig. Pfade nur mit `pathlib`.

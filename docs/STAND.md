@@ -5,17 +5,27 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 ## Überblick
 
 - **Seiten:**
-  - Filamente, darunter Kalibrieren (U1), Übertragen, Vergleichen und Import/Export;
+  - Drucker, darunter Dateien (U1), Kamera (U1, mit Druckstatus), Konsole (G-Code) und SSH;
   - Prozesse, nur zum Ansehen;
-  - Drucker, darunter Kamera (U1, mit Druckstatus) und Änderungen;
+  - Filamente, darunter Übertragen, Vergleichen, Kalibrieren (U1), Import/Export und Details;
   - 3MF bereinigen;
-  - Sicherungen;
-  - unter „Technik“ Slicer, Details und Logs.
+  - Slicer, darunter Sicherungen, Änderungen und Logs (Reihenfolge vom Nutzer, 24.09.).
 - **Sprachen:** Deutsch und Englisch.
 - **Start:** `./orcaone.sh` bzw. `orcaone.cmd`, Port 4711, auf Wunsch als App-Fenster mit eigenem Symbol ([STARTEN-UND-BAUEN](STARTEN-UND-BAUEN.md)).
-- **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. Den U1 liest OrcaOne nur, über Moonraker.
+- **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. An den U1 schickt OrcaOne nur Licht, Löschen und Druckstart, sonst liest es ihn über Moonraker; dazu G-Code auf der Seite „Konsole“ und SSH auf der Seite „SSH“.
 - **Tests:** 244, alle grün (`.lenv/bin/python -m pytest`).
-- **Zuletzt gebaut (24.09.):** Import aus den Sicherungskopien des Slicers (`user_backup-v*`) auf „Import/Export“. Geprüft mit Tests und im Browser; die Kopien auf diesem Rechner sind leer, weil es beim ersten Start noch keine eigenen Profile gab.
+- **Zuletzt gebaut (24.09.):** Der Drucker, mit dem OrcaOne arbeitet, wird nur noch oben gewählt, neben der Installation (Wunsch des Nutzers, `ui.printer`, app.js). Beim Start der Standarddrucker des Slicers, eine andere Installation behält das Modell, wenn sie es hat. Filamente und Prozesse ohne Druckerübersicht, die Adresse folgt der Wahl oben (und der Zurück-Knopf der Adresse). Kalibrieren, Dateien, Kamera, Konsole und SSH ohne eigene Druckerwahl; Kalibrieren, Dateien und Kamera nur bei einem U1 im Menü, ohne „(U1)“. Auf „Drucker“ markiert „In OrcaOne gewählt“ die aktive Karte, ein Klick auf Bild oder Namen wählt sie. Der Datenordner steht in der Installationswahl nur noch im Tooltip. Am Handy heißt die Installation oben kurz „SnOrca“ oder „Orca“. Geprüft im Browser mit beiden Installationen, MyKlipper und U1.
+- **Davor (24.09.):** Zwei neue Seiten unter „Drucker“ (Wünsche des Nutzers).
+  - **Dateien (U1):** Druckdateien, Zeitraffer, Logs, Einstellungen, nur lesbare Ordner gekennzeichnet (`orcaone/printer_files.py`, `pages/dateien.js`). Druckdateien und Zeitraffer löschen, einzeln, Auswahl oder alle; Zeitraffer über den Kameradienst. „Drucken“ mit den Optionen des Displays und der Zuordnung Filament → Kopf. Dateien, Bilder und Videos gehen über OrcaOne. Geprüft: Lesen am echten U1 und im Browser, Löschen und Druckstart nur gegen einen nachgebauten Moonraker und im Browser bis zur Rückfrage. **Offen:** einmal am U1 ein unwichtiges Video und eine Druckdatei löschen und einen Druck starten.
+  - **SSH** (früher „Terminal“): SSH im Browser (`orcaone/ssh.py`, `pages/ssh.js`, xterm.js 6.0 in `vendor/xterm`, neu `websockets` und `paramiko`, vom Nutzer freigegeben). Erst die Schlüssel des Rechners, sonst Passwort, das nicht gespeichert wird. Der WebSocket prüft Host und Origin selbst, verbindet nur zu Druckern mit IP-Adresse. Geprüft mit Tests (paramiko-Server) und am echten U1 per Schlüssel (`uptime`). Danach auf Wunsch: Passwortfeld (leer: Schlüssel, beim U1 dann „snapmaker“, sonst fragen), Link auf jeder Druckerkarte mit IP, Farben der Seite, keine Scrollleiste, Befehlsliste je Druckerart (U1 oder anderer Klipper-Drucker; Ansehen läuft sofort, Neustarts nur eintragen). Am U1 geprüft: `df`, `uptime`, „Klipper neu starten“ nur eingetragen und verworfen. Die Liste für andere Klipper-Drucker ist ungeprüft, hier gibt es keinen. Danach: Liste in fünf Gruppen mit 36 Befehlen für den U1, jeder vorher am U1 ausprobiert (nur lesend), dazu htop. G-Code-Konsole als zweite Ansicht (`orcaone/console.py`, `/server/gcode_store` und `/printer/gcode/script`), am U1 geprüft mit STATUS und M115; G28 aus der Liste landet nur in der Eingabezeile. Danach: Knopf „Leeren“ in beiden Ansichten und Leeren vor jedem Befehl (SSH: vor Befehlen aus der Liste, G-Code: vor jedem gesendeten), am U1 geprüft. Danach auf Wunsch: die G-Code-Konsole als eigene Seite „Konsole“ (`pages/konsole.js`), „Terminal“ heißt jetzt „SSH“ (`pages/ssh.js`, `#/ssh`); doppelte Zeilen in der Konsole behoben (zwei Abfragen gleichzeitig).
+  - Auf dem U1 liegt seit heute ein SSH-Schlüssel dieses Rechners (`~/.ssh/id_ed25519`); nach einem Neustart des U1 ist er weg (FINDINGS).
+- **Davor (24.09.):** „Für andere Düse“ im Seitenpanel von „Filamente“ (Frage des Nutzers zu „Polymaker General PLA Family“, das Snapmaker nur für 0,4 mm liefert): Knöpfe wie „+ 0,6“ für Düsen ohne Profil, wo es ein Grundprofil desselben Materials gibt; die Änderung `filament_attach` legt ein eigenes Filament wie „An Drucker hängen“ an (`importer.attach_here`). Geprüft mit Tests und im Browser bis zum Plan, der nicht ausgeführt wurde. Danach auf Wunsch des Nutzers: ein Hinweis über der Reihe („Gibt es nur für 0,4 mm (siehe Details). Für eine andere Düse legt OrcaOne ein eigenes Filament an.“), „siehe Details“ springt auf „Details“, wo die Druckerliste des Profils steht; eine Düse, für die es das Filament schon gibt, wird nicht mehr angeboten (sonst entstünde „… (2)“).
+- **Behoben (24.09.), Handybreite (Frage des Nutzers):** Bei 375 px läuft keine Seite seitlich über (alle 14 Seiten gemessen). Die Druckerkarte war zerschossen, weil eine alte Regel für schmale Bildschirme noch zum früheren Aufbau passte; jetzt Bild links, Rest darunter. In „Logs“ steht die Meldung unter Uhrzeit und Stufe. Danach auf Wunsch des Nutzers ein Menüknopf (☰) oben links statt der Reiterleiste: in einem schmalen Fenster (bis 900 px) klappt das Menü als Leiste von links über die Seite (schließt mit Eintrag, Escape oder Tippen daneben), am Rechner blendet der Knopf das Menü aus; das merkt sich `data/settings.json` (`menu_collapsed`, `POST /api/settings`). Vom Handy aus erreichbar ist OrcaOne nicht, der Server lauscht nur auf 127.0.0.1 (harte Regel 8).
+- **Behoben (24.09.):** Kamerabild mit Fehler 500 (`http.client.IncompleteRead`): Der U1 schreibt `monitor.jpg` manchmal neu, während er es sendet. `camera.image` fragt dann ein zweites Mal.
+- **Davor (24.09.):** Seite „Kamera“: keine Temperaturen mehr (der Nutzer: „deplatziert, hat nix mit Cam zu tun“). Ist das Licht im Drucker aus, sagt es ein Hinweis über dem Bild; ein Knopf schaltet es ein und aus (`camera.set_light`, `POST /api/cameras/{id}/light`), damals der einzige Befehl an einen Drucker. Am U1 einmal ein- und wieder ausgeschaltet.
+- **Davor (24.09.):** Karte je Drucker auf „Drucker“ ausgebaut (Wunsch des Nutzers: Firmware, Speicher, „nicht zu wild“). Breiter, Bild links; mit Adresse Zustand, Firmware, Köpfe und Spulen (U1), Speicher und Drucke, Einzelheiten im Tooltip, Links zu Weboberfläche und Kamera. Für jeden Klipper-Drucker (`camera.info`, `GET /api/printers/info` und `/status` mit `model`). Geprüft mit Tests und im Browser am echten U1.
+- **Davor (24.09.):** „An Drucker hängen“ und Umbenennen beim Import. Ein Filament wird Kind eines Filaments des gewählten Druckers mit demselben Material („Generic …“ zuerst) und übernimmt aus der Datei nur die Werte des Materials (`importer.MATERIAL_KEYS`, `attach`, `POST /import/attach`). Geprüft mit Tests und im Browser bis zum Plan, der nicht ausgeführt wurde. Dazu im Seitenpanel von „Filamente“ Düsen und Knöpfe in je einer Reihe (Wunsch des Nutzers).
+- **Davor (24.09.):** Import aus den Sicherungskopien des Slicers (`user_backup-v*`) auf „Import/Export“. Geprüft mit Tests und im Browser; die Kopien auf diesem Rechner sind leer, weil es beim ersten Start noch keine eigenen Profile gab.
 - **Behoben (24.09.), nach dem Test des Nutzers mit `data/Snapmaker U1 (0.4 nozzle).orca_printer`:** Ein Druckerbündel des Slicers enthält den Systemdrucker komplett ausgeschrieben. OrcaOne hielt ihn für ein fremdes Profil gleichen Namens und hätte ihn als „… (2)“ gedoppelt, vorab angehakt. Jetzt „Systemprofil, gibt es hier“, nicht wählbar. „Schon da“ lässt sich nicht mehr anhaken, und ausgeblendete eigene Profile zählen als schon da.
 - **Davor (23.09.):** Import/Export mit „Hier passend“ und „Was ein Import braucht“, die Seite „3MF bereinigen“, „Änderungen“, „Vergleichen“, der Druckstatus auf „Kamera“ und das App-Fenster. Ideen des Nutzers stehen in [IDEEN](IDEEN.md).
 
@@ -40,7 +50,7 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 
 ## Nächste Bausteine, der Nutzer wählt
 
-- **Import** ([IMPORT-QUELLEN](IMPORT-QUELLEN.md)): G-Code und Drucke direkt vom U1, Profile aus anderen Benutzerordnern (`user/<id>/`, etwa nach einer Anmeldung), die Orca-Bibliothek von GitHub, „An Zielprofil hängen“.
+- **Import** ([IMPORT-QUELLEN](IMPORT-QUELLEN.md)): G-Code und Drucke direkt vom U1, Profile aus anderen Benutzerordnern (`user/<id>/`, etwa nach einer Anmeldung), die Orca-Bibliothek von GitHub. „An Drucker hängen“ gibt es bisher nur für Filamente, nicht für Prozesse.
 - **Drucker übertragen** zwischen den Installationen, bisher zurückgestellt (FINDINGS, „Übertragung“).
 - **„Details“** auch für Prozesse und Drucker. Die Abfrage im Backend kann das schon.
 - **Ideen** ([IDEEN](IDEEN.md)): Druck in 3D, dafür braucht es das Okay für three.js. Ein Datei-Browser für den U1; Löschen oder Hochladen hieße, dass OrcaOne erstmals auf den U1 schreibt.
@@ -71,7 +81,7 @@ In FINDINGS unter „Offen: nur am laufenden Slicer prüfbar“:
 - **Vorschau** aus `.claude/launch.json` auf Port 8765, die App selbst auf 4711.
 - **Commits:** jeden in einem sauberen Worktree testen (`git worktree add --detach …`, dort `pytest`). Zwischenstände einer Datei lassen sich mit `git hash-object -w` und `git update-index --cacheinfo` einreihen.
 - **Brave als Snap** bleibt ohne Fenster (`--headless`) hängen und lässt sich nur mit `snap run --shell brave -c "kill …"` beenden.
-- **Am U1** (10.30.40.174) nur lesende Anfragen. Moonraker vertraut dem ganzen LAN (`trusted_clients: 10.0.0.0/8`), Steuerbefehle gingen also ohne Anmeldung.
+- **Am U1** (10.30.40.174) nur lesende Anfragen, außer dem Licht (siehe Entscheidungen); beim Ausprobieren danach den alten Zustand wiederherstellen. Moonraker vertraut dem ganzen LAN (`trusted_clients: 10.0.0.0/8`), Steuerbefehle gingen also ohne Anmeldung.
 
 ## Entscheidungen
 
@@ -86,7 +96,7 @@ In FINDINGS unter „Offen: nur am laufenden Slicer prüfbar“:
 | Prozesse | nur ansehen, nicht bearbeiten (22.09.) |
 | Echte Ordner | SnOrca und OrcaSlicer sind auf diesem Rechner Testinstallationen. OrcaOne schreibt direkt hinein, abgesichert durch seine Sicherungen (23.09.) |
 | Sicherungen | vor jedem Schreiben automatisch, alle behalten, Gesamtgröße anzeigen |
-| U1 | nur lesend über Moonraker; schreibend erst nach Entscheidung des Nutzers |
+| U1 | nur lesend über Moonraker. Einzige Ausnahme, auf Wunsch des Nutzers vom 24.09.: das Licht im U1 auf der Seite „Kamera“ (`SET_LED`). Alles andere Schreibende erst nach seiner Entscheidung |
 | Commits | nur auf Auftrag, kleine Schritte, deutsche Commit-Texte |
 
 ## Wo was liegt

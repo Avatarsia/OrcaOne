@@ -39,6 +39,8 @@ Wunsch: die Druckdatei in 3D ansehen und den Druck live mitverfolgen. Mainsail k
 
 Wunsch: ein brauchbarer Datei-Browser für den U1, etwa für Druckdateien und Kameraaufnahmen.
 
+**Gebaut am 24.09.2026** als Seite „Dateien“ (nur beim U1): Ordner ansehen, Druckdateien und Zeitraffer löschen, Drucken mit den Optionen des Displays. Dazu die Seiten „Konsole“ (G-Code) und „SSH“. Noch offen aus dieser Idee: Speicher nach Verbrauchern, Verlauf („zuletzt gedruckt“), Hochladen, Umbenennen.
+
 **Was der U1 anbietet (Moonraker 1.6.0):**
 
 | Ordner in Moonraker | Pfad auf dem U1 | Rechte | Inhalt |
@@ -55,23 +57,25 @@ Wunsch: ein brauchbarer Datei-Browser für den U1, etwa für Druckdateien und Ka
   - Filament je Kopf mit Name, Typ, Farbe, Länge und Gewicht;
   - Schichtzahl, Schichthöhe, Objekthöhe, Düse;
   - Vorschaubilder.
-- **Druckverlauf** (`/server/history`): Status, Dauer, verbrauchtes Filament und ob die Datei noch da ist. Zurzeit stehen dort nur 3 Drucke.
+- **Druckverlauf** (`/server/history`): Status, Dauer, verbrauchtes Filament und ob die Datei noch da ist. Zurzeit stehen dort 28 Drucke (am 23.09. irrtümlich 3 notiert, weil nur mit `limit=3` abgefragt).
 - **Speicher:** 27,4 GB, davon 24,2 GB frei.
 - **Kamera:** In Moonraker ist keine Webcam eingetragen. Die Kamera läuft über Snapmakers eigenen Weg (`camera.start_monitor`, `monitor.jpg`).
 - **Videos löschen:**
-  - Über Moonraker geht es nicht. `camera` ist nur lesbar, und unter den 220 G-Code-Befehlen des U1 gibt es nur `TIMELAPSE_START`, `TIMELAPSE_STOP` und `TIMELAPSE_TAKE_FRAME`. Das Klipper-Objekt `timelapse` meldet nur `is_active`, in `printer.cfg` steht nur `[timelapse] frame_rate: 24`. Angemeldete Erweiterungen gibt es keine.
+  - Über die Dateien in Moonraker geht es nicht, `camera` ist nur lesbar. Unter den 220 G-Code-Befehlen des U1 gibt es nur `TIMELAPSE_START`, `TIMELAPSE_STOP` und `TIMELAPSE_TAKE_FRAME`.
+  - **Aber über den Kameradienst (geprüft 24.09.2026, per SSH nur gelesen):** Snapmakers Dienst `unisrv` führt die Liste selbst, in `/userdata/.tmp_timelapse/timelapse.json`. Die Videos liegen in `/userdata/.tmp_timelapse/<date_index>/`, in `camera` stehen nur Verknüpfungen darauf; 14 Videos, zusammen 281 MB. Über Moonraker (WebSocket, wie `camera.start_monitor`) liefert `camera.get_timelapse_instance` die Liste mit Größe, Dauer und Adresse zum Herunterladen (von hier aus abgefragt). `camera.delete_timelapse_instance` mit `{"date_index": …}` löscht ein Video samt Eintrag in der Liste; so macht es Snapmaker Orca (`SSWCP.cpp`, `sw_DeleteCameraTimelapse`). `unisrv` nimmt laut seinen Meldungen auch `date_indices` oder `all`. Nicht ausprobiert: Löschen bräuchte die Entscheidung des Nutzers. Dateien per SSH zu löschen ließe die Liste veraltet zurück.
   - Laut Snapmaker-Forum verwalten Nutzer die Videos am Touchscreen. Die Snapmaker-App soll sie löschen können, kann es laut Forum aber nicht.
   - Exportieren geht auf einen USB-Stick: am Touchscreen unter Einstellungen → „Export Time-lapse“ (Snapmaker-Wiki).
   - Platz ist genug: 24,2 GB frei reichen bei etwa 19 MB je Video für rund 1.200 Videos. Beim bisherigen Tempo, 14 Videos in drei Wochen, sind das Jahre.
   - **Über SSH ginge es.**
     - Einschalten: Seit Firmware 1.2.0 lässt sich SSH am Touchscreen einschalten, unter Settings → Maintenance → Root Access, zustimmen, dann Open (Doku der Extended Firmware).
-    - Stand am U1: Firmware 1.4.0 (`snapmaker/product_info.json`). SSH ist aus, Port 22 lehnt ab (geprüft 23.09.2026, der Nutzer bestätigt es).
+    - Stand am U1: Firmware 1.6.0 laut Moonraker (`/machine/system_info`); `snapmaker/product_info.json` im Konfigurationsordner nennt noch 1.4.0 und ist veraltet. SSH war aus, Port 22 lehnte ab (geprüft 23.09.2026). Am 24.09. hat der Nutzer Root Access eingeschaltet: Port 22 antwortet mit `SSH-2.0-dropbear_2022.83`, Anmeldung mit Schlüssel oder Passwort (`publickey,password`, ohne Zugangsdaten abgefragt).
     - Anmeldung laut Doku mit `root` oder `lava`, Passwort `snapmaker`. Ein geändertes Passwort übersteht einen Neustart nur mit „data persistence“.
     - Die Videos liegen in `/oem/printer_data/camera`, je Video drei Dateien: `<Name>.mp4`, `<Name>_cover.jpg` und `<Name>.jpg`.
   - **Für OrcaOne hieße SSH:**
     - Python hat SSH nicht an Bord. Möglich wären das `ssh` des Systems (Linux, Windows ab 10) mit einem Schlüssel oder `paramiko` als neue Abhängigkeit, die das Okay des Nutzers braucht.
     - Zugangsdaten gehören nicht im Klartext in `settings.json`. Ein Schlüssel auf dem U1 übersteht einen Neustart vermutlich auch nur mit „data persistence“.
-    - Offen ist, ob der Touchscreen eine eigene Liste der Videos führt. Dann bliebe nach dem Löschen ein leerer Eintrag. Deshalb erst mit einem einzigen Video testen.
+    - Die Liste der Videos führt `unisrv` (siehe oben), deshalb nicht per SSH löschen.
+    - Ein Schlüssel in `/root/.ssh` überlebt keinen Neustart: `/etc/init.d/S01aoverlayfs` leert beim Start das Overlay des Systems (`/oem/overlay`), außer es gibt `/oem/.debug` (gibt es nicht, geprüft 24.09.2026).
     - SSH gibt vollen Zugriff auf den Drucker. Laut Doku soll es nur im eigenen Netz und nur bei Bedarf an sein.
     - Quelle: [Extended Firmware: SSH Access](https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware/blob/develop/docs/ssh_access.md).
   - Quellen: [Forum: Problems with time-lapse on Snapmaker U1](https://forum.snapmaker.com/t/problems-with-time-lapse-on-snapmaker-u1/40544), [Wiki: How to export time-lapse videos](https://wiki.snapmaker.com/en/snapmaker_u1/export_timelapse), [Wiki: Snapmaker App](https://wiki.snapmaker.com/en/snapmaker_app/qsg).
