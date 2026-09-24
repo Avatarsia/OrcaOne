@@ -17,80 +17,52 @@
 }
 
 :root {
+  /* Light and dark in one: the system's choice, or the one of the menu (data-theme, app.js) */
+  color-scheme: light dark;
   --font: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
   --panel-w: 380px;
   --nav-w: 212px;           /* layout only, like --panel-w; "Import/Export" with its count fits */
 
-  --accent: #009688;        /* fills: primary button, switch */
-  --accent-hover: #26A69A;
-  --accent-text: #00796B;   /* text and icons on light surfaces, 5.3:1 */
-  --accent-line: #009688;   /* borders, focus ring */
+  --accent: light-dark(#009688, #00675B);        /* fills: primary button, switch */
+  --accent-hover: light-dark(#26A69A, #008172);
+  --accent-text: light-dark(#00796B, #26A69A);   /* text and icons on light surfaces, 5.3:1 */
+  --accent-line: light-dark(#009688, #26A69A);   /* borders, focus ring */
   --on-accent: #FEFEFE;
-  --bg: #F0F0F0;
-  --surface: #FFFFFF;
-  --surface-2: #F4F4F4;
-  --header: #3B4446;
-  --line-input: #DBDBDB;
-  --line-box: #CECECE;
-  --divider: #EEEEEE;
-  --text: #262E30;
-  --label: #363636;
-  --muted: #5F6666;         /* Orca uses #7C8282, too faint for small text */
-  --icon: #7C8282;
-  --disabled-text: #ACACAC;
-  --disabled-bg: #F0F0F1;
-  --btn: #DFDFDF;
-  --btn-hover: #D4D4D4;
-  --row-hover: #F1F1F1;
-  --selected: #BFE1DE;
-  --focus-bg: #E5F0EE;
-  --error: #D32F2F;
-  --error-bg: #FDE8E8;
+  --bg: light-dark(#F0F0F0, #242428);
+  --surface: light-dark(#FFFFFF, #2D2D31);
+  --surface-2: light-dark(#F4F4F4, #36363B);
+  --header: light-dark(#3B4446, #2D2D30);
+  --line-input: light-dark(#DBDBDB, #4A4A51);
+  --line-box: light-dark(#CECECE, #54545B);
+  --divider: light-dark(#EEEEEE, #4C4C55);
+  --text: light-dark(#262E30, #EFEFF0);
+  --label: light-dark(#363636, #B2B3B5);
+  --muted: light-dark(#5F6666, #A2A3A6);         /* Orca uses #7C8282, too faint for small text */
+  --icon: light-dark(#7C8282, #949494);
+  --disabled-text: light-dark(#ACACAC, #65656A);
+  --disabled-bg: light-dark(#F0F0F1, #333337);
+  --btn: light-dark(#DFDFDF, #3E3E45);
+  --btn-hover: light-dark(#D4D4D4, #4D4D54);
+  --row-hover: light-dark(#F1F1F1, #36363B);
+  --selected: light-dark(#BFE1DE, #223C3C);
+  --focus-bg: light-dark(#E5F0EE, #283232);
+  --error: light-dark(#D32F2F, #EF5350);
+  --error-bg: light-dark(#FDE8E8, #4D2020);
   --danger: #E14747;
-  --warn: #FF842D;
-  --warn-bg: #FFF3EB;
-  --heat-text: #C2410C;     /* heating, as text: --warn is too faint on white */
+  --warn: light-dark(#FF842D, #FF9F43);
+  --warn-bg: light-dark(#FFF3EB, #452A1A);
+  --heat-text: light-dark(#C2410C, #FFA566);     /* heating, as text: --warn is too faint on white */
   --changed: #F1754E;       /* Orca's "value changed" */
-  --changed-bg: #FEF1EC;
-  --success: #34A853;
-  --toggle-off: #D9D9D9;
+  --changed-bg: light-dark(#FEF1EC, #43291F);
+  --success: light-dark(#34A853, #4CAF50);
+  --toggle-off: light-dark(#D9D9D9, #4A4A51);
   --brass: #C9A04E;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --accent: #00675B;
-    --accent-hover: #008172;
-    --accent-text: #26A69A;
-    --accent-line: #26A69A;
-    --bg: #242428;
-    --surface: #2D2D31;
-    --surface-2: #36363B;
-    --header: #2D2D30;
-    --line-input: #4A4A51;
-    --line-box: #54545B;
-    --divider: #4C4C55;
-    --text: #EFEFF0;
-    --label: #B2B3B5;
-    --muted: #A2A3A6;
-    --icon: #949494;
-    --disabled-text: #65656A;
-    --disabled-bg: #333337;
-    --btn: #3E3E45;
-    --btn-hover: #4D4D54;
-    --row-hover: #36363B;
-    --selected: #223C3C;
-    --focus-bg: #283232;
-    --error: #EF5350;
-    --error-bg: #4D2020;
-    --warn: #FF9F43;
-    --warn-bg: #452A1A;
-    --heat-text: #FFA566;
-    --success: #4CAF50;
-    --changed-bg: #43291F;
-    --toggle-off: #4A4A51;
-  }
-}
+/* The design chosen at the bottom of the menu (app.js, data/settings.json); without a choice the
+   system's. light-dark() above picks the colour by color-scheme. */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
@@ -165,10 +137,17 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
   background: var(--surface); border-right: 1px solid var(--line-box);
 }
 /* Language at the bottom of the menu */
-.nav-lang { display: flex; gap: 4px; margin: auto 4px 0; padding-top: 12px; }
-.nav-lang-btn { flex: 1; height: 26px; border: 1px solid var(--line-input); border-radius: 13px; background: var(--surface); color: var(--muted); font-size: 12px; cursor: pointer; }
-.nav-lang-btn:hover { border-color: var(--accent-line); color: var(--text); }
-.nav-lang-btn[aria-pressed="true"] { border-color: var(--accent-line); background: var(--selected); color: var(--text); font-weight: 700; cursor: default; }
+/* The switches at the bottom of the menu: language and light or dark; the knob slides to the side
+   that is on */
+.nav-switches { display: flex; gap: 8px; margin: auto 4px 0; padding-top: 12px; }
+.nav-switch { position: relative; display: grid; grid-template-columns: 1fr 1fr; flex: 1; height: 28px; padding: 2px;
+          border: 1px solid var(--line-input); border-radius: 14px; background: var(--surface); cursor: pointer; }
+.nav-switch:hover { border-color: var(--accent-line); }
+.nav-switch::before { content: ""; position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: 12px;
+                  background: var(--accent); transition: transform .2s ease; }
+.nav-switch.is-second::before { transform: translateX(100%); }
+.nav-switch-side { position: relative; display: grid; place-items: center; color: var(--muted); font-size: 12px; font-weight: 700; }
+.nav-switch-side.is-on { color: var(--on-accent); }
 /* ionpy .list-item, larger for touch and older eyes */
 .nav-item {
   position: relative; display: flex; align-items: center; gap: 10px;

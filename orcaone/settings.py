@@ -8,6 +8,7 @@ orcaone.sh, or next to the program file of a build (the user's wish of 23.09.202
   seconds between two camera pictures (camera.py);
   "language": the language of the page, "de" or "en" (app.py); missing: the browser's;
   "menu_collapsed": true while the menu on the left is folded away (app.js);
+  "theme": the design chosen at the bottom of the menu, "light" or "dark" (app.py); missing: the system's;
   "calibration": the ticks of the page "Kalibrieren" (calibration.py).
 - backups/: the backups (backup.py). They hold credentials, so data/ is not in Git.
 - snapshots/: per installation the state the page "Änderungen" compares with (snapshot.py).

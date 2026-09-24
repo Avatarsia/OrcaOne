@@ -77,6 +77,11 @@ export function go(ev, hash) {
 // printer: the model OrcaOne works with, chosen in the top bar for every page (app.js).
 export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null });
 
+// The design in use: the one chosen at the bottom of the menu (data-theme on <html>, app.js), else
+// the system's. style.css picks its colours the same way (color-scheme, light-dark()).
+export const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+export const isDark = () => (document.documentElement.dataset.theme || (darkQuery.matches ? "dark" : "light")) === "dark";
+
 // One word per state on every page.
 export function statusText(inst) {
   if (!inst.running) return T.status.closed;
@@ -381,6 +386,8 @@ export const ICONS = {
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
   fan: '<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2c-1-3.1-.5-6.1 2-6.7 2.2-.5 3.3 2.2 1 4.3L13.4 10.1M13.6 12.8c3.2.6 5.5 2.6 4.9 4.9-.6 2.2-3.5 2.3-4.4-.6l-.6-2.8M10.5 12.9c-2.3 2.3-5.3 3.1-6.8 1.4-1.5-1.7 0-4.2 2.9-3.6l2.8.8"/>',
   pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>',
+  moon: '<path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1z"/>',
   home: '<path d="M4 11 12 4.5l8 6.5"/><path d="M6.5 9.5v10h11v-10"/><path d="M10 19.5v-5h4v5"/>',
   menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
   code: '<path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"/>',

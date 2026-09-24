@@ -3,7 +3,7 @@
 // speaks SSH and passes the bytes on over a WebSocket, only to printers with an address from the
 // page "Drucker". The login tries the keys in ~/.ssh first, else the page asks for the password,
 // which only passes through.
-import { go, hashOf, ui, U1_MODELS, activeName } from "../common.js";
+import { go, hashOf, ui, U1_MODELS, activeName, darkQuery, isDark } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -131,12 +131,18 @@ const DARK = {
   brightBlack: "#6E7681", brightRed: "#FFA198", brightGreen: "#56D364", brightYellow: "#E3B341", brightBlue: "#79C0FF",
   brightMagenta: "#D2A8FF", brightCyan: "#80CBC4", brightWhite: "#F0F6FC",
 };
-const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+// The colours of the page for xterm, in the design in use (common.js, isDark). A variable holds
+// light-dark(…), so each colour comes resolved from an element that uses it.
 function theme() {
-  const css = getComputedStyle(document.documentElement);
-  const v = (name) => css.getPropertyValue(name).trim();
-  return { background: v("--surface"), foreground: v("--text"), cursor: v("--accent-line"), cursorAccent: v("--surface"),
-           selectionBackground: v("--selected"), ...(darkQuery.matches ? DARK : LIGHT) };
+  const probe = document.body.appendChild(document.createElement("span"));
+  const v = (name) => {
+    probe.style.color = `var(${name})`;
+    return getComputedStyle(probe).color;
+  };
+  const colours = { background: v("--surface"), foreground: v("--text"), cursor: v("--accent-line"), cursorAccent: v("--surface"),
+                    selectionBackground: v("--selected") };
+  probe.remove();
+  return { ...colours, ...(isDark() ? DARK : LIGHT) };
 }
 
 let modules = null;
@@ -269,10 +275,14 @@ export default {
         loadError.value = T.errors[err.code] || T.errors.unknown;
       }
     });
+    // Along with the system, and with the switch at the bottom of the menu (data-theme on <html>).
     const recolour = () => term && (term.options.theme = theme());
     darkQuery.addEventListener("change", recolour);
+    const themeWatch = new MutationObserver(recolour);
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     onUnmounted(() => {
       darkQuery.removeEventListener("change", recolour);
+      themeWatch.disconnect();
       drop();
     });
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 from fastapi import Body, FastAPI, Request, WebSocket
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -145,21 +145,24 @@ def list_instances():
 # ---------------------------------------------------------------- OrcaOne's own settings (orcaone/settings.py)
 
 LANGUAGES = ("de", "en")
+THEMES = ("light", "dark")
 
 
 @app.get("/api/settings")
 def get_settings():
     stored = settings.load()
-    language = stored.get("language")
-    return {"language": language if language in LANGUAGES else None, "menu_collapsed": stored.get("menu_collapsed") is True}
+    language, theme = stored.get("language"), stored.get("theme")
+    return {"language": language if language in LANGUAGES else None, "menu_collapsed": stored.get("menu_collapsed") is True,
+            "theme": theme if theme in THEMES else None}
 
 
 @app.post("/api/settings")
 def set_settings(payload: dict = Body(...)):
-    """Either or both: "language" ("de", "en") and "menu_collapsed" (the menu folded away)."""
-    changed = {key: payload[key] for key in ("language", "menu_collapsed") if key in payload}
+    """Any of: "language" ("de", "en"), "menu_collapsed" (the menu folded away), "theme" ("light", "dark")."""
+    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme") if key in payload}
     if (not changed or ("language" in changed and changed["language"] not in LANGUAGES)
-            or not isinstance(changed.get("menu_collapsed", False), bool)):
+            or not isinstance(changed.get("menu_collapsed", False), bool)
+            or ("theme" in changed and changed["theme"] not in THEMES)):
         return _error("setting_invalid")
     try:
         settings.change(lambda data: data.update(changed))
@@ -509,6 +512,17 @@ def print_setup(camera_id: str):
 def start_print(camera_id: str, payload: dict = Body(...)):
     # On the user's wish: a print with the options of the printer's display.
     return printer_files.start_print(camera.find(camera_id)["host"], payload.get("path"), payload.get("options"), payload.get("map"))
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    # The page in the design chosen in the menu, so it shows so from the first frame; without a
+    # choice the system's (color-scheme in style.css).
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    theme = settings.load().get("theme")
+    if theme in THEMES:
+        html = html.replace("<html ", f'<html data-theme="{theme}" ', 1)
+    return HTMLResponse(html)
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

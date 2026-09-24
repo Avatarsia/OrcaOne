@@ -5,7 +5,7 @@
 // the backend's check after writing reports stays in the panel (DoneView).
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
-  liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon,
+  liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
   printerModels, slicerModel, modelName, modelShown, U1_MODELS,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
@@ -35,6 +35,8 @@ import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
 document.documentElement.lang = LANG;
+// The design chosen in the menu; GET / brings it already (app.py), /index.html does not.
+if (SETTINGS.theme) document.documentElement.dataset.theme = SETTINGS.theme;
 
 // Order = reading order, as the user set it on 24.09.2026: the start page "Übersicht", Drucker,
 // then Prozesse and Filamente, the quick tool "3MF bereinigen", and Slicer.
@@ -319,6 +321,22 @@ const app = createApp({
       });
     }
 
+    // Light or dark at the bottom of the menu: at once, and saved for the next start. Without a
+    // choice the page follows the system, also when it changes.
+    const dark = ref(isDark());
+    darkQuery.addEventListener("change", () => { dark.value = isDark(); });
+    async function toggleTheme() {
+      const next = dark.value ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      dark.value = next === "dark";
+      try {
+        await api.setTheme(next);
+      } catch (err) {
+        flash(T.errors[err.code] || T.errors.unknown);
+      }
+    }
+    const otherLanguage = computed(() => LANGUAGES.find((l) => l.code !== LANG));
+
     // First start without any installation: the form adds one by hand.
     const newPath = ref("");
     const addError = ref("");
@@ -416,7 +434,7 @@ const app = createApp({
       statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
       printers, activeModel, modelName, printerOpen, printerBtn, printerMenu, togglePrinter, pickPrinter, printerKey, menuPages,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
-      planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage,
+      planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav,
     };
   },
@@ -483,9 +501,18 @@ const app = createApp({
           <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
                 :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
         </a>
-        <div class="nav-lang" role="group" :aria-label="T.nav.language">
-          <button v-for="l in LANGUAGES" :key="l.code" class="nav-lang-btn" type="button" :lang="l.code"
-                  :aria-pressed="l.code === LANG ? 'true' : 'false'" @click="setLanguage(l.code)">{{ l.name }}</button>
+        <!-- Two switches: the language (the page loads anew) and light or dark -->
+        <div class="nav-switches">
+          <button :class="['nav-switch', { 'is-second': LANG === 'en' }]" type="button" :title="T.nav.language"
+                  :aria-label="T.nav.languageTo(otherLanguage.name)" @click="setLanguage(otherLanguage.code)">
+            <span :class="['nav-switch-side', { 'is-on': LANG === 'de' }]" lang="de">DE</span>
+            <span :class="['nav-switch-side', { 'is-on': LANG === 'en' }]" lang="en">EN</span>
+          </button>
+          <button :class="['nav-switch', { 'is-second': dark }]" type="button" role="switch" :aria-checked="dark ? 'true' : 'false'"
+                  :title="dark ? T.nav.toLight : T.nav.toDark" :aria-label="T.nav.dark" @click="toggleTheme">
+            <span :class="['nav-switch-side', { 'is-on': !dark }]"><ui-icon name="sun" :size="16"/></span>
+            <span :class="['nav-switch-side', { 'is-on': dark }]"><ui-icon name="moon" :size="16"/></span>
+          </button>
         </div>
       </nav>
       <div v-if="narrow && navOpen" class="nav-backdrop" @click="navOpen = false"></div>
