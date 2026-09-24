@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs"];
+export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -75,7 +75,10 @@ export function go(ev, hash) {
 // filamentFocus the other way round: the page "Filamente" shows that filament's row and panel.
 // calibrateFor: the own filament the page "Kalibrieren" opens with.
 // printer: the model OrcaOne works with, chosen in the top bar for every page (app.js).
-export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null });
+// viewFile: the print file "3D-Ansicht" or "2D-Ansicht" opens with (from the page "Dateien");
+// viewLayer: the layer one of them showed, for the other.
+export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null,
+                             viewFile: null, viewLayer: null });
 
 // The design in use: the one chosen at the bottom of the menu (data-theme on <html>, app.js), else
 // the system's. style.css picks its colours the same way (color-scheme, light-dark()).
@@ -385,6 +388,8 @@ export function whenText(d) {
 export const ICONS = {
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
   fan: '<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2c-1-3.1-.5-6.1 2-6.7 2.2-.5 3.3 2.2 1 4.3L13.4 10.1M13.6 12.8c3.2.6 5.5 2.6 4.9 4.9-.6 2.2-3.5 2.3-4.4-.6l-.6-2.8M10.5 12.9c-2.3 2.3-5.3 3.1-6.8 1.4-1.5-1.7 0-4.2 2.9-3.6l2.8.8"/>',
+  cube: '<path d="m12 3.5 8 4.5v8L12 20.5 4 16V8z"/><path d="m4 8 8 4.5L20 8M12 12.5v8"/>',
+  toolpath: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M7.5 16.5v-9h3v9h3v-9h3v9"/>',
   pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>',
   moon: '<path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1z"/>',

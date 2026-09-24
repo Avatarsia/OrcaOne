@@ -24,7 +24,7 @@ export default {
   name: "DateienPage",
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
-  setup() {
+  setup(props) {
     const printers = ref(null);   // the U1 of the top bar if it has an address (api.cameras), null while loading
     const loadError = ref("");
     const chosen = ref("");       // camera id of the U1 shown
@@ -47,6 +47,11 @@ export default {
     const videos = computed(() => folder.value === "camera");
     const keyOf = (f) => (videos.value ? f.id : f.name);
     const pathOf = (f) => f.path || f.name;
+    // A print file in 3D or 2D: the page "3D-Ansicht" or "2D-Ansicht" opens with it.
+    function openView(f, page) {
+      ui.viewFile = pathOf(f);
+      go(null, hashOf(page, props.instId));
+    }
     const fileUrl = (path, download = false) => api.printerFileUrl(chosen.value, folder.value, path, download);
     const busy = computed(() => BUSY.includes(setup.value?.state));
     const allPicked = computed(() => !!files.value?.length && picked.size === files.value.length);
@@ -180,7 +185,7 @@ export default {
     return {
       T, D, ICON, OPTIONS, printers, loadError, chosen, folder, folders, files, disk, listError, picked, asking, deleting, setup,
       printing, choice, starting, printError, current, videos, keyOf, pathOf, fileUrl, busy, allPicked, facts, openFolder, choose,
-      toggle, pickAll, remove, openPrint, closePrint, headOf, otherType, startPrint, spoolText, fmtSize, go, hashOf, ui, U1_MODELS,
+      toggle, pickAll, remove, openPrint, closePrint, openView, headOf, otherType, startPrint, spoolText, fmtSize, go, hashOf, ui, U1_MODELS,
     };
   },
 
@@ -244,6 +249,10 @@ export default {
                 <span class="files-actions">
                   <button v-if="folder === 'gcodes' && f.printable" class="btn" type="button" :disabled="busy" :title="busy ? D.busy(setup.state) : null"
                           @click="openPrint(f)"><ui-icon name="play"/>{{ D.print }}</button>
+                  <template v-if="folder === 'gcodes' && /\.gcode$/i.test(pathOf(f))">
+                    <a class="btn" :href="hashOf('druck3d', instId)" :title="D.view3d" @click.prevent="openView(f, 'druck3d')"><ui-icon name="cube"/>3D</a>
+                    <a class="btn" :href="hashOf('druck2d', instId)" :title="D.view2d" @click.prevent="openView(f, 'druck2d')"><ui-icon name="toolpath"/>2D</a>
+                  </template>
                   <a v-if="folder !== 'gcodes'" class="btn" :href="fileUrl(pathOf(f))" target="_blank" rel="noopener">{{ videos ? D.play : D.open }}</a>
                   <a class="btn btn-icon" :href="fileUrl(pathOf(f), true)" :title="D.download" :aria-label="D.download"><ui-icon name="download"/></a>
                 </span>

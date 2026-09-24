@@ -329,7 +329,8 @@ def _left(host: str, stats: dict, progress) -> float | None:
 # What status() asks Klipper for, "object=field,field" for some fields only.
 STATUS_OBJECTS = [f"{h}=pressure_advance,temperature,target" for h in HEADS] + [
     "print_stats", "display_status=progress", "toolhead=extruder", "heater_bed=temperature,target",
-    "temperature_sensor cavity=temperature", "print_task_config", "filament_detect", "led cavity_led=color_data"]
+    "temperature_sensor cavity=temperature", "print_task_config", "filament_detect", "led cavity_led=color_data",
+    "virtual_sdcard=file_position"]
 
 
 def query(host: str, objects: list) -> dict:
@@ -390,7 +391,9 @@ def status_of(host: str, found: dict) -> dict:
             "layer": info.get("current_layer"), "layers": info.get("total_layer"),
             "printed": stats.get("print_duration"), "left": _left(host, stats, progress),
             "bed": {"temp": bed.get("temperature"), "target": bed.get("target")},
-            "cavity": _part(found, "temperature_sensor cavity").get("temperature"), "light": _light(_part(found, "led cavity_led"))}
+            "cavity": _part(found, "temperature_sensor cavity").get("temperature"), "light": _light(_part(found, "led cavity_led")),
+            # Where in the print file Klipper reads, in bytes: "3D-Ansicht" and "2D-Ansicht" follow the print with it.
+            "file_position": _part(found, "virtual_sdcard").get("file_position")}
 
 
 def set_light(host: str, on: bool) -> bool:

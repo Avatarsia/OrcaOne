@@ -26,6 +26,8 @@ import AenderungenPage from "./pages/aenderungen.js";
 import BereinigenPage from "./pages/bereinigen.js";
 import KameraPage from "./pages/kamera.js";
 import StatusPage from "./pages/status.js";
+import Druck3dPage from "./pages/druck3d.js";
+import Druck2dPage from "./pages/druck2d.js";
 import DateienPage from "./pages/dateien.js";
 import KonsolePage from "./pages/konsole.js";
 import SshPage from "./pages/ssh.js";
@@ -40,8 +42,8 @@ if (SETTINGS.theme) document.documentElement.dataset.theme = SETTINGS.theme;
 
 // Order = reading order, as the user set it on 24.09.2026: the start page "Übersicht", Drucker,
 // then Prozesse and Filamente, the quick tool "3MF bereinigen", and Slicer.
-// sub: a page about the one above, set in a little under it: status, files, camera, G-code console
-// and SSH of the printer (its address is on the printer's card); Übertragen, Vergleichen, Kalibrieren,
+// sub: a page about the one above, set in a little under it: status, 3D and 2D view, files, camera, G-code
+// console and SSH of the printer (its address is on the printer's card); Übertragen, Vergleichen, Kalibrieren,
 // Import/Export and Details work on filament profiles; backups, "Änderungen" and logs are the
 // slicer's. u1: in the menu only while a U1 is the printer in the top bar (the user's wish);
 // printer: built anew for another printer there ("Filamente" and "Prozesse" have it in the address).
@@ -50,6 +52,8 @@ const PAGES = [
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Need no slicer data: show at once and stay through "Neu einlesen".
   { id: "status", icon: "pulse", component: StatusPage, standalone: true, sub: true, printer: true },
+  { id: "druck3d", icon: "cube", component: Druck3dPage, standalone: true, sub: true, printer: true },
+  { id: "druck2d", icon: "toolpath", component: Druck2dPage, standalone: true, sub: true, printer: true },
   { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true, u1: true, printer: true },
   { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true, u1: true, printer: true },
   { id: "konsole", icon: "code", component: KonsolePage, standalone: true, sub: true, printer: true },

@@ -2,6 +2,7 @@
 
 import json
 import mimetypes
+import re
 from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -479,14 +480,19 @@ def printer_folder(camera_id: str, folder: str = "gcodes"):
 @app.get("/api/cameras/{camera_id}/file")
 def printer_file(camera_id: str, folder: str = "", path: str = "", download: bool = False):
     # Pictures, videos and files pass through OrcaOne: the browser never talks to the printer itself.
-    response = printer_files.open_file(camera.find(camera_id)["host"], folder, path)
+    return _passed_on(printer_files.open_file(camera.find(camera_id)["host"], folder, path), path, download)
+
+
+def _passed_on(response, path: str, download: bool = False):
+    """Moonraker's answer with a file, handed on to the browser block by block."""
     name = path.rsplit("/", 1)[-1]
     kind = response.headers.get("Content-Type") or mimetypes.guess_type(name)[0] or "application/octet-stream"
     if not download and name.lower().endswith(_TEXT_FILES):
         kind = "text/plain; charset=utf-8"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"} if download else {}
-    if response.headers.get("Content-Length"):
-        headers["Content-Length"] = response.headers["Content-Length"]
+    for name in ("Content-Length", "Content-Range"):
+        if response.headers.get(name):
+            headers[name] = response.headers[name]
 
     def chunks():
         try:
@@ -494,7 +500,22 @@ def printer_file(camera_id: str, folder: str = "", path: str = "", download: boo
                 yield block
         finally:
             response.close()
-    return StreamingResponse(chunks(), media_type=kind, headers=headers)
+    return StreamingResponse(chunks(), status_code=response.status, media_type=kind, headers=headers)
+
+
+# ---------------------------------------------------------------- print files of any Klipper printer
+# By model, for the pages "3D-Ansicht" and "2D-Ansicht": the files in "gcodes" and one of them to
+# read, whole or a piece of it (Range, for the G-code of one line).
+@app.get("/api/printers/files")
+def printer_print_files(model: str = ""):
+    return printer_files.listing(camera.host_of(model), "gcodes")
+
+
+@app.get("/api/printers/file")
+def printer_print_file(request: Request, model: str = "", path: str = ""):
+    wanted = request.headers.get("range", "")
+    wanted = wanted if re.fullmatch(r"bytes=\d+-\d*", wanted) else None
+    return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, wanted), path)
 
 
 @app.post("/api/cameras/{camera_id}/files/delete")

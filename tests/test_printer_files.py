@@ -3,6 +3,7 @@ real printer: the folders and what may be deleted, deleting one by one, and a pr
 options of the display."""
 
 import json
+import re
 import threading
 import urllib.parse
 import urllib.request
@@ -22,6 +23,7 @@ PRINT_FILE = {"filename": "Puzzel_PLA_1h28m.gcode", "size": 2989333, "modified":
               "thumbnails": [{"width": 300, "height": 300, "relative_path": ".thumbs/Puzzel_PLA_1h28m-300x300.png"},
                              {"width": 48, "height": 48, "relative_path": ".thumbs/Puzzel_PLA_1h28m-48x48.png"},
                              {"width": 96, "height": 96, "relative_path": ".thumbs/Puzzel_PLA_1h28m-96x96.png"}]}
+GCODE = b";LAYER_CHANGE\n;Z:0.2\nG1 X10 Y10 E1\n"
 TASK_CONFIG = {"filament_type": ["PLA", "PLA", "PETG", "PLA"], "filament_sub_type": ["Matte", "SnapSpeed", "Basic", "Basic"],
                "filament_vendor": ["Snapmaker"] * 4, "filament_exist": [True, True, True, False],
                "filament_color_rgba": ["FFFFFFFF", "080A0DFF", "E72F1DFF", "F78E0EFF"],
@@ -34,11 +36,13 @@ def moonraker():
     seen = {"deleted": [], "started": [], "busy": set(), "start_answer": {"state": "success", "message": "Print started"}}
 
     class Handler(BaseHTTPRequestHandler):
-        def _send(self, status, result=None, body=None, kind="application/json"):
+        def _send(self, status, result=None, body=None, kind="application/json", headers=()):
             data = body if body is not None else json.dumps(result).encode()
             self.send_response(status)
             self.send_header("Content-Type", kind)
             self.send_header("Content-Length", str(len(data)))
+            for name, value in headers:
+                self.send_header(name, value)
             self.end_headers()
             self.wfile.write(data)
 
@@ -55,6 +59,14 @@ def moonraker():
             }
             if self.path.startswith("/server/files/camera/"):
                 return self._send(200, body=b"\x00\x00\x00 ftypisom", kind="video/mp4")
+            if self.path == "/server/files/gcodes/Puzzel_PLA_1h28m.gcode":
+                # A piece on request, as Moonraker sends it (Tornado's StaticFileHandler).
+                wanted = re.fullmatch(r"bytes=(\d+)-(\d*)", self.headers.get("Range") or "")
+                if wanted:
+                    first, last = int(wanted[1]), int(wanted[2] or len(GCODE) - 1)
+                    return self._send(206, body=GCODE[first:last + 1], kind="application/octet-stream",
+                                      headers=[("Content-Range", f"bytes {first}-{last}/{len(GCODE)}")])
+                return self._send(200, body=GCODE, kind="application/octet-stream")
             if self.path in answers:
                 return self._send(200, {"result": answers[self.path]})
             self._send(404, {"error": {"code": 404, "message": "Not Found"}})
@@ -199,3 +211,28 @@ def test_api(server, moonraker, service):
     status, body = call(f"{base}/print", "POST", {"path": "old.gcode", "options": {}, "map": []})
     assert (status, json.loads(body)) == (409, {"error": "print_refused", "detail": "Printer is busy, cannot start print"})
     assert call(f"{server}/api/cameras/nope/files")[0] == 404
+
+
+def test_print_files_for_the_3d_and_2d_view(server, moonraker):
+    # The pages "3D-Ansicht" and "2D-Ansicht" name the printer by its model, like the page
+    # "Drucker", and read the file as text block by block, or a piece of it.
+    host, _ = moonraker
+    camera.set_host("Snapmaker U1", host)
+    status, body = call(f"{server}/api/printers/files?model=Snapmaker%20U1")
+    assert status == 200 and [f["name"] for f in json.loads(body)["files"]] == ["Puzzel_PLA_1h28m.gcode", "old.gcode"]
+    with urllib.request.urlopen(f"{server}/api/printers/file?model=Snapmaker%20U1&path=Puzzel_PLA_1h28m.gcode") as response:
+        assert response.headers["Content-Type"] == "text/plain; charset=utf-8"
+        assert response.headers["Content-Length"] == str(len(GCODE)) and response.read() == GCODE
+    piece = urllib.request.Request(f"{server}/api/printers/file?model=Snapmaker%20U1&path=Puzzel_PLA_1h28m.gcode",
+                                   headers={"Range": "bytes=14-19"})
+    with urllib.request.urlopen(piece) as response:
+        assert (response.status, response.headers["Content-Range"]) == (206, f"bytes 14-19/{len(GCODE)}")
+        assert response.read() == b";Z:0.2"
+    # Anything else than one plain range: the whole file.
+    odd = urllib.request.Request(f"{server}/api/printers/file?model=Snapmaker%20U1&path=Puzzel_PLA_1h28m.gcode",
+                                 headers={"Range": "bytes=0-1,5-9"})
+    with urllib.request.urlopen(odd) as response:
+        assert response.status == 200 and response.read() == GCODE
+    assert call(f"{server}/api/printers/file?model=Snapmaker%20U1&path=missing.gcode")[0] == 404
+    assert json.loads(call(f"{server}/api/printers/file?model=Snapmaker%20U1&path=../x")[1]) == {"error": "file_invalid"}
+    assert call(f"{server}/api/printers/files?model=Unbekannt")[0] == 404

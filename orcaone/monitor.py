@@ -23,7 +23,7 @@ EXTRUDER = re.compile(r"extruder\d*")
 # Always asked for, the objects of camera.status among them; what a printer lacks is missing in
 # the answer.
 FIXED = ["webhooks", "print_stats", "display_status", "gcode_move", "toolhead", "motion_report", "heaters",
-         "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max"]
+         "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max", "virtual_sdcard=file_position"]
 # mm² of 1.75 mm filament, as on the U1: the flow from the speed of the extruder. Klipper keeps the
 # diameter in its configuration only, which is too big to read every two seconds.
 FILAMENT_AREA = math.pi * (1.75 / 2) ** 2

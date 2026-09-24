@@ -1510,3 +1510,100 @@ span.cal-check { cursor: default; }
   .mon-hero { padding: 14px; }
   .mon-ring { width: 96px; height: 96px; }
 }
+
+/* Page "3D-Ansicht" (pages/druck3d.js): a bar on top, the picture takes the rest of the page */
+.page.fill-page.view3d-page { max-width: none; }
+.v3d-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.v3d-head h1 { margin: 0 8px 0 0; font-size: 20px; font-weight: 700; }
+.v3d-head .spacer { flex: 1; }
+.v3d-field { display: flex; flex: 0 1 480px; align-items: center; gap: 8px; min-width: 0; color: var(--label); font-size: 13px; }
+.v3d-field .input { flex: 1; min-width: 0; }
+.v3d-open { position: relative; }
+.v3d-open input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.v3d-follow { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.v3d-stage { position: relative; flex: 1; min-height: 320px; overflow: hidden; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface-2); }
+.v3d-stage.is-over { box-shadow: inset 0 0 0 2px var(--accent-line); }
+.v3d-canvas { position: absolute; inset: 0; }
+.v3d-canvas canvas { display: block; }
+.v3d-center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; margin: 0; padding: 16px; text-align: center; }
+.v3d-center.alert { inset: auto 16px 16px; }
+.v3d-bar { width: 240px; }
+/* Over the picture: what it shows, the views, the layers, the colours */
+.v3d-info, .v3d-views, .v3d-legend { position: absolute; border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.v3d-info { top: 10px; left: 12px; display: grid; gap: 2px; max-width: 60%; padding: 6px 10px; color: var(--label); font-size: 12px; }
+.v3d-info strong { overflow: hidden; color: var(--text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.v3d-views { top: 10px; right: 12px; display: flex; gap: 2px; padding: 2px; }
+.v3d-layers { position: absolute; top: 60px; right: 12px; bottom: 16px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+              padding: 8px 4px; border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); font-size: 12px; }
+.v3d-slider { flex: 1; width: 24px; writing-mode: vertical-lr; direction: rtl; accent-color: var(--accent); cursor: pointer; }
+.v3d-layer-text { font-weight: 700; font-variant-numeric: tabular-nums; }
+.v3d-layer-text small { margin-left: 2px; color: var(--muted); font-weight: 400; }
+.v3d-layer-z { color: var(--muted); font-variant-numeric: tabular-nums; }
+.v3d-legend { bottom: 10px; left: 12px; display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 90px); margin: 0; padding: 6px 10px;
+              font-size: 12px; list-style: none; }
+.v3d-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.v3d-swatch { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); }
+
+/* Page "2D-Ansicht" (pages/druck2d.js): the head of "3D-Ansicht", the layer beside a column of facts */
+.v2d-body { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; min-height: 0; }
+.v2d-stage { min-height: 360px; outline: none; }
+.v2d-stage:focus-visible { box-shadow: 0 0 0 2px var(--accent-line); }
+.v2d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.v2d-mode { flex: 0 0 auto; }
+.v2d-legend { position: absolute; top: 10px; left: 12px; max-width: calc(100% - 90px); padding: 6px 10px; border-radius: 6px;
+              background: color-mix(in srgb, var(--surface) 88%, transparent); font-size: 12px; }
+.v2d-legend ul { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; }
+.v2d-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.v2d-scale { display: block; width: 220px; height: 10px; border-radius: 3px; }
+.v2d-scale-ends { display: flex; justify-content: space-between; gap: 12px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.v2d-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; color: var(--muted); }
+.v2d-key span { display: inline-flex; align-items: center; gap: 5px; }
+.v2d-key i { display: inline-block; width: 18px; }
+.v2d-key-now { height: 6px; border-radius: 3px; background: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-line) 85%, transparent); }
+.v2d-key-done { height: 5px; border-radius: 3px; background: var(--text); }
+.v2d-key-todo { height: 1px; background: var(--text); opacity: .6; }
+.v2d-key-below { height: 8px; border-radius: 2px; background: rgba(111, 134, 173, .45); }
+.v2d-layers { bottom: 58px; }
+.v2d-steps { position: absolute; right: 12px; bottom: 10px; left: 12px; display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 2px;
+             border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); font-size: 12px; }
+.v2d-step-slider { flex: 1; min-width: 60px; accent-color: var(--accent); cursor: pointer; }
+.v2d-step-text { min-width: 10em; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.v2d-tip { position: absolute; z-index: 2; display: grid; gap: 2px; max-width: 270px; padding: 6px 9px; border: 1px solid var(--line-box);
+           border-radius: 6px; background: var(--surface); box-shadow: 0 4px 14px rgba(0, 0, 0, .15); font-size: 12px; pointer-events: none; }
+.v2d-tip strong { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.v2d-tip span { display: flex; align-items: center; gap: 4px; }
+.v2d-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; }
+.v2d-card { flex: none; padding: 10px 12px; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface); font-size: 13px; }
+.v2d-card h2 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+.v2d-card h2 small { font-size: 12px; font-weight: 400; }
+.v2d-muted { color: var(--muted); }
+.v2d-hint { margin: 8px 0 0; font-size: 12px; }
+.v2d-rows { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; margin: 0; }
+.v2d-rows dt { color: var(--muted); }
+.v2d-rows dd { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.v2d-types { display: grid; gap: 5px; margin: 10px 0 0; padding: 0; list-style: none; }
+.v2d-types li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 2px 6px; font-size: 12px; }
+.v2d-share { grid-column: 2 / 4; height: 4px; overflow: hidden; border-radius: 2px; background: var(--divider); }
+.v2d-share span { display: block; height: 100%; }
+.v2d-gcode { margin: 10px 0 0; padding: 6px 0; overflow-x: auto; border-radius: 6px; background: var(--surface-2); font-family: var(--mono);
+             font-size: 11.5px; line-height: 1.55; list-style: none; }
+.v2d-gcode li { display: flex; gap: 10px; min-width: max-content; padding: 0 8px; white-space: pre; }
+.v2d-gcode li.is-here { background: var(--selected); font-weight: 700; }
+.v2d-gcode .no { min-width: 4.5em; color: var(--muted); font-weight: 400; text-align: right; user-select: none; }
+.v2d-filaments { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.v2d-filaments li { display: flex; align-items: center; gap: 8px; }
+.v2d-filaments li > span { display: grid; min-width: 0; }
+.v2d-filaments strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.v2d-settings summary { font-weight: 700; cursor: pointer; }
+.v2d-settings .input { width: 100%; margin-top: 8px; }
+.v2d-settings-list { max-height: 420px; margin: 8px 0 0; overflow: auto; font-family: var(--mono); font-size: 11.5px; }
+.v2d-settings-list div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--divider); }
+.v2d-settings-list dt { color: var(--muted); overflow-wrap: anywhere; }
+.v2d-settings-list dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Narrow: the facts under the layer, the page scrolls */
+@media (max-width: 1100px) {
+  .main:has(.view2d-page) { height: auto; }
+  .v2d-body { grid-template-columns: minmax(0, 1fr); }
+  .v2d-stage { height: 65vh; }
+  .v2d-side { overflow: visible; }
+}

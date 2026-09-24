@@ -113,11 +113,12 @@ def _check_path(folder: str, path) -> str:
     return path
 
 
-def open_file(host: str, folder: str, path: str):
-    """Moonraker's answer with one file, for OrcaOne to pass on to the browser; the caller closes it."""
+def open_file(host: str, folder: str, path: str, byte_range: str | None = None):
+    """Moonraker's answer with one file, for OrcaOne to pass on to the browser; the caller closes it.
+    With byte_range ("bytes=100-199") only that piece: Moonraker answers 206 (checked on the U1)."""
     url = f"http://{host}/server/files/{folder}/{urllib.parse.quote(_check_path(folder, path))}"
     try:
-        return _direct.open(url, timeout=TIMEOUT)
+        return _direct.open(urllib.request.Request(url, headers={"Range": byte_range} if byte_range else {}), timeout=TIMEOUT)
     except urllib.error.HTTPError as exc:
         raise CameraError("file_not_found" if exc.code == 404 else "camera_refused", f"HTTP {exc.code}") from None
     except OSError as exc:
