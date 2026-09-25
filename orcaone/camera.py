@@ -56,8 +56,9 @@ U1_MODELS = {"Snapmaker U1"}
 
 
 # The addresses the slicers have, {"<model>": {"host", "slicer"}}: "Hostname, IP or URL" of their
-# dialog "Physical Printer", saved as print_host in an own printer. Taken from every scan of GET
-# /api/data (overview.build_all), so the files stay the only source.
+# dialog "Physical Printer", saved as print_host in an own printer, else the address of a printer
+# Snapmaker Orca connected to (.conf "devices"). Taken from every scan of GET /api/data
+# (overview.build_all), so the files stay the only source.
 _slicer_hosts: dict = {}
 
 

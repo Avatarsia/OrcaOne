@@ -1337,7 +1337,7 @@ const T = {
       add: "Enter",
       change: "Change",
       none: "No IP address",
-      fromSlicer: (slicer) => `from the printer profile in ${slicer}`,
+      fromSlicer: (slicer) => `from ${slicer}`,
       search: "Search the LAN",
       searching: "Searching …",
       take: "Take",
@@ -1345,7 +1345,7 @@ const T = {
       save: "Save",
       saved: "IP address saved",
       removed: "IP address removed",
-      why: "The address in the network. Without an own one, OrcaOne takes the one from the slicer’s dialog “Physical Printer”. For a U1, “Camera” and “Calibrate” use it to show picture and values live. Saving it empty removes the own one.",
+      why: "The address in the network. Without an own one, OrcaOne takes the slicer’s: from the dialog “Physical Printer”, else the one of the printer Snapmaker Orca is connected to. For a U1, “Camera” and “Calibrate” use it to show picture and values live. Saving it empty removes the own one.",
       errors: {
         camera_host_invalid: "This is neither an IP address nor a host name.",
         printer_invalid: "OrcaOne does not know this printer. Rescan.",

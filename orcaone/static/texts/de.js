@@ -1340,7 +1340,7 @@ const T = {
       add: "Eintragen",
       change: "Ändern",
       none: "Keine IP-Adresse",
-      fromSlicer: (slicer) => `aus dem Druckerprofil in ${slicer}`,
+      fromSlicer: (slicer) => `aus ${slicer}`,
       search: "Im LAN suchen",
       searching: "Suche …",
       take: "Übernehmen",
@@ -1348,7 +1348,7 @@ const T = {
       save: "Speichern",
       saved: "IP-Adresse gespeichert",
       removed: "IP-Adresse entfernt",
-      why: "Die Adresse im Netz. Ohne eigene nimmt OrcaOne die aus dem Dialog „Physischer Drucker“ des Slicers. Bei einem U1 zeigen „Kamera“ und „Kalibrieren“ damit Bild und Werte live. Leer speichern entfernt die eigene.",
+      why: "Die Adresse im Netz. Ohne eigene nimmt OrcaOne die des Slicers: aus dem Dialog „Physischer Drucker“, sonst die des Druckers, mit dem Snapmaker Orca verbunden ist. Bei einem U1 zeigen „Kamera“ und „Kalibrieren“ damit Bild und Werte live. Leer speichern entfernt die eigene.",
       errors: {
         camera_host_invalid: "Das ist keine IP-Adresse und kein Rechnername.",
         printer_invalid: "Diesen Drucker kennt OrcaOne nicht. Lies neu ein.",

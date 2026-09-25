@@ -4,6 +4,7 @@ import pytest
 
 from conftest import BUNDLE, FIXTURES, add_bundle, copy_fixture
 from orcaone import camera, instances, overview, settings
+from orcaone.conf import dump_conf, read_conf
 from orcaone.guard import SlicerProcess
 from test_opc import patched
 
@@ -314,3 +315,30 @@ def test_address_from_the_dialog_physical_printer(fake_home, monkeypatch):
     assert (own["Mein U1"]["model"], own["Mein U1"]["print_host"]) == ("Snapmaker U1", "http://10.30.40.174/")
     overview.build_all()
     assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "slicer", "slicer": "OrcaSlicer"}}
+
+
+def test_address_of_a_printer_snapmaker_orca_connected_to(fake_home, monkeypatch):
+    """Snapmaker Orca keeps a printer it connected to in the .conf under "devices", with its address
+    (seen on Windows, 24.09.2026). Its preset names the printer model; the dialog "Physical Printer"
+    goes first."""
+    monkeypatch.setattr(overview.guard, "find_processes", lambda: [])
+    monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    conf = read_conf(data_dir / "Snapmaker_Orca.conf")
+    conf.data["devices"] = [
+        {"dev_name": "Dr. Klippers U1", "ip": "10.30.40.174", "model_name": "U1",
+         "preset_name": "Snapmaker U1 (0.4 nozzle)", "password": "geheim"},
+        {"dev_name": "ohne Adresse", "ip": "", "preset_name": "Snapmaker U1 (0.4 nozzle)"},
+        {"dev_name": "von Hand", "ip": "10.30.40.5", "model_name": "Voron 2.4 300", "preset_name": ["kaputt"]},
+    ]
+    (data_dir / "Snapmaker_Orca.conf").write_bytes(dump_conf(conf))
+    assert build(data_dir)["printers_page"]["devices"] == [{"model": "Snapmaker U1", "host": "10.30.40.174"},
+                                                           {"model": "Voron 2.4 300", "host": "10.30.40.5"}]
+    overview.build_all()
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.174", "from": "slicer", "slicer": "Snapmaker Orca"}
+
+    printer = data_dir / "user" / "default" / "machine" / "Mein U1.json"
+    printer.write_text(json.dumps({**json.loads(printer.read_text(encoding="utf-8")), "print_host": "10.30.40.9"}),
+                       encoding="utf-8")
+    overview.build_all()
+    assert camera.printers()["Snapmaker U1"]["host"] == "10.30.40.9"

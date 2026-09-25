@@ -309,6 +309,19 @@ def _printers_page(res: Resolver, system_models: list, system_printers: list, se
             entry["problem"] = problem
         own.append(entry)
 
+    # A printer Snapmaker Orca connected to (found by mDNS) stays in the .conf under "devices" with
+    # its address, next to credentials that never leave this function. Its preset names the printer
+    # model the address belongs to (FINDINGS, "Windows am echten Rechner").
+    by_name = {p.name: p for p in system_printers}
+    devices = []
+    for d in _items(scan.conf.get("devices")):
+        if not isinstance(d, dict) or not isinstance(d.get("ip"), str) or not d["ip"]:
+            continue
+        preset = by_name.get(d["preset_name"]) if isinstance(d.get("preset_name"), str) else None
+        model = (first(res.value(preset, "printer_model")) if preset else None) or d.get("model_name")
+        if isinstance(model, str) and model:
+            devices.append({"model": model, "host": d["ip"]})
+
     # orca_presets keeps the last choice per printer and is never cleaned up (FINDINGS 4.3, 4.9).
     presets = [e for e in _items(scan.conf.get("orca_presets")) if isinstance(e, dict)]
     dead = []
@@ -334,7 +347,7 @@ def _printers_page(res: Resolver, system_models: list, system_printers: list, se
         for v in m["printers"]:
             if v["name"] == selected:
                 default.update(model=m["model"], variant=v["variant"], cover=m["cover"])
-    return {"default_printer": default, "system": system, "own": own,
+    return {"default_printer": default, "system": system, "own": own, "devices": devices,
             "remembered": len(presets), "dead_entries": dead}
 
 
@@ -656,10 +669,14 @@ def build_all() -> dict:
             failed.append({"id": i.id, "slicer": SLICERS[i.slicer]["name"], "path": home_path(i.data_dir),
                            "data_dir": str(i.data_dir), "manual": str(i.data_dir) in manual, "code": "scan_failed"})
     # The address the slicers have for a printer model, for the pages "Drucker", "Kamera" and
-    # "Kalibrieren"; one typed in on the page "Drucker" goes first (camera.printers).
-    camera.remember_slicer_hosts({p["model"]: {"host": p["print_host"], "slicer": b["slicer"]}
-                                  for b in reversed(built) for p in reversed(b["printers_page"]["own"])
-                                  if p.get("model") and p.get("print_host")})
+    # "Kalibrieren". One typed in on the page "Drucker" goes first (camera.printers), then the one
+    # of the dialog "Physical Printer", then the one of a printer Snapmaker Orca connected to.
+    connected = {d["model"]: {"host": d["host"], "slicer": b["slicer"]}
+                 for b in reversed(built) for d in reversed(b["printers_page"]["devices"])}
+    typed = {p["model"]: {"host": p["print_host"], "slicer": b["slicer"]}
+             for b in reversed(built) for p in reversed(b["printers_page"]["own"])
+             if p.get("model") and p.get("print_host")}
+    camera.remember_slicer_hosts({**connected, **typed})
     return {
         "generated": datetime.now().isoformat(timespec="seconds"),
         "core_values": [{"key": key} for key in CORE_VALUES],
