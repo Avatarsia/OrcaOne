@@ -13,11 +13,108 @@ const T = {
   locale: "de-DE",  // numbers, dates and times (common.js)
   quote: q,
   appName: "OrcaOne",
+  // On the boot screen, at the bottom of the menu and on the page "Lizenz"; the same in both
+  // languages (the user's wish of 24.09.2026).
+  by: "by Dr. Klipper",
   reload: "Neu einlesen",
   reloaded: "Neu eingelesen",
   reloadedDiscarded: "Neu eingelesen. Die vorgemerkten Änderungen sind verworfen.",
   dataFrom: (time) => `Stand der Daten: ${time} Uhr`,
   loading: "Lese Installationen …",
+  // Boot screen on every page load (app.js)
+  splash: {
+    license: "Lizenz: PolyForm Noncommercial 1.0.0",
+    noncommercial: "Keine kommerzielle Nutzung",
+    // What the scan does, step by step (overview.build_all, GET /api/progress): while it runs and
+    // once it is done; size comes formatted.
+    steps: {
+      processes: (s) => (!s.done ? "Prüfe, ob ein Slicer läuft …"
+        : s.running?.length ? `Läuft gerade: ${s.running.join(", ")}` : "Kein Slicer läuft"),
+      discover: (s) => (!s.done ? "Suche Installationen …"
+        : `${n(s.count)} ${s.count === 1 ? "Installation" : "Installationen"} gefunden`),
+      profiles: (s) => (!s.done ? `${s.instance}: lese die Profile …`
+        : `${s.instance}: ${n(s.system)} Systemprofile, ${n(s.own)} ${s.own === 1 ? "eigenes" : "eigene"}`),
+      resolve: (s) => (!s.done ? `${s.instance}: löse die Vererbung auf …`
+        : `${s.instance}: ${n(s.printers)} Drucker, ${n(s.filaments)} ${s.filaments === 1 ? "Filament" : "Filamente"}`),
+      folders: (s, size) => (!s.done ? `${s.instance}: messe den Datenordner …` : `${s.instance}: Datenordner vermessen, ${size}`),
+      news: (s) => (!s.done ? `${s.instance}: vergleiche mit dem letzten Stand …`
+        : !s.count ? `${s.instance}: nichts geändert seit dem letzten Mal`
+          : `${s.instance}: ${n(s.count)} ${s.count === 1 ? "Änderung" : "Änderungen"} seit dem letzten Mal`),
+    },
+    failed: (s) => `${s.instance}: nicht lesbar`,
+  },
+  // Page "Lizenz" (pages/lizenz.js); legally binding is the English text in LICENSE.md.
+  license: {
+    title: "Lizenz",
+    intro: "OrcaOne ist von Dr. Klipper (Dominik Schmidt) und steht unter der PolyForm Noncommercial License 1.0.0. Rechtlich maßgeblich ist der englische Lizenztext, diese Kurzfassung dient nur der Orientierung:",
+    points: [
+      "Nutzen, Kopieren und Verändern sind für nichtkommerzielle Zwecke frei: privat, als Hobby, für Forschung und Lehre und durch gemeinnützige Organisationen.",
+      "Jede kommerzielle Nutzung braucht eine gesonderte Lizenz des Autors. Dazu gehört auch, OrcaOne oder Teile davon zu verkaufen, in ein Produkt einzubauen, das verkauft wird, oder damit eine bezahlte Dienstleistung anzubieten.",
+      "OrcaOne kommt ohne Gewährleistung.",
+    ],
+    contact: "Kontakt für eine kommerzielle Lizenz:",
+    thirdTitle: "Dateien von Dritten",
+    thirdLead: "Diese Teile stehen nicht unter der Lizenz von OrcaOne, sondern unter ihrer eigenen.",
+    uses: { vue: "Oberfläche", three: "3D-Ansicht", xterm: "SSH", inter: "Schrift", mono: "Schrift für G-Code und Werte" },
+    termsTitle: "Lizenztext",
+    termsLead: "Deutsche Übersetzung, nicht verbindlich. Rechtlich maßgeblich ist das englische Original darunter.",
+    originalTitle: "Englischer Originaltext, rechtlich maßgeblich",
+    expandAll: "Alle aufklappen",
+    collapseAll: "Alle zuklappen",
+    // PolyForm Noncommercial License 1.0.0 in German, not binding: the same as at the end of
+    // LICENSE.md (tests/test_license.py). **bold** and `code` as in the file.
+    terms: [
+      { title: "Annahme", text: [
+        "Um nach diesen Bedingungen eine Lizenz zu erhalten, müssen Sie ihnen zustimmen, und zwar sowohl als strikte Verpflichtungen als auch als Bedingungen für alle Ihre Lizenzen.",
+      ] },
+      { title: "Urheberrechtslizenz", text: [
+        "Der Lizenzgeber gewährt Ihnen eine urheberrechtliche Lizenz, mit der Software für jeden erlaubten Zweck alles zu tun, was sonst sein Urheberrecht an ihr verletzen würde. Sie dürfen die Software jedoch nur nach dem Abschnitt „Lizenz zur Verbreitung“ verbreiten und Änderungen oder neue Werke auf Grundlage der Software nur nach dem Abschnitt „Lizenz für Änderungen und neue Werke“ erstellen.",
+      ] },
+      { title: "Lizenz zur Verbreitung", text: [
+        "Der Lizenzgeber gewährt Ihnen eine zusätzliche urheberrechtliche Lizenz, Kopien der Software zu verbreiten. Diese Lizenz umfasst auch die Verbreitung der Software mit Änderungen und neuen Werken, die nach dem Abschnitt „Lizenz für Änderungen und neue Werke“ erlaubt sind.",
+      ] },
+      { title: "Hinweise", text: [
+        "Sie müssen sicherstellen, dass jeder, der von Ihnen eine Kopie der Software oder eines Teils davon erhält, auch eine Kopie dieser Bedingungen oder die oben genannte URL erhält, außerdem Kopien aller reinen Textzeilen, die mit `Required Notice:` beginnen und die der Lizenzgeber mit der Software bereitgestellt hat.",
+      ] },
+      { title: "Lizenz für Änderungen und neue Werke", text: [
+        "Der Lizenzgeber gewährt Ihnen eine zusätzliche urheberrechtliche Lizenz, für jeden erlaubten Zweck Änderungen und neue Werke auf Grundlage der Software zu erstellen.",
+      ] },
+      { title: "Patentlizenz", text: [
+        "Der Lizenzgeber gewährt Ihnen eine Patentlizenz für die Software. Sie umfasst die Patentansprüche, die der Lizenzgeber lizenzieren kann oder künftig lizenzieren kann und die Sie durch die Nutzung der Software verletzen würden.",
+      ] },
+      { title: "Nichtkommerzielle Zwecke", text: [
+        "Jeder nichtkommerzielle Zweck ist ein erlaubter Zweck.",
+      ] },
+      { title: "Persönliche Nutzung", text: [
+        "Persönliche Nutzung für Forschung, Experimente und Tests zugunsten des öffentlichen Wissens, für das persönliche Studium, die private Unterhaltung, Hobbyprojekte, Liebhabereien oder die Religionsausübung ist eine Nutzung für einen erlaubten Zweck, solange keine kommerzielle Anwendung absehbar ist.",
+      ] },
+      { title: "Nichtkommerzielle Organisationen", text: [
+        "Die Nutzung durch gemeinnützige Organisationen, Bildungseinrichtungen, öffentliche Forschungseinrichtungen, Organisationen für öffentliche Sicherheit oder Gesundheit, Umweltschutzorganisationen oder staatliche Einrichtungen ist eine Nutzung für einen erlaubten Zweck, unabhängig davon, woher ihre Finanzierung stammt oder welche Verpflichtungen sich aus der Finanzierung ergeben.",
+      ] },
+      { title: "Faire Nutzung", text: [
+        "Sie haben nach dem Gesetz möglicherweise Rechte zur „fairen Nutzung“ („fair use“) der Software. Diese Bedingungen schränken sie nicht ein.",
+      ] },
+      { title: "Keine weiteren Rechte", text: [
+        "Diese Bedingungen erlauben Ihnen nicht, Ihre Lizenzen an andere unterzulizenzieren oder auf andere zu übertragen, und sie hindern den Lizenzgeber nicht daran, anderen Lizenzen zu erteilen. Aus diesen Bedingungen ergeben sich keine weiteren Lizenzen.",
+      ] },
+      { title: "Patentverteidigung", text: [
+        "Wenn Sie schriftlich behaupten, dass die Software ein Patent verletzt oder zu einer Patentverletzung beiträgt, endet Ihre nach diesen Bedingungen gewährte Patentlizenz für die Software sofort. Erhebt Ihr Unternehmen eine solche Behauptung, endet Ihre Patentlizenz sofort für Arbeiten im Auftrag Ihres Unternehmens.",
+      ] },
+      { title: "Verstöße", text: [
+        "Wenn Sie zum ersten Mal schriftlich darauf hingewiesen werden, dass Sie gegen diese Bedingungen verstoßen oder mit der Software etwas getan haben, das nicht von Ihren Lizenzen gedeckt ist, können Ihre Lizenzen dennoch fortbestehen, wenn Sie innerhalb von 32 Tagen nach Erhalt des Hinweises diese Bedingungen wieder vollständig einhalten und praktische Schritte unternehmen, um frühere Verstöße zu beheben. Andernfalls enden alle Ihre Lizenzen sofort.",
+      ] },
+      { title: "Keine Haftung", text: [
+        "Soweit gesetzlich zulässig, wird die Software so bereitgestellt, wie sie ist, ohne jede Gewährleistung oder Zusicherung, und der Lizenzgeber haftet Ihnen gegenüber nicht für Schäden, die sich aus diesen Bedingungen oder aus der Nutzung oder Beschaffenheit der Software ergeben, gleich aus welchem Rechtsgrund.",
+      ] },
+      { title: "Begriffe", text: [
+        "Der **Lizenzgeber** ist die natürliche oder juristische Person, die diese Bedingungen anbietet, und die **Software** ist die Software, die der Lizenzgeber unter diesen Bedingungen zur Verfügung stellt.",
+        "**Sie** bezeichnet die natürliche oder juristische Person, die diesen Bedingungen zustimmt.",
+        "**Ihr Unternehmen** ist jede juristische Person, jedes Einzelunternehmen und jede andere Art von Organisation, für die Sie arbeiten, dazu alle Organisationen, die diese Organisation beherrschen, von ihr beherrscht werden oder mit ihr unter gemeinsamer Beherrschung stehen. **Beherrschung** bedeutet das Eigentum an im Wesentlichen allen Vermögenswerten einer Einrichtung oder die Befugnis, ihre Leitung und ihre Richtlinien durch Stimmrecht, Vertrag oder auf andere Weise zu bestimmen. Die Beherrschung kann unmittelbar oder mittelbar sein.",
+        "**Ihre Lizenzen** sind alle Lizenzen, die Ihnen nach diesen Bedingungen für die Software gewährt werden.",
+        "**Nutzung** ist alles, was Sie mit der Software tun und wofür Sie eine Ihrer Lizenzen benötigen.",
+      ] },
+    ],
+  },
   close: "Schließen",
   cancel: "Abbrechen",
   back: "Zurück",
@@ -54,7 +151,9 @@ const T = {
   nav: {
     label: "Hauptmenü",
     toggle: "Menü ein- und ausblenden",
-    pages: { uebersicht: "Übersicht", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", druck3d: "3D-Ansicht", druck2d: "2D-Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs" },
+    pages: { uebersicht: "Übersicht", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", druck3d: "3D-Ansicht", druck2d: "2D-Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Slicer", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
+    byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
     pending: "vorgemerkte Änderungen",
     backups: "Sicherungen",

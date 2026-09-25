@@ -157,6 +157,12 @@ def get_settings():
             "theme": theme if theme in THEMES else None}
 
 
+@app.get("/api/progress")
+def scan_progress():
+    """What the running GET /api/data does, for the boot screen (overview.progress)."""
+    return overview.progress()
+
+
 @app.post("/api/settings")
 def set_settings(payload: dict = Body(...)):
     """Any of: "language" ("de", "en"), "menu_collapsed" (the menu folded away), "theme" ("light", "dark")."""

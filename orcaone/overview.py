@@ -8,6 +8,7 @@ German wording lives in orcaone/static/texts.js. Strictly read only.
 import colorsys
 import logging
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -504,8 +505,54 @@ def _warnings(res: Resolver, records: dict, without_printer: list, same_alias: l
     return warnings
 
 
+# What the scan for GET /api/data does right now, for the boot screen (GET /api/progress, the user's
+# wish of 24.09.2026): its steps in order, each with a code, a few numbers and whether it is done.
+# Only the last scan counts; two at the same time mix, which only the boot screen would show.
+STEPS_PER_INSTANCE = 4   # profiles, resolve, folders, news
+_progress = {"steps": [], "total": 0}
+_progress_lock = threading.Lock()
+
+
+def _begin(code: str | None, **detail) -> None:
+    """The step running so far is done, the next starts; None ends the scan."""
+    with _progress_lock:
+        if _progress["steps"]:
+            _progress["steps"][-1]["done"] = True
+        if code:
+            _progress["steps"].append({"code": code, **detail, "done": False})
+
+
+def _note(**numbers) -> None:
+    """Numbers for the step running now, e.g. how many profiles it read."""
+    with _progress_lock:
+        if _progress["steps"]:
+            _progress["steps"][-1].update(numbers)
+
+
+def _fail(label: str) -> None:
+    """The installation could not be read: its running step failed, else a step says so."""
+    with _progress_lock:
+        steps = _progress["steps"]
+        if not steps or steps[-1]["done"] or steps[-1].get("instance") != label:
+            steps.append({"code": "failed", "instance": label})
+        steps[-1].update(done=True, failed=True)
+
+
+def progress() -> dict:
+    with _progress_lock:
+        return {"steps": [dict(s) for s in _progress["steps"]], "total": _progress["total"]}
+
+
+def _label(instance: Instance) -> str:
+    return f"{SLICERS[instance.slicer]['name']} {instance.version or ''}".strip()
+
+
 def build_instance(instance: Instance, processes: list, manual: bool = False) -> dict:
+    label = _label(instance)
+    _begin("profiles", instance=label)
     scan = scanner.scan(instance.data_dir, instance.slicer)
+    _note(system=len(scan.profiles), own=len(scan.own))
+    _begin("resolve", instance=label)
     res = Resolver(scan)
     snorca = scan.snorca
     conf = scan.conf
@@ -611,7 +658,14 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
     lost = hidden_filaments(res, instances.load_unlocks(instance.id)) if snorca else []
     warnings = _warnings(res, records, without_printer, same_alias, {p.name for p in all_printers}, lost)
     running, reason = _run_state(instance, processes)
+    _note(printers=len(all_printers), filaments=len(records))
+    _begin("folders", instance=label)
     measured = scanner.backup_measure(instance.data_dir)
+    slicer_page = _slicer_page(instance, res, measured, running)
+    _note(size=measured[0])
+    _begin("news", instance=label)
+    news = snapshot.count(instance, scan, res)
+    _note(count=news)
     return {
         "id": instance.id, "slicer": SLICERS[instance.slicer]["name"], "app_key": instance.slicer,
         "kind": "snorca" if snorca else "orca",
@@ -632,7 +686,7 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
         "without_printer": without_printer,
         "warnings": warnings,
         # Changes since the user last marked the installation seen, for the menu (page "Änderungen").
-        "news": snapshot.count(instance, scan, res),
+        "news": news,
         "stats": {
             "models": len(out_models), "printers": len(all_printers),
             "system_filaments_selectable": len(system_filaments),
@@ -641,7 +695,7 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
             "per_printer": {v["name"]: {**v["counts"], "processes": v["process_count"]}
                             for m in out_models for v in m["printers"]},
         },
-        "slicer_page": _slicer_page(instance, res, measured, running),
+        "slicer_page": slicer_page,
         "printers_page": _printers_page(res, system_models, system_printers, selected),
         "backups_page": _backups_page(instance, measured),
     }
@@ -657,8 +711,16 @@ def _run_state(instance: Instance, processes: list) -> tuple:
 def build_all() -> dict:
     """All installations OrcaOne finds, including those added by hand, read fresh. One that
     cannot be read (a file edited by hand, a bug in OrcaOne) goes to "failed", the others stay."""
+    with _progress_lock:
+        _progress.update(steps=[], total=0)
+    _begin("processes")
     processes = guard.find_processes()
+    _note(running=sorted({SLICERS[p.slicer]["name"] for p in processes}))
+    _begin("discover")
     found = instances.discover([p.data_dir for p in processes if p.data_dir])
+    _note(count=len(found))
+    with _progress_lock:
+        _progress["total"] = 2 + STEPS_PER_INSTANCE * len(found)
     manual = set(instances.manual_paths())
     built, failed = [], []
     for i in found:
@@ -666,8 +728,10 @@ def build_all() -> dict:
             built.append(build_instance(i, processes, str(i.data_dir) in manual))
         except Exception:
             log.exception("Reading %s failed", i.data_dir)
+            _fail(_label(i))
             failed.append({"id": i.id, "slicer": SLICERS[i.slicer]["name"], "path": home_path(i.data_dir),
                            "data_dir": str(i.data_dir), "manual": str(i.data_dir) in manual, "code": "scan_failed"})
+    _begin(None)
     # The address the slicers have for a printer model, for the pages "Drucker", "Kamera" and
     # "Kalibrieren". One typed in on the page "Drucker" goes first (camera.printers), then the one
     # of the dialog "Physical Printer", then the one of a printer Snapmaker Orca connected to.

@@ -148,6 +148,10 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .nav-switch.is-second::before { transform: translateX(100%); }
 .nav-switch-side { position: relative; display: grid; place-items: center; color: var(--muted); font-size: 12px; font-weight: 700; }
 .nav-switch-side.is-on { color: var(--on-accent); }
+/* "by Dr. Klipper" under the switches, leads to the page "Lizenz" */
+.nav-by { margin: 8px 4px 0; padding: 2px 0; border-radius: 4px; color: var(--muted); font-size: 12px; font-weight: 600; text-align: center; text-decoration: none; }
+.nav-by:hover, .nav-by[aria-current="page"] { color: var(--accent-text); }
+.nav-by:hover { text-decoration: underline; }
 /* ionpy .list-item, larger for touch and older eyes */
 .nav-item {
   position: relative; display: flex; align-items: center; gap: 10px;
@@ -537,6 +541,74 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .soon-icon.is-bad { background: var(--error-bg); color: var(--error); }
 .soon .add-form { width: min(100%, 440px); }
 .soon .field-error:empty { display: none; }
+
+/* Boot screen on every page load, until the installations are read (app.js) */
+.splash {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center;
+  padding: 24px 16px; color: var(--text); text-align: center;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%) var(--bg);
+  transition: opacity .4s ease;
+}
+.splash.is-leaving { opacity: 0; pointer-events: none; }
+.splash-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.splash-logo { width: 112px; height: 112px; margin-bottom: 18px; filter: drop-shadow(0 10px 24px rgb(0 0 0 / .22)); animation: splash-in .7s ease-out both; }
+.splash-name { font-size: 36px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; animation: splash-in .7s .1s ease-out both; }
+.splash-by { font-size: 15px; font-weight: 600; color: var(--accent-text); animation: splash-in .7s .2s ease-out both; }
+.splash-bar { position: relative; width: 180px; height: 3px; margin-top: 28px; overflow: hidden; border-radius: 2px; background: var(--divider); }
+.splash-bar::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; border-radius: inherit; background: var(--accent-line);
+  animation: splash-bar 1.2s ease-in-out infinite;
+}
+/* Once the number of steps is known, the bar fills with them instead of running */
+.splash-bar.is-known::after { display: none; }
+.splash-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: inherit; background: var(--accent-line); transition: width .25s ease; }
+.splash-bar:not(.is-known) .splash-fill { display: none; }
+/* The steps as a small log, the last six; the height stays, so nothing jumps */
+.splash-steps {
+  display: grid; align-content: start; gap: 3px; width: min(440px, 100%); height: calc(6 * 20px); margin: 14px 0 0; padding: 0;
+  list-style: none; color: var(--muted); font-size: 12.5px; text-align: left;
+}
+.splash-steps li { display: flex; align-items: center; gap: 8px; min-width: 0; line-height: 17px; animation: splash-step .25s ease-out both; }
+.splash-steps .icon { flex: none; color: var(--accent-text); }
+.splash-steps .is-failed .icon { color: var(--error); }
+.splash-steps .is-running { color: var(--text); }
+.splash-step-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.splash-spin { flex: none; width: 12px; height: 12px; margin: 0 1px; border: 2px solid var(--divider); border-top-color: var(--accent-line); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes splash-step { from { opacity: 0; transform: translateY(4px); } }
+.splash-license { font-size: 12px; color: var(--muted); }
+.splash-license strong { color: var(--label); font-weight: 600; }
+@keyframes splash-in { from { opacity: 0; transform: translateY(6px) scale(.97); } }
+@keyframes splash-bar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+/* The rule for reduced motion further down does not reach the bar's ::after */
+@media (prefers-reduced-motion: reduce) { .splash-bar::after { animation: none; left: 30%; } }
+@media (max-width: 420px) {
+  .splash-dot { display: none; }
+  .splash-license strong { display: block; }
+}
+
+/* Page "Lizenz" (pages/lizenz.js) */
+.license-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.license-logo { width: 64px; height: 64px; filter: drop-shadow(0 4px 12px rgb(0 0 0 / .15)); }
+.license-name { font-size: 24px; font-weight: 700; line-height: 1.2; }
+.license-by { color: var(--accent-text); font-weight: 600; }
+.license-page .box > p + p, .license-page .box > ul + p { margin-top: 8px; }
+.license-points { margin: 8px 0 0; padding-left: 20px; }
+.license-points li + li { margin-top: 6px; }
+.license-third { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 13px; }
+.license-third th, .license-third td { padding: 6px 8px 6px 0; border-top: 1px solid var(--divider); text-align: left; vertical-align: top; }
+.license-third th { font-weight: 600; }
+.license-third td:last-child { color: var(--muted); }
+/* The licence text, one section to fold open each */
+.license-terms { display: grid; gap: 6px; margin-top: 10px; }
+.license-section { border: 1px solid var(--divider); border-radius: 6px; background: var(--surface-2); }
+.license-section > summary { padding: 8px 12px; font-weight: 600; cursor: pointer; }
+.license-section > summary:hover { color: var(--accent-text); }
+.license-section > p { padding: 0 12px; line-height: 1.55; }
+.license-section > p + p { margin-top: 8px; }
+.license-section > p:last-child { padding-bottom: 12px; }
+.license-section code { font-family: var(--mono); font-size: 12px; }
+.license-original { margin-top: 14px; }
+.license-original > summary { color: var(--accent-text); font-weight: 600; cursor: pointer; }
 
 /* Slicer page. Category colours: teal = OrcaOne writes, blue = manufacturer, grey = the slicer's own,
    light grey = temporary, orange = confidential. Always shown with the text label. */

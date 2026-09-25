@@ -29,6 +29,8 @@ def main() -> None:
         # The page and the option lists the transfer needs; os.pathsep is ";" on Windows, ":" elsewhere.
         "--add-data", f"{ROOT / 'orcaone' / 'static'}{os.pathsep}orcaone/static",
         "--add-data", f"{ROOT / 'orcaone' / 'options.json'}{os.pathsep}orcaone",
+        # The licence goes with every copy (PolyForm, "Notices").
+        "--add-data", f"{ROOT / 'LICENSE.md'}{os.pathsep}.",
         # uvicorn picks its event loop and protocols by name at run time.
         "--collect-submodules", "uvicorn",
         # OrcaOne's icon for the program file; only Windows keeps it there (tools/make_icons.py).

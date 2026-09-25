@@ -58,6 +58,8 @@ const backupUrl = (id, name) => `${instUrl(id)}/backups/${encodeURIComponent(nam
 
 export const api = {
   data: () => request("GET", "/api/data"),
+  // What the scan of GET /api/data does right now, for the boot screen.
+  progress: () => request("GET", "/api/progress"),
   // OrcaOne's own settings (data/settings.json): the language of the page, the folded menu, the design.
   settings: () => request("GET", "/api/settings"),
   setLanguage: (language) => request("POST", "/api/settings", { language }),

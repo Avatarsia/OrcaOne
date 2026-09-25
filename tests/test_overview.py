@@ -317,6 +317,22 @@ def test_address_from_the_dialog_physical_printer(fake_home, monkeypatch):
     assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "slicer", "slicer": "OrcaSlicer"}}
 
 
+def test_the_scan_reports_its_steps(fake_home, monkeypatch):
+    """What GET /api/data does, step by step with its numbers, for the boot screen (GET /api/progress)."""
+    monkeypatch.setattr(overview.guard, "find_processes", lambda: [])
+    monkeypatch.setattr(instances.platform, "system", lambda: "Linux")
+    copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    overview.build_all()
+    got = overview.progress()
+    assert [s["code"] for s in got["steps"]] == ["processes", "discover", "profiles", "resolve", "folders", "news"]
+    assert got["total"] == 6 and all(s["done"] for s in got["steps"])
+    steps = {s["code"]: s for s in got["steps"]}
+    assert steps["processes"]["running"] == [] and steps["discover"]["count"] == 1
+    assert steps["profiles"]["instance"] == "Snapmaker Orca 2.4.0"
+    assert steps["profiles"]["system"] > 0 and steps["profiles"]["own"] > 0 and steps["resolve"]["printers"] > 0
+    assert steps["folders"]["size"] > 0 and steps["news"]["count"] == 0
+
+
 def test_address_of_a_printer_snapmaker_orca_connected_to(fake_home, monkeypatch):
     """Snapmaker Orca keeps a printer it connected to in the .conf under "devices", with its address
     (seen on Windows, 24.09.2026). Its preset names the printer model; the dialog "Physical Printer"

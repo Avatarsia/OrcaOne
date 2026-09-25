@@ -6,7 +6,7 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
-  printerModels, slicerModel, modelName, modelShown, U1_MODELS,
+  printerModels, slicerModel, modelName, modelShown, U1_MODELS, fmtSize,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
@@ -33,8 +33,15 @@ import KonsolePage from "./pages/konsole.js";
 import SshPage from "./pages/ssh.js";
 import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
+import LizenzPage from "./pages/lizenz.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
+
+// The boot screen stays at least this long (the user: 1.2 s was too short, 3 s of waiting only looked
+// slow) and a little after the last step, so its tick shows. Fading in takes 0.9 s.
+const SPLASH_MS = 1500;
+const SPLASH_HOLD_MS = 700;
+const PROGRESS_MS = 150;   // how often the boot screen asks what the scan does
 
 document.documentElement.lang = LANG;
 // The design chosen in the menu; GET / brings it already (app.py), /index.html does not.
@@ -70,6 +77,8 @@ const PAGES = [
   { id: "sicherungen", icon: "backup", component: SicherungenPage, sub: true },
   { id: "aenderungen", icon: "diff", component: AenderungenPage, sub: true },
   { id: "logs", icon: "log", component: LogsPage, sub: true },
+  // Not in the menu: "by Dr. Klipper" at its bottom leads here.
+  { id: "lizenz", icon: "info", component: LizenzPage, standalone: true, hidden: true },
 ].map((p) => ({ ...p, label: T.nav.pages[p.id] }));
 
 // Icon and colour class per type of change; the verbs are in texts.js.
@@ -128,7 +137,7 @@ const app = createApp({
     });
     const navHash = (p) => hashOf(p.id, ui.instId, PRINTER_PAGES.includes(p.id) ? activeIdx.value : null);
     // The pages for a U1 only while a U1 is chosen, without "(U1)" in their name.
-    const menuPages = computed(() => PAGES.filter((p) => !p.u1 || isU1.value));
+    const menuPages = computed(() => PAGES.filter((p) => !p.hidden && (!p.u1 || isU1.value)));
 
     // ------------------------------------------------------------ change list
     // All pages, all installations. Each installation is planned and written on its own, with
@@ -310,6 +319,46 @@ const app = createApp({
     const loadError = computed(() => T.loadError[loadState.error === "network" ? "network" : "other"]);
     load();
 
+    // ------------------------------------------------------------ boot screen
+    // On every page load until the installations are read (the user's wish of 24.09.2026: logo,
+    // "by Dr. Klipper", the licence), with the steps the backend works through (GET /api/progress)
+    // and a bar that fills with them. An error shows at once; "Neu einlesen" never brings it back.
+    const splash = reactive({ shown: true, leaving: false, steps: [], total: 0 });
+    const splashFrom = performance.now();
+    let seenRunning = false;
+    async function askProgress(final = false) {
+      try {
+        const got = await api.progress();
+        // Until this load's scan starts, the answer is the last scan's, every step done: not shown.
+        if (got.steps.some((s) => !s.done)) seenRunning = true;
+        if (seenRunning || final) Object.assign(splash, { steps: got.steps, total: got.total });
+      } catch {
+        // No answer: the bar just keeps running.
+      }
+    }
+    const progressTimer = setInterval(askProgress, PROGRESS_MS);
+    function hideSplash(wait) {
+      setTimeout(() => {
+        splash.leaving = true;
+        setTimeout(() => { splash.shown = false; }, 400);
+      }, wait);
+    }
+    const stopSplash = watch(() => loadState.status, async (status) => {
+      if (status === "loading") return;
+      stopSplash();
+      clearInterval(progressTimer);
+      if (status === "error") return hideSplash(0);
+      await askProgress(true);
+      hideSplash(Math.max(SPLASH_MS - (performance.now() - splashFrom), SPLASH_HOLD_MS));
+    });
+    // The last six steps; the list only grows, so the position is the key.
+    const splashSteps = computed(() => {
+      const from = Math.max(0, splash.steps.length - 6);
+      return splash.steps.slice(from).map((s, i) => ({ ...s, key: from + i }));
+    });
+    const splashPct = computed(() => (splash.total ? Math.min(100, (100 * splash.steps.filter((s) => s.done).length) / splash.total) : 0));
+    const stepText = (s) => (s.failed ? T.splash.failed(s) : T.splash.steps[s.code]?.(s, fmtSize(s.size || 0)) || s.code);
+
     // The language at the bottom of the menu: saved in data/settings.json, then the page loads
     // anew, as every page reads its texts once. Queued changes would be lost, so they go first.
     function setLanguage(code) {
@@ -439,7 +488,7 @@ const app = createApp({
       printers, activeModel, modelName, printerOpen, printerBtn, printerMenu, togglePrinter, pickPrinter, printerKey, menuPages,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
-      narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav,
+      narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
     };
   },
 
@@ -518,6 +567,8 @@ const app = createApp({
             <span :class="['nav-switch-side', { 'is-on': dark }]"><ui-icon name="moon" :size="16"/></span>
           </button>
         </div>
+        <a class="nav-by" :href="hashOf('lizenz', ui.instId)" :title="T.nav.byHint" :aria-current="route.page === 'lizenz' ? 'page' : null"
+           @click="navOpen = false; go($event, hashOf('lizenz', ui.instId))">{{ T.by }}</a>
       </nav>
       <div v-if="narrow && navOpen" class="nav-backdrop" @click="navOpen = false"></div>
       <main class="main">
@@ -604,6 +655,26 @@ const app = createApp({
     </div>
 
     <div :class="['toast', { show: ui.toast }]" role="status" aria-live="polite">{{ ui.toast }}</div>
+
+    <!-- Boot screen; the page below says "Lese Installationen …" for screen readers -->
+    <div v-if="splash.shown" :class="['splash', { 'is-leaving': splash.leaving }]">
+      <div class="splash-main">
+        <img class="splash-logo" src="assets/app-icon.svg" alt="" width="112" height="112">
+        <p class="splash-name">{{ T.appName }}</p>
+        <p class="splash-by">{{ T.by }}</p>
+        <span :class="['splash-bar', { 'is-known': splash.total }]" aria-hidden="true"><span class="splash-fill" :style="{ width: splashPct + '%' }"></span></span>
+        <ul class="splash-steps" aria-hidden="true">
+          <li v-for="s in splashSteps" :key="s.key" :class="{ 'is-running': !s.done, 'is-failed': s.failed }">
+            <ui-icon v-if="s.failed" name="warn" :size="14"/>
+            <ui-icon v-else-if="s.done" name="check" :size="14"/>
+            <span v-else class="splash-spin"></span>
+            <span class="splash-step-text">{{ stepText(s) }}</span>
+          </li>
+          <li v-if="!splash.steps.length" class="is-running"><span class="splash-spin"></span><span class="splash-step-text">{{ T.loading }}</span></li>
+        </ul>
+      </div>
+      <p class="splash-license">{{ T.splash.license }}<span class="splash-dot" aria-hidden="true"> · </span><strong>{{ T.splash.noncommercial }}</strong></p>
+    </div>
   `,
 });
 
