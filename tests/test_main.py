@@ -22,6 +22,18 @@ def test_a_second_start_opens_a_window_only(server, monkeypatch):
     assert opened == [f"http://127.0.0.1:{port}/"]
 
 
+def test_ctrl_c_ends_without_a_traceback(monkeypatch, capsys):
+    monkeypatch.setattr(start, "choose_port", lambda wanted: (wanted, False))
+    monkeypatch.setattr(start.settings, "migrate", lambda: None)
+
+    def pressed(self):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(start.uvicorn.Server, "run", pressed)
+    start.main(["--port", "4711", "--no-browser"])   # returns instead of raising
+    assert capsys.readouterr().out.endswith("OrcaOne beendet.\n")
+
+
 def test_another_program_on_the_port():
     class Other(BaseHTTPRequestHandler):
         def do_GET(self):

@@ -89,7 +89,13 @@ def main(argv: list[str] | None = None) -> None:
     if not args.no_browser:
         threading.Thread(target=_open_when_ready, args=(server, url), daemon=True).start()
     print(f"OrcaOne läuft auf {url} – beenden mit Strg+C")
-    server.run()
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        # Strg+C: uvicorn has shut down already, then asyncio passes the key on. Without this the
+        # console showed a traceback (the user, 24.09.2026).
+        pass
+    print("OrcaOne beendet.")
 
 
 if __name__ == "__main__":
