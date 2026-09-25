@@ -403,12 +403,17 @@ export default {
     const rows = computed(() => entries.value.map(rowOf).filter((r) => r.st !== "na" || r.e.orphan));
     const isActive = (r) => r.st === "on" || r.st === "some";
     const shelf = computed(() => rows.value.filter(isActive).sort((a, b) => byName(a.e, b.e)));
+    // One filter for the shelf and the catalogue, above both (the user: the shelf had none).
+    const matches = (e) => {
+      const q = query.value.trim().toLowerCase();
+      return (!q || (e.name + " " + e.brand + " " + e.material).toLowerCase().includes(q))
+        && (!materials.size || materials.has(materialGroup(e.material).id));
+    };
+    const shelfShown = computed(() => shelf.value.filter((r) => matches(r.e)));
     // Templates for "Neues Filament": a bundle profile is none, OrcaSlicer keeps it to itself.
     const pickShelf = computed(() => shelf.value.filter((r) => !fixed(r.e)));
     const tree = computed(() => {
-      const q = query.value.trim().toLowerCase();
-      const match = (e) => (!q || (e.name + " " + e.brand + " " + e.material).toLowerCase().includes(q))
-        && (!materials.size || materials.has(materialGroup(e.material).id));
+      const match = matches;
       return KIND_ORDER.map((kind) => {
         const all = rows.value.filter((r) => r.e.kind === kind);
         if (!all.length && kind !== "user") return null;
@@ -852,7 +857,7 @@ export default {
     return {
       T, F, MATERIALS, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText,
       query, materials, closedKinds, panel, dragging, pickQuery,
-      noPrinter, lostText, tree, shelf, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, attachable, attachedAt, toggleAttach, scopeText, problemText,
+      noPrinter, lostText, tree, shelf, shelfShown, filterActive, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, attachable, attachedAt, toggleAttach, scopeText, problemText,
       templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
       panelTitle, editing, openEditor, saveEdit, cancelEdit,
       nozzleLabel, colourOf, materialColour, shortName, subOf, kindTitle, isOn, activate, go, hashOf, plural,
@@ -907,15 +912,29 @@ export default {
           </div>
         </section>
 
+        <!-- One filter for the shelf and the catalogue below -->
+        <div class="toolbar filter-bar">
+          <label class="search">
+            <ui-icon name="search"/>
+            <input v-model="query" class="input" type="search" :placeholder="F.search" :aria-label="F.search">
+          </label>
+          <div class="chips" role="group" :aria-label="F.material">
+            <button v-for="g in MATERIALS" :key="g.id" type="button" class="chip" :aria-pressed="materials.has(g.id)" @click="toggleMaterial(g.id)">
+              <span class="dot" :style="{ background: g.colour }"></span>{{ g.label }}
+            </button>
+          </div>
+          <button class="btn btn-primary" type="button" :disabled="readOnly" @click="guarded(openPicker)"><ui-icon name="plus"/>{{ F.newFilament }}</button>
+        </div>
+
         <section :class="['box', 'shelf', { 'drop-ready': dragging && dragging.from === 'tree' }]" aria-labelledby="shelf-h"
                  @dragover="dragOver($event, 'on')" @drop="drop($event, 'on')">
           <div class="box-head">
             <h2 id="shelf-h">{{ F.active }}</h2>
-            <span class="count">{{ shelf.length }}</span>
+            <span class="count">{{ filterActive ? F.shelfHits(shelfShown.length, shelf.length) : shelf.length }}</span>
             <span class="sub">{{ F.shelfSub(nozzleText) }}</span>
           </div>
-          <ul v-if="shelf.length" class="shelf-grid">
-            <li v-for="r in shelf" :key="r.e.uid" class="tile" :draggable="!readOnly && !fixed(r.e)"
+          <ul v-if="shelfShown.length" class="shelf-grid">
+            <li v-for="r in shelfShown" :key="r.e.uid" class="tile" :draggable="!readOnly && !fixed(r.e)"
                 @dragstart="dragStart($event, r.e, 'shelf')" @dragend="dragEnd">
               <div class="tile-main" role="button" tabindex="0" :aria-current="panel && panel.id === r.e.id ? 'true' : null"
                    @click="pickRow(r.e)" @keydown="activate($event, () => pickRow(r.e, true))">
@@ -927,23 +946,11 @@ export default {
                       :disabled="readOnly || r.locked" @click="switchOn(r.e, false)"><ui-icon :name="r.locked ? 'lock' : 'close'"/></button>
             </li>
           </ul>
+          <p v-else-if="shelf.length" class="empty">{{ F.shelfNoHits }}</p>
           <p v-else class="empty">{{ F.shelfEmpty }}</p>
         </section>
 
         <section class="box" :aria-label="F.allFilaments">
-          <div class="toolbar">
-            <label class="search">
-              <ui-icon name="search"/>
-              <input v-model="query" class="input" type="search" :placeholder="F.search" :aria-label="F.search">
-            </label>
-            <button class="btn btn-primary" type="button" :disabled="readOnly" @click="guarded(openPicker)"><ui-icon name="plus"/>{{ F.newFilament }}</button>
-          </div>
-          <div class="toolbar chips" role="group" :aria-label="F.material">
-            <button v-for="g in MATERIALS" :key="g.id" type="button" class="chip" :aria-pressed="materials.has(g.id)" @click="toggleMaterial(g.id)">
-              <span class="dot" :style="{ background: g.colour }"></span>{{ g.label }}
-            </button>
-          </div>
-
           <div class="tree" @dragover="dragOver($event, 'off')" @drop="drop($event, 'off')">
             <section v-for="k in tree" :key="k.kind" class="kind">
               <h3>

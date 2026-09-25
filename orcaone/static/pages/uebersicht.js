@@ -467,28 +467,28 @@ export default {
 
         <!-- Tiles: the whole tile leads to its page, the small links below it further on -->
         <div class="home-tiles">
-          <section class="tile" aria-labelledby="tile-own">
-            <h2 id="tile-own" class="tile-title"><a class="tile-link" :href="to('filamente')" @click="go($event, to('filamente'))"><ui-icon name="spool"/>{{ O.ownTitle }}</a></h2>
-            <p class="tile-num">{{ own.length }}</p>
-            <div class="tile-spools">
+          <section class="home-tile" aria-labelledby="tile-own">
+            <h2 id="tile-own" class="home-tile-title"><a class="home-tile-link" :href="to('filamente')" @click="go($event, to('filamente'))"><ui-icon name="spool"/>{{ O.ownTitle }}</a></h2>
+            <p class="home-tile-num">{{ own.length }}</p>
+            <div class="home-tile-spools">
               <span v-for="f in own.slice(0, SPOOLS)" :key="f.name" :title="plainName(f.name)"><spool-icon :colour="f.colour || NO_COLOUR" :size="26"/></span>
               <small v-if="own.length > SPOOLS">{{ O.more(own.length - SPOOLS) }}</small>
             </div>
-            <p class="tile-more">
+            <p class="home-tile-more">
               <a :href="to('import')" @click="go($event, to('import'))">{{ T.nav.pages.import }}</a>
               <a v-if="isU1" :href="to('kalibrieren')" @click="go($event, to('kalibrieren'))">{{ T.nav.pages.kalibrieren }}</a>
               <a v-if="INSTANCES.length > 1" :href="to('transfer')" @click="go($event, to('transfer'))">{{ T.nav.pages.transfer }}</a>
             </p>
           </section>
-          <section class="tile" aria-labelledby="tile-backups">
-            <h2 id="tile-backups" class="tile-title"><a class="tile-link" :href="to('sicherungen')" @click="go($event, to('sicherungen'))"><ui-icon name="backup"/>{{ T.nav.pages.sicherungen }}</a></h2>
-            <p class="tile-num">{{ backups.length }}</p>
-            <p class="tile-sub">{{ newestBackup ? O.lastBackup(whenText(new Date(newestBackup.created))) : O.noBackup }}</p>
+          <section class="home-tile" aria-labelledby="tile-backups">
+            <h2 id="tile-backups" class="home-tile-title"><a class="home-tile-link" :href="to('sicherungen')" @click="go($event, to('sicherungen'))"><ui-icon name="backup"/>{{ T.nav.pages.sicherungen }}</a></h2>
+            <p class="home-tile-num">{{ backups.length }}</p>
+            <p class="home-tile-sub">{{ newestBackup ? O.lastBackup(whenText(new Date(newestBackup.created))) : O.noBackup }}</p>
           </section>
-          <section :class="['tile', { 'is-news': news }]" aria-labelledby="tile-news">
-            <h2 id="tile-news" class="tile-title"><a class="tile-link" :href="to('aenderungen')" @click="go($event, to('aenderungen'))"><ui-icon name="diff"/>{{ T.nav.pages.aenderungen }}</a></h2>
-            <p class="tile-num">{{ news }}</p>
-            <p class="tile-sub">{{ O.sinceLast }}</p>
+          <section :class="['home-tile', { 'is-news': news }]" aria-labelledby="tile-news">
+            <h2 id="tile-news" class="home-tile-title"><a class="home-tile-link" :href="to('aenderungen')" @click="go($event, to('aenderungen'))"><ui-icon name="diff"/>{{ T.nav.pages.aenderungen }}</a></h2>
+            <p class="home-tile-num">{{ news }}</p>
+            <p class="home-tile-sub">{{ O.sinceLast }}</p>
           </section>
         </div>
 

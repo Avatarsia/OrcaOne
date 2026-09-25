@@ -506,6 +506,8 @@ const T = {
     active: "Aktiv",
     shelfSub: (nozzle) => `Diese Filamente zeigt der Slicer · ${nozzle}`,
     shelfEmpty: "Noch nichts aktiv. Unten einschalten oder hierher ziehen.",
+    shelfHits: (k, total) => `${n(k)} von ${n(total)}`,
+    shelfNoHits: "Kein aktives Filament passt zum Filter.",
     changedTag: "geändert",
     partly: "teilweise",
     switchOff: "Ausschalten",

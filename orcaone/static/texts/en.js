@@ -493,6 +493,8 @@ const T = {
     allNozzlesTile: "All",
     active: "Active",
     shelfSub: (nozzle) => `The slicer shows these filaments · ${nozzle}`,
+    shelfHits: (k, total) => `${n(k)} of ${n(total)}`,
+    shelfNoHits: "No active filament matches the filter.",
     shelfEmpty: "Nothing active yet. Turn filaments on below or drag them here.",
     changedTag: "changed",
     partly: "partly",

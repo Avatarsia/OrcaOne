@@ -295,7 +295,8 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 
 /* Shelf: what the slicer shows for this printer */
 .shelf.drop-ready { outline: 2px dashed var(--accent-line); outline-offset: -3px; background: var(--focus-bg); }
-.shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+/* Wide enough for most names on two lines (the user: "so schmal") */
+.shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
 .tile { position: relative; }
 .tile-main {
   display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; padding: 12px 6px 10px;
@@ -311,6 +312,8 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 
 /* Catalogue: search, filters and the tree */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+/* Page "Filamente": search, materials and "Neues Filament" in one row above the shelf */
+.filter-bar { gap: 8px 12px; margin-bottom: 16px; }
 .search { position: relative; display: block; flex: 1 1 200px; }
 .search .icon { position: absolute; top: 7px; left: 9px; color: var(--icon); }
 .search input { width: 100%; padding-left: 34px; }
@@ -935,7 +938,7 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   .inst-btn > .icon:last-child { display: none; }
   .print-ctl .bar-btn:disabled { display: none; }
   .back-label, .row .mat { display: none; }
-  .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
   .printer-bar .status { flex-basis: 100%; }
   .nozzle-tile { min-width: 64px; }
 }
@@ -1591,23 +1594,23 @@ span.cal-check { cursor: default; }
 
 /* Tiles: the whole tile is the link to its page (the link of its title covers it) */
 .home-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.tile { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--line-box); border-radius: 8px;
+.home-tile { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--line-box); border-radius: 8px;
         background: var(--surface); transition: border-color .15s, box-shadow .15s; }
-.tile:hover { border-color: var(--accent-line); box-shadow: 0 2px 12px rgba(0, 0, 0, .07); }
-.tile:focus-within { border-color: var(--accent-line); }
-.tile-title { font-size: 14px; font-weight: 700; }
-.tile-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; }
-.tile-link .icon { color: var(--accent-text); }
-.tile-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
-.tile-link:focus-visible { outline: none; }
-.tile-num { margin-top: 8px; font-size: 32px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-.tile.is-news .tile-num { color: var(--accent-text); }
-.tile-sub { color: var(--muted); font-size: 13px; }
-.tile-spools { display: flex; flex-wrap: wrap; align-items: center; gap: 1px; margin-top: 8px; }
-.tile-spools small { margin-left: 6px; color: var(--muted); font-size: 12px; }
+.home-tile:hover { border-color: var(--accent-line); box-shadow: 0 2px 12px rgba(0, 0, 0, .07); }
+.home-tile:focus-within { border-color: var(--accent-line); }
+.home-tile-title { font-size: 14px; font-weight: 700; }
+.home-tile-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; }
+.home-tile-link .icon { color: var(--accent-text); }
+.home-tile-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.home-tile-link:focus-visible { outline: none; }
+.home-tile-num { margin-top: 8px; font-size: 32px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.home-tile.is-news .home-tile-num { color: var(--accent-text); }
+.home-tile-sub { color: var(--muted); font-size: 13px; }
+.home-tile-spools { display: flex; flex-wrap: wrap; align-items: center; gap: 1px; margin-top: 8px; }
+.home-tile-spools small { margin-left: 6px; color: var(--muted); font-size: 12px; }
 /* Links further on, above the link of the tile */
-.tile-more { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: auto; padding-top: 10px; font-size: 13px; }
-.tile-more:empty { display: none; }
+.home-tile-more { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: auto; padding-top: 10px; font-size: 13px; }
+.home-tile-more:empty { display: none; }
 @media (max-width: 480px) {
   .home-slicers { grid-template-columns: minmax(0, 1fr); }
   /* The ways on below the name, the lines below the top across the whole width */
@@ -1625,8 +1628,8 @@ span.cal-check { cursor: default; }
   .stage-detail { white-space: normal; overflow-wrap: anywhere; }
   /* Two small tiles side by side, the filaments across */
   .home-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .home-tiles .tile:first-child { grid-column: 1 / -1; }
-  .tile-num { font-size: 26px; }
+  .home-tiles .home-tile:first-child { grid-column: 1 / -1; }
+  .home-tile-num { font-size: 26px; }
 }
 
 /* Page "Status" (pages/status.js): the print as a ring beside the heads, the rest in boxes */
