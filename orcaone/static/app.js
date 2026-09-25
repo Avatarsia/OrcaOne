@@ -15,7 +15,6 @@ import PlanView, { DoneView, problemText } from "./plan.js";
 import UebersichtPage from "./pages/uebersicht.js";
 import FilamentePage, { changes as filamentChanges } from "./pages/filamente.js";
 import DruckerPage from "./pages/drucker.js";
-import DruckerprofilePage from "./pages/druckerprofile.js";
 import SicherungenPage from "./pages/sicherungen.js";
 import SlicerPage from "./pages/slicer.js";
 import ProzessePage from "./pages/prozesse.js";
@@ -53,7 +52,8 @@ if (SETTINGS.theme) document.documentElement.dataset.theme = SETTINGS.theme;
 
 // Two parts, each with its own menu (the user's wish of 25.09.2026: slicer and printer in one
 // menu was confusing), "Slicer" and "Drucker". area: the part a page belongs to; the first page of each part is its start.
-// Slicer part in the order the user set on 24.09.2026: "Übersicht", the printer profiles, then
+// Slicer part in the order the user set on 24.09.2026: "Übersicht" with the printers (since
+// 25.09.2026 also their profiles, the page "Druckerprofile" showed the same), then
 // Prozesse and Filamente, the quick tool "3MF bereinigen", and "Installationen" (the user named the page so
 // on 25.09.2026, "Slicer" is the part now; its id stays "slicer"). sub: a page about the one
 // above, set in a little under it: Übertragen, Vergleichen, Kalibrieren, Import/Export and Details
@@ -62,8 +62,7 @@ if (SETTINGS.theme) document.documentElement.dataset.theme = SETTINGS.theme;
 // u1: in the menu only while a U1 is the printer in the top bar (the user's wish); printer: built
 // anew for another printer there ("Filamente" and "Prozesse" have it in the address).
 const PAGES = [
-  { id: "uebersicht", area: "slicer", icon: "home", component: UebersichtPage, printer: true },
-  { id: "druckerprofile", area: "slicer", icon: "printer", component: DruckerprofilePage },
+  { id: "uebersicht", area: "slicer", icon: "home", component: UebersichtPage },
   { id: "prozesse", area: "slicer", icon: "layers", component: ProzessePage },
   { id: "filamente", area: "slicer", icon: "spool", component: FilamentePage },
   { id: "transfer", area: "slicer", icon: "transfer", component: TransferPage, sub: true },

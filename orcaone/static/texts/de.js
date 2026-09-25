@@ -186,7 +186,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { uebersicht: "Übersicht", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", druckerprofile: "Druckerprofile", status: "Status", druck3d: "3D-Ansicht", druck2d: "2D-Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { uebersicht: "Übersicht", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", druck3d: "3D-Ansicht", druck2d: "2D-Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -323,7 +323,7 @@ const T = {
     appliedOthersGone: "Übernommen. Die vorgemerkten Änderungen an anderen Installationen sind verworfen.",
     verbs: {
       on: "einschalten", off: "ausschalten", new: "neu anlegen", delete: "löschen", rename: "umbenennen", edit: "ändern",
-      remove: "entfernen", default: "als Standard festlegen", clean: "aufräumen", hide: "ausblenden",
+      remove: "entfernen", default: "im Slicer wählen", clean: "aufräumen", hide: "ausblenden",
       copy: "übertragen", import: "importieren",
     },
     allPrinters: "alle Drucker",
@@ -435,18 +435,39 @@ const T = {
   // ---------------------------------------------------------------- page "Übersicht"
   home: {
     title: "Übersicht",
-    printer: "Drucker in OrcaOne",
+    chosen: "Gewählt",
+    slicerFacts: (version, printers, own) => `Version ${version} · ${printers === 1 ? "1 Drucker" : `${n(printers)} Drucker`} · ${own === 1 ? "1 eigenes Filament" : `${n(own)} eigene Filamente`}`,
+    printersIn: (slicer) => `Drucker in ${slicer}`,
+    printerCount: (k) => (k === 1 ? "1 Drucker" : `${n(k)} Drucker`),
+    saved: (when) => `Stand im Slicer: ${when}`,
+    savedWhy: (slicer) => `So steht es in den Einstellungen von ${slicer} auf diesem Rechner. Der Slicer speichert sie kurz nach jeder Änderung. Was im Drucker geladen ist, zeigt der Bereich „Drucker“.`,
+    // One card per printer: what is set in the slicer at a glance, every nozzle on demand.
+    start: "Im Slicer gewählt",
+    startWhy: (slicer) => `${slicer} hat diesen Drucker gewählt und startet mit ihm.`,
+    nozzlePick: (slicer) => `Im Slicer wählen: ${slicer} startet dann mit dieser Düse`,
+    nozzleQueued: "Vorgemerkt, „Übernehmen“ unten schreibt es in den Slicer",
+    lastAt: (nozzle) => (nozzle ? `Zuletzt bei ${nozzle} mm:` : "Zuletzt:"),
+    openIn: (name, page) => `${name} – auf „${page}“ öffnen`,
+    // The slicer's filament list, numbered as there: on the U1 one per head.
+    slot: (k, name) => `Filament ${k}: ${name}`,
+    neverChosen: "Im Slicer noch nie gewählt.",
+    labels: { nozzle: "Düse", process: "Prozess", filament: "Filament", filaments: "Filamente" },
+    details: "Alle Düsen mit Prozessen und Filamenten",
+    detailsClose: "Weniger zeigen",
+    rows: { last: "Zuletzt gewählt", procs: "Prozesse", fils: "Filamente" },
+    procsAt: (nozzle) => `Prozesse für ${nozzle} mm`,
+    filsAt: (nozzle) => `Filamente, die der Slicer bei ${nozzle} mm zeigt`,
+    openPage: (page) => `Auf „${page}“ öffnen`,
+    menu: "Mehr",
     noPrinter: "Noch kein Drucker im Slicer.",
-    nozzle: (d) => `Düse ${d} mm`,
+    connect: "Verbinden",
     toMachine: "Zum Drucker",
-    visibleAt: (d) => `sichtbar bei ${d} mm`,
-    atNozzle: (d) => `bei ${d} mm`,
-    own: (k) => (k === 0 ? "Noch keine eigenen Filamente" : k === 1 ? "1 eigenes Filament" : `${n(k)} eigene Filamente`),
+    ownTitle: "Eigene Filamente",
     more: (k) => `${n(k)} weitere`,
+    fewer: "weniger",
     lastBackup: (when) => `letzte: ${when}`,
     noBackup: "noch keine",
     sinceLast: "seit dem letzten Mal",
-    cleanLead: "Kommt ohne fremden Drucker, Prozess und Filamente zurück.",
   },
 
   // ---------------------------------------------------------------- page "Filamente"
@@ -1428,21 +1449,15 @@ const T = {
     noSlicer: "In keinem Slicer",
   },
 
-  // ---------------------------------------------------------------- page "Druckerprofile" (and parts of "Drucker")
+  // ---------------------------------------------------------------- the printers on "Übersicht" (and parts of "Drucker")
   printers: {
-    title: "Drucker",
     connect: "Mit dem Drucker verbinden",
     toMachine: "Zum Drucker",
     connectWhy: "IP-Adresse und was der Drucker live sagt, stehen im Bereich „Drucker“.",
-    atStart: "Beim Start gewählt",
-    noDefault: "Keiner festgelegt",
     defaultGone: "Diesen Drucker gibt es hier nicht mehr. Der Slicer nimmt beim Start einen anderen.",
-    yours: "Deine Drucker",
-    inSlicer: (k) => `${n(k)} Drucker im Slicer`,
-    tags: { vendor: "Vom Hersteller", own: "Eigener", default: "Standard", active: "In OrcaOne gewählt" },
+    tags: { vendor: "Vom Hersteller", own: "Eigener", active: "In OrcaOne gewählt" },
     makeActive: "Klicken: OrcaOne arbeitet mit diesem Drucker, wie oben in der Leiste gewählt",
     bundleLocked: "Aus einem Profilpaket. Entfernen lässt er sich nur in OrcaSlicer.",
-    nozzlesLabel: "Düsen:",
     live: {
       asking: "Frage den Drucker …",
       unreachable: "Nicht erreichbar",
@@ -1481,18 +1496,12 @@ const T = {
     notVisible: "Im Slicer nicht sichtbar",
     unresolved: "Vorlage für OrcaOne nicht lesbar",
     packageGone: (pkg) => `Die Vorlage steckt im Paket ${q(pkg)}, das der Slicer beim nächsten Start löscht. Danach lädt er diesen Drucker nicht.`,
-    otherNozzle: "Andere Düse",
-    asDefault: "Als Standard",
     remove: "Entfernen",
     delete: "Löschen",
     lastOne: "Mindestens ein Drucker bleibt.",
-    setDefault: "Standard festlegen",
     removeTitle: "Drucker entfernen",
     deleteTitle: "Drucker löschen",
     gone: "Diesen Drucker gibt es nicht mehr.",
-    whichNozzle: "Welche Düse?",
-    startsThen: (slicer) => `Beim Start wählt ${slicer} dann`,
-    alreadyDefault: "Das ist schon der Standard.",
     safe: "Vorher legt OrcaOne eine Sicherung an.",
     // The network address on each card, OrcaOne's own setting (orcaone/camera.py).
     address: {
@@ -1527,7 +1536,7 @@ const T = {
       packageName: (pkg) => `Paket ${q(pkg)}`,
       packageDeleted: "wird beim nächsten Start gelöscht",
       packageWhy: "Das macht der Slicer, sobald von einem Hersteller kein Drucker mehr eingerichtet ist. Richtest du wieder einen ein, holt er es zurück.",
-      becomesDefault: "wird Standard",
+      becomesDefault: "wird im Slicer gewählt",
       startsWith: "Mit ihm startet der Slicer dann.",
       invisible: "wird unsichtbar",
       invisibleWhy: "Seine Vorlage steckt in diesem Paket. Die Datei bleibt liegen.",
@@ -1541,14 +1550,13 @@ const T = {
     },
     clean: {
       title: "Aufräumen",
-      remembered: (k) => `Gemerkte Auswahl für ${n(k)} Drucker`,
       intro: "Der Slicer merkt sich für jeden Drucker, was du zuletzt gewählt hast, und räumt nie auf. Diese Einträge gehören zu keinem Drucker mehr:",
       button: "Aufräumen",
       nothing: "Nichts aufzuräumen.",
     },
     // Flash after an action: it is in the change list now, nothing is written.
     queued: {
-      default: (text) => `${q(text)} als Standard vorgemerkt`,
+      default: (text) => `Vorgemerkt: Der Slicer wählt ${q(text)}`,
       remove: (name) => `${q(name)} zum Entfernen vorgemerkt`,
       delete: (name) => `${q(name)} zum Löschen vorgemerkt`,
       clean: "Aufräumen vorgemerkt",
@@ -1578,7 +1586,7 @@ const T = {
     opWords: {
       filament_visible: "Sichtbarkeit", filament_bind: "Freischaltung", filament_create: "neues Filament",
       filament_update: "Filament geändert", filament_rename: "Filament umbenannt", filament_delete: "Filament gelöscht",
-      default_printer: "Standarddrucker", printer_delete: "Drucker gelöscht", printer_model_off: "Drucker entfernt",
+      default_printer: "Drucker gewählt", printer_delete: "Drucker gelöscht", printer_model_off: "Drucker entfernt",
       cleanup_presets: "aufgeräumt",
     },
     restoreOf: (when) => `Vor dem Wiederherstellen von ${when}`,

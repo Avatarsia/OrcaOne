@@ -6,7 +6,7 @@
 // words are in texts.js. The one change made here: hiding the list entries that fit no printer
 // (warning visible_without_printer), it goes into the change list (`live` in common.js).
 import {
-  INSTANCES, live, ui, go, hashOf, flash, fmtSize, plural, generatedText, addDataDir, removeDataDir, unusedListNames,
+  INSTANCES, live, ui, go, hashOf, flash, fmtSize, plural, generatedText, addDataDir, removeDataDir, unusedListNames, slicerLogo
 } from "../common.js";
 import { T } from "../texts.js";
 
@@ -20,8 +20,6 @@ const KINDS = [
   { id: "process", icon: "layers" },
   { id: "filament", icon: "spool" },
 ].map((k) => ({ ...k, words: T.words[k.id] }));
-// Stand-in logo from the capital letters: "Snapmaker Orca" -> "SO", "OrcaSlicer" -> "OS".
-const logoText = (name) => (name.match(/[A-Z]/g) || [name[0] || "?"]).slice(0, 2).join("");
 const LEVEL_ICON = { error: "warn", warning: "warn", info: "info" };
 const noteOf = (n, sp) => {
   const t = T.notes[n.note];
@@ -111,7 +109,7 @@ export default {
     const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
     const sp = computed(() => inst.value.slicer_page);
     const bp = computed(() => inst.value.backups_page);
-    const cards = computed(() => INSTANCES.map((i) => ({ i, sp: i.slicer_page, logo: logoText(i.slicer) })));
+    const cards = computed(() => INSTANCES.map((i) => ({ i, sp: i.slicer_page, logo: slicerLogo(i.slicer) })));
     // The address carries the installation, so a card switches it there (app.js follows).
     const pick = (id) => { if (id !== ui.instId) go(null, hashOf("slicer", id)); };
     const hints = computed(() => inst.value.warnings);

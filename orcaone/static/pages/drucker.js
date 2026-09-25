@@ -9,6 +9,7 @@
 // in the LAN, as Snapmaker Orca does (mDNS, only in the same LAN, not over a VPN).
 import {
   INSTANCES, LOCALE, flash, fmtSize, go, hashOf, nozzleLabel, printerModels, modelName, U1_MODELS, ui, hosts, loadHosts, machines, slicersOf,
+  addressKey,
 } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
@@ -37,8 +38,8 @@ export default {
     // none), one per model as the addresses go.
     const others = computed(() => {
       const known = new Set(machines.value.map((m) => m.model));
-      return INSTANCES.flatMap((i) => printerModels(i)).filter((m) => !known.has(m.model) && known.add(m.model))
-        .map((m) => ({ model: m.model, name: modelName(m), cover: m.cover }));
+      return INSTANCES.flatMap((i) => printerModels(i)).filter((m) => !known.has(addressKey(m)) && known.add(addressKey(m)))
+        .map((m) => ({ model: addressKey(m), name: modelName(m), cover: m.cover }));
     });
 
     // ------------------------------------------------------------ the address
@@ -105,7 +106,7 @@ export default {
       await loadHosts();
       for (const m of machines.value) readMachine(m.model);
       timer = setInterval(look, EVERY);
-      // From "Druckerprofile" ("Mit dem Drucker verbinden"): the form for that printer at once.
+      // From "Übersicht" ("Mit dem Drucker verbinden"): the form for that printer at once.
       const asked = ui.addressFor;
       ui.addressFor = null;
       if (others.value.some((o) => o.model === asked)) edit(asked);

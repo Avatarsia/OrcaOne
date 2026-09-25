@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -254,6 +256,12 @@ def test_bundle_profiles_are_marked(fake_home, tmp_path):
     assert all(x["name"] != f"{BUNDLE}/Paket PLA" for x in u1["only_here"])
 
 
+def test_when_the_slicer_saved_its_choices(snorca):
+    # The time of the .conf, so "Übersicht" can say how current the choices it shows are.
+    conf = Path(snorca["data_dir"]) / "Snapmaker_Orca.conf"
+    assert abs(datetime.fromisoformat(snorca["conf_saved"]).timestamp() - conf.stat().st_mtime) < 1
+
+
 def test_processes_and_the_last_choice(snorca):
     records = {r["name"]: r for r in snorca["processes"]}
     standard = records["0.20mm Standard @Snapmaker U1 (0.4 nozzle)"]
@@ -264,6 +272,11 @@ def test_processes_and_the_last_choice(snorca):
     assert by_nozzle["0.4"]["process"] == "0.08mm Standard @Snapmaker U1 (0.4 nozzle)"
     # A remembered process the printer does not offer any more is no choice.
     assert by_nozzle["0.2"]["process"] is None
+    # The filament per head the slicer remembers, with its colour (orca_presets, FINDINGS 4.3).
+    heads = by_nozzle["0.4"]["heads"]
+    assert [(h["name"], h["colour"]) for h in heads] == [("Snapmaker ABS @U1 0.4 nozzle", c) for c in ("#26A69A", "#00C1AE", "#F4E2C1", "#ED1C24")]
+    assert heads[0]["material"] == "ABS"
+    assert [v["heads"] for k, v in by_nozzle.items() if k not in ("0.2", "0.4")] == [[] for k in by_nozzle if k not in ("0.2", "0.4")]
 
 
 def test_profile_details_follow_the_chain(fake_home):

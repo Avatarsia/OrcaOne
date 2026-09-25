@@ -610,9 +610,26 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
     # The process last chosen per printer: the slicer keeps the current one in "presets", the
     # others in "orca_presets" (FINDINGS 4.3).
     presets = _dict(conf.get("presets"))
-    remembered = {e["machine"]: e.get("process") for e in _items(conf.get("orca_presets"))
-                  if isinstance(e, dict) and isinstance(e.get("machine"), str)}
+    chosen = {e["machine"]: e for e in _items(conf.get("orca_presets")) if isinstance(e, dict) and isinstance(e.get("machine"), str)}
+    remembered = {machine: e.get("process") for machine, e in chosen.items()}
     same_alias = []
+
+    def heads_of(printer):
+        """The filament per head the slicer remembers for a printer, with its colour: "filament",
+        "filament_01" … and "filament_colors" of its orca_presets entry (FINDINGS 4.3), for the page
+        "Übersicht" (what is set in the slicer). The material from the profile, if OrcaOne knows it."""
+        e = chosen.get(printer.name) or {}
+        names = [e.get("filament")]
+        while isinstance(e.get(f"filament_{len(names):02d}"), str):
+            names.append(e[f"filament_{len(names):02d}"])
+        colours = [c.strip() for c in str(e.get("filament_colors") or "").split(",")]
+        heads = []
+        for k, name in enumerate(names):
+            if not isinstance(name, str) or not name:
+                break
+            colour = colours[k] if k < len(colours) and re.fullmatch(r"#[0-9A-Fa-f]{6}", colours[k]) else None
+            heads.append({"name": name, "colour": colour, "material": (records.get(name) or {}).get("material")})
+        return heads
 
     def variant_entry(variant, printer):
         counts = {"visible": 0, "hidden": 0, "displaced": 0}
@@ -635,7 +652,7 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
             last = remembered.get(printer.name)
         return {"name": printer.name, "variant": variant, "selected": printer.name == selected,
                 "counts": counts, "process_count": len(proc_names), "processes": proc_names,
-                "process": last if isinstance(last, str) and last in proc_names else None}
+                "process": last if isinstance(last, str) and last in proc_names else None, "heads": heads_of(printer)}
 
     system_models = [{"model": m["model"], "origin": m["package"],
                       "printers": [variant_entry(variant, printer) for variant, printer in m["printers"]],
@@ -679,6 +696,7 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
         "problems": list(instance.problems),
         "logged_in": instance.logged_in,
         "selected_printer": selected,
+        "conf_saved": scan.conf_saved,
         "filament_list": {"mode": "list" if filament_list else "all", "count": len(filament_list)},
         "models": out_models,
         "filaments": list(records.values()),

@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "druckerprofile", "drucker", "status", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
+export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -76,7 +76,8 @@ export function go(ev, hash) {
 // ------------------------------------------------------------ shared state
 // The chosen installation follows the address (app.js).
 // detailsFor: a filament the page "Details" opens with (from the page "Filamente"), and
-// filamentFocus the other way round: the page "Filamente" shows that filament's row and panel.
+// filamentFocus the other way round: the page "Filamente" shows that filament's row and panel
+// (also from "Übersicht"). processFocus: the process the page "Prozesse" opens with (from "Übersicht").
 // calibrateFor: the own filament the page "Kalibrieren" opens with.
 // printer: the model OrcaOne works with, chosen in the top bar for every page (app.js).
 // printFile: the print file "3D-Ansicht" and "2D-Ansicht" show, one for both (the user's wish of
@@ -84,10 +85,10 @@ export function go(ev, hash) {
 // (app.js). { model, path } of a file on the printer, or { local, size, stamp } of one from this
 // computer, which localPrintFile() holds.
 // addressFor: the printer the page "Drucker" opens the address form for ("Mit dem Drucker
-// verbinden" on "Druckerprofile"); the printer part itself chooses only printers with an address.
+// verbinden" on "Übersicht"); the printer part itself chooses only printers with an address.
 // viewLayer: the layer both stand at, one slider for both (the user: "out of sync" through the menu);
 // null for a new file, then both start at the top, as the slicer's preview does.
-export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null,
+export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, processFocus: null, calibrateFor: null,
                              printFile: null, viewLayer: null, addressFor: null });
 let localFile = null;
 export function setLocalPrintFile(file) {
@@ -174,11 +175,16 @@ export function anyModel(model) {
   }
   return null;
 }
+// Stand-in logo of a slicer from its capital letters: "Snapmaker Orca" -> "SO", "OrcaSlicer" -> "OS".
+export const slicerLogo = (name) => (name.match(/[A-Z]/g) || [name[0] || "?"]).slice(0, 2).join("");
+// The model a printer's network address goes by (camera.printers()): an own printer shares the one
+// of the model it is built on, as the slicers keep print_host (overview.py).
+export const addressKey = (m) => (m.own ? m.based_on || m.model : m.model);
 // The installations that have a printer model set up (the user: the printer part must still show
 // which printer is in which slicer), with its nozzles there and whether the slicer starts with it.
 export function slicersOf(model) {
   return INSTANCES.flatMap((i) => {
-    const m = printerModels(i).find((x) => x.model === model);
+    const m = printerModels(i).find((x) => addressKey(x) === model);
     if (!m) return [];
     const start = live[i.id]?.defaultPrinter;
     return [{ id: i.id, slicer: i.slicer, nozzles: m.printers.map((p) => p.variant && nozzleLabel(p.variant)).filter(Boolean).join(" · "),
@@ -279,14 +285,14 @@ export const liveChanges = computed(() => {
     for (const m of i.printers_page.system) {
       if (!was.models.has(m.model) || now.models.has(m.model)) continue;
       const dropped = was.packages.has(m.origin) && !now.packages.has(m.origin);
-      add("druckerprofile", "remove", printerShortName(m.printers[0]?.name || m.model), dropped ? T.changes.packageGoes(m.origin) : "");
+      add("uebersicht", "remove", printerShortName(m.printers[0]?.name || m.model), dropped ? T.changes.packageGoes(m.origin) : "");
     }
     for (const n of was.own) {
-      if (!now.own.has(n)) add("druckerprofile", "delete", n, T.kindText[profileInfo(i, n).kind]);
+      if (!now.own.has(n)) add("uebersicht", "delete", n, T.kindText[profileInfo(i, n).kind]);
     }
-    if (now.defaultPrinter !== was.defaultPrinter) add("druckerprofile", "default", printerText(i, now.defaultPrinter));
+    if (now.defaultPrinter !== was.defaultPrinter) add("uebersicht", "default", printerText(i, now.defaultPrinter));
     const cleaned = was.dead.filter((d) => !now.dead.includes(d));
-    if (cleaned.length) add("druckerprofile", "clean", plural(cleaned.length, ...T.words.staleEntry), cleaned.join(", "));
+    if (cleaned.length) add("uebersicht", "clean", plural(cleaned.length, ...T.words.staleEntry), cleaned.join(", "));
     if (now.hideUnused) add("slicer", "hide", plural(unusedListNames(i).length, ...T.words.filament), T.changes.withoutPrinter);
   }
   return out;
@@ -451,6 +457,7 @@ export const ICONS = {
   moon: '<path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1z"/>',
   home: '<path d="M4 11 12 4.5l8 6.5"/><path d="M6.5 9.5v10h11v-10"/><path d="M10 19.5v-5h4v5"/>',
   menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
+  more: '<circle cx="5.5" cy="12" r=".9"/><circle cx="12" cy="12" r=".9"/><circle cx="18.5" cy="12" r=".9"/>',
   code: '<path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"/>',
   terminal: '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="m7.5 10 2.5 2-2.5 2M12.5 14.5h4"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z"/>',

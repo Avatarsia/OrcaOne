@@ -1444,18 +1444,81 @@ span.cal-check { cursor: default; }
 /* Page "Übersicht", the start page (pages/uebersicht.js): the printer on its stage, tiles below,
    wider than the other pages so the heads stand next to the printer */
 .page.home-page { max-width: 1100px; }
-.home-printer { padding: 18px 20px; }
-.home-printer-main { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 32px; }
-.home-printer-top { display: flex; flex: 1 1 320px; gap: 18px; min-width: 0; }
-.home-printer-img { flex: none; display: grid; place-items: center; width: 140px; height: 140px; border-radius: 10px; background: var(--surface-2); }
-.home-printer-img:hover { outline: 1px solid var(--accent-line); }
-.home-printer-img img { width: 124px; height: 124px; object-fit: contain; }
-.home-printer-body { flex: 1; min-width: 0; display: grid; align-content: center; gap: 8px; }
-.home-name { font-size: 20px; font-weight: 700; }
-.home-nozzle { display: flex; align-items: center; gap: 6px; color: var(--label); font-size: 14px; }
-.home-state { margin-left: 0; font-weight: 600; }
-.home-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-.home-actions:empty { display: none; }
+/* The installations on top: the chosen one edged (the user: see at once which slicer is chosen) */
+.home-slicers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.home-slicer { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line-box); border-radius: 8px;
+               background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.home-slicer:hover { border-color: var(--accent-line); }
+.home-slicer.is-current { padding: 11px 13px; border: 2px solid var(--accent-line); background: color-mix(in srgb, var(--selected) 45%, var(--surface)); }
+.home-slicer-text { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.home-slicer-text strong { font-size: 16px; }
+.home-slicer-text small { color: var(--muted); font-size: 12px; }
+.home-slicer-state { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+/* All printers of that slicer, one row each (the user: "nicht überladen"): name and ways on, below
+   one line with what is set in the slicer, every nozzle only on demand. The lines below the top
+   start where the name starts. */
+.home-printers { display: grid; gap: 10px; margin-bottom: 24px; }
+.home-pcard { --indent: 76px; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface); }
+.home-pcard.is-active { padding: 11px; border: 2px solid var(--accent-line); }
+/* The ways on go below the name when the card gets narrow (side panel open, small window) */
+.home-pcard-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.home-pcard-img { flex: none; padding: 4px; border: 0; border-radius: 8px; background: var(--surface-2); cursor: pointer; }
+.home-pcard-img:hover:not(:disabled) { outline: 1px solid var(--accent-line); }
+.home-pcard-img img { display: block; width: 56px; height: 56px; object-fit: contain; }
+.home-pcard-title { display: grid; flex: 1 1 220px; gap: 2px; min-width: 0; }
+.home-pcard-title h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 16px; }
+.home-pcard-sub { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.home-pcard-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-left: auto; }
+.home-pcard-menu { position: relative; }
+.home-pcard-menu .inst-menu { min-width: 220px; }
+.inst-item:disabled { color: var(--disabled-text); cursor: default; }
+.inst-item:disabled:hover { background: none; }
+/* What is set in the slicer: every nozzle as a switch, the process and a spool per head as badges
+   that lead to their pages */
+.home-now { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-left: var(--indent); font-size: 13px; }
+.home-now-label { color: var(--muted); }
+.home-now-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.home-now-group > small { color: var(--muted); font-size: 12px; }
+.home-nozzles-pick { display: inline-flex; overflow: hidden; border: 1px solid var(--line-box); border-radius: 6px; }
+.home-nozzle { min-width: 44px; padding: 3px 10px; border: 0; background: var(--surface); color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.home-nozzle + .home-nozzle { border-left: 1px solid var(--line-box); }
+.home-nozzle:hover:not(:disabled):not(.is-start) { background: var(--row-hover); }
+.home-nozzle.is-start { background: var(--accent); color: var(--on-accent); font-weight: 700; cursor: default; }
+/* Chosen here, not written yet: striped until "Übernehmen" */
+.home-nozzle.is-queued { background: repeating-linear-gradient(-45deg, var(--accent), var(--accent) 5px, color-mix(in srgb, var(--accent) 75%, var(--surface)) 5px, color-mix(in srgb, var(--accent) 75%, var(--surface)) 10px); }
+.home-nozzle:disabled:not(.is-start) { color: var(--disabled-text); cursor: default; }
+.home-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border: 1px solid transparent; border-radius: 14px; background: var(--surface-2);
+              color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.home-badge:hover { border-color: var(--accent-line); color: var(--accent-text); }
+.home-more-heads { margin-left: 2px; font-size: 12px; }
+/* The place in the slicer's filament list, as numbered there */
+.home-slot { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.home-pcard .card-problem { margin-left: var(--indent); }
+.home-more { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-left: var(--indent); font-size: 13px; }
+/* Every nozzle as a column, the one the slicer starts with marked */
+.home-details { display: grid; gap: 10px; margin-left: var(--indent); }
+.home-nozzles-scroll { overflow-x: auto; }
+.home-nozzles { border-collapse: collapse; font-size: 13px; }
+.home-nozzles th, .home-nozzles td { padding: 4px 12px; border-bottom: 1px solid var(--divider); text-align: left; white-space: nowrap; }
+.home-nozzles th[scope="row"] { padding-left: 0; color: var(--label); font-weight: 600; }
+.home-nozzles thead th { font-weight: 600; }
+.home-nozzles .is-start { background: color-mix(in srgb, var(--selected) 55%, transparent); }
+.home-nozzles thead .icon { margin-left: 4px; color: var(--accent-text); vertical-align: -1px; }
+.home-count { display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px 1px 8px; border: 1px solid var(--line-box); border-radius: 4px;
+              background: var(--surface); color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.home-count:hover:not(:disabled) { border-color: var(--accent-line); }
+.home-count.is-open { border-color: var(--accent-line); background: var(--selected); }
+.home-count:disabled { color: var(--disabled-text); cursor: default; }
+/* The names behind a number; long lists scroll */
+.home-list { display: grid; gap: 8px; max-height: 360px; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--divider); border-radius: 6px;
+             background: var(--surface-2); font-size: 13px; }
+.home-list-title { font-weight: 600; }
+.home-list-group small { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+.home-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.home-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border: 1px solid var(--line-box); border-radius: 12px; background: var(--surface);
+             color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.home-chip:hover { border-color: var(--accent-line); color: var(--accent-text); }
+.home-chip.is-last { border-color: var(--accent-line); font-weight: 700; }
 
 /* The stage (common.js, printer-stage; pages "Übersicht" and "Status"): a spool above each head, its
    filament running in, the bed below. Own drawing. */
@@ -1508,19 +1571,11 @@ span.cal-check { cursor: default; }
 /* Links further on, above the link of the tile */
 .tile-more { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: auto; padding-top: 10px; font-size: 13px; }
 .tile-more:empty { display: none; }
-.home-clean { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; }
-.home-clean-title { display: flex; flex-direction: column; gap: 2px; font-size: 14px; font-weight: 700; }
-.home-clean-title small { color: var(--muted); font-size: 12px; font-weight: 400; }
-.home-clean .clean-drop { flex: 1 1 320px; }
-.home-clean .imp-drop { grid-auto-flow: column; justify-content: center; align-items: center; gap: 10px; padding: 12px; }
-.home-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; color: var(--muted); font-size: 13px; }
-.home-foot > span { display: inline-flex; align-items: center; gap: 6px; }
-.home-foot .is-current { color: var(--label); font-weight: 600; }
-.home-foot-links { margin-left: auto; gap: 14px !important; }
 @media (max-width: 480px) {
-  .home-printer { padding: 14px; }
-  .home-printer-img { width: 96px; height: 96px; }
-  .home-printer-img img { width: 84px; height: 84px; }
+  .home-slicers { grid-template-columns: minmax(0, 1fr); }
+  /* The ways on below the name, the lines below the top across the whole width */
+  .home-pcard { --indent: 0px; }
+  .home-pcard-links { justify-content: flex-start; width: 100%; margin-left: 0; }
   /* Four heads share the width; a long material name ends with … */
   .stage-heads { gap: 6px; }
   .stage-head { flex: 1 1 0; min-width: 0; }

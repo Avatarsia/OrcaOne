@@ -6,7 +6,7 @@
 // Data: GET /api/data (processes, models[].printers[].processes and .process, the last choice);
 // the values of one process on demand from GET /api/instances/{id}/profile.
 import {
-  INSTANCES, go, hashOf, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey, DECIMAL, LOCALE, printerModels,
+  INSTANCES, ui, go, hashOf, nozzleLabel, printerShortName, modelShown, chosenNozzle, nozzleKey, DECIMAL, LOCALE, printerModels,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
@@ -133,6 +133,15 @@ export default {
     });
     const onKey = (ev) => { if (ev.key === "Escape" && panel.value) closePanel(); };
     onMounted(() => window.addEventListener("keydown", onKey));
+    // Opened from "Übersicht" for one process: its tile with the side panel.
+    if (ui.processFocus) {
+      const name = ui.processFocus;
+      ui.processFocus = null;
+      onMounted(() => {
+        const t = groups.value.flatMap((g) => g.tiles).find((x) => x.r.name === name);
+        if (t) openTile(t);
+      });
+    }
     onUnmounted(() => window.removeEventListener("keydown", onKey));
 
     return {

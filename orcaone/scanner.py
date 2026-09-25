@@ -17,6 +17,7 @@ import re
 import sys
 import zipfile
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from . import opc
@@ -97,6 +98,9 @@ class Scan:
     conf_file: ConfFile | None
     conf_size: int
     active_folder: str
+    # When the .conf was last written, local time: the slicer writes it soon after every change
+    # (GUI_App, on idle when dirty), so this is how current its choices are ("Übersicht").
+    conf_saved: str | None = None
     packages: list = field(default_factory=list)
     profiles: dict = field(default_factory=dict)  # (package, kind, name) -> system Profile
     own: list = field(default_factory=list)       # own profiles in load order
@@ -410,14 +414,16 @@ def scan(data_dir: Path, app_key: str) -> Scan:
     conf_path = data_dir / f"{app_key}.conf"
     try:
         conf_file = read_conf(conf_path)
-        conf, size = conf_file.data, conf_path.stat().st_size
+        stat = conf_path.stat()
+        conf, size = conf_file.data, stat.st_size
+        saved = datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(timespec="seconds")
     except (OSError, ValueError):
-        conf_file, conf, size = None, {}, 0
+        conf_file, conf, size, saved = None, {}, 0, None
     app = conf.get("app") if isinstance(conf.get("app"), dict) else {}
     preset_folder = app.get("preset_folder")
     active = preset_folder if isinstance(preset_folder, str) and preset_folder else "default"
     result = Scan(data_dir=data_dir, app_key=app_key, conf=conf, conf_file=conf_file, conf_size=size,
-                  active_folder=active)
+                  active_folder=active, conf_saved=saved)
     load_system(result)
     load_colours(result)
     load_own(result)
