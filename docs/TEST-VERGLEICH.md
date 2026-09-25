@@ -74,7 +74,7 @@ Offen ist nur die Spalte „SnOrca“.
 
 **B3 – Filamente ohne Drucker ausblenden**
 
-1. Links unter „Technik“ „Slicer“ öffnen. Oben muss Snapmaker Orca gewählt sein.
+1. Im Bereich „Slicer“ die Seite „Installationen“ öffnen. Oben muss Snapmaker Orca gewählt sein.
 2. Unter „Hinweise“ steht „8 sichtbare Filamente passen zu keinem installierten Drucker“. Dort „Ausblenden“ klicken. Es erscheint „Zum Ausblenden vorgemerkt …“.
 3. Übernehmen. „Das passiert“ zeigt acht Zeilen „… wird ausgeblendet“, etwa „Snapmaker ABS“ mit dem vollen Namen `Snapmaker ABS @J1` darunter.
 4. Unter „Filamente“ → „Snapmaker U1“ ist bei jeder Düse dasselbe aktiv wie vorher.

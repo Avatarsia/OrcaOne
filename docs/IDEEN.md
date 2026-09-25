@@ -109,6 +109,7 @@ Frage des Nutzers (24.09.2026): Kann man vom Drucker die ETA auslesen?
 **Was da ist (geprüft am U1):**
 - Klipper meldet keine Restzeit: `display_status` hat nur `progress` und `message`, `print_stats` Druckdauer und Filament. Die Restzeit aus `M73 … R…` im G-Code liest Klipper nicht aus.
 - OrcaOne rechnet heute auf Status, Übersicht und Kamera: Zeit des Slicers aus den Metadaten minus gedruckte Zeit (`camera._left`).
+- Das Display des U1 zeigt eine Restzeit („Estimated time remaining“), die seine Oberfläche (`/usr/bin/gui`) selbst rechnet: `estimated_time` aus Moonrakers Metadaten und der Fortschritt, im `gui.log` als „print progress: …, remain_time: …“. Abrufen lässt sie sich nicht. Die Formel steht nirgends; der einzige Wert im Log (hex-key, 1,97 %: 2903 s übrig bei 2901 s laut Slicer) passt nicht zu „Slicerzeit minus gedruckte Zeit“. Die Snapmaker-App bekommt über `snapmakercloud` ebenfalls nur `estimated_time`.
 - Snapmaker Orca schreibt `M73 P<Prozent> R<Minuten>` etwa jede Minute Druckzeit in die Datei (188-mal im Puzzle-Druck von 1 h 28 min). Die 2D-Ansicht nutzt das schon für die Zeit je Schicht.
 
 **Was ginge:** Die letzte `M73`-Zeile vor `virtual_sdcard.file_position` lesen, per Teilabruf von wenigen KB (Moonraker kann Range). Das ist die Restzeit laut Slicer an genau dieser Stelle; dazu „fertig um 17:40“. Abweichungen im Tempo (Geschwindigkeitsfaktor, Pausen) ließen sich mit dem Verhältnis aus tatsächlicher und geplanter Zeit bis hier ausgleichen.
