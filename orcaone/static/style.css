@@ -1520,6 +1520,41 @@ span.cal-check { cursor: default; }
 .home-chip:hover { border-color: var(--accent-line); color: var(--accent-text); }
 .home-chip.is-last { border-color: var(--accent-line); font-weight: 700; }
 
+/* Page "Zusammenhänge" (pages/zusammenhaenge.js): a tree with lines as in a file tree, one box per
+   printer; the names at the ends as chips like on "Übersicht" (.home-chip, .home-badge) */
+.page.rel-page { max-width: 1100px; }
+.rel-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; margin-bottom: 12px; font-size: 13px; }
+.rel-saved { color: var(--muted); }
+.rel-bar-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.rel-tree, .rel-tree ul { margin: 0; padding: 0; list-style: none; }
+.rel-root { margin-bottom: 10px; padding: 6px 12px; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface); }
+/* Each level a little further in; the line runs down from the parent to its last child */
+.rel-tree ul { margin-left: 16px; }
+.rel-tree ul > li { position: relative; padding-left: 20px; }
+.rel-tree ul > li::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; border-left: 1px solid var(--line-box); }
+.rel-tree ul > li:last-child::before { bottom: auto; height: 20px; }
+.rel-tree ul > li::after { content: ""; position: absolute; top: 20px; left: 0; width: 14px; border-top: 1px solid var(--line-box); }
+.rel-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 40px; }
+.rel-toggle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 8px 4px 2px; border: 0; border-radius: 6px;
+              background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rel-toggle:hover { background: var(--row-hover); }
+.rel-toggle > .icon { flex: none; color: var(--muted); }
+.rel-toggle > .icon + .icon { color: var(--accent-text); }
+.rel-img { flex: none; width: 40px; height: 40px; padding: 2px; border-radius: 6px; background: var(--surface-2); object-fit: contain; }
+.rel-name { font-weight: 600; }
+.rel-name.rel-printer { font-size: 16px; }
+.rel-name.rel-group { color: var(--label); font-weight: 500; }
+.rel-sub { color: var(--muted); font-size: 12px; }
+.rel-meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.rel-link { margin-left: auto; font-size: 13px; }
+.rel-leaves { padding: 0 0 10px 26px; }
+.rel-none { padding: 0 0 10px 26px; color: var(--muted); font-size: 13px; }
+.rel-slots { gap: 6px; font-size: 13px; }
+.rel-label { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; color: var(--label); }
+.rel-label .icon { color: var(--accent-text); }
+.rel-tpl { color: var(--muted); font-size: 11px; font-weight: 400; }
+.home-chip .icon { color: var(--accent-text); }
+
 /* The stage (common.js, printer-stage; pages "Übersicht" and "Status"): a spool above each head, its
    filament running in, the bed below. Own drawing. */
 .stage { flex: 1 1 360px; min-width: 0; }
@@ -1576,6 +1611,11 @@ span.cal-check { cursor: default; }
   /* The ways on below the name, the lines below the top across the whole width */
   .home-pcard { --indent: 0px; }
   .home-pcard-links { justify-content: flex-start; width: 100%; margin-left: 0; }
+  /* The tree a little narrower per level */
+  .rel-tree ul { margin-left: 8px; }
+  .rel-tree ul > li { padding-left: 16px; }
+  .rel-root { padding: 6px 8px; }
+  .rel-leaves, .rel-none { padding-left: 8px; }
   /* Four heads share the width; a long material name ends with … */
   .stage-heads { gap: 6px; }
   .stage-head { flex: 1 1 0; min-width: 0; }

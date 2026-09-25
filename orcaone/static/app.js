@@ -13,6 +13,7 @@ import { api } from "./api.js";
 import { changesOf } from "./ops.js";
 import PlanView, { DoneView, problemText } from "./plan.js";
 import UebersichtPage from "./pages/uebersicht.js";
+import ZusammenhaengePage from "./pages/zusammenhaenge.js";
 import FilamentePage, { changes as filamentChanges } from "./pages/filamente.js";
 import DruckerPage from "./pages/drucker.js";
 import SicherungenPage from "./pages/sicherungen.js";
@@ -63,6 +64,8 @@ if (SETTINGS.theme) document.documentElement.dataset.theme = SETTINGS.theme;
 // anew for another printer there ("Filamente" and "Prozesse" have it in the address).
 const PAGES = [
   { id: "uebersicht", area: "slicer", icon: "home", component: UebersichtPage },
+  // What hangs on what, as a tree (the user's wish of 25.09.2026)
+  { id: "zusammenhaenge", area: "slicer", icon: "tree", component: ZusammenhaengePage },
   { id: "prozesse", area: "slicer", icon: "layers", component: ProzessePage },
   { id: "filamente", area: "slicer", icon: "spool", component: FilamentePage },
   { id: "transfer", area: "slicer", icon: "transfer", component: TransferPage, sub: true },

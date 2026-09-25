@@ -186,7 +186,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { uebersicht: "Übersicht", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", druck3d: "3D-Ansicht", druck2d: "2D-Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", druck3d: "3D-Ansicht", druck2d: "2D-Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -468,6 +468,29 @@ const T = {
     lastBackup: (when) => `letzte: ${when}`,
     noBackup: "noch keine",
     sinceLast: "seit dem letzten Mal",
+  },
+
+  // ---------------------------------------------------------------- page "Zusammenhänge"
+  relations: {
+    lead: "Was wovon abhängt: Jede Düse ist im Slicer ein eigenes Druckerprofil. Daran hängen die Prozesse und Filamente, die dazu passen, Filamente vom Hersteller nur, wenn sie eingeschaltet sind. Aus der Filamentliste des Slicers kommt je Kopf eins.",
+    openAll: "Alle Drucker aufklappen",
+    closeAll: "Alles zuklappen",
+    template: (name) => `Vorlage: ${name}`,
+    nozzles: (k) => (k === 1 ? "1 Düse" : `${n(k)} Düsen`),
+    nozzle: (text) => (text ? `Düse ${text} mm` : "Druckerprofil"),
+    profileWhy: "So heißt das Druckerprofil dieser Düse im Slicer.",
+    counts: (procs, fils) => `${procs === 1 ? "1 Prozess" : `${n(procs)} Prozesse`} · ${fils === 1 ? "1 Filament" : `${n(fils)} Filamente`}`,
+    processes: "Prozesse",
+    filaments: "Filamente",
+    on: (k) => `${n(k)} an`,
+    off: (k) => `${n(k)} weitere passen, sind aber aus`,
+    offWhy: "Filamente vom Hersteller und aus der Orca-Bibliothek zeigt der Slicer nur, wenn sie eingeschaltet sind. Das geht auf „Filamente“.",
+    lastChosen: "zuletzt gewählt",
+    slotList: "Filamentliste im Slicer",
+    slotListLast: "Zuletzt gewählte Filamentliste",
+    noProcess: "Kein Prozess passt zu dieser Düse.",
+    noFilament: "Kein Filament an.",
+    open: (page) => `Auf „${page}“`,
   },
 
   // ---------------------------------------------------------------- page "Filamente"

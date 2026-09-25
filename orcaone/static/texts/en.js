@@ -175,7 +175,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Area", slicer: "Slicer", printer: "Printers",
       hint: { slicer: "The slicers' profiles: filaments, processes, printers", printer: "The printers themselves: status, files, views, camera, console" } },
-    pages: { uebersicht: "Overview", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
+    pages: { uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
     byHint: "Who made OrcaOne, and the license",
     news: "changes since last time",
     pending: "queued changes",
@@ -456,6 +456,29 @@ const T = {
     lastBackup: (when) => `newest: ${when}`,
     noBackup: "none yet",
     sinceLast: "since last time",
+  },
+
+  // ---------------------------------------------------------------- page "Zusammenhänge"
+  relations: {
+    lead: "What depends on what: in the slicer each nozzle is a printer profile of its own. The processes and filaments that fit it hang there, filaments from a vendor only while they are switched on. The slicer's filament list takes one of them per head.",
+    openAll: "Open all printers",
+    closeAll: "Close all",
+    template: (name) => `Template: ${name}`,
+    nozzles: (k) => (k === 1 ? "1 nozzle" : `${n(k)} nozzles`),
+    nozzle: (text) => (text ? `Nozzle ${text} mm` : "Printer profile"),
+    profileWhy: "The name of this nozzle's printer profile in the slicer.",
+    counts: (procs, fils) => `${procs === 1 ? "1 process" : `${n(procs)} processes`} · ${fils === 1 ? "1 filament" : `${n(fils)} filaments`}`,
+    processes: "Processes",
+    filaments: "Filaments",
+    on: (k) => `${n(k)} on`,
+    off: (k) => `${n(k)} more fit but are off`,
+    offWhy: "The slicer shows filaments from a vendor and from the Orca library only while they are switched on. That is done on \"Filaments\".",
+    lastChosen: "last chosen",
+    slotList: "Filament list in the slicer",
+    slotListLast: "Last chosen filament list",
+    noProcess: "No process fits this nozzle.",
+    noFilament: "No filament on.",
+    open: (page) => `On "${page}"`,
   },
 
   // ---------------------------------------------------------------- page "Filamente"
