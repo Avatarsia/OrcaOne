@@ -10,7 +10,7 @@
 // nozzle. A 2D canvas, so no WebGL needed.
 import { go, hashOf, ui, LOCALE, activeName, fmtSize, darkQuery } from "../common.js";
 import { T } from "../texts.js";
-import { usePrintFile, bedArea, FILE_PICKER, STAGE_STATE, typeColour, toolColour } from "./print-view.js";
+import { usePrintFile, bedArea, STAGE_STATE, typeColour, toolColour, activeHead, isLight } from "./print-view.js";
 
 const { ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const V = T.view2d, V3 = T.view3d;
@@ -222,7 +222,7 @@ export default {
       for (const i of [hover.value, picked.value]) if (i >= a && i < b) paintMark(d, i, colour, i === picked.value);
       // The nozzle: the printer's while following it, else at the end of the last line drawn.
       const p = job.value?.motion.position;
-      if (following() && p) paintNozzle(p[0], p[1]);
+      if (following() && p) paintNozzle(p[0], p[1], activeHead(job.value, d));
       else if (s > a && s < b) paintNozzle(d.pos[(s - 1) * 5 + 3] / d.unit, d.pos[(s - 1) * 5 + 4] / d.unit);
     }
     function paintBed(d) {
@@ -338,9 +338,17 @@ export default {
       ctx.lineWidth = w;
       ctx.stroke();
     }
-    function paintNozzle(x, y) {
+    // head (activeHead) while following a print: a dot in the colour of the head printing, and its
+    // number beside it when the printer has several (the user's wish).
+    function paintNozzle(x, y, head = null) {
       const sx = view.tx + x * view.scale, sy = view.ty - y * view.scale;
       ctx.globalAlpha = 1;
+      if (head) {
+        ctx.fillStyle = head.colour;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 5, 0, 2 * Math.PI);
+        ctx.fill();
+      }
       ctx.strokeStyle = colours.accent;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -350,6 +358,19 @@ export default {
         ctx.lineTo(sx + dx * 13, sy + dy * 13);
       }
       ctx.stroke();
+      if (!head?.many) return;
+      const bx = sx + 17, by = sy - 17;
+      ctx.fillStyle = head.colour;
+      ctx.beginPath();
+      ctx.arc(bx, by, 9, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.stroke();
+      ctx.fillStyle = isLight(head.colour) ? "#1A1A1A" : "#FFFFFF";
+      ctx.font = "700 11px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(head.index + 1), bx, by + 0.5);
     }
 
     // The line of the layer nearest to the pointer, if it is on it (half its width, at least 6 px).
@@ -453,13 +474,14 @@ export default {
       hover.value = picked.value = -1;
       gcode.value = null;
       fitted = false;
+      // Following the print, its layer; else the one both views stand at, or the top.
       const asked = ui.viewLayer;
-      ui.viewLayer = null;
       if (following()) {
         layer.value = printedLayer.value;
         step.value = clamp(printedCount.value - firstOf(layer.value), 0, lines.value);
       } else {
-        layer.value = asked >= 1 && asked <= d.layerStart.length ? asked : 1;
+        layer.value = asked >= 1 && asked <= d.layerStart.length ? asked : d.layerStart.length;
+        ui.viewLayer = layer.value;
         step.value = lines.value;
       }
       nextTick(() => {
@@ -469,23 +491,28 @@ export default {
     }
     watch(layer, () => {
       if (!data.value) return;
-      if (!following()) step.value = lines.value;
+      // The layer the user picks is the one of both views; the one followed is the printer's.
+      if (!following()) {
+        step.value = lines.value;
+        ui.viewLayer = layer.value;
+      }
       picked.value = -1;
       draw();
     });
     watch([step, mode, travels, below], draw);
     watch([printedCount, printing, follow], () => {
-      if (!data.value || !following()) return draw();
+      if (!data.value) return draw();
+      if (!following()) {
+        ui.viewLayer = layer.value;  // stopped following: the layer it stands at is the one of both
+        return draw();
+      }
       layer.value = printedLayer.value;
       step.value = clamp(printedCount.value - firstOf(layer.value), 0, lines.value);
       draw();
     });
     watch(() => job.value?.motion, draw);
-    // To "3D-Ansicht" with the same file and layer.
-    function to3d(ev) {
-      ui.viewLayer = layer.value;
-      go(ev, hashOf("druck3d", props.instId));
-    }
+    // To "3D-Ansicht", which shows the same file and layer (ui.viewLayer).
+    const to3d = (ev) => go(ev, hashOf("druck3d", props.instId));
     onMounted(() => nextTick(start));
     onUnmounted(() => {
       cancelAnimationFrame(frame);
@@ -635,7 +662,6 @@ export default {
     <div class="page fill-page view3d-page view2d-page">
       <div class="v3d-head">
         <h1 id="page-title" tabindex="-1">{{ V.title }}</h1>
-${FILE_PICKER}
         <span class="spacer"></span>
         <template v-if="data">
           <label class="v3d-field v2d-mode">{{ V.colourBy }}

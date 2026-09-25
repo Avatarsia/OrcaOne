@@ -5,10 +5,12 @@
 // width and height, coloured by filament or by line type, all in one draw call. While the printer
 // prints the file shown, the page follows it: what is printed stands solid, the rest as a
 // see-through skin, and the nozzle where it is (Klipper says how far it read,
-// virtual_sdcard.file_position). A slider shows the layers up to one.
-import { go, hashOf, ui, LOCALE, activeName, fmtSize } from "../common.js";
+// virtual_sdcard.file_position). A slider shows the layers up to one. As in OrcaSlicer, the axes
+// stand at the origin of the bed, and a cube at the bottom right turns the view (view-cube.js).
+import { go, hashOf, ui, LOCALE, activeName, fmtSize, saveBlob } from "../common.js";
 import { T } from "../texts.js";
-import { usePrintFile, bedArea, FILE_PICKER, STAGE_STATE, typeColour, toolColour } from "./print-view.js";
+import { usePrintFile, bedArea, STAGE_STATE, typeColour, toolColour, activeHead, isLight } from "./print-view.js";
+import { makeViewCube, AXES, axisLetter } from "./view-cube.js";
 
 const { ref, computed, watch, nextTick, onUnmounted } = Vue;
 const V = T.view3d;
@@ -89,19 +91,38 @@ export default {
     const byKind = ref(false);      // colours by line type instead of filament
     const layer = ref(0);           // layers shown: 1 … layers
     const box = ref(null);          // the element the canvas sits in
+    const cubeBox = ref(null);      // the one of the cube
+    const stage = ref(null);        // all of it, for full screen
+    const full = ref(false);
     const file = usePrintFile(show);
     const { job, error, data, layers, printing, printedCount, follow } = file;
 
     // ------------------------------------------------------------ the drawing (three.js)
     let THREE = null, renderer = null, scene = null, camera = null, controls = null, observer = null, themeWatch = null;
-    let solid = null, shell = null, see = null, nozzle = null, bed = null, frame = 0;
+    let solid = null, shell = null, see = null, nozzle = null, bed = null, axes = null, cube = null, frame = 0;
     const render = () => {
       if (frame || !renderer) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
         // The nozzle keeps its size on the screen: from afar a bigger one, close up its own.
         if (nozzle?.visible) nozzle.scale.setScalar(Math.max(1, camera.position.distanceTo(nozzle.position) / 250));
+        // The axes stay two pixels wide and their letters 16 pixels high at any distance, as in
+        // OrcaSlicer (the user: thicker was clumsy).
+        if (axes) {
+          const pixel = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.distanceTo(axes.position)
+            / Math.max(1, renderer.domElement.clientHeight);
+          const { rods, letters, length } = axes.userData;
+          for (const rod of rods) rod.scale.set(pixel, 1, pixel);
+          // Letters a little past the end, X and Y a little above the bed: right at it they looked stuck on (the user).
+          for (const letter of letters) {
+            letter.scale.setScalar(pixel * 16);
+            letter.position.copy(letter.userData.dir).multiplyScalar(length + pixel * 18);
+            if (!letter.userData.dir.z) letter.position.z = pixel * 7;
+          }
+          axes.position.z = pixel;  // on the bed, not in it
+        }
         renderer.render(scene, camera);
+        cube?.draw();
       });
     };
     // The page's colours, resolved (the variables hold light-dark(…)).
@@ -131,12 +152,19 @@ export default {
       renderer.setPixelRatio(window.devicePixelRatio || 1);
       box.value.appendChild(renderer.domElement);
       scene = new THREE.Scene();
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 2.5));  // for the nozzle, the strands light themselves
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 1.1));  // for the nozzle, the strands light themselves
       camera = new THREE.PerspectiveCamera(40, 1, 1, 5000);
       camera.up.set(0, 0, 1);
+      // A light that goes with the camera, from the upper right as the strands have theirs: shine and
+      // shade on the nozzle (the user: not one flat colour).
+      const lamp = new THREE.DirectionalLight(0xffffff, 2.6);
+      lamp.position.set(0.35, 0.6, 0.7);
+      camera.add(lamp, lamp.target);
+      scene.add(camera);
       controls = new orbit.OrbitControls(camera, renderer.domElement);
       controls.zoomToCursor = true;
       controls.addEventListener("change", render);
+      cube = makeViewCube(THREE, cubeBox.value, { camera, controls, render, names: V.cube, colour: cssColour });
       observer = new ResizeObserver(resize);
       observer.observe(box.value);
       themeWatch = new MutationObserver(recolour);
@@ -158,13 +186,14 @@ export default {
       if (!renderer) return;
       scene.background = cssColour("--surface-2");
       if (bed) makeBed();
+      cube?.recolour();
       render();
     }
     // The bed (bedArea), a line every 10 mm, a stronger one every 50 mm.
     function makeBed() {
       if (bed) {
         scene.remove(bed);
-        bed.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+        bed.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); });
       }
       const area = bedArea(data.value, job.value?.motion);
       if (!area) return;
@@ -182,7 +211,28 @@ export default {
         g.setAttribute("position", new THREE.Float32BufferAttribute(list, 3));
         bed.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: cssColour(name) })));
       }
+      axes = makeAxes(Math.min(x1 - x0, y1 - y0));
+      bed.add(axes);
       scene.add(bed);
+    }
+    // The axes at the machine's origin, as in OrcaSlicer: X red, Y green, Z blue, a tenth of the bed
+    // long, each with its letter as on the cube. Thickness and letter size come with every picture (render).
+    function makeAxes(size) {
+      const group = new THREE.Group();
+      const length = Math.max(15, size / 10);
+      group.userData = { rods: [], letters: [], length };
+      for (const [letter, dir, hex] of AXES) {
+        const d = new THREE.Vector3(...dir);
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, length, 8).translate(0, length / 2, 0),
+          new THREE.MeshBasicMaterial({ color: hex }));
+        rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+        const label = axisLetter(THREE, letter, hex);
+        label.userData.dir = d;
+        group.add(rod, label);
+        group.userData.rods.push(rod);
+        group.userData.letters.push(label);
+      }
+      return group;
     }
     function colourList() {
       const list = new Array(MAX_COLOURS).fill(0).map(() => new THREE.Color(typeColour("Other")));
@@ -249,32 +299,93 @@ export default {
       if (split && p && job.value.job.state !== "complete") {
         if (!nozzle) makeNozzle();
         nozzle.position.set(p[0], p[1], p[2]);
+        setHead(activeHead(job.value, d));
         nozzle.visible = true;
       } else if (nozzle) nozzle.visible = false;
       render();
     }
-    // A nozzle with its tip at the origin: cone, hexagon above it.
+    // The nozzle with its tip at the origin, a little like the real one (the user: plastic, not one
+    // flat colour): tip and hexagon of brass, the heater block in a sock of the head's filament
+    // colour, the heat break above; over it the head's number when the printer has several.
     function makeNozzle() {
-      const material = new THREE.MeshLambertMaterial({ color: cssColour("--accent") });
-      const tip = new THREE.ConeGeometry(1.6, 3, 24).rotateX(-Math.PI / 2).translate(0, 0, 1.5);
-      const hex = new THREE.CylinderGeometry(3, 3, 3.5, 6).rotateX(Math.PI / 2).translate(0, 0, 3 + 1.75);
+      const brass = new THREE.MeshPhongMaterial({ color: "#C9A04E", specular: "#FFF0C0", shininess: 90 });
+      const facets = new THREE.MeshPhongMaterial({ color: "#B88F3E", specular: "#FFF0C0", shininess: 90, flatShading: true });
+      const steel = new THREE.MeshPhongMaterial({ color: "#A7ADB4", specular: "#FFFFFF", shininess: 70 });
+      const sock = new THREE.MeshPhongMaterial({ color: "#009688", specular: "#555555", shininess: 25 });
+      const upright = (g, z) => g.rotateX(Math.PI / 2).translate(0, 0, z);
+      // The sock with rounded edges, so light and shade run over it (a box looked flat).
+      const w = 6, h = 4, r = 2, outline = new THREE.Shape();
+      outline.moveTo(-w + r, -h);
+      outline.lineTo(w - r, -h);
+      outline.quadraticCurveTo(w, -h, w, -h + r);
+      outline.lineTo(w, h - r);
+      outline.quadraticCurveTo(w, h, w - r, h);
+      outline.lineTo(-w + r, h);
+      outline.quadraticCurveTo(-w, h, -w, h - r);
+      outline.lineTo(-w, -h + r);
+      outline.quadraticCurveTo(-w, -h, -w + r, -h);
+      const block = new THREE.ExtrudeGeometry(outline, { depth: 5, bevelEnabled: true, bevelThickness: 1, bevelSize: 1, bevelSegments: 4, curveSegments: 8 });
       nozzle = new THREE.Group();
-      nozzle.add(new THREE.Mesh(tip, material), new THREE.Mesh(hex, material));
+      nozzle.add(
+        new THREE.Mesh(upright(new THREE.CylinderGeometry(1.5, 0.35, 3, 32), 1.5), brass),
+        new THREE.Mesh(upright(new THREE.CylinderGeometry(3.2, 3.2, 3, 6), 4.5), facets),
+        new THREE.Mesh(block.translate(2, 0, 7.5), sock),
+        new THREE.Mesh(upright(new THREE.CylinderGeometry(1.4, 1.4, 6, 20), 16.5), steel),
+      );
+      nozzle.userData = { sock, badge: null, head: "" };
       scene.add(nozzle);
     }
+    // The head printing (activeHead): the sock in its colour, its number above.
+    function setHead({ index, colour, many }) {
+      const u = nozzle.userData, key = `${index}|${colour}|${many}`;
+      if (u.head === key) return;
+      u.head = key;
+      u.sock.color.set(colour);
+      if (u.badge) {
+        nozzle.remove(u.badge);
+        u.badge.material.map.dispose();
+        u.badge.material.dispose();
+        u.badge = null;
+      }
+      if (!many) return;
+      const c = document.createElement("canvas");
+      c.width = c.height = 128;
+      const g = c.getContext("2d");
+      g.fillStyle = colour;
+      g.beginPath();
+      g.arc(64, 64, 56, 0, 2 * Math.PI);
+      g.fill();
+      g.lineWidth = 8;
+      g.strokeStyle = "#FFFFFF";
+      g.stroke();
+      g.fillStyle = isLight(colour) ? "#1A1A1A" : "#FFFFFF";
+      g.font = "700 72px Inter, system-ui, sans-serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(String(index + 1), 64, 70);
+      const map = new THREE.CanvasTexture(c);
+      map.colorSpace = THREE.SRGBColorSpace;
+      u.badge = new THREE.Sprite(new THREE.SpriteMaterial({ map, depthTest: false }));
+      u.badge.renderOrder = 11;
+      u.badge.position.set(0, 0, 28);
+      u.badge.scale.setScalar(9);
+      nozzle.add(u.badge);
+    }
     watch([layer, follow, printedCount, printing], update);
+    watch(layer, (L) => { if (data.value) ui.viewLayer = L; });
     watch(byKind, () => {
       if (!solid) return;
       for (const mesh of [solid, shell, see]) mesh.material.uniforms.colours.value = colourList();
       update();
     });
-    // Looks at the model: from the front, a little from the left and from above; or from above.
+    // Looks at the model: straight from the front, tilted down, not turned (the user: the home view is
+    // only tilted); or from above.
     function view(from = "oblique") {
       const b = data.value?.bounds;
       if (!b || !camera) return;
       const c = new THREE.Vector3((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, b.maxZ / 2);
       const size = Math.max(b.maxX - b.minX, b.maxY - b.minY, b.maxZ, 20);
-      const at = from === "top" ? new THREE.Vector3(0, -0.01, 1.9) : new THREE.Vector3(-0.55, -1.35, 1.0);
+      const at = from === "top" ? new THREE.Vector3(0, -0.01, 1.9) : new THREE.Vector3(0, -1.45, 1.05);
       camera.position.copy(c).addScaledVector(at, size * 1.25);
       camera.near = size / 100;
       camera.far = size * 40;
@@ -283,12 +394,41 @@ export default {
       controls.update();
       render();
     }
+    // The whole model in the picture, looking from where the camera looks now.
+    function fit() {
+      const b = data.value?.bounds;
+      if (!b || !camera) return;
+      const c = new THREE.Vector3((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, b.maxZ / 2);
+      const radius = Math.max(10, Math.hypot(b.maxX - b.minX, b.maxY - b.minY, b.maxZ) / 2);
+      const half = THREE.MathUtils.degToRad(camera.fov / 2);
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      camera.position.copy(c).addScaledVector(dir, radius / Math.sin(Math.min(half, Math.atan(Math.tan(half) * camera.aspect))));
+      controls.target.copy(c);
+      controls.update();
+      render();
+    }
+    // Turns the model by 90° around the upright axis: left means counterclockwise seen from above.
+    const spin = (degrees) => cube?.spin((degrees * Math.PI) / 180);
+    // The picture as it is now, as a PNG named after the file.
+    function saveImage() {
+      if (!renderer) return;
+      renderer.render(scene, camera);  // the drawing buffer is only sure right after drawing
+      const name = (file.fileName.value || "OrcaOne").replace(/\.(gcode|gco|g|bgcode)$/i, "") + ".png";
+      renderer.domElement.toBlob((blob) => blob && saveBlob(blob, name), "image/png");
+    }
+    // The stage fills the screen; Esc or the button again ends it.
+    function toggleFullscreen() {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else stage.value?.requestFullscreen?.();
+    }
+    const onFullscreen = () => { full.value = !!stage.value && document.fullscreenElement === stage.value; };
+    document.addEventListener("fullscreenchange", onFullscreen);
 
     // ------------------------------------------------------------ a file read
     async function show(d) {
-      // The layer "2D-Ansicht" showed, else all.
+      // The layer both views stand at, else all.
       layer.value = ui.viewLayer >= 1 && ui.viewLayer <= d.layerStart.length ? ui.viewLayer : d.layerStart.length;
-      ui.viewLayer = null;
+      ui.viewLayer = layer.value;
       await nextTick();
       try {
         await start();
@@ -299,19 +439,24 @@ export default {
       makeModel();
       view();
     }
-    // The printer's bed mesh comes with its first answer: then the real bed.
-    watch(() => job.value?.motion.mesh, (mesh, before) => { if (mesh && !before && solid) makeBed(); });
-    // To "2D-Ansicht" with the same file and layer.
-    function to2d(ev) {
-      ui.viewLayer = layer.value;
-      go(ev, hashOf("druck2d", props.instId));
-    }
+    // The printer's bed mesh comes with its first answer: then the real bed, drawn at once. A file from
+    // the cache shows before that answer, and nothing else draws while the printer stands still: the
+    // picture kept the bed guessed from the file until the next turn (the user).
+    watch(() => job.value?.motion.mesh, (mesh, before) => {
+      if (!mesh || before || !solid) return;
+      makeBed();
+      render();
+    });
+    // To "2D-Ansicht", which shows the same file and layer (ui.viewLayer).
+    const to2d = (ev) => go(ev, hashOf("druck2d", props.instId));
     onUnmounted(() => {
+      document.removeEventListener("fullscreenchange", onFullscreen);
       observer?.disconnect();
       themeWatch?.disconnect();
       controls?.dispose();
+      cube?.dispose();
       if (renderer) {
-        scene.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+        scene.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); });
         renderer.dispose();
         renderer.domElement.remove();
       }
@@ -332,14 +477,16 @@ export default {
       return used.map((i) => ({ key: i, colour: toolColour(d, i), text: [`T${i}`, d.materials[i]].filter(Boolean).join(" · "), spool: true }));
     });
 
-    return { ...file, T, V, V3: V, byKind, layer, box, legend, num, fmtSize, activeName, view, to2d, hashOf };
+    return {
+      ...file, T, V, V3: V, byKind, layer, box, cubeBox, stage, full, legend, num, fmtSize, activeName, view, fit, spin, saveImage,
+      toggleFullscreen, to2d, hashOf,
+    };
   },
 
   template: `
     <div class="page fill-page view3d-page">
       <div class="v3d-head">
         <h1 id="page-title" tabindex="-1">{{ V.title }}</h1>
-${FILE_PICKER}
         <span class="spacer"></span>
         <div v-if="data" class="chips" role="group" :aria-label="V.colourBy">
           <button class="chip" type="button" :aria-pressed="!byKind ? 'true' : 'false'" @click="byKind = false">{{ V.byFilament }}</button>
@@ -350,8 +497,10 @@ ${FILE_PICKER}
       </div>
       <p v-if="host === ''" class="note">{{ V.noHost(activeName()) }}</p>
 
-      <div :class="['v3d-stage', { 'is-over': dragging }]" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
+      <div ref="stage" :class="['v3d-stage', { 'is-over': dragging }]" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop">
         <div ref="box" class="v3d-canvas"></div>
+        <!-- The cube stays in the page, so its canvas lives as long as the drawing -->
+        <div ref="cubeBox" v-show="data && !loading && !error" class="v3d-cube"></div>
 
 ${STAGE_STATE}
 
@@ -361,19 +510,28 @@ ${STAGE_STATE}
             <span>{{ V.segments(num(data.count)) }} · {{ V.layersN(layers) }}</span>
             <span v-if="printing">{{ V.printedAt(printedLayer, layers) }}</span>
           </div>
-          <div class="v3d-views">
-            <button class="icon-btn" type="button" :title="V.viewOblique" :aria-label="V.viewOblique" @click="view('oblique')"><ui-icon name="refresh"/></button>
-            <button class="icon-btn" type="button" :title="V.viewTop" :aria-label="V.viewTop" @click="view('top')"><ui-icon name="box"/></button>
-          </div>
           <div v-if="layers > 1" class="v3d-layers">
             <span class="v3d-layer-text">{{ layer }}<small>/ {{ layers }}</small></span>
             <input v-model.number="layer" class="v3d-slider" type="range" min="1" :max="layers" step="1" :aria-label="V.layer">
             <span class="v3d-layer-z">{{ num(zOf(layer), 2) }} mm</span>
           </div>
-          <ul class="v3d-legend">
-            <li v-for="l in legend" :key="l.key">
-              <spool-icon v-if="l.spool" :colour="l.colour" :size="18"/><span v-else class="v3d-swatch" :style="{ background: l.colour }"></span>{{ l.text }}</li>
-          </ul>
+          <!-- Legend on the left; the buttons for the view next to the cube (the user's wish) -->
+          <div class="v3d-bottom">
+            <ul class="v3d-legend">
+              <li v-for="l in legend" :key="l.key">
+                <spool-icon v-if="l.spool" :colour="l.colour" :size="18"/><span v-else class="v3d-swatch" :style="{ background: l.colour }"></span>{{ l.text }}</li>
+            </ul>
+            <div class="v3d-views" role="toolbar" :aria-label="V.viewTools">
+              <button class="icon-btn" type="button" :title="V.viewOblique" :aria-label="V.viewOblique" @click="view('oblique')"><ui-icon name="home"/></button>
+              <button class="icon-btn" type="button" :title="V.viewTop" :aria-label="V.viewTop" @click="view('top')"><ui-icon name="box"/></button>
+              <button class="icon-btn" type="button" :title="V.viewFit" :aria-label="V.viewFit" @click="fit"><ui-icon name="fit"/></button>
+              <button class="icon-btn" type="button" :title="V.turnLeft" :aria-label="V.turnLeft" @click="spin(-90)"><ui-icon name="rotateLeft"/></button>
+              <button class="icon-btn" type="button" :title="V.turnRight" :aria-label="V.turnRight" @click="spin(90)"><ui-icon name="rotateRight"/></button>
+              <button class="icon-btn" type="button" :title="V.saveImage" :aria-label="V.saveImage" @click="saveImage"><ui-icon name="download"/></button>
+              <button class="icon-btn" type="button" :title="full ? V.fullscreenOff : V.fullscreen" :aria-label="full ? V.fullscreenOff : V.fullscreen"
+                      @click="toggleFullscreen"><ui-icon :name="full ? 'shrink' : 'fullscreen'"/></button>
+            </div>
+          </div>
         </template>
       </div>
     </div>

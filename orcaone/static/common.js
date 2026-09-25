@@ -75,10 +75,20 @@ export function go(ev, hash) {
 // filamentFocus the other way round: the page "Filamente" shows that filament's row and panel.
 // calibrateFor: the own filament the page "Kalibrieren" opens with.
 // printer: the model OrcaOne works with, chosen in the top bar for every page (app.js).
-// viewFile: the print file "3D-Ansicht" or "2D-Ansicht" opens with (from the page "Dateien");
-// viewLayer: the layer one of them showed, for the other.
+// printFile: the print file "3D-Ansicht" and "2D-Ansicht" show, one for both (the user's wish of
+// 24.09.2026): chosen in the top bar or on "Dateien", set by itself when the printer starts a print
+// (app.js). { model, path } of a file on the printer, or { local, size, stamp } of one from this
+// computer, which localPrintFile() holds.
+// viewLayer: the layer both stand at, one slider for both (the user: "out of sync" through the menu);
+// null for a new file, then both start at the top, as the slicer's preview does.
 export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null,
-                             viewFile: null, viewLayer: null });
+                             printFile: null, viewLayer: null });
+let localFile = null;
+export function setLocalPrintFile(file) {
+  localFile = file;
+  ui.printFile = { local: file.name, size: file.size, stamp: file.lastModified };
+}
+export const localPrintFile = () => localFile;
 
 // The design in use: the one chosen at the bottom of the menu (data-theme on <html>, app.js), else
 // the system's. style.css picks its colours the same way (color-scheme, light-dark()).
@@ -86,9 +96,12 @@ export const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
 export const isDark = () => (document.documentElement.dataset.theme || (darkQuery.matches ? "dark" : "light")) === "dark";
 
 // One word per state on every page.
-export function statusText(inst) {
+export function statusText(inst, short = false) {
   if (!inst.running) return T.status.closed;
-  return inst.running_reason?.code === "process_unmapped" ? T.status.maybeRunning : T.status.running;
+  const maybe = inst.running_reason?.code === "process_unmapped";
+  // Short in the top bar (the user: "view only" there was too much text); the tooltip says it all.
+  if (short) return maybe ? T.status.maybeRunningShort : T.status.runningShort;
+  return maybe ? T.status.maybeRunning : T.status.running;
 }
 
 // Why OrcaOne may not write to this installation now: a code of T.blocked, or null. The backend
@@ -415,6 +428,9 @@ export const ICONS = {
   network: '<path d="M4.5 9.8a10.8 10.8 0 0 1 15 0M7.3 12.9a6.6 6.6 0 0 1 9.4 0M10.1 16a2.6 2.6 0 0 1 3.8 0"/><circle cx="12" cy="18.7" r=".9"/>',
   window: '<rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M7 9.5V8h1.5M17 9.5V8h-1.5M7 14.5V16h1.5M17 14.5V16h-1.5"/>',
   fullscreen: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+  fit: '<path d="M4 8.5V4h4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"/><circle cx="12" cy="12" r="3"/>',
+  rotateLeft: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/>',
+  rotateRight: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
   shrink: '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>',
   calibrate: '<path d="M10 6.5h10M10 12h10M10 17.5h10"/><path d="m3.8 6.5 1.4 1.4 2.6-2.8M3.8 12l1.4 1.4 2.6-2.8M3.8 17.5l1.4 1.4 2.6-2.8"/>',
   diff: '<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4M9 11h4M11 9v4M9 16.5h4"/>',
@@ -551,8 +567,8 @@ export function registerCommon(app) {
 
   // State of an installation as text plus colour, the same words on every page.
   app.component("run-status", {
-    props: { inst: { type: Object, required: true } },
-    computed: { text() { return statusText(this.inst); } },
+    props: { inst: { type: Object, required: true }, short: { type: Boolean, default: false } },
+    computed: { text() { return statusText(this.inst, this.short); } },
     template: `<span :class="['status', { 'status--busy': inst.running }]">{{ text }}</span>`,
   });
 }

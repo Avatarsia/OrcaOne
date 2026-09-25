@@ -6,7 +6,7 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
-  printerModels, slicerModel, modelName, modelShown, U1_MODELS, fmtSize,
+  printerModels, slicerModel, modelName, modelShown, U1_MODELS, fmtSize, whenText, setLocalPrintFile,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
@@ -42,6 +42,7 @@ const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmoun
 const SPLASH_MS = 1500;
 const SPLASH_HOLD_MS = 700;
 const PROGRESS_MS = 150;   // how often the boot screen asks what the scan does
+const JOB_MS = 5000;       // how often the top bar looks whether the printer started a print
 
 document.documentElement.lang = LANG;
 // The design chosen in the menu; GET / brings it already (app.py), /index.html does not.
@@ -59,9 +60,10 @@ const PAGES = [
   { id: "drucker", icon: "printer", component: DruckerPage },
   // Need no slicer data: show at once and stay through "Neu einlesen".
   { id: "status", icon: "pulse", component: StatusPage, standalone: true, sub: true, printer: true },
+  // "Dateien" before the views: a print file chosen there is the one they show (the user's wish).
+  { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true, u1: true, printer: true },
   { id: "druck3d", icon: "cube", component: Druck3dPage, standalone: true, sub: true, printer: true },
   { id: "druck2d", icon: "toolpath", component: Druck2dPage, standalone: true, sub: true, printer: true },
-  { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true, u1: true, printer: true },
   { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true, u1: true, printer: true },
   { id: "konsole", icon: "code", component: KonsolePage, standalone: true, sub: true, printer: true },
   { id: "ssh", icon: "terminal", component: SshPage, standalone: true, sub: true, printer: true },
@@ -423,6 +425,7 @@ const app = createApp({
     watch(route, () => {
       instOpen.value = false;
       printerOpen.value = false;
+      fileOpen.value = false;
       navOpen.value = false;
       window.scrollTo(0, 0);
       nextTick(() => document.getElementById("page-title")?.focus());
@@ -430,7 +433,7 @@ const app = createApp({
 
     function toggleInst() {
       instOpen.value = !instOpen.value;
-      printerOpen.value = false;
+      printerOpen.value = fileOpen.value = false;
       if (instOpen.value) nextTick(() => instMenu.value?.querySelector('[aria-checked="true"]')?.focus());
     }
     function closeInst() {
@@ -447,7 +450,7 @@ const app = createApp({
     const printerMenu = ref(null);
     function togglePrinter() {
       printerOpen.value = !printerOpen.value;
-      instOpen.value = false;
+      instOpen.value = fileOpen.value = false;
       if (printerOpen.value) nextTick(() => printerMenu.value?.querySelector('[aria-checked="true"]')?.focus());
     }
     function closePrinter() {
@@ -458,6 +461,91 @@ const app = createApp({
       closePrinter();
       leave(() => { ui.printer = m.model; });
     }
+
+    // ------------------------------------------------------------ the print file in the top bar
+    // One print file for "2D-Ansicht" and "3D-Ansicht" (the user's wish of 24.09.2026): chosen here or
+    // on "Dateien"; when the printer starts a print, from the slicer as from its display, its file.
+    // At the start the file it prints, else its newest. Looked at every JOB_MS while the page shows,
+    // read only (camera.status).
+    const fileHost = ref("");       // the address of the printer in the top bar, "" without one
+    const printFiles = ref(null);   // its print files, newest first; null until read
+    const jobFile = ref(undefined); // the file it printed at the last look; undefined before the first
+    const fileOpen = ref(false);
+    const fileBtn = ref(null);
+    const fileMenu = ref(null);
+    const pathOf = (f) => f.path || f.name;
+    async function readFiles() {
+      const model = ui.printer;
+      try {
+        const files = (await api.printFiles(model)).files || [];
+        if (model === ui.printer) printFiles.value = files;
+      } catch {
+        if (model === ui.printer) printFiles.value = [];
+      }
+      return printFiles.value || [];
+    }
+    async function lookAtJob() {
+      const model = ui.printer;
+      if (document.hidden || !model) return;
+      try {
+        if (!fileHost.value) fileHost.value = (await api.printers()).printers[model]?.host || "";
+        if (!fileHost.value || model !== ui.printer) return;
+        const job = await api.printerState(model);
+        if (model !== ui.printer) return;
+        const printing = ["printing", "paused"].includes(job.state) ? job.file : null;
+        // The list at the first look (for the pictures) and when a print starts: the slicer may just have sent it.
+        const first = jobFile.value === undefined;
+        if (first || (printing && printing !== jobFile.value)) await readFiles();
+        if (model !== ui.printer) return;
+        if (printing && printing !== jobFile.value) ui.printFile = { model, path: printing };
+        else if (first && !ui.printFile && printFiles.value?.[0]) ui.printFile = { model, path: pathOf(printFiles.value[0]) };
+        jobFile.value = printing;
+      } catch {
+        // Not reachable right now: the file stays.
+      }
+    }
+    // Another printer: its files; one of the other printer is not the file any more.
+    watch(() => ui.printer, (model) => {
+      fileHost.value = "";
+      printFiles.value = null;
+      jobFile.value = undefined;
+      if (ui.printFile?.model && ui.printFile.model !== model) ui.printFile = null;
+      lookAtJob();
+    });
+    setInterval(lookAtJob, JOB_MS);
+    document.addEventListener("visibilitychange", lookAtJob);
+    function toggleFile() {
+      fileOpen.value = !fileOpen.value;
+      instOpen.value = printerOpen.value = false;
+      if (!fileOpen.value) return;
+      if (fileHost.value) readFiles();
+      nextTick(() => (fileMenu.value?.querySelector('[aria-checked="true"]') || fileMenu.value?.querySelector(".inst-item"))?.focus());
+    }
+    function closeFile() {
+      fileOpen.value = false;
+      fileBtn.value?.focus();
+    }
+    function pickFile(f) {
+      ui.printFile = { model: ui.printer, path: pathOf(f) };
+      closeFile();
+    }
+    function pickLocal(ev) {
+      const file = ev.target.files[0];
+      ev.target.value = "";
+      if (file) setLocalPrintFile(file);
+      closeFile();
+    }
+    const fileIsSet = (f) => ui.printFile?.model === ui.printer && ui.printFile.path === pathOf(f);
+    // The slicer's picture of a print file (the user's wish), from the top of "gcodes" like the files.
+    const thumbOf = (f) => (f?.thumb ? api.printFileUrl(ui.printer, f.thumb) : "");
+    const fileThumb = computed(() => thumbOf(ui.printFile?.path && printFiles.value?.find((f) => pathOf(f) === ui.printFile.path)));
+    const fileName = computed(() => {
+      const f = ui.printFile;
+      return f ? (f.local || f.path.split("/").pop()).replace(/\.(gcode|gco|g)$/i, "") : "";
+    });
+    const fileFacts = (f) => [jobFile.value === pathOf(f) ? T.fileMenu.printing : "", f.size != null ? fmtSize(f.size) : "",
+      f.modified ? whenText(new Date(f.modified * 1000)) : ""].filter(Boolean).join(" · ");
+
     // Both menus in the top bar: arrows move, Escape and Tab go back to the button.
     function menuKeys(ev, menu, close) {
       if (ev.key === "Escape") {
@@ -476,10 +564,12 @@ const app = createApp({
     }
     const instKey = (ev) => instOpen.value && menuKeys(ev, instMenu.value, closeInst);
     const printerKey = (ev) => printerOpen.value && menuKeys(ev, printerMenu.value, closePrinter);
+    const fileKey = (ev) => fileOpen.value && menuKeys(ev, fileMenu.value, closeFile);
     document.addEventListener("pointerdown", (ev) => {
       const at = (sel) => ev.target instanceof Element && ev.target.closest(sel);
       if (instOpen.value && !at(".inst-pick")) instOpen.value = false;
       if (printerOpen.value && !at(".printer-pick")) printerOpen.value = false;
+      if (fileOpen.value && !at(".file-pick")) fileOpen.value = false;
     });
 
     return {
@@ -489,6 +579,8 @@ const app = createApp({
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
+      fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
+      thumbOf, fileThumb,
     };
   },
 
@@ -503,7 +595,7 @@ const app = createApp({
                 :title="inst.slicer + ' ' + inst.version + ' · ' + statusText(inst)" @click="toggleInst">
           <!-- On a phone the short name, so the printer next to it keeps its name -->
           <span class="inst-name"><span class="name-long">{{ inst.slicer }}</span><span class="name-short">{{ inst.snorca ? 'SnOrca' : 'Orca' }}</span></span>
-          <run-status :inst="inst"/>
+          <run-status :inst="inst" short/>
           <ui-icon name="chevronDown"/>
         </button>
         <div v-if="instOpen" ref="instMenu" class="inst-menu" role="menu" :aria-label="T.instMenu">
@@ -540,9 +632,37 @@ const app = createApp({
           </button>
         </div>
       </div>
+      <!-- The print file for "2D-Ansicht" and "3D-Ansicht", next to the printer (the user's wish) -->
+      <div v-if="printers.length" class="inst file-pick" @keydown="fileKey">
+        <button ref="fileBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="fileOpen ? 'true' : 'false'"
+                :title="ui.printFile ? T.fileMenu.title(fileName) : T.fileMenu.label" @click="toggleFile">
+          <img v-if="fileThumb" class="file-thumb" :src="fileThumb" alt="" width="24" height="24">
+          <ui-icon v-else :name="ui.printFile?.local ? 'folderOpen' : 'file'"/>
+          <span class="inst-name file-name">{{ fileName || T.fileMenu.none }}</span>
+          <ui-icon name="chevronDown"/>
+        </button>
+        <div v-if="fileOpen" ref="fileMenu" class="inst-menu file-menu" role="menu" :aria-label="T.fileMenu.label">
+          <div class="inst-menu-label" aria-hidden="true">{{ T.fileMenu.label }}</div>
+          <p v-if="!fileHost" class="file-menu-note">{{ T.fileMenu.noHost }}</p>
+          <p v-else-if="printFiles === null" class="file-menu-note">{{ T.fileMenu.reading }}</p>
+          <p v-else-if="!printFiles.length" class="file-menu-note">{{ T.fileMenu.empty }}</p>
+          <button v-for="f in printFiles || []" :key="pathOf(f)" class="inst-item" type="button" role="menuitemradio"
+                  :aria-checked="fileIsSet(f) ? 'true' : 'false'" @click="pickFile(f)">
+            <ui-icon name="check" class="check"/>
+            <img v-if="f.thumb" class="file-thumb" :src="thumbOf(f)" alt="" width="40" height="40" loading="lazy">
+            <span v-else class="file-thumb is-empty"><ui-icon name="file"/></span>
+            <span class="inst-item-text"><span>{{ f.name }}</span><span class="file-facts">{{ fileFacts(f) }}</span></span>
+          </button>
+          <button class="inst-item file-local" type="button" role="menuitem" @click="$refs.localInput.click()">
+            <ui-icon name="folderOpen"/><span class="inst-item-text">{{ ui.printFile?.local ? T.fileMenu.localNow(ui.printFile.local) : T.fileMenu.local }}</span>
+          </button>
+          <input ref="localInput" class="file-local-input" type="file" accept=".gcode,.gco,.g" tabindex="-1" aria-hidden="true" @change="pickLocal">
+        </div>
+      </div>
+      <!-- The icon alone (the user); what it does and the time of the data in the tooltip -->
       <button v-if="loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
-              :title="T.dataFrom(generatedText)" @click="leave(reread)">
-        <ui-icon name="refresh"/><span class="bar-btn-label">{{ T.reload }}</span>
+              :title="T.reload + ' · ' + T.dataFrom(generatedText)" @click="leave(reread)">
+        <ui-icon name="refresh"/>
       </button>
     </header>
 

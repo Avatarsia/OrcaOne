@@ -17,6 +17,17 @@ const T = {
   reloadedDiscarded: "Rescanned. The queued changes were discarded.",
   dataFrom: (time) => `Data as of ${time}`,
   loading: "Reading installations …",
+  fileMenu: {
+    label: "Print file for 2D and 3D",
+    title: (name) => `Print file for 2D and 3D: ${name}`,
+    none: "No print file",
+    reading: "Reading the print files …",
+    empty: "No print files on the printer",
+    noHost: "The printer has no IP address. A file from this computer still works.",
+    printing: "Printing now",
+    local: "File from this computer …",
+    localNow: (name) => `From this computer: ${name}`,
+  },
   splash: {
     license: "License: PolyForm Noncommercial 1.0.0",
     noncommercial: "No commercial use",
@@ -160,6 +171,8 @@ const T = {
     closed: "Closed",
     running: "Running – view only",
     maybeRunning: "Maybe running – view only",
+    runningShort: "Running",
+    maybeRunningShort: "Maybe running",
   },
   // First sentence of the read-only banner on the pages; the page adds what to do.
   busy: (inst) => inst.running_reason?.code === "process_unmapped"
@@ -857,11 +870,7 @@ const T = {
 
   // ---------------------------------------------------------------- page "3D-Ansicht"
   view3d: {
-    title: "3D view",
-    file: "File",
-    noFiles: "No print files on the printer",
-    nowPrinting: "Printing now",
-    openLocal: "File from this computer",
+    title: "3D View",
     colourBy: "Colours",
     byFilament: "Filament",
     byType: "Line type",
@@ -876,7 +885,16 @@ const T = {
     layer: "Layers up to",
     viewOblique: "Reset view",
     viewTop: "From above",
-    to2d: "2D view",
+    viewTools: "View",
+    viewFit: "Fit to view",
+    turnLeft: "Turn 90° left",
+    turnRight: "Turn 90° right",
+    saveImage: "Save as image",
+    fullscreen: "Full screen",
+    fullscreenOff: "Exit full screen",
+    cube: { front: "Front", back: "Back", left: "Left", right: "Right", top: "Top", bottom: "Bottom",
+      hint: "Choose the view: click a face, edge or corner" },
+    to2d: "2D View",
     types: { "Inner wall": "Inner wall", "Outer wall": "Outer wall", "Overhang wall": "Overhang wall", "Sparse infill": "Sparse infill",
       "Internal solid infill": "Internal solid infill", "Top surface": "Top surface", "Bottom surface": "Bottom surface", "Ironing": "Ironing",
       "Bridge": "Bridge", "Internal Bridge": "Internal bridge", "Gap infill": "Gap infill", "Skirt": "Skirt", "Brim": "Brim",
@@ -894,7 +912,7 @@ const T = {
 
   // ---------------------------------------------------------------- page "2D-Ansicht"
   view2d: {
-    title: "2D view",
+    title: "2D View",
     colourBy: "Colours",
     modes: { filament: "Filament", type: "Line type", speed: "Speed", flow: "Volumetric flow", accel: "Acceleration",
       fan: "Fan", temp: "Temperature", width: "Line width" },
@@ -903,7 +921,7 @@ const T = {
     now: "now",
     done: "printed",
     todo: "still to come",
-    to3d: "3D view",
+    to3d: "3D View",
     stage: "One layer from above",
     fit: "Fit to view",
     layer: "Layer",
@@ -981,6 +999,8 @@ const T = {
     download: "Download",
     view3d: "View in 3D",
     view2d: "View in 2D",
+    setFile: "Set as the print file for 2D and 3D",
+    isSet: "For 2D and 3D",
     print: "Print",
     busy: (state) => state === "paused" ? "A print is paused on the U1." : "The U1 is printing.",
     layers: (k) => `${n(k)} layers`,

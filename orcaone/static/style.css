@@ -97,7 +97,9 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .nav-toggle { margin-left: -8px; padding: 0 6px; border-color: transparent; }
 
 /* Installation picker in the dark top bar (ionpy .tb-dropdown, opened by click) */
-.inst { position: relative; min-width: 0; }
+/* Flex, so the button sits in the middle of the bar like the others; inline on a line of text it
+   stood on the baseline, the printer's one with its picture a few pixels off (the user) */
+.inst { position: relative; display: flex; min-width: 0; }
 .inst-btn {
   display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 32px; padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, .25); border-radius: 4px; background: none; color: #fff; cursor: pointer;
@@ -123,6 +125,17 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .inst-item .version { color: var(--muted); font-size: 12px; font-weight: 400; }
 .inst-item-path { color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 400; overflow-wrap: anywhere; }
 .inst-menu .status { color: var(--label); font-size: 12px; font-weight: 400; }
+/* The print file next to the printer (app.js): the name as far as it fits; the list scrolls */
+.file-name { max-width: 200px; }
+.file-menu { min-width: 320px; max-width: min(460px, 92vw); max-height: min(70vh, 520px); overflow-y: auto; }
+.file-menu-note { padding: 6px 12px; color: var(--muted); font-size: 13px; }
+.file-facts { color: var(--muted); font-size: 12px; font-weight: 400; }
+/* The slicer's picture of the file: in the list, and small in the button like the printer's */
+.file-thumb { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 4px; background: var(--surface-2);
+              color: var(--icon); object-fit: contain; }
+.inst-btn .file-thumb { width: 24px; height: 24px; padding: 1px; background: #fff; }
+.inst-item.file-local { border-top: 1px solid var(--divider); color: var(--accent-text); font-weight: 600; }
+.file-local-input { display: none; }
 
 /* Nav left, content right (ionpy .selector-frame--with-side: 180px 1fr) */
 .shell { display: grid; grid-template-columns: var(--nav-w) minmax(0, 1fr); }
@@ -867,7 +880,8 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 @media (max-width: 700px) {
   .main { padding: 16px 16px 96px; }
   /* The name stays, the status word goes: the page head says it */
-  .bar-btn-label, .inst-btn .status { display: none; }
+  .inst-btn .status, .file-pick .file-name { display: none; }
+  .file-pick { flex-shrink: 0; }  /* only its picture now */
   .bar-btn { padding: 0 7px; }
   .nozzles { flex-direction: column; align-items: stretch; gap: 8px; }
   .grip { display: none; }
@@ -1314,6 +1328,12 @@ span.cal-check { cursor: default; }
 .files-thumb.is-empty { display: grid; place-items: center; color: var(--icon); }
 .files-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .files-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+/* A print file's name sets it for 2D and 3D; the one set is marked (pages/dateien.js) */
+.files-set { max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.files-set:hover { color: var(--accent-text); text-decoration: underline; }
+.files-row.is-set { box-shadow: inset 3px 0 0 var(--accent-line); }
+.files-set-badge { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 1px 8px 1px 6px; border-radius: 10px;
+                   background: var(--selected); color: var(--accent-text); font-size: 12px; font-weight: 600; }
 .files-meta { color: var(--muted); font-size: 12px; }
 .files-tools { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
 .files-tool { display: inline-flex; align-items: center; gap: 4px; }
@@ -1601,17 +1621,25 @@ span.cal-check { cursor: default; }
 .v3d-center.alert { inset: auto 16px 16px; }
 .v3d-bar { width: 240px; }
 /* Over the picture: what it shows, the views, the layers, the colours */
-.v3d-info, .v3d-views, .v3d-legend { position: absolute; border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
-.v3d-info { top: 10px; left: 12px; display: grid; gap: 2px; max-width: 60%; padding: 6px 10px; color: var(--label); font-size: 12px; }
+.v3d-info, .v3d-views, .v3d-legend { border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.v3d-info { position: absolute; top: 10px; left: 12px; display: grid; gap: 2px; max-width: 60%; padding: 6px 10px; color: var(--label); font-size: 12px; }
 .v3d-info strong { overflow: hidden; color: var(--text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.v3d-views { top: 10px; right: 12px; display: flex; gap: 2px; padding: 2px; }
-.v3d-layers { position: absolute; top: 60px; right: 12px; bottom: 16px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+/* Along the bottom up to the cube: the legend on the left, the buttons for the view on the right; short of room, the
+   buttons go under the legend */
+.v3d-bottom { position: absolute; left: 12px; right: 134px; bottom: 10px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; pointer-events: none; }
+.v3d-bottom > * { pointer-events: auto; }
+.v3d-views { display: flex; gap: 2px; margin-left: auto; padding: 2px; }
+.v3d-stage:fullscreen { border-radius: 0; }
+/* The cube that turns the view (pages/view-cube.js), bottom right as in OrcaSlicer; the slider ends above it */
+.v3d-cube { position: absolute; right: 6px; bottom: 6px; width: 120px; height: 120px; }
+.v3d-cube canvas { display: block; }
+.v3d-layers { position: absolute; top: 10px; right: 12px; bottom: 134px; display: flex; flex-direction: column; align-items: center; gap: 6px;
               padding: 8px 4px; border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); font-size: 12px; }
 .v3d-slider { flex: 1; width: 24px; writing-mode: vertical-lr; direction: rtl; accent-color: var(--accent); cursor: pointer; }
 .v3d-layer-text { font-weight: 700; font-variant-numeric: tabular-nums; }
 .v3d-layer-text small { margin-left: 2px; color: var(--muted); font-weight: 400; }
 .v3d-layer-z { color: var(--muted); font-variant-numeric: tabular-nums; }
-.v3d-legend { bottom: 10px; left: 12px; display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 90px); margin: 0; padding: 6px 10px;
+.v3d-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 6px 10px;
               font-size: 12px; list-style: none; }
 .v3d-legend li { display: inline-flex; align-items: center; gap: 5px; }
 .v3d-swatch { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); }

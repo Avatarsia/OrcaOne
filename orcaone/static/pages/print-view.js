@@ -1,12 +1,13 @@
-// Shared by the pages "3D-Ansicht" and "2D-Ansicht": which print file they show (one of the printer
-// in the top bar, or one from this computer), reading it with the worker (pages/gcode-worker.js),
-// and the printer's job, which they follow while it prints that file. The last file read stays
-// while OrcaOne is open, for both pages: going from one to the other, it shows at once.
-import { ui, fmtSize } from "../common.js";
+// Shared by the pages "3D-Ansicht" and "2D-Ansicht": they show the print file set in the top bar
+// (ui.printFile, app.js; one of the printer there or one from this computer), read with the worker
+// (pages/gcode-worker.js), and follow the printer's job while it prints that file. A file dropped
+// on the page becomes the one set. The last file read stays while OrcaOne is open: going from one
+// page to the other, it shows at once.
+import { ui, localPrintFile, setLocalPrintFile } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
-const { ref, shallowRef, computed, onMounted, onUnmounted } = Vue;
+const { ref, shallowRef, computed, watch, onMounted, onUnmounted } = Vue;
 const V = T.view3d;          // texts of the file choice, shared by both pages
 const FOLLOW_EVERY = 3000;   // ms between two looks at the printer
 
@@ -23,6 +24,21 @@ export const TYPE_COLOURS = {
 export const TOOL_COLOURS = ["#009688", "#F4C032", "#E72F1D", "#4D80BA", "#9654CC", "#FF7D38", "#5ED194", "#E2DEDB"];
 export const toolColour = (d, i) => (/^#[0-9a-f]{6}$/i.test(d.colours[i] || "") ? d.colours[i] : TOOL_COLOURS[i % TOOL_COLOURS.length]);
 export const typeColour = (name) => TYPE_COLOURS[name] || TYPE_COLOURS.Other;
+
+// The head printing now, from the printer's answer (monitor.read, toolhead.extruder): its number
+// from 0, the colour of its spool (U1) or else of its filament in the file, and whether the printer
+// has several heads, so its number is worth showing (the user's wish of 24.09.2026).
+export function activeHead(job, d) {
+  const name = job?.job.active || "extruder";
+  const index = name === "extruder" ? 0 : Number(name.slice(8)) || 0;
+  const heads = job?.heads || [];
+  return { index, colour: heads[index]?.spool?.colour || (d ? toolColour(d, index) : TOOL_COLOURS[0]), many: heads.length > 1 };
+}
+// Whether dark writing reads better on the colour than white.
+export function isLight(hex) {
+  const v = parseInt(String(hex).slice(1), 16);
+  return ((v >> 16 & 255) * 0.299 + (v >> 8 & 255) * 0.587 + (v & 255) * 0.114) / 255 > 0.6;
+}
 
 // The bed from above in mm, [x0, y0, x1, y1]: the printer's if it has an address (the area of its
 // bed mesh, as on "Status"), else around the model, on 10 mm.
@@ -42,11 +58,8 @@ let cache = null;  // { key, data, source }
 
 // onShow(data): the page draws the file just read (or taken from the cache).
 export function usePrintFile(onShow) {
-  const files = ref([]);          // print files of the printer, newest first
   const host = ref(null);         // null while OrcaOne looks it up, "" without an address
   const job = ref(null);          // what the printer is doing (monitor.read)
-  const choice = ref("");         // "printer:<path>" or "local:<name>"
-  const localSize = ref(0);       // bytes of the file from this computer
   const loading = ref(null);      // { loaded, total } while reading
   const error = ref("");
   const data = shallowRef(null);  // the worker's result
@@ -54,11 +67,10 @@ export function usePrintFile(onShow) {
   const dragging = ref(false);
   let source = null;              // { url } or { file }: where the file shown comes from
   const errorText = (code) => V.errors[code] || T.errors[code] || T.errors.unknown;
-  // A print file of the list by its path in "gcodes": the list gives files at the top by name only.
-  const pathOf = (f) => f.path || f.name;
 
   const layers = computed(() => data.value?.layerStart.length || 0);
-  const current = computed(() => (choice.value.startsWith("printer:") ? choice.value.slice(8) : ""));
+  // The file on the printer shown; "" for one from this computer.
+  const current = computed(() => (ui.printFile?.model && ui.printFile.model === ui.printer ? ui.printFile.path : ""));
   // Printed right now: the file shown is the printer's job.
   const printing = computed(() => !!current.value && job.value?.job.file === current.value
     && ["printing", "paused", "complete"].includes(job.value.job.state));
@@ -91,6 +103,7 @@ export function usePrintFile(onShow) {
     worker?.terminate();
     error.value = "";
     if (cache?.key === key) return show(cache);
+    ui.viewLayer = null;  // another file: its own layers
     data.value = null;
     loading.value = { loaded: 0, total: 0 };
     worker = new Worker(new URL("./gcode-worker.js", import.meta.url), { type: "module" });
@@ -118,18 +131,21 @@ export function usePrintFile(onShow) {
     data.value = c.data;
     onShow(c.data);
   }
-  function choose(value) {
-    choice.value = value;
-    if (value.startsWith("printer:")) read({ url: api.printFileUrl(ui.printer, value.slice(8)) }, `${ui.printer}|${value}`);
+  // What ui.printFile names: a file of the printer through OrcaOne, or the one from this computer.
+  function open(f) {
+    if (f?.local) {
+      const file = localPrintFile();
+      if (file) read({ file }, `local|${f.local}|${f.size}|${f.stamp}`);
+    } else if (f?.model && f.model === ui.printer) {
+      read({ url: api.printFileUrl(f.model, f.path) }, `${f.model}|${f.path}`);
+    }
   }
-  function openLocal(file) {
-    if (!file) return;
-    choice.value = `local:${file.name}`;
-    localSize.value = file.size;
-    read({ file }, `local|${file.name}|${file.size}|${file.lastModified}`);
-  }
-  const onPick = (ev) => { openLocal(ev.target.files[0]); ev.target.value = ""; };
-  const onDrop = (ev) => { dragging.value = false; openLocal(ev.dataTransfer.files[0]); };
+  watch(() => ui.printFile, open);
+  const onDrop = (ev) => {
+    dragging.value = false;
+    const file = ev.dataTransfer.files[0];
+    if (file) setLocalPrintFile(file);
+  };
 
   // A piece of the file shown, bytes from … to (not included): the G-code around one line. The
   // printer's file through OrcaOne as a Range request, which Moonraker answers with just that.
@@ -157,6 +173,7 @@ export function usePrintFile(onShow) {
     }
   }
   onMounted(async () => {
+    open(ui.printFile);
     try {
       host.value = (await api.printers()).printers[ui.printer]?.host || "";
     } catch {
@@ -164,25 +181,8 @@ export function usePrintFile(onShow) {
     }
     if (host.value) {
       await look();
-      try {
-        files.value = (await api.printFiles(ui.printer)).files || [];
-      } catch (err) {
-        error.value = errorText(err.code);
-      }
       timer = setInterval(look, FOLLOW_EVERY);
     }
-    // What to show: the file "Dateien" opened here, else the one printed, else the newest.
-    const asked = ui.viewFile;
-    ui.viewFile = null;
-    const printed = job.value && ["printing", "paused"].includes(job.value.job.state) ? job.value.job.file : "";
-    const pick = asked || printed || (files.value[0] ? pathOf(files.value[0]) : "");
-    // The file shown last, if it was a local one or one of this printer.
-    if (cache && !asked && (cache.key.startsWith("local|") || cache.key.startsWith(`${ui.printer}|`))) {
-      choice.value = cache.key.startsWith("local|") ? `local:${cache.key.split("|")[1]}` : cache.key.slice(ui.printer.length + 1);
-      localSize.value = Number(cache.key.split("|")[2]) || 0;
-      return show(cache);
-    }
-    if (pick) choose(`printer:${pick}`);
   });
   document.addEventListener("visibilitychange", look);
   onUnmounted(() => {
@@ -192,27 +192,13 @@ export function usePrintFile(onShow) {
   });
 
   const percent = computed(() => (loading.value?.total ? Math.round(loading.value.loaded / loading.value.total * 100) : null));
-  const withSize = (name, size) => (size ? `${name} · ${fmtSize(size)}` : name);
-  const fileName = computed(() => (choice.value.startsWith("local:") ? choice.value.slice(6) : current.value));
+  const fileName = computed(() => ui.printFile?.local || current.value);
 
   return {
-    files, host, job, choice, localSize, loading, error, data, follow, dragging, pathOf, layers, current, printing, printedCount,
-    printedLayer, layerOf, zOf, percent, withSize, fileName, choose, onPick, onDrop, piece, errorText,
+    host, job, loading, error, data, follow, dragging, layers, current, printing, printedCount,
+    printedLayer, layerOf, zOf, percent, fileName, onDrop, piece, errorText,
   };
 }
-
-// The file choice in the head of both pages; the names are those usePrintFile returns, V3 the texts.
-export const FILE_PICKER = `
-        <label v-if="host" class="v3d-field">{{ V3.file }}
-          <select class="input" :value="choice" @change="choose($event.target.value)">
-            <option v-if="choice.startsWith('local:')" :value="choice">{{ withSize(choice.slice(6), localSize) }}</option>
-            <option v-if="!files.length && !choice" value="">{{ V3.noFiles }}</option>
-            <option v-for="f in files" :key="pathOf(f)" :value="'printer:' + pathOf(f)">
-              {{ job && job.job.file === pathOf(f) && ['printing', 'paused'].includes(job.job.state) ? V3.nowPrinting + ' · ' : '' }}{{ withSize(f.name, f.size) }}</option>
-          </select>
-        </label>
-        <label class="btn v3d-open"><ui-icon name="folderOpen"/>{{ V3.openLocal }}
-          <input type="file" accept=".gcode,.gco,.g" @change="onPick"></label>`;
 
 // While reading, a failure, or nothing yet: the middle of the stage, alike on both pages.
 export const STAGE_STATE = `

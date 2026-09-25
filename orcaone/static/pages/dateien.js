@@ -47,9 +47,13 @@ export default {
     const videos = computed(() => folder.value === "camera");
     const keyOf = (f) => (videos.value ? f.id : f.name);
     const pathOf = (f) => f.path || f.name;
-    // A print file in 3D or 2D: the page "3D-Ansicht" or "2D-Ansicht" opens with it.
+    // A print file becomes the one "2D-Ansicht" and "3D-Ansicht" show, the one in the top bar (the
+    // user's wish of 24.09.2026): a click on its name, or on "3D" and "2D", which also go there.
+    const viewable = (f) => folder.value === "gcodes" && /\.gcode$/i.test(pathOf(f));
+    const setFile = (f) => { ui.printFile = { model: ui.printer, path: pathOf(f) }; };
+    const isSet = (f) => viewable(f) && ui.printFile?.model === ui.printer && ui.printFile.path === pathOf(f);
     function openView(f, page) {
-      ui.viewFile = pathOf(f);
+      setFile(f);
       go(null, hashOf(page, props.instId));
     }
     const fileUrl = (path, download = false) => api.printerFileUrl(chosen.value, folder.value, path, download);
@@ -186,6 +190,7 @@ export default {
       T, D, ICON, OPTIONS, printers, loadError, chosen, folder, folders, files, disk, listError, picked, asking, deleting, setup,
       printing, choice, starting, printError, current, videos, keyOf, pathOf, fileUrl, busy, allPicked, facts, openFolder, choose,
       toggle, pickAll, remove, openPrint, closePrint, openView, headOf, otherType, startPrint, spoolText, fmtSize, go, hashOf, ui, U1_MODELS,
+      viewable, setFile, isSet,
     };
   },
 
@@ -233,13 +238,15 @@ export default {
             <p v-else-if="files === null" class="note">{{ T.loading }}</p>
             <p v-else-if="!files.length" class="empty">{{ D.empty }}</p>
             <ul v-else class="files-list">
-              <li v-for="f in files" :key="keyOf(f)" :class="['files-row', { 'is-picked': picked.has(keyOf(f)) }]">
+              <li v-for="f in files" :key="keyOf(f)" :class="['files-row', { 'is-picked': picked.has(keyOf(f)), 'is-set': isSet(f) }]">
                 <input v-if="current?.delete" type="checkbox" class="files-pick" :checked="picked.has(keyOf(f))" :aria-label="D.pick(f.name)"
                        @change="toggle(f)">
                 <img v-if="f.thumb" class="files-thumb" :src="fileUrl(f.thumb)" alt="" loading="lazy">
                 <span v-else class="files-thumb is-empty"><ui-icon :name="ICON[folder]" :size="20"/></span>
                 <span class="files-main">
-                  <span class="files-name" :title="f.name">{{ f.name }}</span>
+                  <button v-if="viewable(f)" class="files-name files-set" type="button" :title="D.setFile" @click="setFile(f)">{{ f.name }}</button>
+                  <span v-else class="files-name" :title="f.name">{{ f.name }}</span>
+                  <span v-if="isSet(f)" class="files-set-badge"><ui-icon name="check" :size="14"/>{{ D.isSet }}</span>
                   <span class="files-meta">{{ facts(f) }}</span>
                   <span v-if="f.tools?.length" class="files-tools">
                     <span v-for="t in f.tools" :key="t.tool" class="files-tool" :title="T.u1.head(t.tool + 1) + ': ' + t.type + (t.grams ? ' · ' + D.grams(t.grams) : '')">

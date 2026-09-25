@@ -21,6 +21,18 @@ const T = {
   reloadedDiscarded: "Neu eingelesen. Die vorgemerkten Änderungen sind verworfen.",
   dataFrom: (time) => `Stand der Daten: ${time} Uhr`,
   loading: "Lese Installationen …",
+  // The print file in the top bar (app.js): the one "2D-Ansicht" and "3D-Ansicht" show.
+  fileMenu: {
+    label: "Druckdatei für 2D und 3D",
+    title: (name) => `Druckdatei für 2D und 3D: ${name}`,
+    none: "Keine Druckdatei",
+    reading: "Lese die Druckdateien …",
+    empty: "Keine Druckdateien auf dem Drucker",
+    noHost: "Der Drucker hat keine IP-Adresse. Eine Datei vom Rechner geht trotzdem.",
+    printing: "Druckt gerade",
+    local: "Datei vom Rechner …",
+    localNow: (name) => `Vom Rechner: ${name}`,
+  },
   // Boot screen on every page load (app.js)
   splash: {
     license: "Lizenz: PolyForm Noncommercial 1.0.0",
@@ -170,6 +182,8 @@ const T = {
     closed: "Geschlossen",
     running: "Läuft – nur ansehen",
     maybeRunning: "Läuft vielleicht – nur ansehen",
+    runningShort: "Läuft",
+    maybeRunningShort: "Läuft vielleicht",
   },
   // First sentence of the read-only banner on the pages; the page adds what to do.
   busy: (inst) => inst.running_reason?.code === "process_unmapped"
@@ -868,10 +882,6 @@ const T = {
   // ---------------------------------------------------------------- page "3D-Ansicht"
   view3d: {
     title: "3D-Ansicht",
-    file: "Datei",
-    noFiles: "Keine Druckdateien auf dem Drucker",
-    nowPrinting: "Druckt gerade",
-    openLocal: "Datei vom Rechner",
     colourBy: "Farben",
     byFilament: "Filament",
     byType: "Linienart",
@@ -886,6 +896,16 @@ const T = {
     layer: "Schichten bis",
     viewOblique: "Ansicht zurücksetzen",
     viewTop: "Von oben",
+    viewTools: "Ansicht",
+    viewFit: "Einpassen",
+    turnLeft: "Um 90° nach links drehen",
+    turnRight: "Um 90° nach rechts drehen",
+    saveImage: "Als Bild speichern",
+    fullscreen: "Vollbild",
+    fullscreenOff: "Vollbild beenden",
+    // The cube at the bottom right (pages/view-cube.js): the names on its faces
+    cube: { front: "Vorne", back: "Hinten", left: "Links", right: "Rechts", top: "Oben", bottom: "Unten",
+      hint: "Ansicht wählen: eine Fläche, Kante oder Ecke anklicken" },
     to2d: "2D-Ansicht",
     types: { "Inner wall": "Innenwand", "Outer wall": "Außenwand", "Overhang wall": "Überhangwand", "Sparse infill": "Füllung",
       "Internal solid infill": "Massive Füllung", "Top surface": "Oberseite", "Bottom surface": "Unterseite", "Ironing": "Glätten",
@@ -991,6 +1011,8 @@ const T = {
     download: "Herunterladen",
     view3d: "In 3D ansehen",
     view2d: "In 2D ansehen",
+    setFile: "Als Druckdatei für 2D und 3D setzen",
+    isSet: "Für 2D und 3D",
     print: "Drucken",
     busy: (state) => state === "paused" ? "Auf dem U1 ist ein Druck pausiert." : "Der U1 druckt gerade.",
     layers: (k) => `${n(k)} Schichten`,
