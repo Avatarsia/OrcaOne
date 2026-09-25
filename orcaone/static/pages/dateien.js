@@ -3,25 +3,18 @@
 // two the U1 only shows say so. Print files and time-lapse videos can be deleted, one, several or
 // all, and a print file printed with the options of the printer's display. Pictures, videos and
 // files come through OrcaOne: the browser never talks to the printer itself.
-import { flash, go, hashOf, fmtSize, whenText, ui, U1_MODELS } from "../common.js";
+import { flash, go, hashOf, fmtSize, ui, U1_MODELS } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import PrintPanel, { BUSY, fileFacts } from "./print-panel.js";
 
-const { ref, reactive, computed, nextTick, onMounted } = Vue;
+const { ref, reactive, computed, onMounted } = Vue;
 const D = T.files;
 const ICON = { gcodes: "file", camera: "camera", logs: "log", config: "gear" };
-const OPTIONS = ["bed_level", "flow_calibrate", "shaper_calibrate", "time_lapse_camera"];
-const BUSY = ["printing", "paused"];
-
-function duration(seconds) {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  return T.camera.print.duration(Math.floor(minutes / 60), minutes % 60);
-}
-// The select is narrow: material and kind, the maker would only repeat itself.
-const spoolText = (h) => (h.loaded ? [h.type, h.sub_type].filter(Boolean).join(" ") : "");
 
 export default {
   name: "DateienPage",
+  components: { PrintPanel },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup(props) {
@@ -36,11 +29,8 @@ export default {
     const picked = reactive(new Set());
     const asking = ref(null);     // "picked" or "all" while the question shows
     const deleting = ref(false);
-    const setup = ref(null);      // state, heads and options before a print (printer_files.print_setup)
-    const printing = ref(null);   // the file in the print panel
-    const choice = reactive({ options: {}, map: {} });
-    const starting = ref(false);
-    const printError = ref("");
+    const setup = ref(null);      // the state before a print (printer_files.print_setup): busy or not
+    const printing = ref(null);   // the file in the print panel (print-panel.js)
 
     const errorText = (err) => D.errors[err.code] || T.errors[err.code] || T.errors.unknown;
     const current = computed(() => folders.value.find((f) => f.name === folder.value) || null);
@@ -60,15 +50,7 @@ export default {
     const busy = computed(() => BUSY.includes(setup.value?.state));
     const allPicked = computed(() => !!files.value?.length && picked.size === files.value.length);
 
-    function facts(f) {
-      return [
-        f.modified && whenText(new Date(f.modified * 1000)),
-        f.size != null && fmtSize(f.size),
-        f.time && duration(f.time),
-        f.layers && D.layers(f.layers),
-        f.duration && D.length(f.duration),
-      ].filter(Boolean).join(" · ");
-    }
+    const facts = fileFacts;
 
     async function readFolder() {
       listError.value = "";
@@ -141,39 +123,9 @@ export default {
       }
     }
 
-    // The print panel: the options as set for the last print, and each filament of the file on the
-    // head the slicer gave it (T0 on head 1, …), as the display offers them.
-    async function openPrint(f) {
-      printing.value = f;
-      printError.value = "";
-      await readSetup();
-      const s = setup.value;
-      for (const o of OPTIONS) choice.options[o] = !!s?.options?.[o];
-      for (const k of Object.keys(choice.map)) delete choice.map[k];
-      for (const t of f.tools) choice.map[t.tool] = t.tool < (s?.heads.length || 4) ? t.tool : 0;
-      nextTick(() => document.getElementById("print-title")?.focus());
-    }
+    // The print panel (print-panel.js): options and heads of the display; afterwards the printer is busy.
+    const openPrint = (f) => { printing.value = f; };
     const closePrint = () => { printing.value = null; };
-    const headOf = (t) => setup.value?.heads[choice.map[t.tool]];
-    const otherType = (t) => {
-      const h = headOf(t);
-      return h && h.loaded && h.type && t.type && h.type !== t.type ? h.type : "";
-    };
-    async function startPrint() {
-      const f = printing.value;
-      starting.value = true;
-      printError.value = "";
-      try {
-        await api.startPrint(chosen.value, f.name, { ...choice.options }, f.tools.map((t) => [t.tool, choice.map[t.tool]]));
-        flash(D.started(f.name));
-        printing.value = null;
-      } catch (err) {
-        printError.value = [errorText(err), err.data?.detail].filter(Boolean).join(" ");
-      } finally {
-        starting.value = false;
-        readSetup();
-      }
-    }
 
     onMounted(async () => {
       try {
@@ -187,9 +139,9 @@ export default {
     });
 
     return {
-      T, D, ICON, OPTIONS, printers, loadError, chosen, folder, folders, files, disk, listError, picked, asking, deleting, setup,
-      printing, choice, starting, printError, current, videos, keyOf, pathOf, fileUrl, busy, allPicked, facts, openFolder, choose,
-      toggle, pickAll, remove, openPrint, closePrint, openView, headOf, otherType, startPrint, spoolText, fmtSize, go, hashOf, ui, U1_MODELS,
+      T, D, ICON, printers, loadError, chosen, folder, folders, files, disk, listError, picked, asking, deleting, setup,
+      printing, current, videos, keyOf, pathOf, fileUrl, busy, allPicked, facts, openFolder, choose, readSetup,
+      toggle, pickAll, remove, openPrint, closePrint, openView, fmtSize, go, hashOf, ui, U1_MODELS,
       viewable, setFile, isSet,
     };
   },
@@ -269,49 +221,8 @@ export default {
         </template>
       </div>
 
-      <aside v-if="printing" class="panel print-panel" aria-labelledby="print-title" @keydown.esc="closePrint">
-        <div class="panel-head">
-          <h2 id="print-title" tabindex="-1">{{ D.printTitle }}</h2>
-          <button class="icon-btn" type="button" :aria-label="T.close" @click="closePrint"><ui-icon name="close"/></button>
-        </div>
-        <div class="panel-body">
-          <div class="print-file">
-            <img v-if="printing.picture" :src="fileUrl(printing.picture)" alt="">
-            <div class="print-file-text">
-              <strong class="print-name">{{ printing.name }}</strong>
-              <span class="files-meta">{{ facts(printing) }}</span>
-            </div>
-          </div>
-          <p v-if="busy" class="alert" role="alert">{{ D.busy(setup.state) }}</p>
-          <p v-if="!setup" class="note">{{ T.loading }}</p>
-          <template v-else>
-            <h3>{{ D.optionsTitle }}</h3>
-            <label v-for="o in OPTIONS" :key="o" class="print-option" :title="D.optionHints[o]">
-              <input v-model="choice.options[o]" type="checkbox"><span>{{ D.options[o] }}</span></label>
-            <p class="print-note">{{ D.lastUsed }}</p>
-            <template v-if="printing.tools.length">
-              <h3>{{ D.mapTitle }}</h3>
-              <div v-for="t in printing.tools" :key="t.tool" class="print-map">
-                <span class="files-tool print-map-from"><span class="files-dot" :style="{ background: t.colour || 'transparent' }"></span>{{ t.type }}</span>
-                <ui-icon name="arrowRight" :size="16"/>
-                <span class="files-dot" :style="{ background: headOf(t)?.colour || 'transparent' }"></span>
-                <select v-model.number="choice.map[t.tool]" class="input" :aria-label="D.mapTitle + ': ' + t.type">
-                  <option v-for="(h, i) in setup.heads" :key="i" :value="i">{{ D.headText(i + 1, spoolText(h)) }}</option>
-                </select>
-                <span v-if="otherType(t)" class="print-warn">{{ D.otherType(otherType(t)) }}</span>
-              </div>
-              <p class="print-note">{{ D.mapNote }}</p>
-            </template>
-            <p class="print-check"><ui-icon name="warn" :size="16"/>{{ D.bedClear }}</p>
-            <p v-if="printError" class="alert" role="alert">{{ printError }}</p>
-            <div class="print-actions">
-              <button class="btn btn-primary" type="button" :disabled="starting || busy" @click="startPrint">
-                <ui-icon name="play"/>{{ starting ? D.starting : D.start }}</button>
-              <button class="btn" type="button" @click="closePrint">{{ T.cancel }}</button>
-            </div>
-          </template>
-        </div>
-      </aside>
+      <print-panel v-if="printing" :camera="chosen" :model="ui.printer" :file="printing"
+                   :picture="printing.picture ? fileUrl(printing.picture) : ''" @close="closePrint" @started="readSetup"/>
     </div>
   `,
 };

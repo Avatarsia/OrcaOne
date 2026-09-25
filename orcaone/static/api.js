@@ -108,6 +108,10 @@ export const api = {
   deletePrinterFiles: (id, folder, names) => request("POST", `/api/cameras/${encodeURIComponent(id)}/files/delete`, { folder, names }),
   printSetup: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/print`),
   startPrint: (id, path, options, map) => request("POST", `/api/cameras/${encodeURIComponent(id)}/print`, { path, options, map }),
+  // The buttons next to the print file in the top bar, each only on the user's click.
+  printPlain: (model, path) => request("POST", "/api/printers/print", { model, path }),
+  printCancel: (model) => request("POST", "/api/printers/cancel", { model }),
+  emergencyStop: (model) => request("POST", "/api/printers/emergency-stop", { model }),
   // Page "Kalibrieren": the printer read live (spools, pressure advance), and the ticks.
   printerStatus: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/status`),
   calibration: (id) => request("GET", `${instUrl(id)}/calibration`),

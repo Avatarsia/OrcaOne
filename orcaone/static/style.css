@@ -136,6 +136,15 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .inst-btn .file-thumb { width: 24px; height: 24px; padding: 1px; background: #fff; }
 .inst-item.file-local { border-top: 1px solid var(--divider); color: var(--accent-text); font-weight: 600; }
 .file-local-input { display: none; }
+/* Print, cancel, emergency stop next to the print file (app.js); the emergency stop red, armed filled */
+.print-ctl { display: flex; gap: 6px; }
+.print-ctl .bar-btn:disabled { opacity: .4; cursor: not-allowed; background: none; }
+.bar-btn.estop { border-color: rgba(255, 138, 128, .7); color: #FF8A80; }
+.bar-btn.estop:hover { background: rgba(225, 71, 71, .25); }
+.bar-btn.estop.is-armed { border-color: var(--danger); background: var(--danger); color: #fff; font-weight: 700; }
+.bar-ask { min-width: 240px; padding: 12px; }
+.bar-ask-q { margin-bottom: 10px; font-weight: 700; }
+.bar-ask-actions { display: flex; gap: 8px; }
 
 /* Nav left, content right (ionpy .selector-frame--with-side: 180px 1fr) */
 .shell { display: grid; grid-template-columns: var(--nav-w) minmax(0, 1fr); }
@@ -521,7 +530,7 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 }
 /* Leaves room for a side panel, the page's or the change list */
 body:has(.panel) .changebar { right: var(--panel-w); }
-.main:has(.changes-panel) .page-host { padding-right: var(--panel-w); }
+.main:has(> .changes-panel, > .print-panel) .page-host { padding-right: var(--panel-w); }
 /* Change list and "Das passiert": per installation, file names may be long */
 .change-group + .change-group { margin-top: 8px; }
 .change-path { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
@@ -872,7 +881,7 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   .nav-backdrop { position: fixed; inset: 48px 0 0; z-index: 29; background: rgba(0, 0, 0, .3); }
   .page-host.with-panel { padding-right: 0; }
   body:has(.panel) .changebar { right: 0; }
-  .main:has(.changes-panel) .page-host { padding-right: 0; }
+  .main:has(> .changes-panel, > .print-panel) .page-host { padding-right: 0; }
   /* Over the page, under the drawer */
   .panel { z-index: 19; width: min(var(--panel-w), 100%); box-shadow: -6px 0 20px rgba(0, 0, 0, .2); }
   .scope-grid { grid-template-columns: minmax(0, 1fr); }
@@ -901,8 +910,13 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   .pcard .pcard-top .card-img img { width: 72px; height: 72px; }
 }
 @media (max-width: 480px) {
-  .topbar { gap: 8px; }
-  .brand-name { display: none; }
+  /* Room for the print buttons: no logo and no arrows, of "Drucken" and "Abbrechen" only the one
+     that works now; the menu leads to "Übersicht" as the logo did */
+  .topbar { gap: 6px; }
+  .brand { display: none; }
+  .bar-btn { padding: 0 6px; }
+  .inst-btn > .icon:last-child { display: none; }
+  .print-ctl .bar-btn:disabled { display: none; }
   .back-label, .row .mat { display: none; }
   .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
   .printer-bar .status { flex-basis: 100%; }

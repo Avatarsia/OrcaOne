@@ -79,9 +79,14 @@ def moonraker():
             self._send(200, {"result": {"item": {"path": name, "root": "gcodes"}, "action": "delete_file"}})
 
         def do_POST(self):
-            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            seen["started"].append((self.path, body))
-            self._send(200, {"result": seen["start_answer"]})
+            # As Snapmaker's Moonraker: these two on every way but HTTP (checked on the U1, 24.09.2026).
+            if self.path in ("/server/files/start_local_print", "/printer/emergency_stop"):
+                return self._send(404, {"error": {"code": 404, "message": "Not Found"}})
+            raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            seen["started"].append((self.path, json.loads(raw) if raw else None))
+            if self.path == "/printer/print/cancel" and "cancel" in seen["busy"]:
+                return self._send(400, {"error": {"code": 400, "message": "No print in progress"}})
+            self._send(200, {"result": "ok"})
 
         def log_message(self, *args):
             pass
@@ -93,8 +98,10 @@ def moonraker():
 
 
 @pytest.fixture
-def service(monkeypatch):
-    """The camera service (unisrv) over Moonraker's WebSocket: its list of time-lapses."""
+def service(monkeypatch, moonraker):
+    """Moonraker's WebSocket: the camera service (unisrv) with its list of time-lapses, and what the
+    U1 takes only this way, the print start of Snapmaker Orca and the emergency stop."""
+    _, seen = moonraker
     calls = []
     videos = [{"date_index": "20260915044700", "gcode_name": "holder", "video_file_size": 17992551, "video_duration": "00:08",
                "unix_timestamp_s": 1789464369, "video_local_url_suffix": "/files/camera/holder_20260915044700.mp4"},
@@ -102,10 +109,15 @@ def service(monkeypatch):
                "unix_timestamp_s": 1789570588, "video_local_url_suffix": "/files/camera/hex-key_20260916140019.mp4"},
               {"date_index": "", "video_local_url_suffix": "/files/camera/broken.mp4"}]
 
-    def rpc(host, method, params):
+    def rpc(host, method, params, timeout=camera.TIMEOUT):
         calls.append((method, params))
+        seen.setdefault("timeouts", {})[method] = timeout
         if method == "camera.get_timelapse_instance":
             return {"result": {"count": len(videos), "instances": videos}}
+        if method in ("server.files.start_local_print", "printer.emergency_stop"):
+            if seen.get("rpc_error"):
+                return {"error": {"code": 400, "message": seen["rpc_error"]}}
+            return {"result": seen["start_answer"] if method.startswith("server.") else "ok"}
         if params.get("date_index") == "gone":
             return {"error": {"code": 400, "message": "No valid parameter"}}
         return {"result": {"state": "success"}}
@@ -157,7 +169,7 @@ def test_deleting_one_by_one(moonraker, service):
     assert seen["deleted"] == ["a b.gcode", "c.gcode"]
 
 
-def test_a_print_with_the_options_of_the_display(moonraker):
+def test_a_print_with_the_options_of_the_display(moonraker, service):
     host, seen = moonraker
     setup = printer_files.print_setup(host)
     assert setup["state"] == "standby"
@@ -167,21 +179,28 @@ def test_a_print_with_the_options_of_the_display(moonraker):
 
     answer = printer_files.start_print(host, "Puzzel_PLA_1h28m.gcode", {"bed_level": True, "time_lapse_camera": "ja"}, [[0, 2], [1, 0]])
     assert answer == {"started": "Puzzel_PLA_1h28m.gcode"}
-    # All four options as the display sets them, the heads as MAP_TABLE reads them (ast.literal_eval).
-    assert seen["started"][-1] == ("/server/files/start_local_print", {"path": "Puzzel_PLA_1h28m.gcode", "options": {
+    # All four options as the display sets them, the heads as MAP_TABLE reads them (ast.literal_eval),
+    # with Snapmaker Orca's call and patience over the WebSocket; nothing over HTTP.
+    assert service[-1] == ("server.files.start_local_print", {"path": "Puzzel_PLA_1h28m.gcode", "options": {
         "bed_level": 1, "flow_calibrate": 0, "shaper_calibrate": 0, "time_lapse_camera": 0, "map_table": "[[0,2],[1,0]]"}})
+    assert seen["timeouts"]["server.files.start_local_print"] == printer_files.START_TIMEOUT and seen["started"] == []
 
     seen["start_answer"] = {"state": "error", "message": "Printer is busy, cannot start print"}
     with pytest.raises(camera.CameraError) as err:
         printer_files.start_print(host, "Puzzel_PLA_1h28m.gcode", {}, [])
     assert (err.value.code, err.value.detail) == ("print_refused", "Printer is busy, cannot start print")
+    # A refusal of the call itself, as a firmware without it would answer.
+    seen["rpc_error"] = "Method not found"
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.start_print(host, "Puzzel_PLA_1h28m.gcode", {}, [])
+    assert (err.value.code, err.value.detail) == ("print_refused", "Method not found")
     for path, mapping, code in (("notes.txt", [], "file_invalid"), ("../x.gcode", [], "file_invalid"),
                                 ("a.gcode", [[0, 4]], "print_invalid"), ("a.gcode", [[32, 0]], "print_invalid"),
                                 ("a.gcode", [[0, True]], "print_invalid"), ("a.gcode", "[[0,1]]", "print_invalid")):
         with pytest.raises(camera.CameraError) as err:
             printer_files.start_print(host, path, {}, mapping)
         assert err.value.code == code
-    assert len(seen["started"]) == 2
+    assert [method for method, _ in service].count("server.files.start_local_print") == 3
 
 
 def test_api(server, moonraker, service):
@@ -236,3 +255,31 @@ def test_print_files_for_the_3d_and_2d_view(server, moonraker):
     assert call(f"{server}/api/printers/file?model=Snapmaker%20U1&path=missing.gcode")[0] == 404
     assert json.loads(call(f"{server}/api/printers/file?model=Snapmaker%20U1&path=../x")[1]) == {"error": "file_invalid"}
     assert call(f"{server}/api/printers/files?model=Unbekannt")[0] == 404
+
+
+def test_start_cancel_and_stop_from_the_top_bar(server, moonraker, service):
+    """The buttons next to the print file (app.js), each on the user's click: a print on any Klipper
+    printer as OrcaSlicer starts it, cancelling it, the emergency stop over the WebSocket."""
+    host, seen = moonraker
+    camera.set_host("Snapmaker U1", host)
+    model = "Snapmaker U1"
+    status, body = call(f"{server}/api/printers/print", "POST", {"model": model, "path": "Puzzel_PLA_1h28m.gcode"})
+    assert (status, json.loads(body)) == (200, {"started": "Puzzel_PLA_1h28m.gcode"})
+    status, body = call(f"{server}/api/printers/cancel", "POST", {"model": model})
+    assert (status, json.loads(body)) == (200, {"cancelled": True})
+    status, body = call(f"{server}/api/printers/emergency-stop", "POST", {"model": model})
+    assert (status, json.loads(body)) == (200, {"stopped": True})
+    assert seen["started"] == [("/printer/print/start", {"filename": "Puzzel_PLA_1h28m.gcode"}), ("/printer/print/cancel", {})]
+    assert service == [("printer.emergency_stop", {})]
+    # Nothing to cancel, or Klipper gone: the printer says no, OrcaOne passes on why.
+    seen["busy"].add("cancel")
+    status, body = call(f"{server}/api/printers/cancel", "POST", {"model": model})
+    assert (status, json.loads(body)) == (409, {"error": "print_refused", "detail": "No print in progress"})
+    seen["rpc_error"] = "Klippy Disconnected"
+    status, body = call(f"{server}/api/printers/emergency-stop", "POST", {"model": model})
+    assert (status, json.loads(body)) == (409, {"error": "print_refused", "detail": "Klippy Disconnected"})
+    for path in ("notes.txt", "../x.gcode", None):
+        status, body = call(f"{server}/api/printers/print", "POST", {"model": model, "path": path})
+        assert json.loads(body)["error"] == "file_invalid", path
+    assert call(f"{server}/api/printers/emergency-stop", "POST", {"model": "Unbekannt"})[0] == 404
+    assert len(seen["started"]) == 3 and len(service) == 2

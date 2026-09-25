@@ -502,7 +502,7 @@ def wake(host: str) -> dict:
     return answer.get("result") or {}
 
 
-def _rpc(host: str, method: str, params: dict) -> dict:
+def _rpc(host: str, method: str, params: dict, timeout: float = TIMEOUT) -> dict:
     """One JSON-RPC call over Moonraker's WebSocket: handshake, one masked text frame, then frames
     until the answer with our id (Moonraker sends notifications in between)."""
     name, _, port = host.partition(":")
@@ -510,7 +510,7 @@ def _rpc(host: str, method: str, params: dict) -> dict:
     request_id = int(time.time() * 1000) % 1_000_000
     payload = json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method,
                           "params": dict(params, req_id=request_id)}).encode()
-    with socket.create_connection((name, int(port or 80)), timeout=TIMEOUT) as sock:
+    with socket.create_connection((name, int(port or 80)), timeout=timeout) as sock:
         sock.sendall((f"GET /websocket HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                       f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: http://{host}\r\n\r\n").encode())
         buf = b""
@@ -538,7 +538,7 @@ def _rpc(host: str, method: str, params: dict) -> dict:
             out, buf = buf[:n], buf[n:]
             return out
 
-        deadline = time.time() + TIMEOUT
+        deadline = time.time() + timeout
         while time.time() < deadline:
             first, second = read(2)
             length = second & 0x7F

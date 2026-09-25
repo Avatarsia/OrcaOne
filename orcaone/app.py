@@ -524,6 +524,25 @@ def printer_print_file(request: Request, model: str = "", path: str = ""):
     return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, wanted), path)
 
 
+@app.post("/api/printers/print")
+def printer_print(payload: dict = Body(...)):
+    # On the user's click in the top bar: a print file of any Klipper printer; the U1 starts through
+    # /api/cameras/{id}/print with its display's options.
+    return printer_files.start_plain(camera.host_of(str(payload.get("model", ""))), payload.get("path"))
+
+
+@app.post("/api/printers/cancel")
+def printer_cancel(payload: dict = Body(...)):
+    # On the user's click, after asking (the top bar).
+    return printer_files.cancel(camera.host_of(str(payload.get("model", ""))))
+
+
+@app.post("/api/printers/emergency-stop")
+def printer_emergency_stop(payload: dict = Body(...)):
+    # On the user's second click (the top bar).
+    return printer_files.emergency_stop(camera.host_of(str(payload.get("model", ""))))
+
+
 @app.post("/api/cameras/{camera_id}/files/delete")
 def delete_printer_files(camera_id: str, payload: dict = Body(...)):
     # Print files and videos, on the user's wish (orcaone/printer_files.py).

@@ -411,6 +411,8 @@ export const ICONS = {
   code: '<path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"/>',
   terminal: '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="m7.5 10 2.5 2-2.5 2M12.5 14.5h4"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>',
+  estop: '<path d="M8.6 3.5h6.8l5.1 5.1v6.8l-5.1 5.1H8.6l-5.1-5.1V8.6z"/><path d="M12 7.8v5.4M12 16.2v.2"/>',
   download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19.5h14"/>',
   chevron: '<path d="m9.5 6 6 6-6 6"/>',
   chevronDown: '<path d="m6 9.5 6 6 6-6"/>',

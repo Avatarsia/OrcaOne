@@ -7,10 +7,12 @@ service (unisrv): it keeps their list in /userdata/.tmp_timelapse/timelapse.json
 WebSocket, as Snapmaker Orca does (SSWCP.cpp, sw_DeleteCameraTimelapse). A print starts as Snapmaker
 Orca starts it (server.files.start_local_print in snapmakercloud.py on the U1), with the options of
 the printer's display (print_task_config.py: BED_LEVEL, FLOW_CALIBRATE, SHAPER_CALIBRATE,
-TIME_LAPSE_CAMERA, MAP_TABLE).
+TIME_LAPSE_CAMERA, MAP_TABLE). Snapmaker's Moonraker takes that call, like the emergency stop, on
+every way but HTTP (Snapmaker/u1-moonraker: TransportType.all() & ~TransportType.HTTP; over HTTP the
+U1 answered 404, 24.09.2026), so both go over the WebSocket.
 
 What it sends a printer, only when the user asks for it: delete a print file, delete a video,
-start a print.
+start a print; from the top bar also on any Klipper printer start, cancel and emergency stop.
 """
 
 import json
@@ -31,6 +33,9 @@ OPTIONS = {"bed_level": "auto_bed_leveling", "flow_calibrate": "flow_calibrate",
            "shaper_calibrate": "shaper_calibrate", "time_lapse_camera": "time_lapse_camera"}
 HEADS = 4    # PHYSICAL_EXTRUDER_NUM in print_task_config.py
 TOOLS = 32   # LOGICAL_EXTRUDER_NUM: the T0 … T31 a print file may use
+# Seconds a print start may take: the U1 may read the file's metadata first. As long as Snapmaker
+# Orca waits for an answer (add_response_target in MoonRaker.hpp, 80 000 ms).
+START_TIMEOUT = 80
 
 
 def folders(host: str) -> list[dict]:
@@ -91,10 +96,10 @@ def listing(host: str, folder: str) -> dict:
     raise CameraError("folder_unknown")
 
 
-def _call(host: str, method: str, params: dict) -> dict:
+def _call(host: str, method: str, params: dict, timeout: float = TIMEOUT) -> dict:
     """The result of a JSON-RPC call over Moonraker's WebSocket, or CameraError."""
     try:
-        answer = camera._rpc(host, method, params)
+        answer = camera._rpc(host, method, params, timeout)
     except (OSError, ValueError, ConnectionError, TimeoutError) as exc:
         raise CameraError("camera_unreachable", f"{type(exc).__name__}: {exc}") from None
     if "error" in answer:
@@ -193,16 +198,55 @@ def start_print(host: str, path, options, mapping) -> dict:
         # Written into the G-code command as MAP_TABLE="…" and read back with ast.literal_eval:
         # without spaces, so it stays one parameter.
         chosen["map_table"] = json.dumps(mapping, separators=(",", ":"))
-    body = json.dumps({"path": path, "options": chosen}).encode()
-    request = urllib.request.Request(f"http://{host}/server/files/start_local_print", data=body, method="POST",
+    # The call of Snapmaker Orca (sw_StartLocalPrint), which sends it over MQTT. The U1 checks the file
+    # and that it is idle, then sends SDCARD_PRINT_FILE_WITH_PARAMETERS with each option in capitals.
+    result = _order(host, "server.files.start_local_print", {"path": path, "options": chosen}, START_TIMEOUT)
+    if result.get("state") != "success":
+        raise CameraError("print_refused", str(result.get("message") or result))
+    return {"started": result.get("filename") or path}
+
+
+# Commands from the top bar, only on the user's click (the user's wish of 24.09.2026): start a print
+# on any Klipper printer (the U1 takes start_print, with its display's options), cancel it, stop
+# everything at once. Moonraker's own calls, on the U1 too.
+def start_plain(host: str, path) -> dict:
+    """As OrcaSlicer starts a print (Moonraker::start_print): the name in a JSON body."""
+    path = _check_path("gcodes", path)
+    if not path.lower().endswith(PRINTABLE):
+        raise CameraError("file_invalid")
+    _command(host, "/printer/print/start", {"filename": path})
+    return {"started": path}
+
+
+def cancel(host: str) -> dict:
+    _command(host, "/printer/print/cancel")
+    return {"cancelled": True}
+
+
+def emergency_stop(host: str) -> dict:
+    """Klipper stops at once and stays shut down until FIRMWARE_RESTART. Over the WebSocket, as the
+    U1 does not take it over HTTP (see above); neither slicer has an emergency stop to copy."""
+    _order(host, "printer.emergency_stop", {})
+    return {"stopped": True}
+
+
+def _command(host: str, path: str, body: dict | None = None):
+    request = urllib.request.Request(f"http://{host}{path}", data=json.dumps(body or {}).encode(), method="POST",
                                      headers={"Content-Type": "application/json"})
     try:
         with _direct.open(request, timeout=TIMEOUT) as response:
-            result = json.loads(response.read())["result"]
+            return json.loads(response.read())["result"]
     except urllib.error.HTTPError as exc:
         raise CameraError("print_refused", _message(exc)) from None
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise CameraError("camera_unreachable", str(exc)) from None
-    if not isinstance(result, dict) or result.get("state") != "success":
-        raise CameraError("print_refused", str(result.get("message") if isinstance(result, dict) else result))
-    return {"started": result.get("filename") or path}
+
+
+def _order(host: str, method: str, params: dict, timeout: float = TIMEOUT) -> dict:
+    """A command over the WebSocket; the printer's refusal as print_refused, with its words."""
+    try:
+        return _call(host, method, params, timeout)
+    except CameraError as exc:
+        if exc.code != "camera_refused":
+            raise
+        raise CameraError("print_refused", exc.detail) from None

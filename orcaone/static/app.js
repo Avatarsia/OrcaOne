@@ -34,6 +34,7 @@ import SshPage from "./pages/ssh.js";
 import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
 import LizenzPage from "./pages/lizenz.js";
+import PrintPanel from "./pages/print-panel.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -43,6 +44,7 @@ const SPLASH_MS = 1500;
 const SPLASH_HOLD_MS = 700;
 const PROGRESS_MS = 150;   // how often the boot screen asks what the scan does
 const JOB_MS = 5000;       // how often the top bar looks whether the printer started a print
+const STOP_ARMED_MS = 4000; // how long the emergency stop waits for its second click
 
 document.documentElement.lang = LANG;
 // The design chosen in the menu; GET / brings it already (app.py), /index.html does not.
@@ -94,7 +96,7 @@ const CHANGE = {
 };
 
 const app = createApp({
-  components: { PlanView, DoneView },
+  components: { PlanView, DoneView, PrintPanel },
   setup() {
     const inst = computed(() => INSTANCES.find((i) => i.id === ui.instId) || null);
     const page = computed(() => PAGES.find((p) => p.id === route.value.page));
@@ -164,6 +166,7 @@ const app = createApp({
     function openChanges() {
       if (!changesOpen.value) changesFocus = document.activeElement;
       changesOpen.value = true;
+      printPanel.value = null;  // both sit on the right
       done.value = null;
       if (direct()) makePlan(changeGroups.value[0].inst);
       nextTick(() => document.getElementById("changes-title")?.focus());
@@ -426,6 +429,8 @@ const app = createApp({
       instOpen.value = false;
       printerOpen.value = false;
       fileOpen.value = false;
+      cancelAsk.value = false;
+      printPanel.value = null;
       navOpen.value = false;
       window.scrollTo(0, 0);
       nextTick(() => document.getElementById("page-title")?.focus());
@@ -470,6 +475,7 @@ const app = createApp({
     const fileHost = ref("");       // the address of the printer in the top bar, "" without one
     const printFiles = ref(null);   // its print files, newest first; null until read
     const jobFile = ref(undefined); // the file it printed at the last look; undefined before the first
+    const jobState = ref(null);     // Klipper's print_stats.state then (printing, paused, standby, …)
     const fileOpen = ref(false);
     const fileBtn = ref(null);
     const fileMenu = ref(null);
@@ -492,6 +498,7 @@ const app = createApp({
         if (!fileHost.value || model !== ui.printer) return;
         const job = await api.printerState(model);
         if (model !== ui.printer) return;
+        jobState.value = job.state || null;
         const printing = ["printing", "paused"].includes(job.state) ? job.file : null;
         // The list at the first look (for the pictures) and when a print starts: the slicer may just have sent it.
         const first = jobFile.value === undefined;
@@ -501,7 +508,8 @@ const app = createApp({
         else if (first && !ui.printFile && printFiles.value?.[0]) ui.printFile = { model, path: pathOf(printFiles.value[0]) };
         jobFile.value = printing;
       } catch {
-        // Not reachable right now: the file stays.
+        // Not reachable right now: the file stays; what it does is unknown.
+        if (model === ui.printer) jobState.value = null;
       }
     }
     // Another printer: its files; one of the other printer is not the file any more.
@@ -509,6 +517,10 @@ const app = createApp({
       fileHost.value = "";
       printFiles.value = null;
       jobFile.value = undefined;
+      jobState.value = null;
+      cancelAsk.value = false;
+      disarmStop();
+      printPanel.value = null;
       if (ui.printFile?.model && ui.printFile.model !== model) ui.printFile = null;
       lookAtJob();
     });
@@ -546,6 +558,68 @@ const app = createApp({
     const fileFacts = (f) => [jobFile.value === pathOf(f) ? T.fileMenu.printing : "", f.size != null ? fmtSize(f.size) : "",
       f.modified ? whenText(new Date(f.modified * 1000)) : ""].filter(Boolean).join(" · ");
 
+    // ------------------------------------------------------------ print, cancel, emergency stop
+    // Next to the print file, so the top bar runs almost everything (the user's wish of 24.09.2026).
+    // Each only on a click: a print through the panel of "Dateien" (on the U1 with the options of its
+    // display), cancelling after a question, the emergency stop on a second click.
+    const printPanel = ref(null);   // { camera, file } while the panel shows
+    const cancelAsk = ref(false);
+    const stopArmed = ref(false);
+    let stopTimer = 0;
+    const jobBusy = computed(() => ["printing", "paused"].includes(jobState.value));
+    // Why "Drucken" is off; "" when it is on.
+    const startBlock = computed(() => {
+      if (!ui.printFile) return T.printBar.noFile;
+      if (ui.printFile.local || ui.printFile.model !== ui.printer) return T.printBar.localFile;
+      if (!jobState.value) return T.printBar.unknown;
+      return jobBusy.value ? T.printBar.busy : "";
+    });
+    const errorText = (err) => [T.files.errors[err.code] || T.errors[err.code] || T.errors.unknown, err.data?.detail].filter(Boolean).join(" ");
+    // At once and again when Klipper has taken the command in.
+    const lookSoon = () => { lookAtJob(); setTimeout(lookAtJob, 1500); };
+    async function openPrint() {
+      const model = ui.printer, path = ui.printFile.path;
+      try {
+        // The list anew: the slicer may just have sent the file, with the filaments for the heads.
+        const file = (await readFiles()).find((f) => pathOf(f) === path);
+        const camera = file && isU1.value ? (await api.cameras()).cameras.find((c) => c.model === model)?.id || null : null;
+        if (model !== ui.printer) return;
+        if (!file) return flash(T.printBar.gone);
+        if (changesOpen.value) closeChanges();
+        printPanel.value = { camera, file };
+      } catch (err) {
+        flash(errorText(err));
+      }
+    }
+    async function cancelPrint() {
+      cancelAsk.value = false;
+      try {
+        await api.printCancel(ui.printer);
+        flash(T.printBar.cancelled);
+      } catch (err) {
+        flash(errorText(err));
+      }
+      lookSoon();
+    }
+    function disarmStop() {
+      clearTimeout(stopTimer);
+      stopArmed.value = false;
+    }
+    async function emergencyStop() {
+      if (!stopArmed.value) {
+        stopArmed.value = true;
+        stopTimer = setTimeout(disarmStop, STOP_ARMED_MS);
+        return;
+      }
+      disarmStop();
+      try {
+        await api.emergencyStop(ui.printer);
+        flash(T.printBar.stopped);
+      } catch (err) {
+        flash(errorText(err));
+      }
+      lookSoon();
+    }
     // Both menus in the top bar: arrows move, Escape and Tab go back to the button.
     function menuKeys(ev, menu, close) {
       if (ev.key === "Escape") {
@@ -570,6 +644,8 @@ const app = createApp({
       if (instOpen.value && !at(".inst-pick")) instOpen.value = false;
       if (printerOpen.value && !at(".printer-pick")) printerOpen.value = false;
       if (fileOpen.value && !at(".file-pick")) fileOpen.value = false;
+      if (cancelAsk.value && !at(".cancel-pick")) cancelAsk.value = false;
+      if (stopArmed.value && !at(".estop")) disarmStop();
     });
 
     return {
@@ -580,7 +656,7 @@ const app = createApp({
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
-      thumbOf, fileThumb,
+      thumbOf, fileThumb, jobBusy, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, lookSoon, api,
     };
   },
 
@@ -659,6 +735,26 @@ const app = createApp({
           <input ref="localInput" class="file-local-input" type="file" accept=".gcode,.gco,.g" tabindex="-1" aria-hidden="true" @change="pickLocal">
         </div>
       </div>
+      <!-- Print that file, cancel, emergency stop (the user's wish); the tooltip says why one is off -->
+      <div v-if="printers.length && fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
+        <button class="bar-btn" type="button" :disabled="!!startBlock" :title="startBlock || T.printBar.start(fileName)"
+                :aria-label="T.printBar.start(fileName)" @click="openPrint"><ui-icon name="play"/></button>
+        <div class="inst cancel-pick" @keydown.esc.stop="cancelAsk = false; $refs.cancelBtn.focus()">
+          <button ref="cancelBtn" class="bar-btn" type="button" :disabled="!jobBusy" :title="jobBusy ? T.printBar.cancel : T.printBar.cancelIdle"
+                  :aria-label="T.printBar.cancel" aria-haspopup="dialog" :aria-expanded="cancelAsk ? 'true' : 'false'"
+                  @click="cancelAsk = !cancelAsk; cancelAsk && $nextTick(() => $refs.cancelNo.focus())"><ui-icon name="stop"/></button>
+          <div v-if="cancelAsk" class="inst-menu bar-ask" role="alertdialog" aria-labelledby="cancel-ask">
+            <p id="cancel-ask" class="bar-ask-q">{{ T.printBar.cancelAsk }}</p>
+            <div class="bar-ask-actions">
+              <button class="btn btn-danger-solid" type="button" @click="cancelPrint">{{ T.printBar.cancelYes }}</button>
+              <button ref="cancelNo" class="btn" type="button" @click="cancelAsk = false">{{ T.printBar.cancelNo }}</button>
+            </div>
+          </div>
+        </div>
+        <button :class="['bar-btn', 'estop', { 'is-armed': stopArmed }]" type="button" :title="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop"
+                :aria-label="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop" @click="emergencyStop">
+          <ui-icon name="estop"/><span v-if="stopArmed">{{ T.printBar.stopArmed }}</span></button>
+      </div>
       <!-- The icon alone (the user); what it does and the time of the data in the tooltip -->
       <button v-if="loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
               :title="T.reload + ' · ' + T.dataFrom(generatedText)" @click="leave(reread)">
@@ -720,6 +816,11 @@ const app = createApp({
             <button class="btn" type="button" :disabled="loadState.busy" @click="reread"><ui-icon name="refresh"/>{{ T.reload }}</button>
           </section>
         </div>
+
+        <!-- "Drucken" in the top bar: the panel of "Dateien" -->
+        <print-panel v-if="printPanel" :key="printPanel.file.name" :camera="printPanel.camera" :model="ui.printer" :file="printPanel.file"
+                     :picture="printPanel.file.picture ? api.printFileUrl(ui.printer, printPanel.file.picture) : ''"
+                     @close="printPanel = null" @started="lookSoon"/>
 
         <aside v-if="changesOpen" class="panel changes-panel" aria-labelledby="changes-title">
           <div class="panel-head">
