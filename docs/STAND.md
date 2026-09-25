@@ -6,16 +6,51 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 
 - **Seiten:**
   - Übersicht, die Startseite;
-  - Drucker, darunter Status, 3D-Ansicht, 2D-Ansicht, Dateien (U1), Kamera (U1, mit Druckstatus), Konsole (G-Code) und SSH;
+  - Drucker, darunter Status, Dateien (U1), 3D-Ansicht, 2D-Ansicht, Kamera (U1, mit Druckstatus), Konsole (G-Code) und SSH;
   - Prozesse, nur zum Ansehen;
   - Filamente, darunter Übertragen, Vergleichen, Kalibrieren (U1), Import/Export und Details;
   - 3MF bereinigen;
   - Slicer, darunter Sicherungen, Änderungen und Logs (Reihenfolge vom Nutzer, 24.09.).
 - **Sprachen:** Deutsch und Englisch.
 - **Start:** `./orcaone.sh` bzw. `orcaone.cmd`, Port 4711, auf Wunsch als App-Fenster mit eigenem Symbol ([STARTEN-UND-BAUEN](STARTEN-UND-BAUEN.md)).
-- **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. An den U1 schickt OrcaOne nur Licht, Löschen und Druckstart, sonst liest es ihn über Moonraker; dazu G-Code auf der Seite „Konsole“ und SSH auf der Seite „SSH“.
-- **Tests:** 271, alle grün (`.lenv/bin/python -m pytest`).
-- **Zuletzt gebaut (24.09.):** „2D-Ansicht“ unter „Drucker“ (Wunsch des Nutzers: „etwas technischer, mit ein paar mehr Infos“), noch nicht committet, ebenso die 3D-Ansicht darunter.
+- **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. An Drucker schickt OrcaOne nur auf Klick: Licht, Löschen und Druckstart beim U1, oben in der Leiste Druckstart, Abbruch und Notstopp bei jedem Klipper-Drucker; sonst liest es über Moonraker. Dazu G-Code auf der Seite „Konsole“ und SSH auf der Seite „SSH“.
+- **Tests:** 278. Unter Windows 267 grün und 11 nur für Linux übersprungen (24.09.). Unter Linux liefen die sieben neuen noch nicht, davor waren alle 271 grün (`.lenv/bin/python -m pytest`).
+- **Zuletzt (24.09.), die Leiste oben bedient den Druck** (Wünsche des Nutzers):
+  - Kürzer: die Installation mit „Läuft“ statt „Läuft – nur ansehen“, „Neu einlesen“ nur als Symbol, alle Knöpfe auf einer Linie.
+  - Die Druckdatei für 3D und 2D steht neben dem Drucker, mit Vorschaubild (`ui.printFile`, `app.js`); gewählt oben oder auf „Dateien“ (Klick auf den Namen, „3D“, „2D“), „Dateien“ steht im Menü jetzt über den Ansichten. Startet der Drucker einen Druck, auch vom Slicer, setzt OrcaOne dessen Datei (alle 5 s `camera.status`, nur lesend). Ohne Wahl die gedruckte, sonst die neueste.
+  - Daneben Drucken, Abbrechen, Notstopp: „Drucken“ öffnet die Leiste von „Dateien“ (jetzt `pages/print-panel.js`; beim U1 mit den Optionen des Displays, sonst `POST /api/printers/print`), „Abbrechen“ fragt nach (`/api/printers/cancel`), der Notstopp löst beim zweiten Klick binnen 4 s aus (`/api/printers/emergency-stop`). Was nicht geht, ist aus, der Tooltip sagt warum. In Handybreite nur der Knopf, der gerade geht, dazu ohne Logo und Pfeile.
+  - Die Düse in 3D plastisch (Messingspitze mit Sechskant, gerundete Socke, Halsrohr aus Stahl, Licht mit der Kamera) und beim U1 in der Farbe des arbeitenden Kopfs mit seiner Nummer; in 2D Punkt und Nummer.
+  - Behoben nach dem ersten echten Versuch (der Nutzer: „Der Drucker lehnt ab: Not Found“): Der Druckstart des U1 und der Notstopp gingen über HTTP, und Snapmakers Moonraker sperrt HTTP für beide (404, im Log des U1). Jetzt über den WebSocket: der Start mit dem Aufruf von Snapmaker Orca (`server.files.start_local_print`, das Zeitlimit wie dort 80 s), der Notstopp als `printer.emergency_stop`; ein Start ohne U1-Optionen wie OrcaSlicer (`POST /printer/print/start` mit JSON-Body). Quellen: Snapmaker Orca und OrcaSlicer in `slicer-src/` neu geklont, Snapmakers Moonraker und Klipper auf GitHub gelesen (FINDINGS). Der nachgebaute Moonraker der Tests weist beide über HTTP jetzt ab wie der U1; vorher nahm er jeden POST an, darum blieb der Fehler unbemerkt. Ausgelöst hat OrcaOne am Drucker nichts, Klipper blieb „ready“.
+  - Behoben: 3D zeigte das Bett nach unten verschoben, bis man drehte (der Nutzer).
+  - Behoben: Die Schichtregler von 3D und 2D liefen auseinander (der Nutzer), weil nur die Knöpfe „2D-Ansicht“ und „3D-Ansicht“ die Schicht mitgaben, das Menü nicht. Jetzt ist `ui.viewLayer` die Schicht beider Ansichten: jede Änderung landet dort, eine neue Datei setzt sie zurück. Ohne Wahl beginnen beide oben, auch 2D, das vorher bei Schicht 1 begann. Folgt 2D einem Druck, bleibt die gemeinsame Schicht unberührt, 3D zeigt dann weiter das ganze Modell. Im Browser geprüft über Menü, Knöpfe und Dateiwechsel.
+  - Frage des Nutzers: Das Vorschaubild von `seife_PLA_1h9m.gcode` zeigt nur Orange, obwohl die Datei zwei Farben nutzt. Das Bild malt Snapmaker Orca aus dem 3D-Modell mit der Farbe jedes Teils (`render_thumbnail_internal`); das Schwarz ist ein Filamentwechsel ab Schicht 105 (Z 25,16 mm) und kommt darin nicht vor. Eine Datei aus dem Zwischenspeicher erscheint vor der ersten Antwort des Druckers; mit der Antwort kam das echte Bett, gezeichnet wurde es aber erst beim nächsten Drehen. Jetzt sofort.
+  - Geprüft im Browserfenster am U1: Dateiwahl, Setzen beim Druckstart mit eingesetztem Druckzustand, „Drucken“ bis zum Start, „Abbrechen“ mit Rückfrage und Escape, Notstopp mit Ablauf und zweitem Klick, Handybreite 375 px. Alle Befehle gingen nur an einen Stub im Browser, am Drucker ist nichts ausgelöst. Backend mit Test gegen den nachgebauten Moonraker. **Offen:** Start, Abbruch und Notstopp einmal am echten Drucker (Nutzer).
+- **Davor (24.09.), 3D-Ansicht wie in OrcaSlicer und FreeCAD** (Wunsch des Nutzers):
+  - Achsen X rot, Y grün, Z blau an der Plattenecke, ein Zehntel der Platte lang, mit Buchstaben; Strichstärke (2 px) und Buchstabengröße (16 px) werden bei jedem Bild aus dem Abstand gerechnet, damit sie nah herangezoomt nicht klobig werden (der Nutzer).
+  - Würfel unten rechts (`pages/view-cube.js`, eigene kleine Leinwand): 6 Flächen mit Namen, 12 Kanten, 8 Ecken, jedes Teil anklickbar, die Kamera dreht sich in 0,4 s dorthin; Tooltip nennt die Ansicht, z. B. „Vorne rechts oben“.
+  - Knöpfe unten neben dem Würfel: zurücksetzen, von oben, einpassen, 90° links/rechts (auch die Ansicht von oben), als PNG speichern, Vollbild. Der Schichtregler endet über dem Würfel.
+  - Die Startansicht („Ansicht zurücksetzen“) schaut gerade von vorne und ist nur nach vorne geneigt, nicht mehr leicht von links (der Nutzer: „nicht gedreht“).
+  - Geprüft im Browserfenster mit einer Datei vom U1: Treffer auf alle Teile, Klick auf die senkrechte Kante „vorne links“, Drehen, Einpassen, hell und dunkel. Nicht geprüft: Vollbild und Bild speichern (im Testfenster nicht sinnvoll).
+- **Davor (24.09.), Lizenz und Startbildschirm** (Wünsche des Nutzers):
+  - `LICENSE.md`: PolyForm Noncommercial 1.0.0 wie ionpy, mit Kurzfassung auf Deutsch und Englisch; der Lizenztext ist Zeichen für Zeichen der von ionpy. Verkauf, Einbau in verkaufte Produkte und bezahlte Dienste stehen ausdrücklich in der Kurzfassung. Fremde Dateien in `vendor/` sind ausgenommen, `vendor/README.md` nennt jetzt auch three.js und xterm.js. README mit Abschnitt „Lizenz“.
+  - Startbildschirm in `app.js` und `style.css`: Symbol, „OrcaOne“, „by Dr. Klipper“, Ladebalken, „Lese Installationen …“, unten Lizenz und „Keine kommerzielle Nutzung“. Mindestens 3 s (1,2 s waren dem Nutzer zu kurz) und bis `loadState.status` nicht mehr „loading“ ist; bei einem Fehler weg. Geprüft hell, dunkel und in Handybreite.
+  - Unten im Menü „by Dr. Klipper“ (Text `T.by`, auch auf dem Startbildschirm); ein Klick öffnet die Seite „Lizenz“ (`pages/lizenz.js`, `#/lizenz`, nicht im Menü): Kurzfassung, Kontakt, Fremddateien und der englische Lizenztext aus `LICENSE.md` über `GET /api/license`. `tools/build.py` packt `LICENSE.md` mit ins Programm.
+  - Lizenztext in der Seite (Wunsch des Nutzers: „als MD-Datei geht gar nicht“): die 15 Abschnitte des PolyForm-Texts in `texts/en.js` (Original) und `texts/de.js` (Übersetzung, nicht verbindlich), jeder aufklappbar, dazu „Alle aufklappen“; auf Deutsch das Original darunter zum Aufklappen. `LICENSE.md` wieder eine Datei mit Deutsch und Englisch und am Ende der Übersetzung; `tests/test_license.py` hält Seite und Datei gleich. Der zwischenzeitliche Endpunkt `GET /api/license` und `LICENSE.de.md` sind wieder weg.
+  - Strg+C in der Konsole von OrcaOne: kein Traceback mehr, sondern „OrcaOne beendet.“ (`__main__.py`, Test). Ob cmd.exe danach bei `orcaone.cmd` noch „Batchvorgang abbrechen (J/N)?“ fragt, ist ungeprüft; die Frage käme von cmd selbst.
+  - Konsole: Nur ein Befehl aus der Liste leert die Anzeige, ein eingetippter nicht mehr (Wunsch des Nutzers). Am Drucker noch nicht ausprobiert, Befehle schickt nur der Nutzer.
+  - Englisch: „3D View“ und „2D View“ mit großem V (Wunsch des Nutzers).
+  - **Druckerbilder:** Die drei PNG (U1, Generic Klipper, Platzhalter) stammen aus den Quellen von OrcaSlicer (AGPL-3.0), das Klipper-Bild ist das Klipper-Logo. Der Nutzer will sie ersetzen, am liebsten durch echte Fotos mit passender Lizenz; bis dahin nennt `LICENSE.md` sie als Ausnahme.
+- **Davor (24.09.), erster Start auf dem Windows-Rechner** (`D:\Projekte\OrcaOne`):
+  - `orcaone.cmd` scheiterte: `py -3` nahm die Variante „free-threaded“ 3.13t, dort baut `cffi` für paramiko nicht. Das Skript probiert jetzt jede Version aus `py -0` und nimmt die erste normale ab 3.11, sonst `python`.
+  - Die Umgebung heißt unter Windows `.wenv` (Wunsch des Nutzers), `.lenv` bleibt Linux.
+  - Wunsch des Nutzers, die Installation in der Konsole zu verfolgen: pip läuft ohne `--quiet`, aber nur, wenn sich `requirements.txt` von der Kopie in `.wenv` unterscheidet. Ein normaler Start ruft pip nicht auf.
+  - OrcaOne hing bei „Lese Installationen …“: psutil braucht hier bis 0,25 s je Prozess für den Namen, `guard.find_processes` über 60 s. Jetzt eine Toolhelp32-Momentaufnahme (0,2 s), psutil nur für Slicer-Prozesse; `/api/data` in 2 s mit beiden Installationen.
+  - Die Tests liefen zum ersten Mal unter Windows, zwei waren rot: ein Testpfad ohne Laufwerk und Sicherungen derselben Sekunde in falscher Reihenfolge. Beides behoben, Letzteres mit eigenem Test.
+  - Die echten `.conf` haben CRLF und die MD5 in Großbuchstaben, OrcaOne schreibt sie Byte für Byte gleich (FINDINGS, „Windows am echten Rechner“).
+  - Geprüft: Erststart ohne `.wenv`, `/api/data` und Übersicht im Browser, Tests. Nicht geprüft: Schreiben unter Windows.
+  - Frage des Nutzers, warum die IP des U1 fehlt, obwohl SnOrca sie kennt: SnOrca hält einen verbundenen Drucker in `.conf` → `devices[].ip`, nicht als `print_host`. OrcaOne liest das jetzt (`overview._printers_page`, Test), hinter „Physischer Drucker“. Die Karte nennt die Quelle nur noch „aus <Slicer>“.
+  - **Offen, Nutzer fragen:** Adressen gelten je Druckermodell. Die zwei Voron des Nutzers in OrcaSlicer sind beide „Voron 2.4 300“ (192.168.30.70 und 10.30.40.71), OrcaOne zeigt nur die erste.
+- **Davor (24.09.):** „2D-Ansicht“ unter „Drucker“ (Wunsch des Nutzers: „etwas technischer, mit ein paar mehr Infos“), noch nicht committet, ebenso die 3D-Ansicht darunter.
   - `pages/druck2d.js`, Canvas 2D: eine Schicht von oben, Farben nach Filament, Linienart, Geschwindigkeit, Volumenstrom, Beschleunigung, Lüfter, Temperatur, Linienbreite; Fahrwege und Rückzüge; Linien einzeln durchgehen; Linie zeigen oder anklicken mit Werten und G-Code. Seite: Schicht und Datei mit allen Einstellungen.
   - Auf Rückmeldung des Nutzers („schlecht erkennbar, was gerade gedruckt wird und was die vorherige Schicht ist“): Gedrucktes voll und mindestens 1,6 px breit, was noch kommt als feine Linie, die letzten 30 Linien mit Leuchtrand, die Schicht darunter blaugrau; Legende dazu.
   - Gemeinsam mit 3D in `pages/print-view.js`: Dateiwahl, Einlesen, Zwischenspeicher, Folgen, Teilabruf. Der Einleser (`gcode-worker.js`) teilt jetzt Bögen (G2/G3) in Stücke wie Klipper, merkt je Linie Geschwindigkeit, Beschleunigung, Lüfter, Temperatur und Zeile, dazu Fahrwege, Rückzüge, `M73 R` und Filament je Schicht, alle Einstellungen der Datei. Die 3D-Ansicht hat „2D-Ansicht“ oben, die 2D-Ansicht „3D-Ansicht“, jeweils mit Datei und Schicht; „Dateien“ hat „3D“ und „2D“.
@@ -54,14 +89,13 @@ Stand 24.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 ## Offen beim Nutzer
 
 - **„Im LAN suchen“** zu Hause testen. Von diesem Rechner aus findet die Suche wegen WireGuard nichts.
-- **Windows-Rechner,** Prüfliste:
-  - `orcaone.cmd` starten; alte Daten aus `%LOCALAPPDATA%\orcaone` ziehen nach `data/` um;
+- **Windows-Rechner,** Prüfliste. Start, Einlesen beider Installationen und das Format der `.conf` sind geprüft (24.09.):
+  - alte Daten aus `%LOCALAPPDATA%\orcaone` ziehen nach `data/` um (auf dem Rechner gab es keine);
   - Sprache umschalten;
   - eine Änderung mit Sicherung und Wiederherstellen;
   - „Logs“ bei laufendem Slicer;
   - IP-Adresse beim U1 eintragen, dann „Kamera“ im Vollbild und „Kalibrieren“;
-  - „Im LAN suchen“ im selben LAN;
-  - eine echte Windows-`.conf` mitbringen, vorher `devices` bzw. `local_machines` leeren. Hat sie CRLF, und schreibt Windows die MD5 in Großbuchstaben?
+  - „Im LAN suchen“ im selben LAN: findet den U1 (Nutzer, 24.09.).
 - **Im Slicer ausprobieren:**
   - „Bibliothek freischalten“, Weg A und B, mit `SUNLU PLA+ @System`;
   - [TEST-VERGLEICH](TEST-VERGLEICH.md) Teil B, die Spalte „SnOrca“;
@@ -92,7 +126,7 @@ In FINDINGS unter „Offen: nur am laufenden Slicer prüfbar“:
 ## Bekannte Punkte
 
 - **Kalibrieren:** Ein umbenanntes Filament verliert seine Häkchen.
-- **Terminal:** Die Meldungen von `__main__.py` und `orcaone.sh` bleiben deutsch.
+- **Terminal:** Die Meldungen von `__main__.py`, `orcaone.sh` und `orcaone.cmd` bleiben deutsch. In `orcaone.cmd` ohne Umlaute, denn cmd.exe liest die Datei in der OEM-Codepage. Die Datei braucht CRLF (`.gitattributes`), sonst findet `goto` die Sprungmarken nicht sicher.
 - **Bauen:** `tools/build.py` ist nur unter Linux ausprobiert, unter Windows und macOS nicht.
 - **Snapmaker Orca** meldet in allen Logs dieses Rechners „Update install failed“ für `printers/`. Das ist ein Problem von Snapmaker, nicht von OrcaOne.
 
@@ -100,7 +134,8 @@ In FINDINGS unter „Offen: nur am laufenden Slicer prüfbar“:
 
 - **Gedächtnis** unter `-home-dominiks-dev-OrcaOne`. Die Ordner `-orfix` und `-orcaone` sind alte Kopien, der Projektordner heißt seit 23.09. `~/dev/OrcaOne`.
 - **`.lenv`** ist zweimal umgezogen. `.lenv/bin/python -m …` läuft, Skripte wie `.lenv/bin/pip` haben alte Pfade im Shebang, also `.lenv/bin/python -m pip` nehmen.
-- **Vorschau** aus `.claude/launch.json` auf Port 8765, die App selbst auf 4711.
+- **Vorschau** aus `.claude/launch.json` auf Port 8765, die App selbst auf 4711. Unter Windows heißt der Eintrag „orcaone-windows“ (`.wenv`).
+- **Windows-Rechner:** Projekt unter `D:\Projekte\OrcaOne`, Umgebung `.wenv`. Nie `.wenv` löschen, solange OrcaOne daraus läuft: Windows sperrt nur die geladenen Dateien, der Rest verschwindet, und die laufende Instanz geht kaputt.
 - **Commits:** jeden in einem sauberen Worktree testen (`git worktree add --detach …`, dort `pytest`). Zwischenstände einer Datei lassen sich mit `git hash-object -w` und `git update-index --cacheinfo` einreihen.
 - **Brave als Snap** bleibt ohne Fenster (`--headless`) hängen und lässt sich nur mit `snap run --shell brave -c "kill …"` beenden.
 - **Am U1** (10.30.40.174) nur lesende Anfragen, außer dem Licht (siehe Entscheidungen); beim Ausprobieren danach den alten Zustand wiederherstellen. Moonraker vertraut dem ganzen LAN (`trusted_clients: 10.0.0.0/8`), Steuerbefehle gingen also ohne Anmeldung.
@@ -112,7 +147,7 @@ In FINDINGS unter „Offen: nur am laufenden Slicer prüfbar“:
 | Name | OrcaOne (Orca + U1), Ordner `~/dev/OrcaOne` |
 | Slicer | SnOrca 2.4 sowie OrcaSlicer stabil (2.4.x, JSON) und Nightly (2.5.0-dev, `.opc`) |
 | Plattformen | Linux und Windows gleichwertig, ein Windows-Rechner zum Testen ist vorhanden |
-| Abhängigkeiten | fastapi, uvicorn, psutil, pytest in `.lenv`; Vue und Schrift liegen lokal; neue nur nach Rücksprache |
+| Abhängigkeiten | fastapi, uvicorn, psutil, pytest in `.lenv` bzw. unter Windows `.wenv` (24.09.); Vue und Schrift liegen lokal; neue nur nach Rücksprache |
 | Stil | Farben von OrcaSlicer (Teal `#009688`), Schrift Inter, Druckerbilder, Spulen, wenig Text; eigenes App-Symbol, nichts aus Orca oder SnOrca |
 | Grundsatz | kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos; neue Seiten nur auf Auftrag |
 | Prozesse | nur ansehen, nicht bearbeiten (22.09.) |

@@ -51,7 +51,7 @@ Diese Regeln haben Vorrang vor allem anderen.
 ## 3. Stack und Konventionen
 
 - Backend: Python ≥ 3.11, FastAPI mit uvicorn, Dataclasses, sonst Standardbibliothek (`json`, `zipfile`, `hashlib`, `pathlib`, `shutil`). Keine eigenen Pydantic-Modelle, kein ORM, keine Datenbank. Das Dateisystem ist die einzige Quelle der Wahrheit, der Index lebt im Speicher und wird bei Bedarf neu aufgebaut.
-- Zusätzliche Abhängigkeiten nur nach Rücksprache. Freigegeben: `psutil` für die Prozessprüfung (nötig unter Windows). Python-Umgebung: `.lenv` im Projektordner, Abhängigkeiten in `requirements.txt`, Start über `orcaone.sh` bzw. `orcaone.cmd`.
+- Zusätzliche Abhängigkeiten nur nach Rücksprache. Freigegeben: `psutil` für die Prozessprüfung (nötig unter Windows). Python-Umgebung: `.lenv` im Projektordner, unter Windows `.wenv`, Abhängigkeiten in `requirements.txt`, Start über `orcaone.sh` bzw. `orcaone.cmd`.
 - Frontend: Vue 3 Composition API ohne Build-Schritt, VanillaJS, ES-Module, eine CSS-Datei. Vue liegt als Datei im Repo, kein CDN. Der Stil lehnt sich am ionpy-Styleguide an. Alle nötigen Dateien werden kopiert, nicht referenziert: OrcaOne läuft eigenständig.
 - Start mit `python -m orcaone`: Server auf freiem Port starten und Browser öffnen.
 - Code, Bezeichner und Kommentare auf Englisch. UI-Texte auf Deutsch, zentral in einer Datei gesammelt.

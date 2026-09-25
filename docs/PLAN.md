@@ -10,7 +10,7 @@ Stand 21.09.2026, freigegeben am selben Tag. Grundlage: [Spezifikation](../ORCAO
 - **Plattformen:** Linux und Windows gleichwertig. macOS läuft über die Pfaderkennung mit, wird aber nicht getestet.
 - **Stil:** OrcaOne lehnt sich am ionpy-Styleguide an. Alle nötigen Dateien werden **kopiert**, OrcaOne läuft eigenständig ohne ionpy und ohne CDN.
 - **Name:** OrcaOne. Paket `orcaone/`, Start mit `python -m orcaone`, eigene Daten nur im Ordner `data/` im OrcaOne-Ordner: `settings.json` für alle Einstellungen und `backups/` (Wunsch des Nutzers vom 23.09.2026).
-- **Python-Umgebung:** `.lenv` im Projektordner, Abhängigkeiten in `requirements.txt`.
+- **Python-Umgebung:** `.lenv` im Projektordner, unter Windows `.wenv`, Abhängigkeiten in `requirements.txt`.
 
 ## Abweichungen von der Spezifikation
 
@@ -34,7 +34,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 - `git init`.
 - Umbenennen: `ORCIX_SPEC.md` → `ORFIX_SPEC.md`, Name im Text ersetzt.
 - `requirements.txt`: fastapi, uvicorn, pytest, ggf. psutil (siehe Entscheidungen).
-- Startskripte `orcaone.sh` und `orcaone.cmd`: legen `.lenv` an, falls sie fehlt, installieren die Abhängigkeiten und starten OrcaOne.
+- Startskripte `orcaone.sh` und `orcaone.cmd`: legen `.lenv` bzw. `.wenv` an, falls sie fehlt, installieren die Abhängigkeiten und starten OrcaOne.
 - `python -m orcaone` sucht einen freien Port, lauscht nur auf 127.0.0.1 und öffnet den Browser.
 - `.claude/launch.json` zeigt dann auf OrcaOne statt auf den ionpy-Styleguide.
 
