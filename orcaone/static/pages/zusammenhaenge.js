@@ -119,7 +119,7 @@ export default {
   },
 
   template: `
-    <div class="page rel-page">
+    <div class="page">
       <div class="page-head">
         <h1 id="page-title" tabindex="-1">{{ T.nav.pages.zusammenhaenge }}</h1>
       </div>

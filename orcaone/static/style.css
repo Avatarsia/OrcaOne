@@ -66,6 +66,9 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
+/* The room of the scroll bar always kept, so a long page does not sit a few pixels further left
+   than a short one */
+html { scrollbar-gutter: stable; }
 h1, h2, h3, h4, p, dl, dd { margin: 0; }
 button, input, select { font: inherit; color: inherit; }
 a { color: var(--accent-text); }
@@ -210,7 +213,9 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .main { min-width: 0; padding: 24px 16px 96px; }
 /* Room for the side panel; the page component sets it on its wrapper */
 .page-host.with-panel { padding-right: var(--panel-w); }
-.page { max-width: 860px; margin: 0 auto; }
+/* One width for every page, as on "Übersicht" (the user: pages of different widths do not look
+   good); only "3D-Ansicht" and "2D-Ansicht" take the whole width */
+.page { max-width: 1100px; margin: 0 auto; }
 .page-head { margin-bottom: 20px; }
 .page-head h1 { font-size: 20px; font-weight: 700; }
 /* Pages with the title straight in .page (Details, Übertragen, Kamera, Kalibrieren, Logs) */
@@ -1386,7 +1391,7 @@ span.cal-check { cursor: default; }
 /* Pages "SSH" (pages/ssh.js) and "Konsole" (pages/konsole.js); xterm.js brings its own styles (vendor/xterm/xterm.css) */
 /* The terminal takes the height that is left, so the page itself never scrolls. */
 .main:has(.fill-page) { display: flex; flex-direction: column; height: calc(100vh - 48px); height: calc(100dvh - 48px); padding-bottom: 16px; }
-.page.fill-page { display: flex; flex: 1; flex-direction: column; width: 100%; max-width: 1200px; min-height: 0; }
+.page.fill-page { display: flex; flex: 1; flex-direction: column; width: 100%; min-height: 0; }
 .ssh-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin: 16px 0 12px; }
 .ssh-field { display: flex; flex-direction: column; gap: 4px; color: var(--label); font-size: 13px; font-weight: 700; }
 .ssh-user { width: 120px; font-family: var(--mono); }
@@ -1441,9 +1446,7 @@ span.cal-check { cursor: default; }
   .inst-pick .status { display: none; }
 }
 
-/* Page "Übersicht", the start page (pages/uebersicht.js): the printer on its stage, tiles below,
-   wider than the other pages so the heads stand next to the printer */
-.page.home-page { max-width: 1100px; }
+/* Page "Übersicht", the start page of the slicer part (pages/uebersicht.js) */
 /* The installations on top: the chosen one edged (the user: see at once which slicer is chosen) */
 .home-slicers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .home-slicer { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line-box); border-radius: 8px;
@@ -1522,7 +1525,6 @@ span.cal-check { cursor: default; }
 
 /* Page "Zusammenhänge" (pages/zusammenhaenge.js): a tree with lines as in a file tree, one box per
    printer; the names at the ends as chips like on "Übersicht" (.home-chip, .home-badge) */
-.page.rel-page { max-width: 1100px; }
 .rel-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; margin-bottom: 12px; font-size: 13px; }
 .rel-saved { color: var(--muted); }
 .rel-bar-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
@@ -1628,7 +1630,6 @@ span.cal-check { cursor: default; }
 }
 
 /* Page "Status" (pages/status.js): the print as a ring beside the heads, the rest in boxes */
-.page.status-page { max-width: 1100px; }
 .mon-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 32px; padding: 18px 20px; }
 .mon-job { display: flex; flex: 1 1 340px; align-items: center; gap: 20px; min-width: 0; }
 .mon-ring { flex: none; }

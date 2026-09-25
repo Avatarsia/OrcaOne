@@ -142,7 +142,7 @@ export default {
   },
 
   template: `
-    <div class="page status-page">
+    <div class="page">
       <h1 id="page-title" tabindex="-1">{{ S.title }}</h1>
       <p class="note">{{ S.lead }}</p>
 

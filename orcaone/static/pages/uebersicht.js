@@ -316,7 +316,7 @@ export default {
 
   template: `
     <div :class="['page-host', { 'with-panel': panel }]">
-      <div class="page home-page">
+      <div class="page">
         <div class="page-head">
           <h1 id="page-title" tabindex="-1">{{ O.title }}</h1>
         </div>
