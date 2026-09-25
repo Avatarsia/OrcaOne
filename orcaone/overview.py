@@ -352,7 +352,7 @@ def _printers_page(res: Resolver, system_models: list, system_printers: list, se
             "remembered": len(presets), "dead_entries": dead}
 
 
-# ---------------------------------------------------------------- page "Slicer"
+# ---------------------------------------------------------------- page "Installationen"
 
 def _system_refresh(scan) -> dict:
     # OrcaSlicer main refreshes installed vendors only with app.enable_ota (FINDINGS 4.2).

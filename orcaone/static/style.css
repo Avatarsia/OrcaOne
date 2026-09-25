@@ -158,7 +158,14 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
   display: flex; flex-direction: column; gap: 2px; padding: 12px 8px;
   background: var(--surface); border-right: 1px solid var(--line-box);
 }
-/* Language at the bottom of the menu */
+/* The two parts at the top of the menu (the user's wish of 25.09.2026): the part in use filled */
+.area-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 0 0 10px; padding: 3px; border-radius: 8px; background: var(--surface-2);
+               border: 1px solid var(--line-box); }
+.area-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; height: 32px; padding: 0 6px;
+            border: 0; border-radius: 6px; background: none; color: var(--label); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.area-btn:hover { background: var(--row-hover); color: var(--text); }
+.area-btn.is-on { background: var(--accent); color: var(--on-accent); }
+.area-btn.is-on .icon { color: var(--on-accent); }
 /* The switches at the bottom of the menu: language and light or dark; the knob slides to the side
    that is on */
 .nav-switches { display: flex; gap: 8px; margin: auto 4px 0; padding-top: 12px; }
@@ -794,7 +801,7 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .live-head small { display: block; color: var(--muted); font-size: 11px; }
 .live-bar { display: block; height: 6px; margin-bottom: 3px; overflow: hidden; border-radius: 3px; background: var(--surface-2); }
 .live-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
-.live-links { display: flex; gap: 14px; font-size: 13px; }
+.live-links { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
 .pcard { display: flex; flex-direction: column; gap: 6px; padding: 12px 12px 14px; background: var(--surface); border: 1px solid var(--line-box); border-radius: 8px; }
 .pcard.is-active { padding: 11px 11px 13px; border: 2px solid var(--accent-line); }
 /* A click on the picture or the name makes the card the printer of the top bar (app.js) */
@@ -813,6 +820,11 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 8px; }
 /* The printer's network address (OrcaOne's own setting) */
 .card-host { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
+/* Page "Drucker" in the printer part: printers of the slicer without an address, one row each */
+.machine-others { margin-top: 20px; }
+.machine-other { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.machine-other img { flex: none; object-fit: contain; }
+.machine-other .card-host { margin-top: 6px; }
 .card-host .icon { color: var(--icon); }
 .card-host-value { font-family: var(--mono); }
 .card-host-from { color: var(--muted); font-size: 12px; }
@@ -1440,6 +1452,7 @@ span.cal-check { cursor: default; }
 .home-printer-img img { width: 124px; height: 124px; object-fit: contain; }
 .home-printer-body { flex: 1; min-width: 0; display: grid; align-content: center; gap: 8px; }
 .home-name { font-size: 20px; font-weight: 700; }
+.home-nozzle { display: flex; align-items: center; gap: 6px; color: var(--label); font-size: 14px; }
 .home-state { margin-left: 0; font-weight: 600; }
 .home-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .home-actions:empty { display: none; }

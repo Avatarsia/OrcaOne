@@ -1,4 +1,4 @@
-// Page "Slicer", the technical overview: per installation where its data lives, how big each part
+// Page "Installationen" (id "slicer"), the technical overview: per installation where its data lives, how big each part
 // is and what OrcaOne does with it (FINDINGS 4.2 and 4.3). Paths and file names are welcome here,
 // but every entry says in plain words what it is. It also lists all installations, why one is
 // read-only, account, problems, hints, and adds or removes data directories by hand.

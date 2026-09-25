@@ -116,22 +116,22 @@ def test_serves_every_module_the_ui_imports(server):
         for rel in re.findall(r'from "(\.{1,2}/[^"]+)"', body.decode("utf-8")):
             todo.append(posixpath.normpath(posixpath.join(posixpath.dirname(path), rel)))
     assert {"common.js", "api.js", "texts.js", "texts/de.js", "texts/en.js", "texts/names.js", "pages/kalibrieren.js", "pages/filamente.js",
-            "pages/filament-editor.js", "pages/filament-picker.js", "pages/vergleichen.js", "pages/aenderungen.js", "pages/import.js", "pages/bereinigen.js", "pages/uebersicht.js", "pages/status.js", "pages/druck3d.js", "pages/druck2d.js", "pages/print-view.js", "pages/dateien.js", "pages/konsole.js", "pages/ssh.js", "pages/drucker.js", "pages/sicherungen.js",
+            "pages/filament-editor.js", "pages/filament-picker.js", "pages/vergleichen.js", "pages/aenderungen.js", "pages/import.js", "pages/bereinigen.js", "pages/uebersicht.js", "pages/status.js", "pages/druck3d.js", "pages/druck2d.js", "pages/print-view.js", "pages/dateien.js", "pages/konsole.js", "pages/ssh.js", "pages/drucker.js", "pages/druckerprofile.js", "pages/sicherungen.js",
             "pages/slicer.js"} <= seen
 
 
 def test_language_is_a_setting(server, data_dir):
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None}
     status, body = call(f"{server}/api/settings", "POST", {"language": "en"})
-    assert status == 200 and json.loads(body) == {"language": "en", "menu_collapsed": False, "theme": None}
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "en", "menu_collapsed": False, "theme": None}
+    assert status == 200 and json.loads(body) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None}
     assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["language"] == "en"
-    for wrong in ({"language": "fr"}, {"language": None}, {"language": 1}, {"menu_collapsed": "yes"}, {"colour": "red"}, {}):
+    for wrong in ({"language": "fr"}, {"language": None}, {"language": 1}, {"menu_collapsed": "yes"}, {"colour": "red"}, {"area": "profile"}, {}):
         status, body = call(f"{server}/api/settings", "POST", wrong)
         assert status == 400 and json.loads(body) == {"error": "setting_invalid"}
     # Changed by hand to something unknown: the page takes the browser's language.
     settings.change(lambda data: data.update(language="xx"))
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None}
 
 
 def test_the_design_is_a_setting(server, data_dir):
@@ -141,6 +141,9 @@ def test_the_design_is_a_setting(server, data_dir):
     status, body = call(f"{server}/api/settings", "POST", {"theme": "dark"})
     assert status == 200 and json.loads(body)["theme"] == "dark"
     assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["theme"] == "dark"
+    # The part of OrcaOne used last: the next start begins there.
+    status, body = call(f"{server}/api/settings", "POST", {"area": "printer"})
+    assert status == 200 and json.loads(body)["area"] == "printer"
     # From the first frame on: the page comes with the design.
     assert b'<html data-theme="dark" lang="de">' in call(f"{server}/")[1]
     for wrong in ({"theme": "blue"}, {"theme": None}, {"theme": True}):
@@ -153,12 +156,12 @@ def test_the_design_is_a_setting(server, data_dir):
 def test_the_folded_menu_is_a_setting(server, data_dir):
     """The button in the top bar folds the menu away; the next start keeps it so (app.js)."""
     status, body = call(f"{server}/api/settings", "POST", {"menu_collapsed": True})
-    assert status == 200 and json.loads(body) == {"language": None, "menu_collapsed": True, "theme": None}
+    assert status == 200 and json.loads(body) == {"language": None, "menu_collapsed": True, "theme": None, "area": None}
     assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["menu_collapsed"] is True
     call(f"{server}/api/settings", "POST", {"language": "de"})
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": True, "theme": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": True, "theme": None, "area": None}
     call(f"{server}/api/settings", "POST", {"menu_collapsed": False})
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": False, "theme": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": False, "theme": None, "area": None}
 
 
 def test_no_draft_routes(server):

@@ -445,7 +445,7 @@ TOP_LEVEL = {
     "orca_refresh_token.sec": ("sensitive", "refresh_token"),
 }
 OTHER = ("unmanaged", "slicer_owned")
-# Order of the top level on the page "Slicer", as in its size bar: what OrcaOne writes to first.
+# Order of the top level on the page "Installationen", as in its size bar: what OrcaOne writes to first.
 CATEGORY_ORDER = ["managed", "system", "unmanaged", "temp", "sensitive"]
 # Hard rule 4: everything goes into the backup except these.
 BACKUP_SKIP_TOP = {"log", "cache", "web", "hms", "ota"}

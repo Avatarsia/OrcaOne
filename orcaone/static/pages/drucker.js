@@ -1,110 +1,89 @@
-// Page "Drucker": one card per printer model of a manufacturer and per own printer. Here the
-// user picks the printer the slicer starts with and removes printers, together with the own
-// filaments and processes that belong to that printer only. Each action opens the side panel
-// with the plan first (hard rule 5); its button puts the plan into the change list (app.js).
-// Data: instances[].printers_page of GET /api/data; the changeable state is `live` in common.js,
-// so what goes here shows up on "Filamente", too. ops.js turns it into printer_model_off,
-// printer_delete, filament_delete, default_printer and cleanup_presets.
-// Removing the last model of a vendor can make the slicer delete the whole vendor package at its
-// next start (FINDINGS 4.2); the plan says so and names the own printers that go with it.
-// Each card also shows the printer's network address: the one typed in here (OrcaOne's own
-// setting by model, saved at once), else the one of the slicer's dialog "Physical Printer"
-// (print_host of an own printer). A U1 with one gets its camera and live values on the pages
-// "Kamera" and "Kalibrieren" (orcaone/camera.py). With an address the card also shows what the
-// printer says of itself, read only: any Klipper printer its state, versions, storage, prints in
-// total and system; a U1 also its name, firmware and the nozzle and spool of every head.
+// Page "Drucker", the first page of the printer part (the user's wish of 25.09.2026: the slicers'
+// profiles and the printers themselves apart). One card per printer with a network address, with
+// what it says of itself, read only over Moonraker, for any Klipper printer: its state and job,
+// firmware, storage, prints in total; a U1 also its name and the nozzle and spool of every head.
+// From the card on to its web interface, status, files, views, camera, console and SSH. The address
+// is OrcaOne's own setting by model (camera.py), saved at once; without one OrcaOne takes the
+// slicer's (print_host of an own printer, or the printer Snapmaker Orca is connected to). Printers
+// of the slicer without an address are listed below to give them one; a U1 can also be looked for
+// in the LAN, as Snapmaker Orca does (mDNS, only in the same LAN, not over a VPN).
 import {
-  INSTANCES, LOCALE, live, flash, fmtSize, go, hashOf, plural, nozzleLabel, printerShortName, printerText, profileSub, KIND_ICON, U1_MODELS, ui,
+  INSTANCES, LOCALE, flash, fmtSize, go, hashOf, nozzleLabel, printerModels, modelName, U1_MODELS, ui, hosts, loadHosts, machines, slicersOf,
 } from "../common.js";
-import { T, plainName } from "../texts.js";
+import { T } from "../texts.js";
 import { api } from "../api.js";
+import { PrintStatus } from "./kamera.js";
 
-const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
-
-const P = T.printers;
+const { ref, reactive, computed, nextTick, onMounted, onUnmounted } = Vue;
+const P = T.printers, M = T.machines;
+const EVERY = 10000;  // ms between two looks at the printers while the page is visible
 
 export default {
   name: "DruckerPage",
-  props: { instId: { type: String, required: true } },
+  components: { PrintStatus },
+  props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
-  setup(props) {
-    const inst = computed(() => INSTANCES.find((i) => i.id === props.instId));
-    const state = computed(() => live[props.instId]);
-    const readOnly = computed(() => !!inst.value.running);
-
-    // ------------------------------------------------------------ network address per model
-    const hosts = ref({});
-    const addressKey = (c) => c.model || c.name;
-    const hostOf = (c) => hosts.value[addressKey(c)]?.host || "";
-    const hostFrom = (c) => hosts.value[addressKey(c)]?.from === "slicer" ? hosts.value[addressKey(c)].slicer : "";
-    const editing = ref(null);  // card id
-    const hostDraft = ref("");
-    const hostError = ref("");
-    function editHost(c) {
-      editing.value = c.id;
-      hostDraft.value = hostOf(c);
-      hostError.value = "";
-      nextTick(() => document.getElementById("host-" + c.id)?.focus());
+  setup() {
+    const isU1 = (model) => U1_MODELS.includes(model);
+    // The printer OrcaOne works with, chosen in the top bar (app.js): a click on a card chooses it,
+    // the links to its pages choose it first.
+    const isActive = (model) => model === ui.printer;
+    const choose = (model) => { ui.printer = model; };
+    function openFor(model, page) {
+      choose(model);
+      go(null, hashOf(page, ui.instId));
     }
-    async function saveHost(c) {
+    // The slicers' printers without an address yet, of every installation (this part depends on
+    // none), one per model as the addresses go.
+    const others = computed(() => {
+      const known = new Set(machines.value.map((m) => m.model));
+      return INSTANCES.flatMap((i) => printerModels(i)).filter((m) => !known.has(m.model) && known.add(m.model))
+        .map((m) => ({ model: m.model, name: modelName(m), cover: m.cover }));
+    });
+
+    // ------------------------------------------------------------ the address
+    const editing = ref(null);  // model
+    const draft = ref("");
+    const addressError = ref("");
+    const hostFrom = (model) => (hosts.value?.[model]?.from === "slicer" ? hosts.value[model].slicer : "");
+    function edit(model) {
+      editing.value = model;
+      draft.value = hosts.value?.[model]?.host || "";
+      addressError.value = "";
+      nextTick(() => document.getElementById("host-" + model)?.focus());
+    }
+    async function save(model) {
       try {
-        hosts.value = (await api.setPrinterHost(addressKey(c), hostDraft.value)).printers;
-        delete machine[addressKey(c)];
-        if (hostOf(c)) readMachine(addressKey(c));
+        hosts.value = (await api.setPrinterHost(model, draft.value)).printers;
+        delete machine[model];
+        if (hosts.value[model]) readMachine(model);
         editing.value = null;
-        flash(hostDraft.value.trim() ? P.address.saved : P.address.removed);
+        flash(draft.value.trim() ? P.address.saved : P.address.removed);
       } catch (err) {
-        hostError.value = P.address.errors[err.code] || T.errors[err.code] || T.errors.unknown;
+        addressError.value = P.address.errors[err.code] || T.errors[err.code] || T.errors.unknown;
       }
     }
-    // A U1 card can look for Snapmaker printers in the LAN, as Snapmaker Orca does (mDNS, only in
-    // the same LAN, not over a VPN); a hit goes in with one click.
-    const isU1 = (c) => U1_MODELS.includes(c.model);
-    // The printer OrcaOne works with, chosen in the top bar (app.js): a click on a card chooses it,
-    // and the links to its status, files, camera, console and SSH choose it first.
-    const isActive = (c) => c.model === ui.printer;
-    function choose(c) {
-      if (c.model) ui.printer = c.model;
-    }
-    function openFor(c, page) {
-      choose(c);
-      go(null, hashOf(page, inst.value.id));
-    }
-    const searching = ref(null);  // card id
-    const found = ref({});        // card id -> printers found
-    async function search(c) {
-      searching.value = c.id;
+    const searching = ref(null);  // model
+    const found = ref({});        // model -> printers found in the LAN
+    async function search(model) {
+      searching.value = model;
       try {
-        found.value = { ...found.value, [c.id]: (await api.searchPrinters()).found };
+        found.value = { ...found.value, [model]: (await api.searchPrinters()).found };
       } catch (err) {
         flash(P.address.errors[err.code] || T.errors[err.code] || T.errors.unknown);
       } finally {
         searching.value = null;
       }
     }
-    async function take(c, host) {
-      hostDraft.value = host;
-      await saveHost(c);
-      if (!hostError.value) found.value = { ...found.value, [c.id]: undefined };
+    async function take(model, host) {
+      draft.value = host;
+      await save(model);
+      if (!addressError.value) found.value = { ...found.value, [model]: undefined };
     }
-    onMounted(async () => {
-      try {
-        hosts.value = (await api.printers()).printers;
-      } catch {
-        hosts.value = {};
-      }
-      for (const model of withHost()) readMachine(model);
-      timer = setInterval(() => {
-        if (document.visibilityState === "visible") for (const model of withHost()) readState(model);
-      }, 10000);
-    });
 
-    // ------------------------------------------------------------ the printer itself (camera.info, status)
-    // By model, like the address. The state again every 10 s while the page is visible.
-    const machine = reactive({});  // model -> { info, state, error }
+    // ------------------------------------------------------------ what the printer says (camera.info, status)
+    const machine = reactive({});  // model -> { info, state, error, asking }
     let timer = 0;
-    onUnmounted(() => clearInterval(timer));
-    const withHost = () => [...new Set(cards.value.map(addressKey))].filter((m) => hosts.value[m]?.host);
     async function readState(model) {
       try {
         machine[model] = { ...machine[model], state: await api.printerState(model) };
@@ -119,7 +98,24 @@ export default {
       }
       readState(model);
     }
-    const machineOf = (c) => (hostOf(c) ? machine[addressKey(c)] || { asking: true } : null);
+    const look = () => {
+      if (document.visibilityState === "visible") for (const m of machines.value) readState(m.model);
+    };
+    onMounted(async () => {
+      await loadHosts();
+      for (const m of machines.value) readMachine(m.model);
+      timer = setInterval(look, EVERY);
+      // From "Druckerprofile" ("Mit dem Drucker verbinden"): the form for that printer at once.
+      const asked = ui.addressFor;
+      ui.addressFor = null;
+      if (others.value.some((o) => o.model === asked)) edit(asked);
+    });
+    document.addEventListener("visibilitychange", look);
+    onUnmounted(() => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", look);
+    });
+
     const number = (v, digits = 0) => v.toLocaleString(LOCALE, { maximumFractionDigits: digits });
     function duration(seconds) {
       const minutes = Math.round(seconds / 60);
@@ -127,28 +123,22 @@ export default {
       if (minutes < 48 * 60) return P.live.hours(Math.floor(minutes / 60), minutes % 60);
       return P.live.days(Math.floor(minutes / 1440));
     }
-    // State as text plus colour, as on "Kamera": what Klipper and the job say.
-    function stateOf(c) {
-      const m = machineOf(c);
-      if (!m) return null;
+    // Before the job: whether it answers at all and Klipper is ready.
+    function problemOf(model) {
+      const m = machine[model] || { asking: true };
       if (m.error) return { cls: "is-err", text: P.live.unreachable };
       if (m.asking && !m.info) return { cls: "is-wait", text: P.live.asking };
       if (m.info?.state && m.info.state !== "ready") return { cls: "is-err", text: P.live.klipper(m.info.state) };
-      const s = m.state || {};
-      const job = s.state || "standby";
-      const parts = [T.u1.states[job] || job];
-      if ((job === "printing" || job === "paused") && s.progress != null) parts.push(`${Math.round(s.progress * 100)} %`);
-      return { cls: { printing: "is-ok", complete: "is-ok", standby: "is-ok", paused: "is-warn", cancelled: "is-warn", error: "is-err" }[job] || "is-wait",
-               text: parts.join(" · ") };
+      return m.state ? null : { cls: "is-wait", text: P.live.asking };
     }
     // The heads with nozzle and spool: only where the printer knows its spools (the U1).
-    function headsOf(c) {
-      const m = machineOf(c), heads = m?.state?.heads || [];
+    function headsOf(model) {
+      const m = machine[model], heads = m?.state?.heads || [];
       if (!heads.some((h) => h.spool)) return [];
       return heads.map((h, i) => ({ ...h, nozzle: m.info?.nozzles?.[i] }));
     }
     const headTitle = (h) => (h.spool ? [h.spool.vendor, h.spool.type, h.spool.subtype, h.spool.rfid ? P.live.rfid : null].filter(Boolean).join(" · ") : P.live.empty);
-    // Four rows on the card, the details in their tooltips: not too much at first glance.
+    // A few rows on the card, the details in their tooltips: not too much at first glance.
     const klipperOf = (info) => (info.klipper ? String(info.klipper).replace(/_\d+$/, "") : "");
     function firmwareOf(info) {
       const s = info.system || {};
@@ -176,412 +166,130 @@ export default {
                title: [j.total_filament_used && P.live.filament(number(j.total_filament_used / 1000)),
                        j.longest_print && P.live.longest(duration(j.longest_print))].filter(Boolean).join("\n") };
     }
-    // Per card id: the rows it shows of the printer itself, null without an answer.
-    const rowsOf = computed(() => Object.fromEntries(cards.value.map((c) => {
-      const info = machineOf(c)?.info;
-      return [c.id, info ? { firmware: firmwareOf(info), heads: headsOf(c), storage: storageOf(info), jobs: jobsOf(info) } : null];
+    // Per model: the rows the card shows of the printer itself, null without an answer.
+    const rowsOf = computed(() => Object.fromEntries(machines.value.map(({ model }) => {
+      const info = machine[model]?.info;
+      return [model, info ? { firmware: firmwareOf(info), heads: headsOf(model), storage: storageOf(info), jobs: jobsOf(info) } : null];
     })));
-    const networkOf = (info) => (!info?.network ? "" : /^wl/.test(info.network) ? P.live.wlan : /^(eth|en)/.test(info.network) ? P.live.lan : info.network);
-
-    // ------------------------------------------------------------ cards
-    const cards = computed(() => {
-      const i = inst.value, s = state.value, pp = i.printers_page;
-      const mine = (list) => list.filter((x) => s.own.has(x.name));
-      const out = [];
-      for (const m of pp.system) {
-        if (!s.models.has(m.model)) continue;
-        const name = printerShortName(m.printers[0]?.name || m.model);
-        out.push({
-          id: "model:" + m.model, system: true, model: m.model, name, label: name, sub: name === m.model ? "" : m.model,
-          cover: m.cover, printers: m.printers, tag: P.tags.vendor, tagIcon: "factory",
-          visible: true, problem: null, package: m.origin, dropsPackage: m.drops_package,
-          isDefault: m.printers.some((p) => p.name === s.defaultPrinter),
-          // Own processes go only together with an own printer (printer_delete in ops.js), so a
-          // model of a manufacturer offers the own filaments alone.
-          onlyHere: mine(m.only_here).filter((x) => x.kind === "filament"), keepsOwn: m.own_printers.filter((n) => s.own.has(n)),
-        });
-      }
-      for (const p of pp.own) {
-        if (!s.own.has(p.name)) continue;
-        const project = p.origin === "project", bundle = p.origin === "bundle";
-        // Its template sits in a vendor package the slicer deletes at its next start.
-        const packageGone = !!p.package && !s.packages.has(p.package);
-        const visible = p.visible && !packageGone;
-        const problem = T.profileProblems[p.problem];
-        out.push({
-          id: "own:" + p.name, system: false, model: p.model, name: p.name, label: plainName(p.name), bundle,
-          sub: p.based_on ? T.filaments.template(p.based_on_found ? printerText(i, p.based_on) : p.based_on) : "",
-          cover: p.cover, printers: visible ? [{ name: p.name, variant: p.variant }] : [],
-          tag: bundle ? p.bundle : project ? T.printerOrigins.project : P.tags.own,
-          tagIcon: bundle ? "package" : project ? "file" : "user",
-          visible, package: p.package, unresolved: p.status === "unresolved",
-          problem: packageGone ? P.packageGone(p.package) : problem ? problem(p) : null,
-          isDefault: p.name === s.defaultPrinter, onlyHere: mine(p.only_here), keepsOwn: [],
-        });
-      }
-      return out;
-    });
-    const nozzlesOf = (c) => c.printers.filter((p) => p.variant);
-    const nozzleList = (c) => nozzlesOf(c).map((p) => nozzleLabel(p.variant)).join(" · ");
-
-    // Removing the last model of a vendor: SnOrca and Orca up to 2.4.2 delete its package at the
-    // next start, own printers on top of it become invisible (FINDINGS 4.2).
-    function dropsPackage(c) {
-      if (!c.system || !c.dropsPackage) return false;
-      const s = state.value;
-      return !inst.value.printers_page.system.some((m) => m.model !== c.model && m.origin === c.package && s.models.has(m.model));
-    }
-    const lostOwn = (c) => dropsPackage(c) ? cards.value.filter((x) => !x.system && x.visible && x.package === c.package) : [];
-    // What stays visible without c; at least one printer stays.
-    const restOf = (c) => {
-      const lost = new Set(lostOwn(c).map((x) => x.id));
-      return cards.value.filter((x) => x.id !== c.id && x.visible && !lost.has(x.id));
+    const networkOf = (model) => {
+      const net = machine[model]?.info?.network;
+      return !net ? "" : /^wl/.test(net) ? P.live.wlan : /^(eth|en)/.test(net) ? P.live.lan : net;
     };
-    const locked = (c) => c.visible && restOf(c).length < 1;
-
-    const defaultCard = computed(() => cards.value.find((c) => c.isDefault) || null);
-    const defaultText = computed(() => state.value.defaultPrinter ? printerText(inst.value, state.value.defaultPrinter) : P.noDefault);
-
-    // When the default printer goes, the slicer starts with another one; OrcaOne names it in the plan.
-    function nextDefault(card) {
-      const rest = restOf(card).filter((c) => c.printers.length);
-      if (!rest.length) return null;
-      const c = rest[0];
-      return (c.printers.find((p) => p.variant === "0.4") || c.printers[0]).name;
-    }
-
-    // ------------------------------------------------------------ clean up
-    // "orca_presets" keeps the last choice per printer and is never cleaned up (FINDINGS 4.3, 4.9).
-    const dead = computed(() => inst.value.printers_page.dead_entries.filter((d) => state.value.dead.includes(d.machine)));
-    const remembered = computed(() => {
-      const pp = inst.value.printers_page;
-      return pp.remembered - (pp.dead_entries.length - dead.value.length);
-    });
-    function clean() {
-      if (readOnly.value || !dead.value.length) return;
-      state.value.dead = [];
-      flash(P.queued.clean);
-    }
-
-    // ------------------------------------------------------------ panel
-    const panel = ref(null);  // { type: "default" | "remove", id }
-    const choice = ref("");
-    const along = reactive(new Set());
-    let lastFocus = null;
-    const pcard = computed(() => panel.value && cards.value.find((c) => c.id === panel.value.id) || null);
-
-    function openPanel(p) {
-      if (!panel.value) lastFocus = document.activeElement;
-      panel.value = p;
-      nextTick(() => document.getElementById("panel-title")?.focus());
-    }
-    function closePanel() {
-      panel.value = null;
-      // The card may be gone after removing it; then the page title takes the focus.
-      const target = lastFocus && document.contains(lastFocus) ? lastFocus : document.getElementById("page-title");
-      target?.focus();
-      lastFocus = null;
-    }
-    watch(() => props.instId, () => { panel.value = null; lastFocus = null; });
-
-    function openDefault(c) {
-      if (readOnly.value || !c.printers.length) return;
-      const s = state.value;
-      choice.value = (c.printers.find((p) => p.name === s.defaultPrinter)
-        || c.printers.find((p) => p.variant === "0.4") || c.printers[0]).name;
-      openPanel({ type: "default", id: c.id });
-    }
-    function setDefault() {
-      const s = state.value;
-      if (readOnly.value || !choice.value || choice.value === s.defaultPrinter) return;
-      s.defaultPrinter = choice.value;
-      closePanel();
-      flash(P.queued.default(printerText(inst.value, choice.value)));
-    }
-
-    // Own profiles that belong to this printer only are ticked, unless an own printer built on it
-    // stays: it may still use them (FINDINGS 4.6, compatibility over the direct parent).
-    function openRemove(c) {
-      if (readOnly.value || locked(c) || c.bundle) return;
-      along.clear();
-      if (!c.keepsOwn.length) c.onlyHere.forEach((x) => along.add(x.name));
-      openPanel({ type: "remove", id: c.id });
-    }
-    const toggleAlong = (name) => along.has(name) ? along.delete(name) : along.add(name);
-    const plan = computed(() => {
-      const c = pcard.value;
-      if (!c || !panel.value || panel.value.type !== "remove") return [];
-      const out = [];
-      const drops = dropsPackage(c);
-      if (c.system) {
-        // SnOrca switches all nozzles of a model back on at start, so only whole models go (FINDINGS 12).
-        out.push({ icon: "minus", cls: "ch-off", name: c.name, verb: P.plan.switchedOff, sub: P.plan.allNozzles(nozzleList(c), drops) });
-      } else {
-        out.push({ icon: "trash", cls: "ch-delete", name: c.name, verb: P.plan.deleted, sub: P.plan.fileGoes });
-      }
-      if (drops) {
-        out.push({ icon: "factory", cls: "ch-delete", name: P.plan.packageName(c.package), verb: P.plan.packageDeleted, sub: P.plan.packageWhy });
-      }
-      if (c.isDefault) {
-        const next = nextDefault(c);
-        if (next) out.push({ icon: "star", cls: "ch-on", name: printerText(inst.value, next), verb: P.plan.becomesDefault, sub: P.plan.startsWith });
-      }
-      if (drops) {
-        for (const x of lostOwn(c)) out.push({ icon: "user", cls: "ch-delete", name: x.name, verb: P.plan.invisible, sub: P.plan.invisibleWhy });
-      } else {
-        // Own printers built on a model stay visible without it (Preset::set_visible_from_appconfig
-        // leaves profiles without vendor alone). The ticked profiles below are part of the plan, too.
-        for (const n of c.keepsOwn) out.push({ icon: "user", cls: "ch-on", name: n, verb: P.plan.stays, sub: P.plan.staysWhy });
-      }
-      return out;
-    });
-    function remove() {
-      const c = pcard.value, s = state.value;
-      if (!c || readOnly.value || locked(c)) return;
-      const next = c.isDefault ? nextDefault(c) : null, drops = dropsPackage(c);
-      if (c.system) s.models.delete(c.model);
-      else s.own.delete(c.name);
-      if (drops) s.packages.delete(c.package);
-      for (const n of along) s.own.delete(n);
-      if (next) s.defaultPrinter = next;
-      const name = c.name, system = c.system;
-      closePanel();
-      flash(system ? P.queued.remove(name) : P.queued.delete(name));
-    }
-
-    const panelTitle = computed(() => {
-      if (!panel.value) return "";
-      if (panel.value.type === "default") return P.setDefault;
-      return pcard.value && !pcard.value.system ? P.deleteTitle : P.removeTitle;
-    });
-
-    const onKey = (ev) => { if (ev.key === "Escape" && panel.value) closePanel(); };
-    onMounted(() => window.addEventListener("keydown", onKey));
-    onUnmounted(() => window.removeEventListener("keydown", onKey));
 
     return {
-      T, P, KIND_ICON, inst, state, readOnly, cards, locked, nozzlesOf, defaultCard, defaultText,
-      hostOf, hostFrom, editing, hostDraft, hostError, editHost, saveHost, isU1, isActive, choose, openFor, searching, found, search, take,
-      machineOf, stateOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)),
-      dead, remembered, clean, panel, choice, along, pcard, plan, panelTitle,
-      openDefault, setDefault, openRemove, toggleAlong, remove, closePanel,
-      go, hashOf, plural, nozzleLabel, printerText, profileSub,
+      T, P, M, hosts, machines, others, machine, isU1, isActive, choose, openFor, editing, draft, addressError, hostFrom, edit, save, slicersOf,
+      searching, found, search, take, problemOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)), hashOf,
     };
   },
 
   template: `
-    <div :class="['page-host', { 'with-panel': panel }]">
-      <div class="page">
-        <div class="page-head head-row">
-          <div class="grow">
-            <h1 id="page-title" tabindex="-1">{{ P.title }}</h1>
-            <p>{{ inst.slicer }} {{ inst.version }}</p>
-          </div>
-          <run-status :inst="inst"/>
-        </div>
-        <p v-if="readOnly" class="banner">{{ T.busy(inst) }} {{ T.closeToChange }}</p>
+    <div class="page">
+      <div class="page-head">
+        <h1 id="page-title" tabindex="-1">{{ M.title }}</h1>
+        <p>{{ M.lead }}</p>
+      </div>
 
-        <section class="box start-box" aria-labelledby="start-h">
-          <img class="bar-img" :src="defaultCard ? defaultCard.cover : 'assets/printer-placeholder.png'" alt="" width="48" height="48">
-          <div>
-            <h2 id="start-h" class="start-label">{{ P.atStart }}</h2>
-            <p class="start-name"><ui-icon name="star" class="star"/>{{ defaultText }}</p>
-            <p v-if="state.defaultPrinter && !defaultCard" class="row-hint bad">{{ P.defaultGone }}</p>
-          </div>
-        </section>
-
-        <div class="section-head">
-          <h2>{{ P.yours }}</h2>
-          <span class="sub">{{ P.inSlicer(cards.filter((c) => c.visible).length) }}</span>
-        </div>
-        <div class="cards pcards">
-          <article v-for="c in cards" :key="c.id" :class="['pcard', { 'is-active': isActive(c) }]" :aria-label="c.label">
-            <div class="pcard-top">
-            <span class="card-img" :title="P.makeActive" @click="choose(c)"><img :src="c.cover" alt="" width="104" height="104" :class="{ dim: !c.visible }"></span>
+      <div v-if="machines.length" class="cards pcards">
+        <article v-for="m in machines" :key="m.model" :class="['pcard', { 'is-active': isActive(m.model) }]" :aria-label="m.name">
+          <div class="pcard-top">
+            <span class="card-img" :title="P.makeActive" @click="choose(m.model)"><img :src="m.cover" alt="" width="104" height="104"></span>
             <div class="pcard-body">
-              <h3 class="card-name"><button class="card-pick" type="button" :aria-pressed="isActive(c) ? 'true' : 'false'" :title="P.makeActive"
-                                            @click="choose(c)">{{ c.label }}</button></h3>
-              <span v-if="machineOf(c)?.info?.name" class="card-device">{{ machineOf(c).info.name }}</span>
-              <span v-if="c.sub" class="card-sub">{{ c.sub }}</span>
+              <h3 class="card-name"><button class="card-pick" type="button" :aria-pressed="isActive(m.model) ? 'true' : 'false'" :title="P.makeActive"
+                                            @click="choose(m.model)">{{ m.name }}</button></h3>
+              <span v-if="machine[m.model]?.info?.name" class="card-device">{{ machine[m.model].info.name }}</span>
+              <!-- In which slicer it is set up (the user's wish), the star where the slicer starts with it -->
               <p class="tags">
-                <span v-if="isActive(c)" class="tag tag-active"><ui-icon name="check" :size="14"/>{{ P.tags.active }}</span>
-                <span v-if="c.isDefault" class="tag tag-default"><ui-icon name="star" :size="14"/>{{ P.tags.default }}</span>
-                <span class="tag"><ui-icon :name="c.tagIcon" :size="14"/>{{ c.tag }}</span>
+                <span v-if="isActive(m.model)" class="tag tag-active"><ui-icon name="check" :size="14"/>{{ P.tags.active }}</span>
+                <span v-for="s in slicersOf(m.model)" :key="s.id" class="tag" :title="M.inSlicer(s.slicer, s.nozzles, s.isDefault)">
+                  <ui-icon :name="s.isDefault ? 'star' : 'folder'" :size="14"/>{{ s.slicer }}</span>
+                <span v-if="!slicersOf(m.model).length" class="tag">{{ M.noSlicer }}</span>
               </p>
-              <p v-if="stateOf(c)" :class="['cam-status', 'card-state', stateOf(c).cls]"><span class="cam-dot"></span>{{ stateOf(c).text }}</p>
-              <p v-if="nozzlesOf(c).length" class="card-meta">
-                <nozzle-icon :sizes="[0.4]" :height="20"/><span class="sr-only">{{ P.nozzlesLabel }}</span>
-                <span class="nz-chips">
-                  <span v-for="p in nozzlesOf(c)" :key="p.name" :class="['nz-chip', { 'is-default': p.name === state.defaultPrinter }]"
-                        :title="p.name === state.defaultPrinter ? P.tags.default : null">{{ nozzleLabel(p.variant) }}</span>
-                </span>
-                mm
-              </p>
-              <p v-if="!c.visible" class="card-problem" :title="c.problem"><ui-icon name="info" :size="16"/>{{ c.unresolved ? P.unresolved : P.notVisible }}</p>
-              <form v-if="editing === c.id" class="card-host is-editing" @submit.prevent="saveHost(c)">
-                <label class="sr-only" :for="'host-' + c.id">{{ P.address.label }}</label>
-                <input :id="'host-' + c.id" v-model="hostDraft" class="input" type="text" autocomplete="off" :placeholder="P.address.hint"
+              <p v-if="problemOf(m.model)" :class="['cam-status', 'card-state', problemOf(m.model).cls]"><span class="cam-dot"></span>{{ problemOf(m.model).text }}</p>
+              <print-status v-else :p="machine[m.model].state"/>
+              <form v-if="editing === m.model" class="card-host is-editing" @submit.prevent="save(m.model)">
+                <label class="sr-only" :for="'host-' + m.model">{{ P.address.label }}</label>
+                <input :id="'host-' + m.model" v-model="draft" class="input" type="text" autocomplete="off" :placeholder="P.address.hint"
                        @keydown.esc="editing = null">
                 <button class="btn btn-primary" type="submit">{{ P.address.save }}</button>
                 <button class="btn" type="button" @click="editing = null">{{ T.cancel }}</button>
-                <p v-if="hostError" class="field-error" role="alert">{{ hostError }}</p>
+                <p v-if="addressError" class="field-error" role="alert">{{ addressError }}</p>
               </form>
-              <p v-else :class="['card-host', { 'is-missing': !hostOf(c) }]" :title="P.address.why">
+              <p v-else class="card-host" :title="P.address.why">
                 <ui-icon name="network" :size="16"/>
-                <template v-if="hostOf(c)">
-                  <span class="card-host-value">{{ hostOf(c) }}</span>
-                  <small v-if="networkOf(machineOf(c)?.info)" class="card-host-from">{{ networkOf(machineOf(c).info) }}</small>
-                  <small v-if="hostFrom(c)" class="card-host-from">{{ P.address.fromSlicer(hostFrom(c)) }}</small>
-                </template>
-                <span v-else>{{ P.address.none }}</span>
-                <button class="link" type="button" @click="editHost(c)">{{ hostOf(c) ? P.address.change : P.address.add }}</button>
-                <button v-if="isU1(c)" class="link" type="button" :disabled="searching === c.id" @click="search(c)">
-                  {{ searching === c.id ? P.address.searching : P.address.search }}</button>
+                <span class="card-host-value">{{ m.host }}</span>
+                <small v-if="networkOf(m.model)" class="card-host-from">{{ networkOf(m.model) }}</small>
+                <small v-if="hostFrom(m.model)" class="card-host-from">{{ P.address.fromSlicer(hostFrom(m.model)) }}</small>
+                <button class="link" type="button" @click="edit(m.model)">{{ P.address.change }}</button>
               </p>
-              <ul v-if="found[c.id]" class="card-found">
-                <li v-for="f in found[c.id]" :key="f.host">
+            </div>
+          </div>
+          <dl v-if="rowsOf[m.model]" class="pcard-live">
+            <div :title="rowsOf[m.model].firmware.title"><dt>{{ P.live.firmware }}</dt><dd>{{ rowsOf[m.model].firmware.text }}</dd></div>
+            <div v-if="rowsOf[m.model].heads.length"><dt>{{ P.live.heads }}</dt>
+              <dd class="live-heads">
+                <span v-for="(h, i) in rowsOf[m.model].heads" :key="i" class="live-head" :title="T.u1.head(i + 1) + ': ' + headTitle(h)">
+                  <spool-icon :colour="h.spool?.colour || '#D9D9D9'" :size="22"/>
+                  <span><strong>{{ h.spool?.type || P.live.empty }}</strong><small>{{ h.nozzle ? nozzleText(h.nozzle) + ' mm' : T.u1.head(i + 1) }}</small></span>
+                </span>
+              </dd></div>
+            <div v-if="rowsOf[m.model].storage" :title="rowsOf[m.model].storage.title"><dt>{{ P.live.storage }}</dt>
+              <dd><span class="live-bar"><span :style="{ width: rowsOf[m.model].storage.pct + '%' }"></span></span>{{ rowsOf[m.model].storage.text }}</dd></div>
+            <div v-if="rowsOf[m.model].jobs" :title="rowsOf[m.model].jobs.title"><dt>{{ P.live.jobs }}</dt><dd>{{ rowsOf[m.model].jobs.text }}</dd></div>
+          </dl>
+          <p class="live-links">
+            <a class="link" :href="'http://' + m.host + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
+            <a class="link" :href="hashOf('status', null)" @click.prevent="openFor(m.model, 'status')">{{ T.nav.pages.status }}</a>
+            <a v-if="isU1(m.model)" class="link" :href="hashOf('dateien', null)" @click.prevent="openFor(m.model, 'dateien')">{{ T.nav.pages.dateien }}</a>
+            <a class="link" :href="hashOf('druck3d', null)" @click.prevent="openFor(m.model, 'druck3d')">{{ T.nav.pages.druck3d }}</a>
+            <a class="link" :href="hashOf('druck2d', null)" @click.prevent="openFor(m.model, 'druck2d')">{{ T.nav.pages.druck2d }}</a>
+            <a v-if="isU1(m.model)" class="link" :href="hashOf('kamera', null)" @click.prevent="openFor(m.model, 'kamera')">{{ T.nav.pages.kamera }}</a>
+            <a class="link" :href="hashOf('konsole', null)" @click.prevent="openFor(m.model, 'konsole')">{{ T.nav.pages.konsole }}</a>
+            <a class="link" :href="hashOf('ssh', null)" @click.prevent="openFor(m.model, 'ssh')">{{ T.nav.pages.ssh }}</a>
+          </p>
+        </article>
+      </div>
+      <p v-else-if="hosts" class="empty">{{ M.none }}</p>
+
+      <!-- The slicer's printers without an address: give them one -->
+      <section v-if="others.length" class="box machine-others" aria-labelledby="others-h">
+        <h2 id="others-h">{{ M.others }}</h2>
+        <p class="note">{{ M.othersLead }}</p>
+        <ul class="plain-list">
+          <li v-for="o in others" :key="o.model" class="machine-other">
+            <img :src="o.cover" alt="" width="40" height="40">
+            <div class="grow">
+              <strong>{{ o.name }}</strong>
+              <p class="tags">
+                <span v-for="s in slicersOf(o.model)" :key="s.id" class="tag" :title="M.inSlicer(s.slicer, s.nozzles, s.isDefault)">
+                  <ui-icon :name="s.isDefault ? 'star' : 'folder'" :size="14"/>{{ s.slicer }}</span>
+              </p>
+              <form v-if="editing === o.model" class="card-host is-editing" @submit.prevent="save(o.model)">
+                <label class="sr-only" :for="'host-' + o.model">{{ P.address.label }}</label>
+                <input :id="'host-' + o.model" v-model="draft" class="input" type="text" autocomplete="off" :placeholder="P.address.hint"
+                       @keydown.esc="editing = null">
+                <button class="btn btn-primary" type="submit">{{ P.address.save }}</button>
+                <button class="btn" type="button" @click="editing = null">{{ T.cancel }}</button>
+                <p v-if="addressError" class="field-error" role="alert">{{ addressError }}</p>
+              </form>
+              <ul v-if="found[o.model]" class="card-found">
+                <li v-for="f in found[o.model]" :key="f.host">
                   <span class="grow"><strong>{{ f.name }}</strong> <span class="card-host-value">{{ f.host }}</span>
                     <small v-if="f.machine_type">{{ f.machine_type }}</small></span>
-                  <button class="btn" type="button" @click="take(c, f.host)">{{ P.address.take }}</button>
+                  <button class="btn" type="button" @click="take(o.model, f.host)">{{ P.address.take }}</button>
                 </li>
-                <li v-if="!found[c.id].length" class="card-found-none">{{ P.address.foundNone }}</li>
+                <li v-if="!found[o.model].length" class="card-found-none">{{ P.address.foundNone }}</li>
               </ul>
             </div>
-            </div>
-            <dl v-if="rowsOf[c.id]" class="pcard-live">
-              <div :title="rowsOf[c.id].firmware.title"><dt>{{ P.live.firmware }}</dt><dd>{{ rowsOf[c.id].firmware.text }}</dd></div>
-              <div v-if="rowsOf[c.id].heads.length"><dt>{{ P.live.heads }}</dt>
-                <dd class="live-heads">
-                  <span v-for="(h, i) in rowsOf[c.id].heads" :key="i" class="live-head" :title="T.u1.head(i + 1) + ': ' + headTitle(h)">
-                    <spool-icon :colour="h.spool?.colour || '#D9D9D9'" :size="22"/>
-                    <span><strong>{{ h.spool?.type || P.live.empty }}</strong><small>{{ h.nozzle ? nozzleText(h.nozzle) + ' mm' : T.u1.head(i + 1) }}</small></span>
-                  </span>
-                </dd></div>
-              <div v-if="rowsOf[c.id].storage" :title="rowsOf[c.id].storage.title"><dt>{{ P.live.storage }}</dt>
-                <dd><span class="live-bar"><span :style="{ width: rowsOf[c.id].storage.pct + '%' }"></span></span>{{ rowsOf[c.id].storage.text }}</dd></div>
-              <div v-if="rowsOf[c.id].jobs" :title="rowsOf[c.id].jobs.title"><dt>{{ P.live.jobs }}</dt><dd>{{ rowsOf[c.id].jobs.text }}</dd></div>
-            </dl>
-            <p v-if="hostOf(c)" class="live-links">
-              <a class="link" :href="'http://' + hostOf(c) + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
-              <a class="link" :href="hashOf('status', inst.id)" @click.prevent="openFor(c, 'status')">{{ P.live.status }}</a>
-              <a v-if="isU1(c)" class="link" :href="hashOf('dateien', inst.id)" @click.prevent="openFor(c, 'dateien')">{{ P.live.files }}</a>
-              <a v-if="isU1(c)" class="link" :href="hashOf('kamera', inst.id)" @click.prevent="openFor(c, 'kamera')">{{ P.live.camera }}</a>
-              <a class="link" :href="hashOf('konsole', inst.id)" @click.prevent="openFor(c, 'konsole')">{{ P.live.console }}</a>
-              <a class="link" :href="hashOf('ssh', inst.id)" @click.prevent="openFor(c, 'ssh')">{{ P.live.ssh }}</a>
-            </p>
-            <div class="card-actions">
-              <button v-if="c.printers.length && !(c.isDefault && c.printers.length < 2)" class="btn" type="button"
-                      :disabled="readOnly" @click="openDefault(c)">
-                <ui-icon name="star"/>{{ c.isDefault ? P.otherNozzle : P.asDefault }}
-              </button>
-              <button class="btn btn-danger" type="button" :disabled="readOnly || locked(c) || c.bundle"
-                      :title="c.bundle ? P.bundleLocked : locked(c) ? P.lastOne : null" @click="openRemove(c)">
-                <ui-icon :name="locked(c) || c.bundle ? 'lock' : 'trash'"/>{{ c.system ? P.remove : P.delete }}
-              </button>
-            </div>
-          </article>
-        </div>
-        <p v-if="!cards.length" class="empty">{{ T.filaments.noPrinter }}</p>
+            <template v-if="editing !== o.model">
+              <button class="btn" type="button" @click="edit(o.model)"><ui-icon name="network"/>{{ M.addAddress }}</button>
+              <button v-if="isU1(o.model)" class="btn" type="button" :disabled="searching === o.model" @click="search(o.model)">
+                {{ searching === o.model ? P.address.searching : P.address.search }}</button>
+            </template>
+          </li>
+        </ul>
+      </section>
 
-        <section class="box clean-box" aria-labelledby="clean-h">
-          <div class="box-head">
-            <h2 id="clean-h">{{ P.clean.title }}</h2>
-            <span class="sub">{{ P.clean.remembered(remembered) }}</span>
-          </div>
-          <template v-if="dead.length">
-            <p class="note">{{ P.clean.intro }}</p>
-            <ul class="plain-list">
-              <li v-for="d in dead" :key="d.machine">
-                <span class="ch-off"><ui-icon name="printer"/></span>
-                <span class="grow"><strong>{{ d.machine }}</strong><small>{{ T.deadEntries[d.reason] }}</small></span>
-              </li>
-            </ul>
-            <div class="actions">
-              <span class="safe-note inline"><ui-icon name="backup"/>{{ P.safe }}</span>
-              <button class="btn btn-primary right" type="button" :disabled="readOnly" @click="clean"><ui-icon name="broom"/>{{ P.clean.button }}</button>
-            </div>
-          </template>
-          <p v-else class="all-clean"><ui-icon name="check"/>{{ P.clean.nothing }}</p>
-        </section>
-
-        <p class="credits">{{ P.credits }}</p>
-      </div>
+      <p class="credits">{{ P.credits }}</p>
     </div>
-
-    <aside v-if="panel" class="panel" aria-labelledby="panel-title">
-      <div class="panel-head">
-        <h2 id="panel-title" tabindex="-1">{{ panelTitle }}</h2>
-        <button class="icon-btn" type="button" :aria-label="T.close" @click="closePanel"><ui-icon name="close"/></button>
-      </div>
-      <div class="panel-body">
-        <p v-if="!pcard" class="note">{{ P.gone }}</p>
-        <template v-else>
-          <div class="hero">
-            <img class="hero-img" :src="pcard.cover" alt="" width="96" height="96" :class="{ dim: !pcard.visible }">
-            <div class="hero-text">
-              <p class="hero-name">{{ pcard.label }}</p>
-              <p v-if="pcard.sub" class="hero-sub">{{ pcard.sub }}</p>
-              <p class="tags hero-tags">
-                <span v-if="pcard.isDefault" class="tag tag-default"><ui-icon name="star" :size="14"/>{{ P.tags.default }}</span>
-                <span class="tag"><ui-icon :name="pcard.tagIcon" :size="14"/>{{ pcard.tag }}</span>
-              </p>
-            </div>
-          </div>
-
-          <template v-if="panel.type === 'default'">
-            <template v-if="pcard.printers.length > 1">
-              <h3>{{ P.whichNozzle }}</h3>
-              <div class="nozzle-row">
-                <button v-for="p in pcard.printers" :key="p.name" type="button" class="nozzle-tile"
-                        :aria-pressed="choice === p.name" @click="choice = p.name">
-                  <nozzle-icon :sizes="p.variant.split('+').map(Number)"/>{{ nozzleLabel(p.variant) }} mm
-                </button>
-              </div>
-            </template>
-            <p class="plan-line"><ui-icon name="star" class="star"/><span>{{ P.startsThen(inst.slicer) }} <strong>{{ printerText(inst, choice) }}</strong>.</span></p>
-            <p v-if="choice === state.defaultPrinter" class="note">{{ P.alreadyDefault }}</p>
-            <p class="safe-note"><ui-icon name="backup"/><span>{{ P.safe }}</span></p>
-            <div class="actions">
-              <button class="btn" type="button" @click="closePanel">{{ T.cancel }}</button>
-              <button class="btn btn-primary right" type="button" :disabled="readOnly || choice === state.defaultPrinter" @click="setDefault">{{ P.asDefault }}</button>
-            </div>
-          </template>
-
-          <template v-else>
-            <p v-if="pcard.problem" class="alert">{{ pcard.problem }}</p>
-            <h3>{{ P.plan.title }}</h3>
-            <ul class="plain-list">
-              <li v-for="(it, n) in plan" :key="n">
-                <span :class="it.cls"><ui-icon :name="it.icon"/></span>
-                <span class="grow"><strong>{{ it.name }}</strong> {{ it.verb }}<small>{{ it.sub }}</small></span>
-              </li>
-            </ul>
-
-            <template v-if="pcard.onlyHere.length">
-              <h3>{{ P.along.title }}</h3>
-              <p class="note">{{ P.along.intro }}</p>
-              <ul class="plain-list">
-                <li v-for="x in pcard.onlyHere" :key="x.name">
-                  <label class="along">
-                    <input type="checkbox" :checked="along.has(x.name)" @change="toggleAlong(x.name)">
-                    <ui-icon :name="KIND_ICON[x.kind]"/>
-                    <span class="grow"><strong>{{ x.name }}</strong><small>{{ profileSub(x) }}</small></span>
-                  </label>
-                </li>
-              </ul>
-              <p v-if="pcard.keepsOwn.length" class="note">{{ P.along.notTicked(pcard.keepsOwn) }}</p>
-            </template>
-
-            <p class="safe-note"><ui-icon name="backup"/><span>{{ P.safeRestore.before }}<a :href="hashOf('sicherungen', inst.id)" @click="go($event, hashOf('sicherungen', inst.id))">{{ T.nav.pages.sicherungen }}</a>{{ P.safeRestore.after }}</span></p>
-            <div class="actions">
-              <button class="btn" type="button" @click="closePanel">{{ T.cancel }}</button>
-              <button class="btn btn-danger-solid right" type="button" :disabled="readOnly || locked(pcard)" @click="remove">
-                <ui-icon name="trash"/>{{ pcard.system ? P.remove : P.delete }}
-              </button>
-            </div>
-          </template>
-        </template>
-      </div>
-    </aside>
   `,
 };

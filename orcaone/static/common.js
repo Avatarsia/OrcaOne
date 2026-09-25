@@ -2,7 +2,7 @@
 // The data comes live from GET /api/data (orcaone/overview.py): load() fetches it at the start
 // and again for "Neu einlesen". Pages are plain component objects; app.js picks one by the hash
 // route and mounts it fresh for every route and every load.
-import { T, plainName } from "./texts.js";
+import { T, plainName, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
 
 const { reactive, ref, shallowReactive, computed } = Vue;
@@ -25,17 +25,21 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
+export const PAGE_IDS = ["uebersicht", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "druckerprofile", "drucker", "status", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
 // search in the LAN are for them only (orcaone/camera.py, U1_MODELS).
 export const U1_MODELS = ["Snapmaker U1"];
 
+// The two parts of OrcaOne (the user's wish of 25.09.2026, the mix of both was confusing): "Slicer"
+// with the slicers' profiles and "Drucker" with the printers themselves, each with its own menu, top bar and first page.
+// A start without a page begins in the part used last (SETTINGS.area, app.js keeps it up to date).
+export const AREA_START = { slicer: "uebersicht", printer: "drucker" };
+
 export function parseHash(hash) {
   const [page, instId, idx] = hash.replace(/^#\/?/, "").split("/");
-  // Without a page the app starts on "Übersicht", first in the menu (the user's wish of 24.09.2026).
-  if (!PAGE_IDS.includes(page)) return { page: "uebersicht", instId: null, modelIdx: null };
+  if (!PAGE_IDS.includes(page)) return { page: AREA_START[SETTINGS.area] || AREA_START.slicer, instId: null, modelIdx: null };
   const inst = INSTANCES.find((i) => i.id === instId) || null;
   const ok = PRINTER_PAGES.includes(page) && !!inst && /^\d+$/.test(idx || "") && !!inst.models[+idx];
   return { page, instId: inst ? inst.id : null, modelIdx: ok ? +idx : null };
@@ -79,10 +83,12 @@ export function go(ev, hash) {
 // 24.09.2026): chosen in the top bar or on "Dateien", set by itself when the printer starts a print
 // (app.js). { model, path } of a file on the printer, or { local, size, stamp } of one from this
 // computer, which localPrintFile() holds.
+// addressFor: the printer the page "Drucker" opens the address form for ("Mit dem Drucker
+// verbinden" on "Druckerprofile"); the printer part itself chooses only printers with an address.
 // viewLayer: the layer both stand at, one slider for both (the user: "out of sync" through the menu);
 // null for a new file, then both start at the top, as the slicer's preview does.
 export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, calibrateFor: null,
-                             printFile: null, viewLayer: null });
+                             printFile: null, viewLayer: null, addressFor: null });
 let localFile = null;
 export function setLocalPrintFile(file) {
   localFile = file;
@@ -159,11 +165,48 @@ export function slicerModel(inst) {
   return models.find((m) => m.printers.some((p) => p.name === start)) || models[0] || null;
 }
 export const modelName = (m) => (m ? printerShortName(m.printers[0]?.name || m.model) : "");
+// A printer model of the chosen installation, else of any: the printer part does not depend on
+// one installation, but names and pictures come from there.
+export function anyModel(model) {
+  for (const i of [INSTANCES.find((x) => x.id === ui.instId), ...INSTANCES]) {
+    const m = i?.models.find((x) => x.model === model);
+    if (m) return m;
+  }
+  return null;
+}
+// The installations that have a printer model set up (the user: the printer part must still show
+// which printer is in which slicer), with its nozzles there and whether the slicer starts with it.
+export function slicersOf(model) {
+  return INSTANCES.flatMap((i) => {
+    const m = printerModels(i).find((x) => x.model === model);
+    if (!m) return [];
+    const start = live[i.id]?.defaultPrinter;
+    return [{ id: i.id, slicer: i.slicer, nozzles: m.printers.map((p) => p.variant && nozzleLabel(p.variant)).filter(Boolean).join(" · "),
+              isDefault: m.printers.some((p) => p.name === start) }];
+  });
+}
 // The printer of the top bar by that name, for the pages that talk to it.
 export function activeName() {
-  const m = printerModels(INSTANCES.find((i) => i.id === ui.instId)).find((x) => x.model === ui.printer);
+  const m = anyModel(ui.printer);
   return m ? modelName(m) : ui.printer || "";
 }
+
+// The network address per printer model (camera.printers()): the printers of the printer part are
+// the ones with an address. null until read; the page "Drucker" sets it anew when one changes.
+export const hosts = ref(null);
+export async function loadHosts() {
+  try {
+    hosts.value = (await api.printers()).printers;
+  } catch {
+    if (!hosts.value) hosts.value = {};
+  }
+  return hosts.value;
+}
+// Those printers for the top bar and the page "Drucker": { model, host, name, cover }.
+export const machines = computed(() => Object.entries(hosts.value || {}).map(([model, h]) => {
+  const m = anyModel(model);
+  return { model, host: h.host, name: m ? modelName(m) : model, cover: m?.cover || "assets/printer-placeholder.png" };
+}));
 
 // Heading of a profile in the lists of the pages "Details" and "Übertragen", as in the tree on
 // "Filamente": own ones, bundles, then per maker and, for filaments, brand. key sorts the headings.
@@ -236,14 +279,14 @@ export const liveChanges = computed(() => {
     for (const m of i.printers_page.system) {
       if (!was.models.has(m.model) || now.models.has(m.model)) continue;
       const dropped = was.packages.has(m.origin) && !now.packages.has(m.origin);
-      add("drucker", "remove", printerShortName(m.printers[0]?.name || m.model), dropped ? T.changes.packageGoes(m.origin) : "");
+      add("druckerprofile", "remove", printerShortName(m.printers[0]?.name || m.model), dropped ? T.changes.packageGoes(m.origin) : "");
     }
     for (const n of was.own) {
-      if (!now.own.has(n)) add("drucker", "delete", n, T.kindText[profileInfo(i, n).kind]);
+      if (!now.own.has(n)) add("druckerprofile", "delete", n, T.kindText[profileInfo(i, n).kind]);
     }
-    if (now.defaultPrinter !== was.defaultPrinter) add("drucker", "default", printerText(i, now.defaultPrinter));
+    if (now.defaultPrinter !== was.defaultPrinter) add("druckerprofile", "default", printerText(i, now.defaultPrinter));
     const cleaned = was.dead.filter((d) => !now.dead.includes(d));
-    if (cleaned.length) add("drucker", "clean", plural(cleaned.length, ...T.words.staleEntry), cleaned.join(", "));
+    if (cleaned.length) add("druckerprofile", "clean", plural(cleaned.length, ...T.words.staleEntry), cleaned.join(", "));
     if (now.hideUnused) add("slicer", "hide", plural(unusedListNames(i).length, ...T.words.filament), T.changes.withoutPrinter);
   }
   return out;

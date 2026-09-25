@@ -172,7 +172,10 @@ const T = {
   nav: {
     label: "Main menu",
     toggle: "Show or hide the menu",
-    pages: { uebersicht: "Overview", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Slicer", details: "Details", logs: "Logs", lizenz: "License" },
+    // The two parts of OrcaOne, switched at the top of the menu.
+    areas: { label: "Area", slicer: "Slicer", printer: "Printers",
+      hint: { slicer: "The slicers' profiles: filaments, processes, printers", printer: "The printers themselves: status, files, views, camera, console" } },
+    pages: { uebersicht: "Overview", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", druckerprofile: "Printer profiles", status: "Status", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
     byHint: "Who made OrcaOne, and the license",
     news: "changes since last time",
     pending: "queued changes",
@@ -186,6 +189,7 @@ const T = {
   },
   instMenu: "Installation",
   printerMenu: "Printer in OrcaOne",
+  machineMenu: "Printer on the network",
   status: {
     closed: "Closed",
     running: "Running – view only",
@@ -421,8 +425,8 @@ const T = {
     title: "Overview",
     printer: "Printer in OrcaOne",
     noPrinter: "No printer in the slicer yet.",
-    noHost: "No IP address, so nothing live",
-    addHost: "Enter IP address",
+    nozzle: (d) => `Nozzle ${d} mm`,
+    toMachine: "To the printer",
     visibleAt: (d) => `visible at ${d} mm`,
     atNozzle: (d) => `at ${d} mm`,
     own: (k) => (k === 0 ? "No own filaments yet" : k === 1 ? "1 own filament" : `${n(k)} own filaments`),
@@ -1208,7 +1212,7 @@ const T = {
   transfer: {
     title: "Transfer profiles",
     lead: "One installation on the left, one on the right. Select profiles and push them across with the arrow, several at once too. OrcaOne creates them there as own profiles with all values.",
-    needTwo: "Transferring needs two installations. Another data folder can be added under “Slicer”.",
+    needTwo: "Transferring needs two installations. Another data folder can be added under “Installations”.",
     from: "Left",
     to: "Right",
     swap: "Swap sides",
@@ -1398,9 +1402,24 @@ const T = {
     toFilaments: "Show on the page “Filaments”",
   },
 
-  // ---------------------------------------------------------------- page "Drucker"
+  // ---------------------------------------------------------------- page "Drucker" in the printer part
+  machines: {
+    title: "Printers",
+    lead: "Your printers on the network, live and read only. A click chooses one for the other pages.",
+    none: "No printer with an IP address yet. Enter one below.",
+    others: "Printers without an IP address",
+    othersLead: "From the slicer. With an IP address OrcaOne shows them above, live.",
+    addAddress: "Enter IP address",
+    inSlicer: (slicer, nozzles, start) => `Set up in ${slicer}` + (nozzles ? `, nozzles ${nozzles} mm` : "") + (start ? ". The slicer starts with it." : ""),
+    noSlicer: "In no slicer",
+  },
+
+  // ---------------------------------------------------------------- page "Druckerprofile" (and parts of "Drucker")
   printers: {
     title: "Printers",
+    connect: "Connect to the printer",
+    toMachine: "To the printer",
+    connectWhy: "The IP address and what the printer says live are in the Printers part.",
     atStart: "Chosen at start",
     noDefault: "None set",
     defaultGone: "This printer no longer exists here. The slicer takes another one at start.",
@@ -1574,9 +1593,9 @@ const T = {
     deleted: "Deleted",
   },
 
-  // ---------------------------------------------------------------- page "Slicer"
+  // ---------------------------------------------------------------- page "Installationen" (id "slicer")
   slicer: {
-    title: "Slicer",
+    title: "Installations",
     lead: (time) => `Where your slicers keep their data and what OrcaOne does with it. As of ${time}.`,
     scope: {
       writeTitle: "OrcaOne only changes",
@@ -1706,7 +1725,7 @@ const T = {
   labels: {
     status: { visible: "Visible", hidden: "Hidden", displaced: "Displaced", orphaned: "Orphaned", ignored: "Ignored", unresolved: "Not resolvable" },
     origin_kind: { vendor: "Vendor package", library: "Orca library", user: "Own profile", bundle: "Profile bundle" },
-    // Folder tree on the page "Slicer".
+    // Folder tree on the page "Installationen".
     category: { managed: "Managed by OrcaOne", system: "From the vendor", unmanaged: "Belongs to the slicer", sensitive: "Confidential", temp: "Temporary" },
     kind: { machine: "Printers", process: "Processes", filament: "Filaments" },
   },

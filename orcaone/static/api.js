@@ -65,6 +65,7 @@ export const api = {
   setLanguage: (language) => request("POST", "/api/settings", { language }),
   setMenuCollapsed: (collapsed) => request("POST", "/api/settings", { menu_collapsed: collapsed }),
   setTheme: (theme) => request("POST", "/api/settings", { theme }),
+  setArea: (area) => request("POST", "/api/settings", { area }),
   addManual: (path) => request("POST", "/api/instances/manual", { path }),
   removeManual: (path) => request("DELETE", `/api/instances/manual?path=${encodeURIComponent(path)}`),
   // Writing takes two steps (hard rule 5): the plan shows what would happen, only its id goes to

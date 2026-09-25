@@ -6,7 +6,7 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
-  printerModels, slicerModel, modelName, modelShown, U1_MODELS, fmtSize, whenText, setLocalPrintFile,
+  printerModels, slicerModel, modelName, modelShown, U1_MODELS, fmtSize, whenText, setLocalPrintFile, AREA_START, loadHosts, machines, slicersOf,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
@@ -15,6 +15,7 @@ import PlanView, { DoneView, problemText } from "./plan.js";
 import UebersichtPage from "./pages/uebersicht.js";
 import FilamentePage, { changes as filamentChanges } from "./pages/filamente.js";
 import DruckerPage from "./pages/drucker.js";
+import DruckerprofilePage from "./pages/druckerprofile.js";
 import SicherungenPage from "./pages/sicherungen.js";
 import SlicerPage from "./pages/slicer.js";
 import ProzessePage from "./pages/prozesse.js";
@@ -50,38 +51,42 @@ document.documentElement.lang = LANG;
 // The design chosen in the menu; GET / brings it already (app.py), /index.html does not.
 if (SETTINGS.theme) document.documentElement.dataset.theme = SETTINGS.theme;
 
-// Order = reading order, as the user set it on 24.09.2026: the start page "Übersicht", Drucker,
-// then Prozesse and Filamente, the quick tool "3MF bereinigen", and Slicer.
-// sub: a page about the one above, set in a little under it: status, 3D and 2D view, files, camera, G-code
-// console and SSH of the printer (its address is on the printer's card); Übertragen, Vergleichen, Kalibrieren,
-// Import/Export and Details work on filament profiles; backups, "Änderungen" and logs are the
-// slicer's. u1: in the menu only while a U1 is the printer in the top bar (the user's wish);
-// printer: built anew for another printer there ("Filamente" and "Prozesse" have it in the address).
+// Two parts, each with its own menu (the user's wish of 25.09.2026: slicer and printer in one
+// menu was confusing), "Slicer" and "Drucker". area: the part a page belongs to; the first page of each part is its start.
+// Slicer part in the order the user set on 24.09.2026: "Übersicht", the printer profiles, then
+// Prozesse and Filamente, the quick tool "3MF bereinigen", and "Installationen" (the user named the page so
+// on 25.09.2026, "Slicer" is the part now; its id stays "slicer"). sub: a page about the one
+// above, set in a little under it: Übertragen, Vergleichen, Kalibrieren, Import/Export and Details
+// work on filament profiles; backups, "Änderungen" and logs are the slicer's. Printer part: the
+// printers with their address, then status, files, 3D and 2D view, camera, G-code console and SSH.
+// u1: in the menu only while a U1 is the printer in the top bar (the user's wish); printer: built
+// anew for another printer there ("Filamente" and "Prozesse" have it in the address).
 const PAGES = [
-  { id: "uebersicht", icon: "home", component: UebersichtPage, printer: true },
-  { id: "drucker", icon: "printer", component: DruckerPage },
-  // Need no slicer data: show at once and stay through "Neu einlesen".
-  { id: "status", icon: "pulse", component: StatusPage, standalone: true, sub: true, printer: true },
+  { id: "uebersicht", area: "slicer", icon: "home", component: UebersichtPage, printer: true },
+  { id: "druckerprofile", area: "slicer", icon: "printer", component: DruckerprofilePage },
+  { id: "prozesse", area: "slicer", icon: "layers", component: ProzessePage },
+  { id: "filamente", area: "slicer", icon: "spool", component: FilamentePage },
+  { id: "transfer", area: "slicer", icon: "transfer", component: TransferPage, sub: true },
+  { id: "vergleichen", area: "slicer", icon: "compare", component: VergleichenPage, sub: true },
+  { id: "kalibrieren", area: "slicer", icon: "calibrate", component: KalibrierenPage, sub: true, u1: true, printer: true },
+  { id: "import", area: "slicer", icon: "import", component: ImportPage, sub: true },
+  { id: "details", area: "slicer", icon: "info", component: DetailsPage, sub: true },
+  { id: "bereinigen", area: "slicer", icon: "broom", component: BereinigenPage, standalone: true },
+  { id: "slicer", area: "slicer", icon: "folder", component: SlicerPage },
+  { id: "sicherungen", area: "slicer", icon: "backup", component: SicherungenPage, sub: true },
+  { id: "aenderungen", area: "slicer", icon: "diff", component: AenderungenPage, sub: true },
+  { id: "logs", area: "slicer", icon: "log", component: LogsPage, sub: true },
+  // The printer part needs no slicer data: its pages show at once and stay through "Neu einlesen".
+  { id: "drucker", area: "printer", icon: "printer", component: DruckerPage, standalone: true },
+  { id: "status", area: "printer", icon: "pulse", component: StatusPage, standalone: true, printer: true },
   // "Dateien" before the views: a print file chosen there is the one they show (the user's wish).
-  { id: "dateien", icon: "folderOpen", component: DateienPage, standalone: true, sub: true, u1: true, printer: true },
-  { id: "druck3d", icon: "cube", component: Druck3dPage, standalone: true, sub: true, printer: true },
-  { id: "druck2d", icon: "toolpath", component: Druck2dPage, standalone: true, sub: true, printer: true },
-  { id: "kamera", icon: "camera", component: KameraPage, standalone: true, sub: true, u1: true, printer: true },
-  { id: "konsole", icon: "code", component: KonsolePage, standalone: true, sub: true, printer: true },
-  { id: "ssh", icon: "terminal", component: SshPage, standalone: true, sub: true, printer: true },
-  { id: "prozesse", icon: "layers", component: ProzessePage },
-  { id: "filamente", icon: "spool", component: FilamentePage },
-  { id: "transfer", icon: "transfer", component: TransferPage, sub: true },
-  { id: "vergleichen", icon: "compare", component: VergleichenPage, sub: true },
-  { id: "kalibrieren", icon: "calibrate", component: KalibrierenPage, sub: true, u1: true, printer: true },
-  { id: "import", icon: "import", component: ImportPage, sub: true },
-  { id: "details", icon: "info", component: DetailsPage, sub: true },
-  { id: "bereinigen", icon: "broom", component: BereinigenPage, standalone: true },
-  { id: "slicer", icon: "folder", component: SlicerPage },
-  { id: "sicherungen", icon: "backup", component: SicherungenPage, sub: true },
-  { id: "aenderungen", icon: "diff", component: AenderungenPage, sub: true },
-  { id: "logs", icon: "log", component: LogsPage, sub: true },
-  // Not in the menu: "by Dr. Klipper" at its bottom leads here.
+  { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, u1: true, printer: true },
+  { id: "druck3d", area: "printer", icon: "cube", component: Druck3dPage, standalone: true, printer: true },
+  { id: "druck2d", area: "printer", icon: "toolpath", component: Druck2dPage, standalone: true, printer: true },
+  { id: "kamera", area: "printer", icon: "camera", component: KameraPage, standalone: true, u1: true, printer: true },
+  { id: "konsole", area: "printer", icon: "code", component: KonsolePage, standalone: true, printer: true },
+  { id: "ssh", area: "printer", icon: "terminal", component: SshPage, standalone: true, printer: true },
+  // In neither menu: "by Dr. Klipper" at its bottom leads here; the part stays as it was.
   { id: "lizenz", icon: "info", component: LizenzPage, standalone: true, hidden: true },
 ].map((p) => ({ ...p, label: T.nav.pages[p.id] }));
 
@@ -111,16 +116,44 @@ const app = createApp({
       ? { instId: ui.instId, modelIdx: route.value.modelIdx }
       : { instId: ui.instId });
 
+    // ------------------------------------------------------------ the two parts
+    // The part of the page shown; a page of neither (Lizenz) keeps the one before. The next start
+    // begins in the part used last (data/settings.json, common.js).
+    const area = ref(SETTINGS.area === "printer" ? "printer" : "slicer");
+    const lastPage = { ...AREA_START };  // per part the page shown last, to come back to it
+    watch(route, (r) => {
+      const p = PAGES.find((x) => x.id === r.page);
+      if (!p?.area) return;
+      lastPage[p.area] = r.page;
+      if (p.area === area.value) return;
+      area.value = SETTINGS.area = p.area;
+      api.setArea(p.area).catch(() => {});  // only where the next start begins
+    }, { immediate: true });
+    // The switch shows once a printer has an address: without one the printer part has nothing to show.
+    const showSwitch = computed(() => machines.value.length > 0 || area.value === "printer");
+    loadHosts();
+
     // ------------------------------------------------------------ the printer in the top bar
-    // The one printer OrcaOne works with, for every page (the user's wish of 24.09.2026): at the
-    // start the one the slicer starts with; another installation keeps the model if it has it.
+    // The one printer OrcaOne works with, for every page (the user's wish of 24.09.2026). In the
+    // slicer part a printer of the installation, at the start the one the slicer starts with;
+    // another installation keeps the model if it has it. In the printer part one with an address.
     const printers = computed(() => printerModels(inst.value));
     const activeModel = computed(() => printers.value.find((m) => m.model === ui.printer) || null);
     const activeIdx = computed(() => (activeModel.value ? inst.value.models.indexOf(activeModel.value) : null));
     const isU1 = computed(() => U1_MODELS.includes(ui.printer));
-    watch([inst, printers], () => {
-      if (inst.value && !activeModel.value) ui.printer = slicerModel(inst.value)?.model || null;
+    watch([inst, printers, area, machines], () => {
+      if (area.value === "printer") {
+        if (!machines.value.length || machines.value.some((m) => m.model === ui.printer)) return;
+        const start = inst.value && slicerModel(inst.value)?.model;
+        ui.printer = (machines.value.find((m) => m.model === start) || machines.value[0]).model;
+      } else if (inst.value && !activeModel.value) ui.printer = slicerModel(inst.value)?.model || null;
     }, { immediate: true });
+    // What the choice in the top bar lists: the printers of the installation, or those with an address.
+    const choices = computed(() => (area.value === "printer"
+      ? machines.value.map((m) => ({ model: m.model, name: m.name, cover: m.cover,
+                                     sub: [m.host, slicersOf(m.model).map((s) => s.slicer).join(", ")].filter(Boolean).join(" · ") }))
+      : printers.value.map((m) => ({ model: m.model, name: modelName(m), cover: m.cover, sub: modelName(m) !== m.model ? m.model : "" }))));
+    const chosen = computed(() => choices.value.find((c) => c.model === ui.printer) || null);
     // "Filamente" and "Prozesse" carry the printer in the address (#/filamente/<inst>/<idx>): an
     // address without one gets it, one with another (the back button) chooses that one.
     watch([route, activeIdx], ([r]) => {
@@ -140,8 +173,14 @@ const app = createApp({
       }
     });
     const navHash = (p) => hashOf(p.id, ui.instId, PRINTER_PAGES.includes(p.id) ? activeIdx.value : null);
-    // The pages for a U1 only while a U1 is chosen, without "(U1)" in their name.
-    const menuPages = computed(() => PAGES.filter((p) => !p.hidden && (!p.u1 || isU1.value)));
+    // The pages of the part in use; those for a U1 only while a U1 is chosen, without "(U1)" in their name.
+    const menuPages = computed(() => PAGES.filter((p) => !p.hidden && p.area === area.value && (!p.u1 || isU1.value)));
+    // Over to the other part, where it was left.
+    function toArea(a) {
+      navOpen.value = false;
+      const p = PAGES.find((x) => x.id === lastPage[a]);
+      go(null, p ? navHash(p) : hashOf(AREA_START[a], ui.instId));
+    }
 
     // ------------------------------------------------------------ change list
     // All pages, all installations. Each installation is planned and written on its own, with
@@ -492,7 +531,7 @@ const app = createApp({
     }
     async function lookAtJob() {
       const model = ui.printer;
-      if (document.hidden || !model) return;
+      if (document.hidden || !model || area.value !== "printer") return;
       try {
         if (!fileHost.value) fileHost.value = (await api.printers()).printers[model]?.host || "";
         if (!fileHost.value || model !== ui.printer) return;
@@ -525,6 +564,7 @@ const app = createApp({
       lookAtJob();
     });
     setInterval(lookAtJob, JOB_MS);
+    watch(area, lookAtJob);
     document.addEventListener("visibilitychange", lookAtJob);
     function toggleFile() {
       fileOpen.value = !fileOpen.value;
@@ -650,6 +690,7 @@ const app = createApp({
 
     return {
       INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, navHash, badges, go, hashOf, leave,
+      area, showSwitch, toArea, choices, chosen, AREA_START,
       statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
       printers, activeModel, modelName, printerOpen, printerBtn, printerMenu, togglePrinter, pickPrinter, printerKey, menuPages,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
@@ -664,9 +705,10 @@ const app = createApp({
     <header class="topbar">
       <button ref="navBtn" class="bar-btn nav-toggle" type="button" aria-controls="main-nav" :aria-expanded="navShown ? 'true' : 'false'"
               :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
-      <a class="brand" :href="hashOf('uebersicht', ui.instId)" @click="go($event, hashOf('uebersicht', ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
+      <a class="brand" :href="hashOf(AREA_START[area], ui.instId)" @click="go($event, hashOf(AREA_START[area], ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
       <span class="spacer"></span>
-      <div v-if="INSTANCES.length > 1" class="inst inst-pick" @keydown="instKey">
+      <!-- The installation in the slicer part only; the printer part does not depend on one -->
+      <div v-if="area === 'slicer' && INSTANCES.length > 1" class="inst inst-pick" @keydown="instKey">
         <button ref="instBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="instOpen ? 'true' : 'false'"
                 :title="inst.slicer + ' ' + inst.version + ' · ' + statusText(inst)" @click="toggleInst">
           <!-- On a phone the short name, so the printer next to it keeps its name -->
@@ -687,29 +729,30 @@ const app = createApp({
           </button>
         </div>
       </div>
-      <span v-else-if="inst" class="inst-single">{{ inst.slicer }}</span>
-      <div v-if="printers.length" class="inst printer-pick" @keydown="printerKey">
+      <span v-else-if="area === 'slicer' && inst" class="inst-single">{{ inst.slicer }}</span>
+      <!-- The printer: a profile of the installation, or in the printer part one with an address -->
+      <div v-if="choices.length" class="inst printer-pick" @keydown="printerKey">
         <button ref="printerBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="printerOpen ? 'true' : 'false'"
-                :title="T.printerMenu" @click="togglePrinter">
-          <img v-if="activeModel" class="printer-pick-img" :src="activeModel.cover" alt="" width="24" height="24">
-          <span class="inst-name">{{ activeModel ? modelName(activeModel) : T.printerMenu }}</span>
+                :title="area === 'printer' ? T.machineMenu : T.printerMenu" @click="togglePrinter">
+          <img v-if="chosen" class="printer-pick-img" :src="chosen.cover" alt="" width="24" height="24">
+          <span class="inst-name">{{ chosen ? chosen.name : area === 'printer' ? T.machineMenu : T.printerMenu }}</span>
           <ui-icon name="chevronDown"/>
         </button>
-        <div v-if="printerOpen" ref="printerMenu" class="inst-menu" role="menu" :aria-label="T.printerMenu">
-          <div class="inst-menu-label" aria-hidden="true">{{ T.printerMenu }}</div>
-          <button v-for="m in printers" :key="m.model" class="inst-item" type="button" role="menuitemradio"
+        <div v-if="printerOpen" ref="printerMenu" class="inst-menu" role="menu" :aria-label="area === 'printer' ? T.machineMenu : T.printerMenu">
+          <div class="inst-menu-label" aria-hidden="true">{{ area === 'printer' ? T.machineMenu : T.printerMenu }}</div>
+          <button v-for="m in choices" :key="m.model" class="inst-item" type="button" role="menuitemradio"
                   :aria-checked="m.model === ui.printer ? 'true' : 'false'" @click="pickPrinter(m)">
             <ui-icon name="check" class="check"/>
             <img class="printer-pick-img" :src="m.cover" alt="" width="28" height="28">
             <span class="inst-item-text">
-              <span>{{ modelName(m) }}</span>
-              <span v-if="modelName(m) !== m.model" class="inst-item-path">{{ m.model }}</span>
+              <span>{{ m.name }}</span>
+              <span v-if="m.sub" class="inst-item-path">{{ m.sub }}</span>
             </span>
           </button>
         </div>
       </div>
       <!-- The print file for "2D-Ansicht" and "3D-Ansicht", next to the printer (the user's wish) -->
-      <div v-if="printers.length" class="inst file-pick" @keydown="fileKey">
+      <div v-if="area === 'printer' && chosen" class="inst file-pick" @keydown="fileKey">
         <button ref="fileBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="fileOpen ? 'true' : 'false'"
                 :title="ui.printFile ? T.fileMenu.title(fileName) : T.fileMenu.label" @click="toggleFile">
           <img v-if="fileThumb" class="file-thumb" :src="fileThumb" alt="" width="24" height="24">
@@ -736,7 +779,7 @@ const app = createApp({
         </div>
       </div>
       <!-- Print that file, cancel, emergency stop (the user's wish); the tooltip says why one is off -->
-      <div v-if="printers.length && fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
+      <div v-if="area === 'printer' && chosen && fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
         <button class="bar-btn" type="button" :disabled="!!startBlock" :title="startBlock || T.printBar.start(fileName)"
                 :aria-label="T.printBar.start(fileName)" @click="openPrint"><ui-icon name="play"/></button>
         <div class="inst cancel-pick" @keydown.esc.stop="cancelAsk = false; $refs.cancelBtn.focus()">
@@ -756,7 +799,7 @@ const app = createApp({
           <ui-icon name="estop"/><span v-if="stopArmed">{{ T.printBar.stopArmed }}</span></button>
       </div>
       <!-- The icon alone (the user); what it does and the time of the data in the tooltip -->
-      <button v-if="loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
+      <button v-if="area === 'slicer' && loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
               :title="T.reload + ' · ' + T.dataFrom(generatedText)" @click="leave(reread)">
         <ui-icon name="refresh"/>
       </button>
@@ -764,6 +807,12 @@ const app = createApp({
 
     <div :class="['shell', { 'nav-collapsed': !narrow && navCollapsed, 'nav-open': narrow && navOpen }]">
       <nav id="main-nav" class="nav" :aria-label="T.nav.label">
+        <!-- The two parts (the user's wish of 25.09.2026), once a printer has an address -->
+        <div v-if="showSwitch" class="area-switch" role="group" :aria-label="T.nav.areas.label">
+          <button v-for="a in ['slicer', 'printer']" :key="a" :class="['area-btn', { 'is-on': area === a }]" type="button"
+                  :aria-pressed="area === a ? 'true' : 'false'" :title="T.nav.areas.hint[a]" @click="toArea(a)">
+            <ui-icon :name="a === 'slicer' ? 'layers' : 'printer'"/>{{ T.nav.areas[a] }}</button>
+        </div>
         <a v-for="p in menuPages" :key="p.id" :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)"
            :aria-current="route.page === p.id ? 'page' : null" @click="navOpen = false; go($event, navHash(p))">
           <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>

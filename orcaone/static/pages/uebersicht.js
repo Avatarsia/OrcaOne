@@ -1,27 +1,23 @@
-// Page "Übersicht", the start page (the user's wish of 24.09.2026): what OrcaOne works with at a
-// glance, as pictures rather than lists (the user: "nicht nur eine Auflistung von Werten"). The
-// printer of the top bar on a stage, read live every few seconds while the page is visible if it
-// has an address (camera.status, as on "Kamera"): its heads with spool, filament and temperature,
-// the bed below. Tiles lead on: filaments and processes of the chosen nozzle, backups, what
-// changed since last time; "3MF bereinigen" takes a file right here. Reads only.
+// Page "Übersicht", the first page of the slicer part (the user's wishes of 24.09.2026: what
+// OrcaOne works with at a glance, as pictures rather than lists; of 25.09.2026: the slicers'
+// profiles and the printers themselves apart). The printer of the top bar with its nozzle; with a
+// network address a way to it in the printer part, whose first page "Drucker" shows it live. Tiles
+// lead on: filaments and processes of the chosen nozzle, backups, what changed since last time;
+// "3MF bereinigen" takes a file right here. Reads only.
 import {
-  INSTANCES, BACKUPS, NEWS, U1_MODELS, ui, go, hashOf, printerModels, modelName, nozzleLabel, chosenNozzle, nozzleKey, whenText,
+  INSTANCES, BACKUPS, NEWS, U1_MODELS, ui, go, hashOf, printerModels, modelName, nozzleLabel, chosenNozzle, nozzleKey, whenText, hosts, loadHosts,
 } from "../common.js";
 import { T, plainName } from "../texts.js";
-import { api } from "../api.js";
-import { PrintStatus } from "./kamera.js";
 import { CleanDrop } from "./bereinigen.js";
 
-const { ref, computed, onMounted, onUnmounted } = Vue;
+const { computed, onMounted } = Vue;
 const O = T.home;
-const P = T.printers;
-const STATE_EVERY = 5000;  // ms, as on "Kamera"
 const SPOOLS = 10;         // own filaments shown as spools, the rest as a number
 const NO_COLOUR = "#D9D9D9";  // a spool without a colour
 
 export default {
   name: "UebersichtPage",
-  components: { PrintStatus, CleanDrop },
+  components: { CleanDrop },
   props: { instId: { type: String, required: true } },
 
   setup(props) {
@@ -39,35 +35,9 @@ export default {
     const nozzleText = computed(() => (nozzle.value ? nozzleLabel(nozzle.value.variant) : ""));
     const own = computed(() => inst.value.filaments.filter((f) => f.origin_kind === "user"));
 
-    // ------------------------------------------------------------ the printer itself
-    const host = ref(null);          // null while OrcaOne looks it up, "" without an address
-    const state = ref(null);         // camera.status: job, progress, heads, bed
-    const unreachable = ref(false);
-    let timer = 0;
-    async function readState() {
-      if (document.hidden || !host.value) return;
-      try {
-        state.value = await api.printerState(ui.printer);
-        unreachable.value = false;
-      } catch {
-        unreachable.value = true;
-      }
-    }
-    onMounted(async () => {
-      try {
-        host.value = (await api.printers()).printers[ui.printer]?.host || "";
-      } catch {
-        host.value = "";
-      }
-      readState();
-      timer = setInterval(readState, STATE_EVERY);
-    });
-    // Back in view: at once, not only with the next tick.
-    document.addEventListener("visibilitychange", readState);
-    onUnmounted(() => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", readState);
-    });
+    // Its address, as the printer part keeps it: then the way over there.
+    const host = computed(() => hosts.value?.[ui.printer]?.host || "");
+    onMounted(() => { if (!hosts.value) loadHosts(); });
 
     // ------------------------------------------------------------ the tiles
     const backups = computed(() => BACKUPS[inst.value.id]?.backups || []);
@@ -76,7 +46,7 @@ export default {
 
     const to = (page, idx = null) => hashOf(page, inst.value.id, idx);
     return {
-      T, O, P, INSTANCES, inst, model, modelIdx, isU1, nozzle, nozzleText, own, host, state, unreachable,
+      T, O, INSTANCES, inst, model, modelIdx, isU1, nozzle, nozzleText, own, host,
       backups, newestBackup, news, SPOOLS, NO_COLOUR, to, go, modelName, plainName, whenText,
     };
   },
@@ -91,38 +61,27 @@ export default {
         <run-status :inst="inst"/>
       </div>
 
-      <!-- The printer of the top bar on its stage, live if it has an address -->
+      <!-- The printer of the top bar; live it is in the printer part -->
       <section class="box home-printer" :aria-label="O.printer">
         <template v-if="model">
           <div class="home-printer-main">
             <div class="home-printer-top">
-              <a class="home-printer-img" :href="to('drucker')" :title="T.nav.pages.drucker" @click="go($event, to('drucker'))">
+              <a class="home-printer-img" :href="to('druckerprofile')" :title="T.nav.pages.druckerprofile" @click="go($event, to('druckerprofile'))">
                 <img :src="model.cover" alt="" width="140" height="140"></a>
               <div class="home-printer-body">
                 <h2 class="home-name">{{ modelName(model) }}</h2>
+                <p v-if="nozzle" class="home-nozzle"><nozzle-icon :sizes="nozzle.variant.split('+').map(Number)" :height="22"/>{{ O.nozzle(nozzleText) }}</p>
                 <p v-if="host" class="card-host"><ui-icon name="network" :size="16"/><span class="card-host-value">{{ host }}</span></p>
-                <p v-else-if="host === ''" class="card-host is-missing"><ui-icon name="network" :size="16"/>{{ O.noHost }}</p>
-                <p v-if="unreachable" class="cam-status is-err home-state"><span class="cam-dot"></span>{{ P.live.unreachable }}</p>
-                <print-status v-else-if="state" :p="state"/>
-                <p v-else-if="host" class="cam-status is-wait home-state"><span class="cam-dot"></span>{{ P.live.asking }}</p>
               </div>
             </div>
-            <printer-stage v-if="state && !unreachable && state.heads.length" :p="state" :u1="isU1"/>
           </div>
           <div class="home-actions">
-            <template v-if="host">
-              <a class="btn btn-primary" :href="to('status')" @click="go($event, to('status'))"><ui-icon name="pulse"/>{{ T.nav.pages.status }}</a>
-              <a v-if="isU1" class="btn" :href="to('kamera')" @click="go($event, to('kamera'))"><ui-icon name="camera"/>{{ T.nav.pages.kamera }}</a>
-              <a v-if="isU1" class="btn" :href="to('dateien')" @click="go($event, to('dateien'))"><ui-icon name="folderOpen"/>{{ T.nav.pages.dateien }}</a>
-              <a class="btn" :href="to('konsole')" @click="go($event, to('konsole'))"><ui-icon name="code"/>{{ T.nav.pages.konsole }}</a>
-              <a class="btn" :href="to('ssh')" @click="go($event, to('ssh'))"><ui-icon name="terminal"/>{{ T.nav.pages.ssh }}</a>
-              <a class="btn" :href="'http://' + host + '/'" target="_blank" rel="noopener"><ui-icon name="window"/>{{ P.live.web }}</a>
-            </template>
-            <a v-else-if="host === ''" class="btn btn-primary" :href="to('drucker')" @click="go($event, to('drucker'))"><ui-icon name="network"/>{{ O.addHost }}</a>
+            <a v-if="host" class="btn btn-primary" :href="to('drucker')" @click="go($event, to('drucker'))"><ui-icon name="printer"/>{{ O.toMachine }}</a>
+            <a class="btn" :href="to('druckerprofile')" @click="go($event, to('druckerprofile'))"><ui-icon name="printer"/>{{ T.nav.pages.druckerprofile }}</a>
           </div>
         </template>
         <p v-else class="empty">{{ O.noPrinter }}
-          <a class="link" :href="to('drucker')" @click="go($event, to('drucker'))">{{ T.nav.pages.drucker }}</a></p>
+          <a class="link" :href="to('druckerprofile')" @click="go($event, to('druckerprofile'))">{{ T.nav.pages.druckerprofile }}</a></p>
       </section>
 
       <!-- Tiles: the whole tile leads to its page, the small links below it further on -->

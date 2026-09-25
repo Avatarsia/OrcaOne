@@ -147,14 +147,16 @@ def list_instances():
 
 LANGUAGES = ("de", "en")
 THEMES = ("light", "dark")
+# The two parts of OrcaOne (the user's wish of 25.09.2026): the slicers' profiles and the printers.
+AREAS = ("slicer", "printer")
 
 
 @app.get("/api/settings")
 def get_settings():
     stored = settings.load()
-    language, theme = stored.get("language"), stored.get("theme")
+    language, theme, area = stored.get("language"), stored.get("theme"), stored.get("area")
     return {"language": language if language in LANGUAGES else None, "menu_collapsed": stored.get("menu_collapsed") is True,
-            "theme": theme if theme in THEMES else None}
+            "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None}
 
 
 @app.get("/api/progress")
@@ -165,11 +167,13 @@ def scan_progress():
 
 @app.post("/api/settings")
 def set_settings(payload: dict = Body(...)):
-    """Any of: "language" ("de", "en"), "menu_collapsed" (the menu folded away), "theme" ("light", "dark")."""
-    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme") if key in payload}
+    """Any of: "language" ("de", "en"), "menu_collapsed" (the menu folded away), "theme" ("light", "dark"),
+    "area" ("slicer", "printer": the part of OrcaOne used last, where the next start begins)."""
+    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area") if key in payload}
     if (not changed or ("language" in changed and changed["language"] not in LANGUAGES)
             or not isinstance(changed.get("menu_collapsed", False), bool)
-            or ("theme" in changed and changed["theme"] not in THEMES)):
+            or ("theme" in changed and changed["theme"] not in THEMES)
+            or ("area" in changed and changed["area"] not in AREAS)):
         return _error("setting_invalid")
     try:
         settings.change(lambda data: data.update(changed))
