@@ -1,8 +1,9 @@
 // Page "Konsole": G-code straight to Klipper, through Moonraker, for any printer with Klipper and an
 // address (orcaone/console.py, the user's wish of 24.09.2026); unlike "SSH" it needs no SSH and no
 // Root Access. Moonraker keeps the last commands and answers; the page looks at them every second
-// while it is visible, so own commands come back through them and need no echo. Before every
-// command sent from here the view empties, so only its answer shows (the user's wish).
+// while it is visible, so own commands come back through them and need no echo. Choosing a command
+// from the list empties the view, so only its answer shows; one typed in keeps what came before
+// (the user's wish of 24.09.2026).
 import { go, hashOf, ui, U1_MODELS, LOCALE, activeName } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
@@ -83,7 +84,6 @@ export default {
     async function send(script = line.value) {
       const text = script.trim();
       if (!text) return;
-      clearLines();
       try {
         await api.gcodeSend(model.value, text);
         if (sent[sent.length - 1] !== text) sent.push(text);
@@ -107,6 +107,7 @@ export default {
       ev.target.value = "";
       const entry = gcodes.value[kind]?.[Number(i)];
       if (!entry) return;
+      clearLines();
       if (kind === "look") return send(entry[1]);
       line.value = entry[1];
       nextTick(() => document.getElementById("gcode-line")?.focus());

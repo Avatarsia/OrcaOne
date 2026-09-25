@@ -989,7 +989,7 @@ const T = {
     clear: "Leeren",
     placeholder: "G-Code, etwa STATUS oder M115",
     send: "Senden",
-    clearHint: "Leert den Verlauf in dieser Ansicht. Vor jedem Befehl, den du hier schickst, geschieht das von selbst.",
+    clearHint: "Leert den Verlauf in dieser Ansicht. Wählst du einen Befehl aus der Liste, geschieht das von selbst.",
     empty: "Noch keine Befehle und Antworten.",
     historyHint: "Pfeil hoch und runter holt die hier gesendeten Befehle zurück.",
     commandsHint: "„Abfragen“ schickt den Befehl gleich ab. Befehle aus „Eintragen“ landen in der Eingabezeile, abgeschickt wird mit Enter.",

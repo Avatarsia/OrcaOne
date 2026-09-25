@@ -986,7 +986,7 @@ const T = {
     clear: "Clear",
     placeholder: "G-code, such as STATUS or M115",
     send: "Send",
-    clearHint: "Clears the log in this view. Before every command you send here this happens by itself.",
+    clearHint: "Clears the log in this view. Choosing a command from the list does this by itself.",
     empty: "No commands and answers yet.",
     historyHint: "Arrow up and down bring back the commands sent here.",
     commandsHint: "“Ask” sends the command at once. Commands from “Type in” land in the input line and go out with Enter.",
