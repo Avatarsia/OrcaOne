@@ -82,6 +82,21 @@ def test_list_sort_and_delete(snorca):
         assert err.value.code == "backup_not_found"
 
 
+def test_backups_of_one_second_keep_their_order(snorca, monkeypatch):
+    # A change's backup and a manual one can fall into the same second. How the folder lists them
+    # must not decide the order (NTFS lists alphabetically).
+    class Clock(backup.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 9, 24, 18, 0, 0)
+
+    monkeypatch.setattr(backup, "datetime", Clock)
+    names = [backup.create(snorca, reason)["name"] for reason in ("before_change", "manual", "before_change")]
+    assert names == ["2026-09-24_180000_before_change", "2026-09-24_180000-2_manual",
+                     "2026-09-24_180000-3_before_change"]
+    assert [b["name"] for b in backup.list_backups(snorca.id)] == names[::-1]
+
+
 def test_a_broken_backup_is_listed_as_such(snorca):
     folder = backup.backup_dir(snorca.id)
     folder.mkdir(parents=True)

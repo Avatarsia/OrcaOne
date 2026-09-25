@@ -102,11 +102,11 @@ def walk(data_dir: Path, strict: bool = False):
 
 def _next_name(folder: Path, reason: str) -> str:
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    name, seq = f"{stamp}_{reason}", 1
-    while (folder / f"{name}.zip").exists():
-        seq += 1
-        name = f"{stamp}-{seq}_{reason}"
-    return name
+    # Numbered across all reasons of the same second, such as a change's backup and a manual one,
+    # so the names keep the order; the folder lists them in any order (NTFS: alphabetically).
+    seqs = [int(m["seq"] or 1) for p in folder.glob(f"{stamp}*.zip") if (m := _NAME.fullmatch(p.name[:-4]))]
+    seq = max(seqs, default=0) + 1
+    return f"{stamp}_{reason}" if seq == 1 else f"{stamp}-{seq}_{reason}"
 
 
 def create(instance: Instance, reason: str, params: dict | None = None) -> dict:
