@@ -1,12 +1,12 @@
 # Ideen
 
-Stand 24.09.2026. Ideen des Nutzers; was davon gebaut ist, steht bei der Idee. Was geprüft ist, steht mit Quelle dabei; am U1 nur lesend über Moonraker abgefragt.
+Stand 25.09.2026. Ideen des Nutzers; was davon gebaut ist, steht bei der Idee. Was geprüft ist, steht mit Quelle dabei; am U1 nur lesend über Moonraker abgefragt.
 
 ## 1. Druck in 3D
 
 Wunsch: die Druckdatei in 3D ansehen und den Druck live mitverfolgen. Mainsail kann das auch, aber „hakelig“ und ohne Farben.
 
-**Gebaut am 24.09.2026** als Seite „3D-Ansicht“ unter „Drucker“ (three.js, vom Nutzer freigegeben): Datei vom Drucker oder vom Rechner, Farben nach Filament oder Linienart, Schichtregler, beim laufenden Druck Gedrucktes fest und der Rest als durchsichtige Hülle mit der Düse; „Dateien“ verlinkt jede Druckdatei. Dazu am selben Tag die Seite „2D-Ansicht“: eine Schicht von oben mit Geschwindigkeit, Volumenstrom, Beschleunigung, Lüfter und Temperatur als Farbe, Fahrwegen, Linien einzeln und dem G-Code jeder Linie. Noch offen aus dieser Idee: Kamerabild daneben, die Farben nach Geschwindigkeit usw. auch in 3D, Spulenfarben vom U1 statt aus der Datei, eine WebSocket-Brücke zu Moonraker (`printer.objects.subscribe`) für schnellere Live-Daten.
+**Gebaut am 24.09.2026** als Seite „3D Ansicht“ unter „Drucker“ (three.js, vom Nutzer freigegeben): Datei vom Drucker oder vom Rechner, Farben nach Filament oder Linienart, Schichtregler, beim laufenden Druck Gedrucktes fest und der Rest als durchsichtige Hülle mit der Düse; „Dateien“ verlinkt jede Druckdatei. Dazu am selben Tag die Seite „2D Ansicht“: eine Schicht von oben mit Geschwindigkeit, Volumenstrom, Beschleunigung, Lüfter und Temperatur als Farbe, Fahrwegen, Linien einzeln und dem G-Code jeder Linie. Noch offen aus dieser Idee: Kamerabild daneben, die Farben nach Geschwindigkeit usw. auch in 3D, Spulenfarben vom U1 statt aus der Datei, eine WebSocket-Brücke zu Moonraker (`printer.objects.subscribe`) für schnellere Live-Daten.
 
 **Was da ist (geprüft):**
 - **In der Druckdatei:**
@@ -110,7 +110,7 @@ Frage des Nutzers (24.09.2026): Kann man vom Drucker die ETA auslesen?
 - Klipper meldet keine Restzeit: `display_status` hat nur `progress` und `message`, `print_stats` Druckdauer und Filament. Die Restzeit aus `M73 … R…` im G-Code liest Klipper nicht aus.
 - OrcaOne rechnet heute auf Status, Übersicht und Kamera: Zeit des Slicers aus den Metadaten minus gedruckte Zeit (`camera._left`).
 - Das Display des U1 zeigt eine Restzeit („Estimated time remaining“), die seine Oberfläche (`/usr/bin/gui`) selbst rechnet: `estimated_time` aus Moonrakers Metadaten und der Fortschritt, im `gui.log` als „print progress: …, remain_time: …“. Abrufen lässt sie sich nicht. Die Formel steht nirgends; der einzige Wert im Log (hex-key, 1,97 %: 2903 s übrig bei 2901 s laut Slicer) passt nicht zu „Slicerzeit minus gedruckte Zeit“. Die Snapmaker-App bekommt über `snapmakercloud` ebenfalls nur `estimated_time`.
-- Snapmaker Orca schreibt `M73 P<Prozent> R<Minuten>` etwa jede Minute Druckzeit in die Datei (188-mal im Puzzle-Druck von 1 h 28 min). Die 2D-Ansicht nutzt das schon für die Zeit je Schicht.
+- Snapmaker Orca schreibt `M73 P<Prozent> R<Minuten>` etwa jede Minute Druckzeit in die Datei (188-mal im Puzzle-Druck von 1 h 28 min). Die 2D Ansicht nutzt das schon für die Zeit je Schicht.
 
 **Was ginge:** Die letzte `M73`-Zeile vor `virtual_sdcard.file_position` lesen, per Teilabruf von wenigen KB (Moonraker kann Range). Das ist die Restzeit laut Slicer an genau dieser Stelle; dazu „fertig um 17:40“. Abweichungen im Tempo (Geschwindigkeitsfaktor, Pausen) ließen sich mit dem Verhältnis aus tatsächlicher und geplanter Zeit bis hier ausgleichen.
 
@@ -123,3 +123,25 @@ Frage des Nutzers (24.09.2026): Hat Spoolman eine REST-API?
 - Moonraker bringt eine Anbindung mit (`[spoolman]` in `moonraker.conf`, Endpunkte `/server/spoolman/…`). Auf dem U1 ist sie nicht geladen: Moonraker 1.6.0 ohne Komponente `spoolman`, `/server/spoolman/status` gibt 404.
 
 **Was ginge:** OrcaOne spricht Spoolman direkt an (Adresse in `data/settings.json`): Spulen mit Restgewicht auf Übersicht und Status, ein Spoolman-Filament als Vorlage für ein eigenes Filamentprofil (Material, Farbe, Dichte, Durchmesser, Temperaturen), Abgleich mit den RFID-Spulen des U1. Schreiben in Spoolman nur auf Wunsch.
+
+## 6. Was dem Druckerbereich noch fehlt
+
+Analyse vom 25.09.2026 auf Frage des Nutzers. Beim Zuschauen ist der Druckerbereich stark (Status, 3D/2D, Kamera, Konsole, SSH). Es fehlt beim Eingreifen in den laufenden Druck, bei Druckern, die kein U1 sind, und bei mehreren Druckern desselben Modells. Am U1 lesend geprüft (`/printer/objects/list`): `pause_resume`, `exclude_object`, die Makros `SET_PAUSE_AT_LAYER`, `SET_PAUSE_NEXT_LAYER` und `M600`, Moonraker ohne eingetragene Webcam (`/server/webcams/list` leer), Druckverlauf lesbar (`/server/history/list`).
+
+**Beauftragt am 25.09. und gebaut** (der Nutzer: „1 und 2 machen, 4 auch … und 13“; siehe STAND):
+- **Pause und Fortsetzen** (`/printer/print/pause`, `/resume`), in der Leiste und auf einer eigenen Seite.
+- **Mehrere Drucker desselben Modells:** Adressen gelten je Modell, von zwei gleichen Druckern geht nur einer. Adresse je Gerät.
+- **Seite „Druck steuern“:** alles zum laufenden Druck an einer Stelle (der Nutzer: „alles behandelt ja den aktuellen Druck-Workflow“): Pause und Fortsetzen, Objekte ausschließen (Klipper `exclude_object`, der Prozess im Slicer muss „Objekte ausschließen“ an haben), Pause bei Schicht (`SET_PAUSE_AT_LAYER`). Nicht in der 2D Ansicht, die ist zum Ansehen einer Datei da.
+- **Höhenkarte** der Bettvermessung (`bed_mesh`).
+
+**Weitere Ideen:**
+- **Dateien und Kamera für jeden Klipper-Drucker:** Moonrakers Datei-API ist überall gleich, Kameras stehen bei Druckern mit Mainsail oder Fluidd in `/server/webcams/list`. Der U1 behält seine Extras (Licht, Druckoptionen, Zeitraffer).
+- **Hochladen:** eine Druckdatei vom Rechner auf den Drucker ziehen und gleich drucken (`/server/files/upload`).
+- **Nachjustieren** während des Drucks: Geschwindigkeit, Fluss, Lüfter, Z-Offset, Temperaturen. Passt auf „Druck steuern“.
+- **Makros als Knöpfe**, etwa `M600` (Filamentwechsel) oder Düse reinigen. Der U1 hat über 100 Makros, viele intern; also auswählen.
+- **Diagramme** und **Restzeit** (Ideen 3 und 4).
+- **Druckverlauf** als Liste: Datei, Dauer, Filament, fertig oder abgebrochen, Vorschaubild, „Nochmal drucken“.
+- **Benachrichtigung**, wenn ein Druck fertig ist, pausiert oder abbricht, solange OrcaOne offen ist.
+- **Moonraker mit Anmeldung** (API-Key): heute nicht unterstützt, ein solcher Drucker bleibt stumm.
+- **Suche im LAN** für jeden Klipper-Drucker, heute nur für den U1.
+- **Spoolman** (Idee 5).

@@ -576,9 +576,9 @@ Für die Seiten „Dateien“, „Konsole“ und „SSH“; am U1 nur gelesen, a
 - **Befehle in der Kommandozeile:** coreutils statt BusyBox, dazu `ip` aus iproute2 6.7, `ss`, `iwconfig`, `htop` und `python3`. Klipper und Moonraker zeigt `ps` dort nicht. Bettnetz, Input Shaper und Pressure Advance je Kopf liegen als JSON in `/oem/printer_data/config/snapmaker/` (`bed_mesh_default.json` 11 × 11, `input_shaper.json`, `flow_calibrator.json`).
 - **SSH:** Root Access am Touchscreen startet Dropbear 2022.83, Anmeldung mit Schlüssel oder Passwort. `/etc/init.d/S01aoverlayfs` leert bei jedem Start `/oem/overlay`, das beschreibbare Overlay über `/`, außer es gibt `/oem/.debug` (gibt es nicht). Ein Schlüssel in `/root/.ssh/authorized_keys` ist nach einem Neustart also weg, und der Host-Schlüssel in `/etc/dropbear` entsteht neu.
 
-## Druckdateien für die 3D- und 2D-Ansicht (geprüft 24.09.2026)
+## Druckdateien für die 3D und 2D Ansicht (geprüft 24.09.2026)
 
-Für die Seiten „3D-Ansicht“ und „2D-Ansicht“; die Dateien des U1 über Moonraker nur gelesen (Puzzle: Snapmaker Orca 2.3.6, Dragon: 2.0.32).
+Für die Seiten „3D Ansicht“ und „2D Ansicht“; die Dateien des U1 über Moonraker nur gelesen (Puzzle: Snapmaker Orca 2.3.6, Dragon: 2.0.32).
 
 - **Schichten:** je Schicht `;LAYER_CHANGE` und `;Z:<Höhe>`, dazu `;BEFORE_LAYER_CHANGE` und `;AFTER_LAYER_CHANGE`; im Puzzle-Druck je 19, wie `layer_count` in den Metadaten. Vor dem ersten `;LAYER_CHANGE` liegt die Reinigungslinie des Start-G-Codes, OrcaOne zählt sie zur ersten Schicht.
 - **Linien:** `;TYPE:` mit englischen Namen (`Outer wall`, `Inner wall`, `Sparse infill`, `Internal solid infill`, `Prime tower`, `Gap infill`, `Top surface`, `Bottom surface`, `Internal Bridge`, `Custom`), Breite und Höhe als `;WIDTH:` und `;HEIGHT:`.
@@ -587,7 +587,7 @@ Für die Seiten „3D-Ansicht“ und „2D-Ansicht“; die Dateien des U1 über 
 - **Werte je Linie:** Beschleunigung als `SET_VELOCITY_LIMIT ACCEL=… ACCEL_TO_DECEL=…` je Linienart (5.316-mal im Puzzle), einmal `M204 S10000`. Bauteillüfter `M106 S…`, dazu `M106 P2 S…` und `M107 P2` für einen weiteren Lüfter. Düse `M104`/`M109` mit `T` und `S`, dazu Snapmakers `A0`. Bett `M140`/`M190 S65`.
 - **Restzeit:** `M73 P<Prozent> R<Minuten>` etwa jede Minute Druckzeit (188-mal im Puzzle von 1 h 28 min). Die Kopfzeile nennt für die erste Schicht 19 s (`estimated first layer printing time`), nach `M73` sind es rund 17 min bei 55,8 m Linien.
 - **Einstellungen:** Kopfblock (`; HEADER_BLOCK_START`: Schichtzahl, Dichte, Durchmesser, `max_z_height`), am Ende nach `; CONFIG_BLOCK_START` die Einstellungen als `; schlüssel = wert`, dazu Verbrauch (`filament used [g]`, `total filament change`) und `estimated printing time (normal mode)`. Im Puzzle 668 solche Zeilen mit 568 verschiedenen Schlüsseln (die Linienbreiten stehen je Objekt mehrfach).
-- **Teilabruf:** Moonraker liefert ein Stück einer Datei auf `Range: bytes=…` mit 206 und `Content-Range` (Tornados `StaticFileHandler`); die 2D-Ansicht holt so den G-Code um eine Linie.
+- **Teilabruf:** Moonraker liefert ein Stück einer Datei auf `Range: bytes=…` mit 206 und `Content-Range` (Tornados `StaticFileHandler`); die 2D Ansicht holt so den G-Code um eine Linie.
 - **Größe:** 3 MB sind 82.144 Linien mit Extrusion, die größte Datei (98,8 MB) 2.935.550 Linien in 715 Schichten. Über WireGuard kommen von Moonraker etwa 2 MB/s, die größte Datei braucht so rund 50 s, 12,5 MB etwa 7 s.
 - **Fortschritt:** `virtual_sdcard.file_position` ist die Stelle in der Datei, bis zu der Klipper gelesen hat. Gezeichnet gilt als gedruckt, was davor beginnt.
 - **WebGL auf diesem Rechner:** Das Browserfenster der App bekommt in der VM keinen WebGL-Kontext (VMware SVGA3D). Firefox 156 ohne Fenster (`--headless`, eigenes Profil) kann WebGL 2 mit llvmpipe; damit sind die Bilder der Seite angesehen. Der Firefox als Snap lässt sich von außen nicht per Signal beenden, sondern nur über WebDriver BiDi (`browser.close`) oder `systemctl --user stop` seines Scopes.
