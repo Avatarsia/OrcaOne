@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from conftest import call
-from orcaone import camera
+from orcaone import camera, settings
 
 
 def test_hosts():
@@ -20,17 +20,17 @@ def test_hosts():
 
 
 def test_address_per_printer_model():
-    assert camera.set_host("Snapmaker U1", " http://10.30.40.174/ ") == {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone"}}
+    assert camera.set_host("Snapmaker U1", " http://10.30.40.174/ ") == {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone", "model": "Snapmaker U1"}}
     camera.set_host("Generic Klipper Printer", "klipper.local")
     # Only a U1 has a camera.
     cams = camera.cameras()
-    assert [(c["model"], c["host"]) for c in cams] == [("Snapmaker U1", "10.30.40.174")]
+    assert [(c["printer"], c["model"], c["host"]) for c in cams] == [("Snapmaker U1", "Snapmaker U1", "10.30.40.174")]
     assert camera.find(cams[0]["id"])["host"] == "10.30.40.174"
     assert camera.set_every(cams[0]["id"], 5)["every"] == 5
     # Another address keeps the picture interval, and the camera its id.
     camera.set_host("Snapmaker U1", "10.30.40.175")
-    assert camera.cameras() == [{"id": cams[0]["id"], "model": "Snapmaker U1", "host": "10.30.40.175", "every": 5}]
-    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.175", "from": "orcaone", "every": 5}
+    assert camera.cameras() == [{"id": cams[0]["id"], "printer": "Snapmaker U1", "model": "Snapmaker U1", "host": "10.30.40.175", "every": 5}]
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.175", "from": "orcaone", "model": "Snapmaker U1", "every": 5}
     for model, host, code in (("Snapmaker U1", "10.0.0.1/admin", "camera_host_invalid"), ("Snapmaker U1", "a b", "camera_host_invalid"),
                               ("", "10.0.0.1", "printer_invalid"), (None, "10.0.0.1", "printer_invalid"),
                               ("Snapmaker U1", None, "printer_invalid")):
@@ -41,7 +41,7 @@ def test_address_per_printer_model():
         camera.set_every(cams[0]["id"], 0)
     assert err.value.code == "camera_every_invalid"
     # Saved empty, the address goes, and the camera with it.
-    assert camera.set_host("Snapmaker U1", "  ") == {"Generic Klipper Printer": {"host": "klipper.local", "from": "orcaone"}}
+    assert camera.set_host("Snapmaker U1", "  ") == {"Generic Klipper Printer": {"host": "klipper.local", "from": "orcaone", "model": "Generic Klipper Printer"}}
     assert camera.cameras() == []
     with pytest.raises(camera.CameraError):
         camera.find(cams[0]["id"])
@@ -50,16 +50,52 @@ def test_address_per_printer_model():
 def test_address_from_the_slicer():
     """"Hostname, IP or URL" of the slicer's dialog "Physical Printer" counts until one is typed in
     on the page "Drucker"; saved empty there, the slicer's counts again."""
-    camera.remember_slicer_hosts({"Snapmaker U1": {"host": "http://10.30.40.174:7125/", "slicer": "OrcaSlicer"},
-                                  "Generic Klipper Printer": {"host": "http://x/octoprint", "slicer": "OrcaSlicer"}})
-    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174:7125", "from": "slicer", "slicer": "OrcaSlicer"}}
+    camera.remember_slicer_hosts([{"model": "Snapmaker U1", "host": "http://10.30.40.174:7125/", "slicer": "OrcaSlicer", "name": "Mein U1"},
+                                  {"model": "Generic Klipper Printer", "host": "http://x/octoprint", "slicer": "OrcaSlicer", "name": None}])
+    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174:7125", "from": "slicer", "slicer": "OrcaSlicer", "model": "Snapmaker U1"}}
     cam = camera.cameras()[0]
     assert camera.set_every(cam["id"], 2)["every"] == 2
     assert camera.printers()["Snapmaker U1"]["every"] == 2
     camera.set_host("Snapmaker U1", "10.30.40.9")
-    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.9", "from": "orcaone", "every": 2}
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.9", "from": "orcaone", "model": "Snapmaker U1", "every": 2}
     camera.set_host("Snapmaker U1", "")
-    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.174:7125", "from": "slicer", "slicer": "OrcaSlicer", "every": 2}
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.174:7125", "from": "slicer", "slicer": "OrcaSlicer", "model": "Snapmaker U1", "every": 2}
+
+
+def test_two_printers_of_one_model():
+    """The user's two Voron (25.09.2026): each printer profile with an address of its own is a
+    printer, by the profile's name after the first. The same address, the same profile in another
+    installation or a printer Snapmaker Orca connected to with another address stay one printer."""
+    camera.remember_slicer_hosts([
+        {"model": "Voron 2.4 300", "host": "192.168.30.70", "slicer": "OrcaSlicer", "name": "Voron links"},
+        {"model": "Voron 2.4 300", "host": "10.30.40.71", "slicer": "OrcaSlicer", "name": "Voron rechts"},
+        {"model": "Voron 2.4 300", "host": "192.168.30.70", "slicer": "Snapmaker Orca", "name": "Voron links (Kopie)"},
+        {"model": "Voron 2.4 300", "host": "10.30.40.99", "slicer": "Snapmaker Orca", "name": "Voron rechts"},
+        {"model": "Snapmaker U1", "host": "10.30.40.174", "slicer": "Snapmaker Orca", "name": None},
+        {"model": "Snapmaker U1", "host": "10.30.40.175", "slicer": "Snapmaker Orca", "name": None},
+    ])
+    assert camera.printers() == {
+        "Snapmaker U1": {"host": "10.30.40.174", "from": "slicer", "slicer": "Snapmaker Orca", "model": "Snapmaker U1"},
+        "Voron 2.4 300": {"host": "192.168.30.70", "from": "slicer", "slicer": "OrcaSlicer", "model": "Voron 2.4 300"},
+        "Voron rechts": {"host": "10.30.40.71", "from": "slicer", "slicer": "OrcaSlicer", "model": "Voron 2.4 300"},
+    }
+    assert camera.host_of("Voron rechts") == "10.30.40.71"
+    # A second U1 typed in, under a name of its own; the name must be new.
+    camera.add_printer("Snapmaker U1", " U1 Werkstatt ", "http://10.30.40.176/")
+    assert camera.printers()["U1 Werkstatt"] == {"host": "10.30.40.176", "from": "orcaone", "model": "Snapmaker U1"}
+    assert [(c["printer"], c["model"]) for c in camera.cameras()] == [("Snapmaker U1", "Snapmaker U1"), ("U1 Werkstatt", "Snapmaker U1")]
+    for args, code in ((("Snapmaker U1", "U1 Werkstatt", "10.0.0.2"), "printer_name_taken"),
+                       (("Snapmaker U1", "  ", "10.0.0.2"), "printer_invalid"), ((None, "U2", "10.0.0.2"), "printer_invalid"),
+                       (("Snapmaker U1", "U2", "a b"), "camera_host_invalid")):
+        with pytest.raises(camera.CameraError) as err:
+            camera.add_printer(*args)
+        assert err.value.code == code
+    # The slicer's address of a printer typed in under another name is that printer.
+    camera.add_printer("Voron 2.4 300", "Voron Keller", "10.30.40.71")
+    assert "Voron rechts" not in camera.printers() and camera.printers()["Voron Keller"]["host"] == "10.30.40.71"
+    # Saved empty, a printer added by hand goes entirely.
+    camera.set_host("U1 Werkstatt", "")
+    assert "U1 Werkstatt" not in camera.printers() and "U1 Werkstatt" not in settings.load()["printers"]
 
 
 # Trimmed from the answers of the user's U1 on 24.09.2026. "logs" is missing: that part stays None.
@@ -201,7 +237,7 @@ def test_the_one_command_the_light(server, monkeypatch):
 
 def test_api(server, monkeypatch):
     status, body = call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": "10.30.40.174"})
-    mine = {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone"}}
+    mine = {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone", "model": "Snapmaker U1"}}
     assert status == 200 and json.loads(body) == {"printers": mine}
     assert json.loads(call(f"{server}/api/printers")[1]) == {"printers": mine}
     status, body = call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": "10.0.0.1/x"})
@@ -220,6 +256,12 @@ def test_api(server, monkeypatch):
     assert call(f"{server}/api/cameras/nope/image")[0] == 404
     status, body = call(f"{server}/api/cameras/{cam['id']}", "POST", {"every": 5})
     assert status == 200 and json.loads(body)["camera"]["every"] == 5
+    # A second U1 by a name of its own, then the name is taken.
+    status, body = call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "name": "U1 Werkstatt", "host": "10.30.40.176"})
+    assert status == 200 and json.loads(body)["printers"]["U1 Werkstatt"]["model"] == "Snapmaker U1"
+    status, body = call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "name": "U1 Werkstatt", "host": "10.30.40.177"})
+    assert (status, json.loads(body)) == (400, {"error": "printer_name_taken"})
+    call(f"{server}/api/printers", "POST", {"model": "U1 Werkstatt", "host": ""})
     call(f"{server}/api/printers", "POST", {"model": "Snapmaker U1", "host": ""})
     assert json.loads(call(f"{server}/api/cameras")[1]) == {"cameras": []}
 

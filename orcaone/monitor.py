@@ -8,6 +8,8 @@ of object, the first word of its name.
 
 No charts: Moonraker keeps the temperatures of the last 20 minutes for them
 (/server/temperature_store), a topic of its own (the user).
+
+The page "Höhenkarte" (the user's wish of 25.09.2026) reads the bed mesh Klipper uses (mesh()).
 """
 
 import math
@@ -20,6 +22,10 @@ FANS = ("fan", "fan_generic", "heater_fan", "controller_fan", "temperature_fan")
 FILAMENT_SENSORS = ("filament_switch_sensor", "filament_motion_sensor")
 TEMPERATURES = ("heater_bed", "heater_generic", "temperature_sensor", "temperature_fan")
 EXTRUDER = re.compile(r"extruder\d*")
+# Stepper drivers with a thermometer of their own (the user missed them, 25.09.2026): Klipper lists
+# them under available_monitors and reads them only while the motors are on, else None (the U1's
+# X and Y, checked 25.09.2026).
+MONITORS = ("tmc2240",)
 # Always asked for, the objects of camera.status among them; what a printer lacks is missing in
 # the answer.
 FIXED = ["webhooks", "print_stats", "display_status", "gcode_move", "toolhead", "motion_report", "heaters",
@@ -44,7 +50,8 @@ def read(host: str) -> dict:
     temps = [o for o in listed if _kind(o) in TEMPERATURES]
     fans = [o for o in listed if _kind(o) in FANS]
     sensors = [o for o in listed if _kind(o) in FILAMENT_SENSORS]
-    found = camera.query(host, list(dict.fromkeys(FIXED + extruders + temps + fans + sensors)))
+    monitors = [o for o in listed if _kind(o) in MONITORS]
+    found = camera.query(host, list(dict.fromkeys(FIXED + extruders + temps + fans + sensors + [f"{m}=temperature" for m in monitors])))
 
     def part(name):
         return _part(found, name)
@@ -67,6 +74,9 @@ def read(host: str) -> dict:
                              "target": _number(t.get("target")) if name in heating else None,
                              "power": _number(t.get("power")) if name in heating else None,
                              "min": _number(t.get("measured_min_temp")), "max": _number(t.get("measured_max_temp"))})
+    for name in monitors:
+        temperatures.append({"name": name, "temp": _number(part(name).get("temperature")), "target": None, "power": None,
+                             "min": None, "max": None, "driver": True})
     # The U1: the options of the display for this print (printer_files.OPTIONS), None elsewhere.
     task = part("print_task_config")
     options = {o: task.get(key) is True for o, key in printer_files.OPTIONS.items()} if task else None
@@ -107,3 +117,22 @@ def read(host: str) -> dict:
                    "network": [{"name": name, "bandwidth": _number(i.get("bandwidth"))} for name, i in network.items()
                                if name != "lo" and isinstance(i, dict) and i.get("rx_bytes")]},
     }
+
+
+def mesh(host: str) -> dict:
+    """The bed mesh Klipper uses now, read only: {"profile", "min": [x, y], "max": [x, y], "probed":
+    rows of heights from the front, "smooth": the same interpolated, "profiles": the names it keeps};
+    probed None without [bed_mesh] or before a mesh is loaded. The U1 probes 11 x 11 points from 3 to
+    267 mm when a print starts with "Bett vermessen" and interpolates 31 x 31 (checked 25.09.2026)."""
+    names = set(_get(host, "/printer/objects/list").get("objects") or [])
+    found = {}
+    if "bed_mesh" in names:
+        found = (_get(host, "/printer/objects/query?bed_mesh").get("status") or {}).get("bed_mesh") or {}
+
+    def matrix(rows):
+        rows = [[_number(v) for v in row] for row in rows or [] if isinstance(row, list)]
+        return rows if rows and rows[0] and all(len(r) == len(rows[0]) and None not in r for r in rows) else None
+
+    return {"profile": found.get("profile_name") or None, "min": found.get("mesh_min"), "max": found.get("mesh_max"),
+            "probed": matrix(found.get("probed_matrix")), "smooth": matrix(found.get("mesh_matrix")),
+            "profiles": sorted(found.get("profiles") or {}), "known": "bed_mesh" in names}

@@ -750,15 +750,15 @@ def build_all() -> dict:
             failed.append({"id": i.id, "slicer": SLICERS[i.slicer]["name"], "path": home_path(i.data_dir),
                            "data_dir": str(i.data_dir), "manual": str(i.data_dir) in manual, "code": "scan_failed"})
     _begin(None)
-    # The address the slicers have for a printer model, for the pages "Drucker", "Kamera" and
-    # "Kalibrieren". One typed in on the page "Drucker" goes first (camera.printers), then the one
-    # of the dialog "Physical Printer", then the one of a printer Snapmaker Orca connected to.
-    connected = {d["model"]: {"host": d["host"], "slicer": b["slicer"]}
-                 for b in reversed(built) for d in reversed(b["printers_page"]["devices"])}
-    typed = {p["model"]: {"host": p["print_host"], "slicer": b["slicer"]}
-             for b in reversed(built) for p in reversed(b["printers_page"]["own"])
-             if p.get("model") and p.get("print_host")}
-    camera.remember_slicer_hosts({**connected, **typed})
+    # The addresses the slicers have, for the printer part. One typed in on the page "Drucker" goes
+    # first (camera.printers), then the one of the dialog "Physical Printer", then the one of a
+    # printer Snapmaker Orca connected to; the first installation first. Each address is a printer
+    # of its own, a second of the same model named after its printer profile.
+    typed = [{"model": p["model"], "host": p["print_host"], "slicer": b["slicer"], "name": p["name"]}
+             for b in built for p in b["printers_page"]["own"] if p.get("model") and p.get("print_host")]
+    connected = [{"model": d["model"], "host": d["host"], "slicer": b["slicer"], "name": None}
+                 for b in built for d in b["printers_page"]["devices"]]
+    camera.remember_slicer_hosts(typed + connected)
     return {
         "generated": datetime.now().isoformat(timespec="seconds"),
         "core_values": [{"key": key} for key in CORE_VALUES],

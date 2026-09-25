@@ -55,33 +55,58 @@ class CameraError(Exception):
 U1_MODELS = {"Snapmaker U1"}
 
 
-# The addresses the slicers have, {"<model>": {"host", "slicer"}}: "Hostname, IP or URL" of their
-# dialog "Physical Printer", saved as print_host in an own printer, else the address of a printer
-# Snapmaker Orca connected to (.conf "devices"). Taken from every scan of GET /api/data
+# The addresses the slicers have, {"<name>": {"host", "slicer", "model"}}: "Hostname, IP or URL" of
+# their dialog "Physical Printer", saved as print_host in an own printer, else the address of a
+# printer Snapmaker Orca connected to (.conf "devices"). Taken from every scan of GET /api/data
 # (overview.build_all), so the files stay the only source.
 _slicer_hosts: dict = {}
 
 
-def remember_slicer_hosts(found: dict) -> None:
+def remember_slicer_hosts(found: list) -> None:
+    """found: [{"model", "host", "slicer", "name"}], the one that counts first; name is the printer
+    profile of the address, None for a printer Snapmaker Orca connected to. The first address of a
+    model goes by the model, as addresses always did. Another printer profile of the same model with
+    an address of its own is a second printer of it (the user's two Voron), by the profile's name.
+    Otherwise the first address counts: the same profile in another installation, or a connected
+    printer, may only have an old one."""
     global _slicer_hosts
-    _slicer_hosts = {model: {**p, "host": host} for model, p in found.items() if (host := normalize(p["host"]))}
+    out, hosts, names = {}, set(), set()
+    for f in found:
+        host, name = normalize(f["host"]), f.get("name")
+        if not host or host in hosts:
+            continue
+        if f["model"] not in out:
+            key = f["model"]
+        elif name and name not in names and name not in out:
+            key = name
+        else:
+            continue
+        hosts.add(host)
+        if name:
+            names.add(name)
+        out[key] = {"host": host, "slicer": f["slicer"], "model": f["model"]}
+    _slicer_hosts = out
 
 
 def printers() -> dict:
-    """The address per printer model: {"<model>": {"host": "10.30.40.174", "from": "orcaone" or
-    "slicer", "slicer"?, "every"?}}. One typed in on the page "Drucker" goes before the slicer's;
-    every is the seconds between two camera pictures. By model, so the same U1 has one address in
-    Snapmaker Orca and in OrcaSlicer."""
+    """The printers with an address, by name: {"<name>": {"host": "10.30.40.174", "from": "orcaone"
+    or "slicer", "slicer"?, "model", "every"?}}. The first printer of a model goes by the model, so
+    the same U1 has one address in Snapmaker Orca and in OrcaSlicer; a second one of the same model
+    by a name of its own (add_printer, or its printer profile in the slicer). One typed in on the
+    page "Drucker" goes before the slicer's, and the slicer's address of a printer typed in under
+    another name is that printer. every is the seconds between two camera pictures."""
     found = settings.load().get("printers")
     own = {m: p for m, p in found.items() if isinstance(p, dict)} if isinstance(found, dict) else {}
+    typed = {p["host"] for p in own.values() if isinstance(p.get("host"), str)}
     out = {}
-    for model in sorted(set(own) | set(_slicer_hosts)):
-        mine, theirs = own.get(model, {}), _slicer_hosts.get(model)
+    for key in sorted(set(own) | set(_slicer_hosts)):
+        mine, theirs = own.get(key, {}), _slicer_hosts.get(key)
+        model = mine["model"] if isinstance(mine.get("model"), str) else theirs["model"] if theirs else key
         every = {"every": mine["every"]} if isinstance(mine.get("every"), int) else {}
         if isinstance(mine.get("host"), str):
-            out[model] = {"host": mine["host"], "from": "orcaone", **every}
-        elif theirs:
-            out[model] = {"host": theirs["host"], "from": "slicer", "slicer": theirs["slicer"], **every}
+            out[key] = {"host": mine["host"], "from": "orcaone", "model": model, **every}
+        elif theirs and theirs["host"] not in typed:
+            out[key] = {"host": theirs["host"], "from": "slicer", "slicer": theirs["slicer"], "model": model, **every}
     return out
 
 
@@ -92,7 +117,8 @@ def normalize(raw: str) -> str | None:
 
 
 def set_host(model, raw) -> dict:
-    """Sets the address of a printer model; an empty one takes it away."""
+    """Sets the address of a printer by its name (printers()); an empty one takes it away, and a
+    printer added under a name of its own (add_printer) with it."""
     if not isinstance(model, str) or not model.strip() or len(model) > 200 or not isinstance(raw, str):
         raise CameraError("printer_invalid")
     host = normalize(raw) if raw.strip() else None
@@ -104,6 +130,8 @@ def set_host(model, raw) -> dict:
         entry = found.get(model) if isinstance(found.get(model), dict) else {}
         if host is None:
             entry.pop("host", None)   # then the slicer's address counts again, if it has one
+            if "model" in entry:
+                entry = {}
         else:
             entry["host"] = host
         if entry:
@@ -116,9 +144,29 @@ def set_host(model, raw) -> dict:
     return printers()
 
 
+def add_printer(model, name, raw) -> dict:
+    """Another printer of a model that has one already (the user's wish of 25.09.2026: two printers
+    of one model), under a name of its own; its model gives its picture and what OrcaOne knows of it."""
+    if not all(isinstance(x, str) and x.strip() and len(x) <= 200 for x in (model, name)) or not isinstance(raw, str):
+        raise CameraError("printer_invalid")
+    name, model, host = name.strip(), model.strip(), normalize(raw)
+    if host is None:
+        raise CameraError("camera_host_invalid")
+    if name in printers():
+        raise CameraError("printer_name_taken")
+
+    def edit(data):
+        found = data.get("printers") if isinstance(data.get("printers"), dict) else {}
+        found[name] = {"host": host, "model": model}
+        data["printers"] = found
+
+    settings.change(edit)
+    return printers()
+
+
 def host_of(model) -> str:
-    """The address of a printer model, only one printers() knows: the page "Drucker" names a
-    printer by its model, never by an address."""
+    """The address of a printer by its name, only one printers() knows: the pages name a printer,
+    never an address."""
     found = printers().get(model) if isinstance(model, str) else None
     if not found:
         raise CameraError("printer_not_found")
@@ -130,9 +178,10 @@ def _id(model: str) -> str:
 
 
 def cameras() -> list[dict]:
-    """Every U1 with an address has a camera: [{"id", "model", "host", "every"?}]."""
-    return [{"id": _id(model), "model": model, "host": p["host"], **({"every": p["every"]} if "every" in p else {})}
-            for model, p in printers().items() if model in U1_MODELS]
+    """Every U1 with an address has a camera: [{"id", "printer", "model", "host", "every"?}], printer
+    its name in printers()."""
+    return [{"id": _id(key), "printer": key, "model": p["model"], "host": p["host"], **({"every": p["every"]} if "every" in p else {})}
+            for key, p in printers().items() if p["model"] in U1_MODELS]
 
 
 def find(camera_id: str) -> dict:
@@ -146,12 +195,12 @@ def set_every(camera_id: str, every) -> dict:
     """Seconds between two pictures on the page, kept for the next visit."""
     if not isinstance(every, int) or isinstance(every, bool) or not 1 <= every <= 60:
         raise CameraError("camera_every_invalid")
-    model = find(camera_id)["model"]
+    key = find(camera_id)["printer"]
 
     def edit(data):
         found = data.get("printers") if isinstance(data.get("printers"), dict) else {}
-        entry = found.get(model) if isinstance(found.get(model), dict) else {}
-        found[model] = {**entry, "every": every}   # also for an address from the slicer
+        entry = found.get(key) if isinstance(found.get(key), dict) else {}
+        found[key] = {**entry, "every": every}   # also for an address from the slicer
         data["printers"] = found
 
     settings.change(edit)
@@ -393,7 +442,7 @@ def status_of(host: str, found: dict) -> dict:
             "printed": stats.get("print_duration"), "left": _left(host, stats, progress),
             "bed": {"temp": bed.get("temperature"), "target": bed.get("target")},
             "cavity": _part(found, "temperature_sensor cavity").get("temperature"), "light": _light(_part(found, "led cavity_led")),
-            # Where in the print file Klipper reads, in bytes: "3D-Ansicht" and "2D-Ansicht" follow the print with it.
+            # Where in the print file Klipper reads, in bytes: "3D Ansicht" and "2D Ansicht" follow the print with it.
             "file_position": _part(found, "virtual_sdcard").get("file_position")}
 
 

@@ -3,7 +3,7 @@
 // speaks SSH and passes the bytes on over a WebSocket, only to printers with an address from the
 // page "Drucker". The login tries the keys in ~/.ssh first, else the page asks for the password,
 // which only passes through.
-import { go, hashOf, ui, U1_MODELS, activeName, darkQuery, isDark } from "../common.js";
+import { go, hashOf, ui, isU1Printer, activeName, darkQuery, isDark } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -177,7 +177,7 @@ export default {
     let term = null, fit = null, ws = null, observer = null;
 
     const active = computed(() => ["connecting", "password", "open"].includes(state.value));
-    const isU1 = computed(() => U1_MODELS.includes(model.value));
+    const isU1 = computed(() => isU1Printer(model.value));
     const commands = computed(() => COMMANDS[isU1.value ? "u1" : "klipper"]);
     watch(model, () => { user.value = isU1.value ? "root" : "pi"; });
     function runCommand(ev) {
@@ -287,7 +287,7 @@ export default {
     });
 
     return {
-      T, S, STATUS, GROUPS, U1_MODELS, printers, loadError, model, user, typed, state, isU1, commands, runCommand, opened, error, errorDetail, password, again, box, active, host, activeName,
+      T, S, STATUS, GROUPS, printers, loadError, model, user, typed, state, isU1, commands, runCommand, opened, error, errorDetail, password, again, box, active, host, activeName,
       statusText, connect, login, disconnect, go, hashOf, clearScreen,
     };
   },
@@ -309,7 +309,7 @@ export default {
           </label>
           <label class="ssh-field" :title="S.passwordHint">{{ S.password }}
             <input v-model="typed" class="input ssh-pass" type="password" autocomplete="off" :disabled="active"
-                   :placeholder="U1_MODELS.includes(model) ? 'snapmaker' : S.optional">
+                   :placeholder="isU1 ? 'snapmaker' : S.optional">
           </label>
           <button v-if="!active" class="btn btn-primary" type="submit" :disabled="!model || !user.trim()"><ui-icon name="terminal"/>{{ S.connect }}</button>
           <button v-else class="btn" type="button" @click="disconnect">{{ S.disconnect }}</button>

@@ -5,7 +5,7 @@
 // Three views, as on YouTube: in the page, filling the browser window, and the whole screen
 // (Fullscreen API). In the two big ones the bar hides after a few seconds without a mouse move,
 // so a spare screen shows the picture and how far the print is; Esc goes back.
-import { flash, go, hashOf, loadState, ui, U1_MODELS } from "../common.js";
+import { flash, go, hashOf, loadState, ui, isU1Printer } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -162,7 +162,7 @@ export default {
     async function load() {
       try {
         // Only the printer chosen in the top bar (app.js); every U1 with an address has a camera.
-        list.value = (await api.cameras()).cameras.filter((c) => c.model === ui.printer);
+        list.value = (await api.cameras()).cameras.filter((c) => c.printer === ui.printer);
         for (const c of list.value) if (c.every) stateOf(c.id).every = c.every;
         loadError.value = "";
         start();
@@ -248,7 +248,7 @@ export default {
     });
 
     return {
-      T, K, U1, ui, U1_MODELS, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
+      T, K, U1, ui, isU1Printer, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
       running, percent, jobClass, printFacts, lightBusy, setLight,
     };
   },
@@ -260,19 +260,19 @@ export default {
 
       <p v-if="loadError" class="alert" role="alert">{{ loadError }}</p>
       <p v-else-if="list === null" class="note">{{ T.loading }}</p>
-      <p v-else-if="!U1_MODELS.includes(ui.printer)" class="empty">{{ K.notU1 }}</p>
+      <p v-else-if="!isU1Printer(ui.printer)" class="empty">{{ K.notU1 }}</p>
       <p v-else-if="!list.length" class="empty">{{ K.none }}
         <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ K.toPrinters }}</a></p>
       <div v-else class="cam-grid">
-        <article v-for="c in list" :key="c.id" class="box cam-card" :aria-label="c.model">
+        <article v-for="c in list" :key="c.id" class="box cam-card" :aria-label="c.printer">
           <div class="cam-head">
             <ui-icon name="camera" :size="20"/>
-            <strong>{{ c.model }}</strong>
+            <strong>{{ c.printer }}</strong>
             <span class="cam-host">{{ c.host }}</span>
             <span :class="['cam-status', 'is-' + status(c).cls]"><span class="cam-dot"></span>{{ status(c).text }}</span>
           </div>
           <div class="cam-frame">
-            <img v-if="stateOf(c.id).url" :src="stateOf(c.id).url" :alt="K.alt(c.model)" :title="K.views.window" @click="showBig(c, 'window')">
+            <img v-if="stateOf(c.id).url" :src="stateOf(c.id).url" :alt="K.alt(c.printer)" :title="K.views.window" @click="showBig(c, 'window')">
             <div v-else class="cam-empty"><ui-icon name="camera" :size="40"/><span>{{ K.waking }}</span></div>
             <span v-if="stateOf(c.id).print?.light === false" class="cam-light"><ui-icon name="bulb" :size="16"/>{{ K.lightOff }}
               <button class="cam-light-btn" type="button" :disabled="lightBusy[c.id]" @click.stop="setLight(c, true)">{{ K.light.turnOn }}</button></span>
@@ -297,8 +297,8 @@ export default {
       </div>
 
       <div v-if="view !== 'normal' && big" ref="overlay" :class="['cam-overlay', { 'is-idle': idle }]"
-           role="dialog" :aria-label="K.alt(big.model)" @mousemove="stir" @click="stir">
-        <img v-if="stateOf(big.id).url" :src="stateOf(big.id).url" :alt="K.alt(big.model)">
+           role="dialog" :aria-label="K.alt(big.printer)" @mousemove="stir" @click="stir">
+        <img v-if="stateOf(big.id).url" :src="stateOf(big.id).url" :alt="K.alt(big.printer)">
         <div v-else class="cam-empty"><ui-icon name="camera" :size="56"/><span>{{ K.waking }}</span></div>
         <span v-if="stateOf(big.id).print?.light === false" class="cam-light"><ui-icon name="bulb" :size="16"/>{{ K.lightOff }}
           <button class="cam-light-btn" type="button" :disabled="lightBusy[big.id]" @click.stop="setLight(big, true)">{{ K.light.turnOn }}</button></span>
@@ -308,7 +308,7 @@ export default {
         </div>
         <div v-if="running(stateOf(big.id).print)" class="cam-overlay-progress"><span :style="{ width: percent(stateOf(big.id).print) + '%' }"></span></div>
         <div class="cam-overlay-bar">
-          <strong>{{ big.model }}</strong>
+          <strong>{{ big.printer }}</strong>
           <span :class="['cam-status', 'is-' + status(big).cls]"><span class="cam-dot"></span>{{ status(big).text }}</span>
           <small class="cam-overlay-hint">{{ K.back }}</small>
           <button v-if="view === 'window'" class="cam-overlay-btn" type="button" :title="K.views.screen" :aria-label="K.views.screen"

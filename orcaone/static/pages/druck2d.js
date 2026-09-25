@@ -1,5 +1,5 @@
-// Page "2D-Ansicht" (the user's wish of 24.09.2026: like "3D-Ansicht", "etwas technischer, mit ein
-// paar mehr Infos"): one layer of a print file from above, the same file as on "3D-Ansicht"
+// Page "2D Ansicht" (the user's wish of 24.09.2026: like "3D Ansicht", "etwas technischer, mit ein
+// paar mehr Infos"): one layer of a print file from above, the same file as on "3D Ansicht"
 // (pages/print-view.js reads it). Every line in its real width, coloured by filament, line type,
 // speed, volumetric flow, acceleration, part fan, nozzle temperature or width; travels and
 // retractions on request, the layer below faint. A second slider steps through the lines of the
@@ -511,7 +511,7 @@ export default {
       draw();
     });
     watch(() => job.value?.motion, draw);
-    // To "3D-Ansicht", which shows the same file and layer (ui.viewLayer).
+    // To "3D Ansicht", which shows the same file and layer (ui.viewLayer).
     const to3d = (ev) => go(ev, hashOf("druck3d", props.instId));
     onMounted(() => nextTick(start));
     onUnmounted(() => {

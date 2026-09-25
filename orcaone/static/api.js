@@ -85,15 +85,20 @@ export const api = {
   // Read only, by model: what a printer with an address says of itself and what it is doing.
   printerInfo: (model) => request("GET", `/api/printers/info?model=${encodeURIComponent(model)}`),
   printerState: (model) => request("GET", `/api/printers/status?model=${encodeURIComponent(model)}`),
-  // Page "3D-Ansicht": the print files of a printer and the address of one (read in pages/gcode-worker.js).
+  // Page "3D Ansicht": the print files of a printer and the address of one (read in pages/gcode-worker.js).
   printFiles: (model) => request("GET", `/api/printers/files?model=${encodeURIComponent(model)}`),
   printFileUrl: (model, path) => `/api/printers/file?model=${encodeURIComponent(model)}&path=${encodeURIComponent(path)}`,
   // Page "Status" (orcaone/monitor.py): job, temperatures, motion, fans, sensors and the computer inside.
   printerMonitor: (model) => request("GET", `/api/printers/monitor?model=${encodeURIComponent(model)}`),
+  printerControl: (model) => request("GET", `/api/printers/control?model=${encodeURIComponent(model)}`),
+  printerMesh: (model) => request("GET", `/api/printers/mesh?model=${encodeURIComponent(model)}`),
+  excludeObject: (model, name) => request("POST", "/api/printers/exclude", { model, name }),
+  pauseAt: (model, what) => request("POST", "/api/printers/pause-at", { model, ...what }),
   // The G-code console on the page "Konsole" (orcaone/console.py).
   gcodeHistory: (model, since) => request("GET", `/api/printers/gcode?model=${encodeURIComponent(model)}&since=${since}`),
   gcodeSend: (model, script) => request("POST", "/api/printers/gcode", { model, script }),
   setPrinterHost: (model, host) => request("POST", "/api/printers", { model, host }),
+  addPrinter: (model, name, host) => request("POST", "/api/printers", { model, name, host }),
   // About 6 s: Snapmaker printers that answer in the LAN (mDNS, as Snapmaker Orca looks for them).
   searchPrinters: () => request("POST", "/api/printers/search"),
   cameras: () => request("GET", "/api/cameras"),
@@ -111,6 +116,8 @@ export const api = {
   startPrint: (id, path, options, map) => request("POST", `/api/cameras/${encodeURIComponent(id)}/print`, { path, options, map }),
   // The buttons next to the print file in the top bar, each only on the user's click.
   printPlain: (model, path) => request("POST", "/api/printers/print", { model, path }),
+  pausePrint: (model) => request("POST", "/api/printers/pause", { model }),
+  resumePrint: (model) => request("POST", "/api/printers/resume", { model }),
   printCancel: (model) => request("POST", "/api/printers/cancel", { model }),
   emergencyStop: (model) => request("POST", "/api/printers/emergency-stop", { model }),
   // Page "Kalibrieren": the printer read live (spools, pressure advance), and the ticks.

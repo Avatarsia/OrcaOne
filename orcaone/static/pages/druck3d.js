@@ -1,6 +1,6 @@
-// Page "3D-Ansicht" (the user's wish of 24.09.2026: "die Superlative von Mainsail 3D View"): a print
+// Page "3D Ansicht" (the user's wish of 24.09.2026: "die Superlative von Mainsail 3D View"): a print
 // file in 3D, one of the printer of the top bar (the one it prints, or any other in "gcodes") or one
-// from this computer, the same as on "2D-Ansicht" (pages/print-view.js reads it). three.js
+// from this computer, the same as on "2D Ansicht" (pages/print-view.js reads it). three.js
 // (vendor/three, loaded only on this page) draws every extruding move as a lit strand of its real
 // width and height, coloured by filament or by line type, all in one draw call. While the printer
 // prints the file shown, the page follows it: what is printed stands solid, the rest as a
@@ -447,7 +447,7 @@ export default {
       makeBed();
       render();
     });
-    // To "2D-Ansicht", which shows the same file and layer (ui.viewLayer).
+    // To "2D Ansicht", which shows the same file and layer (ui.viewLayer).
     const to2d = (ev) => go(ev, hashOf("druck2d", props.instId));
     onUnmounted(() => {
       document.removeEventListener("fullscreenchange", onFullscreen);

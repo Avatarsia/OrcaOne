@@ -51,7 +51,10 @@ U1 = {**COMMON,
       "print_task_config": {"filament_exist": [True, False], "filament_type": ["PLA", ""], "filament_sub_type": ["Matte", ""],
                             "filament_vendor": ["Snapmaker", ""], "filament_color_rgba": ["FFFFFFFF", ""],
                             "auto_bed_leveling": True, "flow_calibrate": False, "shaper_calibrate": False, "time_lapse_camera": True},
-      "led cavity_led": {"color_data": [[0.0, 0.0, 0.0, 1.0]]}}
+      "led cavity_led": {"color_data": [[0.0, 0.0, 0.0, 1.0]]},
+      # The drivers of X and Y measure their own temperature, but only while the motors are on.
+      "tmc2240 stepper_x": {"temperature": 41.5, "run_current": 1.2}, "tmc2240 stepper_y": {"temperature": None, "run_current": 1.2},
+      "tmc2209 stepper_z": {"run_current": 0.8}}
 SYSTEM = {"cpu_temp": 40.1, "system_cpu_usage": {"cpu": 3.8}, "system_uptime": 21980.0,
           "system_memory": {"total": 984740, "available": 770828, "used": 213912},
           "network": {"lo": {"rx_bytes": 10, "bandwidth": 1.0}, "wlan0": {"rx_bytes": 964, "bandwidth": 379.4},
@@ -134,7 +137,9 @@ def test_the_u1_shows_more(moonraker):
     assert (second["spool"], second["changes"], second["errors"]) == (None, 12, 1)
     assert got["job"]["options"] == {"bed_level": True, "flow_calibrate": False, "shaper_calibrate": False, "time_lapse_camera": True}
     assert got["job"]["light"] is True
-    assert [t["name"] for t in got["temperatures"]] == ["heater_bed", "temperature_sensor cavity", "extruder", "extruder1"]
+    assert [t["name"] for t in got["temperatures"]] == ["heater_bed", "temperature_sensor cavity", "extruder", "extruder1",
+                                                        "tmc2240 stepper_x", "tmc2240 stepper_y"]
+    assert [(t["temp"], t.get("driver")) for t in got["temperatures"][-2:]] == [(41.5, True), (None, True)]
     assert [f["name"] for f in got["fans"]] == ["fan", "fan_generic e1_fan", "heater_fan e0_nozzle_fan"]
     assert [(f["name"], f["detected"]) for f in got["filament"]] == [
         ("filament_motion_sensor e0_filament", True), ("filament_motion_sensor e1_filament", False)]
@@ -155,3 +160,23 @@ def test_api(server, moonraker):
     status, body = call(f"{server}/api/printers/monitor?model=MyKlipper")
     assert status == 200 and json.loads(body)["job"]["file"] == "Benchy.gcode"
     assert call(f"{server}/api/printers/monitor?model=Unbekannt")[0] == 404
+
+
+def test_the_bed_mesh(server, moonraker):
+    """The page "Höhenkarte": the mesh Klipper uses, as the U1 gave it on 25.09.2026 (trimmed to 3 x 3)."""
+    host, printer, _ = moonraker
+    camera.set_host("MyKlipper", host)
+    printer[0] = {k: v for k, v in PLAIN.items() if k != "bed_mesh"}
+    assert monitor.mesh(host) == {"profile": None, "min": None, "max": None, "probed": None, "smooth": None, "profiles": [], "known": False}
+    printer[0] = {**PLAIN, "bed_mesh": {
+        "profile_name": "default", "mesh_min": [3.0, 3.0], "mesh_max": [267.0, 267.0],
+        "probed_matrix": [[0.002, -0.025, -0.007], [0.01, 0.0, 0.139], [-0.114, 0.02, 0.03]],
+        "mesh_matrix": [[0.002, -0.01], [0.01, 0.02]], "profiles": {"default": {}, "warm": {}}}}
+    status, body = call(f"{server}/api/printers/mesh?model=MyKlipper")
+    got = json.loads(body)
+    assert status == 200 and (got["profile"], got["min"], got["max"], got["profiles"], got["known"]) == (
+        "default", [3.0, 3.0], [267.0, 267.0], ["default", "warm"], True)
+    assert got["probed"][2][0] == -0.114 and len(got["smooth"]) == 2
+    # Klipper without a mesh loaded: nothing to draw, but it knows [bed_mesh].
+    printer[0]["bed_mesh"] = {"profile_name": "", "probed_matrix": [[]], "mesh_matrix": [[]], "profiles": {}}
+    assert (monitor.mesh(host)["probed"], monitor.mesh(host)["known"]) == (None, True)

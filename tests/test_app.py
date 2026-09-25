@@ -117,7 +117,7 @@ def test_serves_every_module_the_ui_imports(server):
             todo.append(posixpath.normpath(posixpath.join(posixpath.dirname(path), rel)))
     assert {"common.js", "api.js", "texts.js", "texts/de.js", "texts/en.js", "texts/names.js", "pages/kalibrieren.js", "pages/filamente.js",
             "pages/filament-editor.js", "pages/filament-picker.js", "pages/vergleichen.js", "pages/aenderungen.js", "pages/import.js", "pages/bereinigen.js", "pages/uebersicht.js", "pages/status.js", "pages/druck3d.js", "pages/druck2d.js", "pages/print-view.js", "pages/dateien.js", "pages/konsole.js", "pages/ssh.js", "pages/drucker.js", "pages/sicherungen.js",
-            "pages/slicer.js", "pages/zusammenhaenge.js"} <= seen
+            "pages/slicer.js", "pages/zusammenhaenge.js", "pages/steuern.js", "pages/hoehenkarte.js"} <= seen
 
 
 def test_language_is_a_setting(server, data_dir):

@@ -36,6 +36,10 @@ const T = {
     busy: "The printer is printing.",
     unknown: "The printer does not answer right now.",
     gone: "The file is no longer on the printer.",
+    pause: "Pause print",
+    resume: "Resume print",
+    pausing: "The print is pausing.",
+    resumed: "The print goes on.",
     cancel: "Cancel print",
     cancelIdle: "Nothing is printing.",
     cancelAsk: "Really cancel the print?",
@@ -175,7 +179,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Area", slicer: "Slicer", printer: "Printers",
       hint: { slicer: "The slicers' profiles: filaments, processes, printers", printer: "The printers themselves: status, files, views, camera, console" } },
-    pages: { uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
+    pages: { uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Print control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
     byHint: "Who made OrcaOne, and the license",
     news: "changes since last time",
     pending: "queued changes",
@@ -881,6 +885,85 @@ const T = {
     },
   },
 
+  // ---------------------------------------------------------------- page "Höhenkarte"
+  mesh: {
+    title: "Bed mesh",
+    lead: "How even the bed is, as Klipper uses it right now: from above, front at the bottom. Blue is lower, red higher than zero.",
+    reload: "Read again",
+    range: "Range",
+    lowest: "Lowest point",
+    highest: "Highest point",
+    points: "Probe points",
+    meanSpread: (mean, spread) => `mean ${mean} · spread ${spread}`,
+    tilt: "Tilt",
+    tiltWhy: "A plane through all probe points as well as it goes: it rises this much across the bed. That is the tilt, e.g. when the bed does not sit straight.",
+    rises: (side) => `rises towards the ${side}`,
+    sides: { front: "front", back: "back", left: "left", right: "right" },
+    wave: "Waviness",
+    waveSub: "without the tilt",
+    waveWhy: "What is left without the tilt: bumps and dips in the bed itself.",
+    pointHint: "The mouse over the map or the 3D view shows the point in both and its height.",
+    profile: (name) => `Profile ${q(name)}`,
+    at: (x, y) => `at X ${x} · Y ${y} mm`,
+    view: "View",
+    views: { probed: "Probed", smooth: "Smoothed" },
+    raised: (k) => `Height raised ${n(k)} times · drag to turn, wheel to zoom`,
+    noWebgl: "3D needs WebGL, which this browser does not offer right now. The probed points still work.",
+    front: "front",
+    back: "back",
+    alt: (range) => `Bed mesh, range ${range} mm`,
+    none: "Klipper has no bed mesh loaded right now. On the U1 it comes with a print start when \"Bed leveling\" is on.",
+    missing: "This printer does not probe its bed: Klipper lacks [bed_mesh].",
+  },
+
+  // ---------------------------------------------------------------- page "Druck steuern"
+  control: {
+    title: "Print control",
+    lead: "Everything about the running print: pause, resume, cancel, pause before a layer, exclude single objects. Only what you click goes to the printer.",
+    noJob: "No print is running.",
+    idle: "Works once a print is running.",
+    pause: "Pause",
+    resume: "Resume",
+    cancel: "Cancel",
+    atLayer: {
+      title: "Pause at layer",
+      lead: "The printer stops before it prints the layer, e.g. to put in magnets or nuts. Then \"Resume\".",
+      none: "No pause planned.",
+      at: (k) => `Stops before layer ${k}.`,
+      next: "Stops after this layer.",
+      now: "Layer now",
+      toStop: "Layers to the pause",
+      thisOne: "this one",
+      total: "Layers in all",
+      nowOf: (k, total) => `Layer ${k} of ${total}`,
+      inLayers: (k) => (k === 1 ? "in 1 layer" : `in ${n(k)} layers`),
+      cleared: "Pause taken back.",
+      layer: "Layer",
+      set: "Set pause",
+      nextBtn: "Stop after this layer",
+      clear: "Take back",
+      missing: "This printer has no pause at a layer: Klipper lacks the macros SET_PAUSE_AT_LAYER and SET_PAUSE_NEXT_LAYER that come with Mainsail.",
+      noLayers: "The print file does not report its layers, so there is no pause at a layer here.",
+    },
+    objects: {
+      title: "Objects",
+      lead: "If one part fails, exclude just that one and the rest prints on. Click the part or its number.",
+      current: "printing now",
+      excluded: "excluded",
+      ask: (k, name) => `Exclude object ${k} "${name}"? It is not printed from now on, the rest is. This cannot be undone.`,
+      yes: "Yes, exclude",
+      no: "No",
+      done: (name) => `${q(name)} is no longer printed.`,
+      none: "The print file does not name its objects. Turn on \"Exclude objects\" in the slicer's process, then it works with the next print.",
+      idle: "Once a print is running, its objects show here on the bed. The print file must name them: \"Exclude objects\" on in the slicer's process.",
+      missing: "This printer cannot exclude objects: Klipper lacks [exclude_object].",
+    },
+    errors: {
+      object_invalid: "The printer no longer names this object.",
+      pause_invalid: "That layer does not work: it must come after the current one and be in the file.",
+    },
+  },
+
   // ---------------------------------------------------------------- page "Status"
   monitor: {
     title: "Status",
@@ -929,15 +1012,16 @@ const T = {
     nets: { wlan: "Wi-Fi", eth: "LAN", en: "LAN", can: "CAN bus" },
     names: {
       bed: "Bed", extruder: (i) => (i ? `Extruder ${i}` : "Extruder"), partFan: "Part cooling fan", hotendFan: "Hotend",
-      cavity: "Chamber", chamber: "Chamber", cavity_fan: "Chamber",
+      cavity: "Chamber", chamber: "Chamber", cavity_fan: "Chamber", driver: (axis) => `Driver ${axis}`,
     },
+    driverIdle: "only while the motors are on",
     errors: {
       camera_unreachable: "Printer not reachable. Is it on and in the same network?",
       printer_not_found: "This printer has no IP address any more. Reload the page.",
     },
   },
 
-  // ---------------------------------------------------------------- page "3D-Ansicht"
+  // ---------------------------------------------------------------- page "3D Ansicht"
   view3d: {
     title: "3D View",
     colourBy: "Colours",
@@ -979,7 +1063,7 @@ const T = {
     },
   },
 
-  // ---------------------------------------------------------------- page "2D-Ansicht"
+  // ---------------------------------------------------------------- page "2D Ansicht"
   view2d: {
     title: "2D View",
     colourBy: "Colours",
@@ -1529,10 +1613,18 @@ const T = {
       save: "Save",
       saved: "IP address saved",
       removed: "IP address removed",
+      // A second printer of a model that has one already (camera.add_printer)
+      another: "Add another printer of the same model",
+      model: "Model",
+      name: "Name",
+      nameHint: "e.g. U1 workshop",
+      addPrinter: "Add",
+      added: "Printer added",
       why: "The address in the network. Without an own one, OrcaOne takes the slicer’s: from the dialog “Physical Printer”, else the one of the printer Snapmaker Orca is connected to. For a U1, “Camera” and “Calibrate” use it to show picture and values live. Saving it empty removes the own one.",
       errors: {
         camera_host_invalid: "This is neither an IP address nor a host name.",
         printer_invalid: "OrcaOne does not know this printer. Rescan.",
+        printer_name_taken: "A printer already has this name.",
         search_failed: "The LAN search could not start.",
       },
     },

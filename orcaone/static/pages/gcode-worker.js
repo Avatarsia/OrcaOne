@@ -1,11 +1,11 @@
-// Reads a print file for the pages "3D-Ansicht" and "2D-Ansicht" (pages/print-view.js) in a worker,
+// Reads a print file for the pages "3D Ansicht" and "2D Ansicht" (pages/print-view.js) in a worker,
 // so the page stays smooth even with 100 MB: a file of the printer through OrcaOne or one from this
 // computer, read byte by byte while it arrives. It hands back every move that extrudes as a
 // segment, in typed arrays the graphics card takes as they are. Per segment: start x, y, z and end
 // x, y in 1/50 mm (Int16, up to ±655 mm), width and height in 1/100 mm (Uint8), the tool (T0 …),
 // the line type (;TYPE:), the byte where its line starts and the line's number; Klipper says how
 // far it read in the file (virtual_sdcard.file_position), so the page knows what is printed. For
-// "2D-Ansicht" also the speed (mm/min), acceleration, part fan and nozzle temperature at that
+// "2D Ansicht" also the speed (mm/min), acceleration, part fan and nozzle temperature at that
 // moment, the travels and retractions in between, and all "; key = value" settings of the file.
 // Arcs (G2/G3) become short straight pieces, as Klipper prints them. Layers come from
 // ;LAYER_CHANGE and ;Z: as OrcaSlicer and Snapmaker Orca write them, else from the height of the

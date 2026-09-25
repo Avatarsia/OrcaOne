@@ -327,7 +327,7 @@ def test_address_from_the_dialog_physical_printer(fake_home, monkeypatch):
     own = {p["name"]: p for p in build(data_dir)["printers_page"]["own"]}
     assert (own["Mein U1"]["model"], own["Mein U1"]["print_host"]) == ("Snapmaker U1", "http://10.30.40.174/")
     overview.build_all()
-    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "slicer", "slicer": "OrcaSlicer"}}
+    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "slicer", "slicer": "OrcaSlicer", "model": "Snapmaker U1"}}
 
 
 def test_the_scan_reports_its_steps(fake_home, monkeypatch):
@@ -364,7 +364,7 @@ def test_address_of_a_printer_snapmaker_orca_connected_to(fake_home, monkeypatch
     assert build(data_dir)["printers_page"]["devices"] == [{"model": "Snapmaker U1", "host": "10.30.40.174"},
                                                            {"model": "Voron 2.4 300", "host": "10.30.40.5"}]
     overview.build_all()
-    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.174", "from": "slicer", "slicer": "Snapmaker Orca"}
+    assert camera.printers()["Snapmaker U1"] == {"host": "10.30.40.174", "from": "slicer", "slicer": "Snapmaker Orca", "model": "Snapmaker U1"}
 
     printer = data_dir / "user" / "default" / "machine" / "Mein U1.json"
     printer.write_text(json.dumps({**json.loads(printer.read_text(encoding="utf-8")), "print_host": "10.30.40.9"}),

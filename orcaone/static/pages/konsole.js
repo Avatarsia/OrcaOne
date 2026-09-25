@@ -4,7 +4,7 @@
 // while it is visible, so own commands come back through them and need no echo. Choosing a command
 // from the list empties the view, so only its answer shows; one typed in keeps what came before
 // (the user's wish of 24.09.2026).
-import { go, hashOf, ui, U1_MODELS, LOCALE, activeName } from "../common.js";
+import { go, hashOf, ui, isU1Printer, LOCALE, activeName } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -39,7 +39,7 @@ export default {
     const failed = ref("");
     const line = ref("");
     const out = ref(null);
-    const isU1 = computed(() => U1_MODELS.includes(model.value));
+    const isU1 = computed(() => isU1Printer(model.value));
     const gcodes = computed(() => ({ look: GCODES.look, act: isU1.value ? [...GCODES.act, ...U1_LIGHT] : GCODES.act }));
     const errorText = (err) => C.errors[err.code] || T.errors[err.code] || T.errors.unknown;
     let since = 0, poller = null;

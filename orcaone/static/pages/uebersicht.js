@@ -105,7 +105,9 @@ export default {
       // 30 printers); by the file, so a card does not jump when another one is queued.
       const first = (c) => (c.entry?.printers.some((x) => x.selected) ? 0 : 1);
       return out.sort((a, b) => first(a) - first(b)).map((c) => {
-        const m = c.entry || null, hostKey = c.model || c.name;
+        // The printer of the printer part: an own printer with an address of its own in the
+        // slicer by its name (camera.remember_slicer_hosts), else the model's.
+        const m = c.entry || null, hostKey = hosts.value?.[c.name] ? c.name : c.model || c.name;
         return {
           ...c, idx: m ? i.models.indexOf(m) : -1, active: !!m && m.model === ui.printer, inSlicer: first(c) === 0,
           now: m ? nowOf(m, s.defaultPrinter) : null,

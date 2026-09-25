@@ -1,4 +1,4 @@
-// The cube at the bottom right of "3D-Ansicht" that shows the view and turns it, after FreeCAD's
+// The cube at the bottom right of "3D Ansicht" that shows the view and turns it, after FreeCAD's
 // NaviCube (the user's wish of 24.09.2026): a click on a face looks straight at it, on an edge
 // (the upright ones too) from halfway between its two faces, on a corner from its three. It has its
 // own small canvas and scene and turns with the camera of the page. The axes as in OrcaSlicer's

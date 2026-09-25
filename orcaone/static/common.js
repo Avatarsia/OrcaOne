@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
+export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -80,7 +80,7 @@ export function go(ev, hash) {
 // (also from "Übersicht"). processFocus: the process the page "Prozesse" opens with (from "Übersicht").
 // calibrateFor: the own filament the page "Kalibrieren" opens with.
 // printer: the model OrcaOne works with, chosen in the top bar for every page (app.js).
-// printFile: the print file "3D-Ansicht" and "2D-Ansicht" show, one for both (the user's wish of
+// printFile: the print file "3D Ansicht" and "2D Ansicht" show, one for both (the user's wish of
 // 24.09.2026): chosen in the top bar or on "Dateien", set by itself when the printer starts a print
 // (app.js). { model, path } of a file on the printer, or { local, size, stamp } of one from this
 // computer, which localPrintFile() holds.
@@ -193,12 +193,15 @@ export function slicersOf(model) {
 }
 // The printer of the top bar by that name, for the pages that talk to it.
 export function activeName() {
+  const machine = machines.value.find((x) => x.key === ui.printer);
+  if (machine) return machine.name;
   const m = anyModel(ui.printer);
   return m ? modelName(m) : ui.printer || "";
 }
 
-// The network address per printer model (camera.printers()): the printers of the printer part are
-// the ones with an address. null until read; the page "Drucker" sets it anew when one changes.
+// The printers with a network address, by name (camera.printers()): the printers of the printer
+// part. The first of a model goes by the model, a second of the same model by a name of its own
+// (the user's wish of 25.09.2026). null until read; the page "Drucker" sets it anew when one changes.
 export const hosts = ref(null);
 export async function loadHosts() {
   try {
@@ -208,10 +211,15 @@ export async function loadHosts() {
   }
   return hosts.value;
 }
-// Those printers for the top bar and the page "Drucker": { model, host, name, cover }.
-export const machines = computed(() => Object.entries(hosts.value || {}).map(([model, h]) => {
-  const m = anyModel(model);
-  return { model, host: h.host, name: m ? modelName(m) : model, cover: m?.cover || "assets/printer-placeholder.png" };
+// The model of a printer of the printer part, for its picture and what OrcaOne knows of it: a U1
+// has a camera, files, its light. In the slicer part ui.printer is a model already.
+export const modelOf = (key) => hosts.value?.[key]?.model || key;
+export const isU1Printer = (key) => U1_MODELS.includes(modelOf(key));
+// Those printers for the top bar and the page "Drucker": { key, model, host, name, cover }; key is
+// the name ui.printer and the API go by.
+export const machines = computed(() => Object.entries(hosts.value || {}).map(([key, h]) => {
+  const model = h.model || key, m = anyModel(model);
+  return { key, model, host: h.host, name: key !== model ? plainName(key) : m ? modelName(m) : model, cover: m?.cover || "assets/printer-placeholder.png" };
 }));
 
 // Heading of a profile in the lists of the pages "Details" and "Übertragen", as in the tree on
@@ -462,6 +470,10 @@ export const ICONS = {
   code: '<path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"/>',
   terminal: '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="m7.5 10 2.5 2-2.5 2M12.5 14.5h4"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  pause: '<rect x="7" y="6" width="3.2" height="12" rx="1"/><rect x="13.8" y="6" width="3.2" height="12" rx="1"/>',
+  mesh: '<path d="M3 8c3-2 6 2 9 0s6-2 9 0M3 13c3-2 6 2 9 0s6-2 9 0M3 18c3-2 6 2 9 0s6-2 9 0"/>',
+  sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  resume: '<path d="M6.5 6v12"/><path d="M10.5 6v12l8.5-6z"/>',
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>',
   estop: '<path d="M8.6 3.5h6.8l5.1 5.1v6.8l-5.1 5.1H8.6l-5.1-5.1V8.6z"/><path d="M12 7.8v5.4M12 16.2v.2"/>',
   download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19.5h14"/>',

@@ -12,7 +12,8 @@ every way but HTTP (Snapmaker/u1-moonraker: TransportType.all() & ~TransportType
 U1 answered 404, 24.09.2026), so both go over the WebSocket.
 
 What it sends a printer, only when the user asks for it: delete a print file, delete a video,
-start a print; from the top bar also on any Klipper printer start, cancel and emergency stop.
+start a print; from the top bar and the page "Druck steuern" also on any Klipper printer start,
+pause, resume, cancel and emergency stop.
 """
 
 import json
@@ -221,6 +222,18 @@ def start_plain(host: str, path) -> dict:
 def cancel(host: str) -> dict:
     _command(host, "/printer/print/cancel")
     return {"cancelled": True}
+
+
+# Pause and resume (the user's wish of 25.09.2026), over HTTP like cancel: the U1 takes these there
+# (docs/FINDINGS.md, "Druckstart"). Klipper runs its PAUSE and RESUME, the U1 its own macros.
+def pause(host: str) -> dict:
+    _command(host, "/printer/print/pause")
+    return {"paused": True}
+
+
+def resume(host: str) -> dict:
+    _command(host, "/printer/print/resume")
+    return {"resumed": True}
 
 
 def emergency_stop(host: str) -> dict:

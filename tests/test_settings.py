@@ -96,7 +96,7 @@ def test_the_camera_list_becomes_the_printer_address(fake_home, monkeypatch):
     # An address typed in on the page "Drucker" wins.
     settings.change(lambda data: data.update(cameras=[{"host": "10.0.0.9"}]))
     settings.migrate()
-    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone", "every": 5}}
+    assert camera.printers() == {"Snapmaker U1": {"host": "10.30.40.174", "from": "orcaone", "model": "Snapmaker U1", "every": 5}}
 
 
 def test_a_file_that_cannot_be_read_is_not_written_over(data_dir, monkeypatch):

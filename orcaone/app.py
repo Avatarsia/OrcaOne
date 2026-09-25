@@ -12,8 +12,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import (__version__, backup, calibration, camera, console, guard, importer, instances, logs, monitor, operations, overview,
-               printer_files, scanner, settings, snapshot, ssh)
+from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, logs, monitor, operations,
+               overview, printer_files, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -97,8 +97,8 @@ async def ssh_terminal(websocket: WebSocket, model: str = ""):
 
 @app.exception_handler(camera.CameraError)
 def _camera_error(request: Request, exc: camera.CameraError):
-    status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "search_failed": 500,
-              "camera_every_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
+    status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "printer_name_taken": 400, "search_failed": 500,
+              "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
               "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
@@ -435,8 +435,11 @@ def search_printers():
 
 @app.post("/api/printers")
 def set_printer(payload: dict = Body(...)):
-    # The address of a printer model, from its card on the page "Drucker"; empty takes it away.
+    # The address of a printer by its name, from its card on the page "Drucker"; empty takes it away.
+    # With "name": another printer of the model "model" (camera.add_printer).
     try:
+        if "name" in payload:
+            return {"printers": camera.add_printer(payload.get("model"), payload.get("name"), payload.get("host"))}
         return {"printers": camera.set_host(payload.get("model"), payload.get("host"))}
     except OSError:
         return _error("save_failed", 500)
@@ -514,7 +517,7 @@ def _passed_on(response, path: str, download: bool = False):
 
 
 # ---------------------------------------------------------------- print files of any Klipper printer
-# By model, for the pages "3D-Ansicht" and "2D-Ansicht": the files in "gcodes" and one of them to
+# By model, for the pages "3D Ansicht" and "2D Ansicht": the files in "gcodes" and one of them to
 # read, whole or a piece of it (Range, for the G-code of one line).
 @app.get("/api/printers/files")
 def printer_print_files(model: str = ""):
@@ -533,6 +536,41 @@ def printer_print(payload: dict = Body(...)):
     # On the user's click in the top bar: a print file of any Klipper printer; the U1 starts through
     # /api/cameras/{id}/print with its display's options.
     return printer_files.start_plain(camera.host_of(str(payload.get("model", ""))), payload.get("path"))
+
+
+@app.get("/api/printers/mesh")
+def printer_mesh(model: str = ""):
+    # The page "Höhenkarte": the bed mesh Klipper uses (orcaone/monitor.py), read only.
+    return monitor.mesh(camera.host_of(model))
+
+
+@app.get("/api/printers/control")
+def printer_control(model: str = ""):
+    # The page "Druck steuern" (orcaone/control.py): the running print, its objects, a pause at a layer.
+    return control.state(camera.host_of(model))
+
+
+@app.post("/api/printers/exclude")
+def printer_exclude(payload: dict = Body(...)):
+    # On the user's click, after asking: one object of the running print left out.
+    return control.exclude(camera.host_of(str(payload.get("model", ""))), payload.get("name"))
+
+
+@app.post("/api/printers/pause-at")
+def printer_pause_at(payload: dict = Body(...)):
+    # On the user's click: a pause at a layer, or after the one printing now ("next").
+    return control.pause_at(camera.host_of(str(payload.get("model", ""))), payload.get("layer"), payload.get("next"))
+
+
+@app.post("/api/printers/pause")
+def printer_pause(payload: dict = Body(...)):
+    # On the user's click (the top bar, the page "Druck steuern").
+    return printer_files.pause(camera.host_of(str(payload.get("model", ""))))
+
+
+@app.post("/api/printers/resume")
+def printer_resume(payload: dict = Body(...)):
+    return printer_files.resume(camera.host_of(str(payload.get("model", ""))))
 
 
 @app.post("/api/printers/cancel")

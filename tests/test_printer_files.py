@@ -233,7 +233,7 @@ def test_api(server, moonraker, service):
 
 
 def test_print_files_for_the_3d_and_2d_view(server, moonraker):
-    # The pages "3D-Ansicht" and "2D-Ansicht" name the printer by its model, like the page
+    # The pages "3D Ansicht" and "2D Ansicht" name the printer by its model, like the page
     # "Drucker", and read the file as text block by block, or a piece of it.
     host, _ = moonraker
     camera.set_host("Snapmaker U1", host)
@@ -259,17 +259,20 @@ def test_print_files_for_the_3d_and_2d_view(server, moonraker):
 
 def test_start_cancel_and_stop_from_the_top_bar(server, moonraker, service):
     """The buttons next to the print file (app.js), each on the user's click: a print on any Klipper
-    printer as OrcaSlicer starts it, cancelling it, the emergency stop over the WebSocket."""
+    printer as OrcaSlicer starts it, pausing, resuming and cancelling it, the emergency stop over the
+    WebSocket."""
     host, seen = moonraker
     camera.set_host("Snapmaker U1", host)
     model = "Snapmaker U1"
     status, body = call(f"{server}/api/printers/print", "POST", {"model": model, "path": "Puzzel_PLA_1h28m.gcode"})
     assert (status, json.loads(body)) == (200, {"started": "Puzzel_PLA_1h28m.gcode"})
-    status, body = call(f"{server}/api/printers/cancel", "POST", {"model": model})
-    assert (status, json.loads(body)) == (200, {"cancelled": True})
+    for what, answer in (("pause", {"paused": True}), ("resume", {"resumed": True}), ("cancel", {"cancelled": True})):
+        status, body = call(f"{server}/api/printers/{what}", "POST", {"model": model})
+        assert (status, json.loads(body)) == (200, answer)
     status, body = call(f"{server}/api/printers/emergency-stop", "POST", {"model": model})
     assert (status, json.loads(body)) == (200, {"stopped": True})
-    assert seen["started"] == [("/printer/print/start", {"filename": "Puzzel_PLA_1h28m.gcode"}), ("/printer/print/cancel", {})]
+    assert seen["started"] == [("/printer/print/start", {"filename": "Puzzel_PLA_1h28m.gcode"}), ("/printer/print/pause", {}),
+                               ("/printer/print/resume", {}), ("/printer/print/cancel", {})]
     assert service == [("printer.emergency_stop", {})]
     # Nothing to cancel, or Klipper gone: the printer says no, OrcaOne passes on why.
     seen["busy"].add("cancel")
@@ -282,4 +285,4 @@ def test_start_cancel_and_stop_from_the_top_bar(server, moonraker, service):
         status, body = call(f"{server}/api/printers/print", "POST", {"model": model, "path": path})
         assert json.loads(body)["error"] == "file_invalid", path
     assert call(f"{server}/api/printers/emergency-stop", "POST", {"model": "Unbekannt"})[0] == 404
-    assert len(seen["started"]) == 3 and len(service) == 2
+    assert len(seen["started"]) == 5 and len(service) == 2

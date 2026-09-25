@@ -5,7 +5,7 @@
 // a map of the bed, fans that turn with their speed, the computer inside as tiles. A U1 shows more:
 // per head nozzle, pressure advance, tool changes and filament sensor, the options of its display
 // for the print, its light. No charts over time yet, a topic of its own (the user).
-import { go, hashOf, ui, U1_MODELS, LOCALE, activeName, fmtSize } from "../common.js";
+import { go, hashOf, ui, isU1Printer, LOCALE, activeName, fmtSize } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 
@@ -17,8 +17,9 @@ const EVERY = 2000;              // ms between two looks at the printer
 const RING = 2 * Math.PI * 52;   // length of the progress ring, radius 52
 const ARC = Math.PI * 50;        // length of the speed gauge, a half circle of radius 50
 const GRID = 50;                 // mm between two lines on the bed
-// Where a temperature bar ends: heads and bed as hot as they get, sensors as warm as a room gets.
-const scaleOf = (name) => (/^extruder\d*$/.test(name) ? 300 : name === "heater_bed" ? 120 : 80);
+// Where a temperature bar ends: heads and bed as hot as they get, drivers up to their limit (about
+// 120 °C), sensors as warm as a room gets.
+const scaleOf = (name) => (/^extruder\d*$/.test(name) ? 300 : name === "heater_bed" || /^tmc/.test(name) ? 120 : 80);
 const JOB_CLASS = { standby: "ok", printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" };
 
 export default {
@@ -29,7 +30,7 @@ export default {
     const host = ref(null);   // null while OrcaOne looks it up, "" without an address
     const data = ref(null);   // monitor.read
     const failed = ref("");
-    const isU1 = U1_MODELS.includes(ui.printer);
+    const isU1 = isU1Printer(ui.printer);
     const errorText = (err) => S.errors[err.code] || T.errors[err.code] || T.errors.unknown;
     let timer = 0, reading = false;
     // One look at a time: over a slow network one takes about half a second (the U1 over VPN).
@@ -45,6 +46,8 @@ export default {
         reading = false;
       }
     }
+    // Gone before the address came (the page built anew): no timer then, it would run on unseen.
+    let gone = false;
     onMounted(async () => {
       try {
         host.value = (await api.printers()).printers[ui.printer]?.host || "";
@@ -53,12 +56,14 @@ export default {
         failed.value = errorText(err);
         return;
       }
+      if (gone) return;
       read();
       timer = setInterval(read, EVERY);
     });
     // Back in view: at once, not only with the next tick.
     document.addEventListener("visibilitychange", read);
     onUnmounted(() => {
+      gone = true;
       clearInterval(timer);
       document.removeEventListener("visibilitychange", read);
     });
@@ -78,6 +83,7 @@ export default {
       const rest = name.includes(" ") ? name.slice(name.indexOf(" ") + 1) : "";
       let m;
       if (name === "heater_bed") return S.names.bed;
+      if ((m = /^tmc\w+ stepper_(\w+)$/.exec(name))) return S.names.driver(m[1].toUpperCase());
       if ((m = /^extruder(\d*)$/.exec(name))) return isU1 ? U1.head(+(m[1] || 0) + 1) : S.names.extruder(m[1]);
       if (name === "fan") return isU1 ? `${U1.head(1)} · ${S.names.partFan}` : S.names.partFan;
       if (isU1 && (m = /^e(\d+)_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.partFan}`;
@@ -148,7 +154,7 @@ export default {
 
       <p v-if="host === ''" class="empty">{{ S.noHost(activeName()) }}
         <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ S.toPrinters }}</a></p>
-      <p v-else-if="!data && !failed" class="note">{{ T.loading }}</p>
+      <p v-else-if="!data && !failed" class="note">{{ T.printers.live.asking }}</p>
       <template v-else>
         <p v-if="failed" class="alert" role="alert">{{ failed }}</p>
         <template v-if="data">
@@ -186,21 +192,7 @@ export default {
           </section>
 
           <div class="mon-grid">
-            <!-- Temperatures as bars: the fill up to now, a mark at the target -->
-            <section class="box" aria-labelledby="mon-temps">
-              <h2 id="mon-temps" class="mon-title"><ui-icon name="temp"/>{{ S.temperatures }}</h2>
-              <div v-for="t in data.temperatures" :key="t.name" :class="['thermo', { 'is-heating': t.target > 0 }]">
-                <span class="thermo-name">{{ label(t.name) }}</span>
-                <span class="thermo-bar"><span class="thermo-fill" :style="{ width: barOf(t) }"></span>
-                  <span v-if="t.target" class="thermo-target" :style="{ left: markOf(t) }"></span></span>
-                <span class="thermo-value">{{ deg(t.temp) }}<small v-if="t.target"> → {{ deg(t.target) }}</small></span>
-                <small v-if="t.power" class="thermo-note">{{ S.heaterPower(pct(t.power)) }}</small>
-                <small v-else-if="t.min != null" class="thermo-note">{{ S.measured(deg(t.min), deg(t.max)) }}</small>
-              </div>
-            </section>
-
-            <!-- The bed from above with the head on it, the height as a ruler, the speed as a gauge -->
-            <section class="box" aria-labelledby="mon-motion">
+            <section class="box mon-motion" aria-labelledby="mon-motion">
               <h2 id="mon-motion" class="mon-title"><ui-icon name="arrowRight"/>{{ S.motion }}</h2>
               <div v-if="map" class="motion-map">
                 <div class="xy-frame">
@@ -237,30 +229,47 @@ export default {
               <p class="mon-quiet mon-limits">{{ S.limits }}: {{ num(data.motion.max_velocity) }} mm/s · {{ num(data.motion.max_accel) }} mm/s²</p>
             </section>
 
-            <!-- Fans turn with their speed -->
-            <section class="box" aria-labelledby="mon-fans">
-              <h2 id="mon-fans" class="mon-title"><ui-icon name="fan"/>{{ S.fans }}</h2>
-              <p v-if="!data.fans.length" class="note">{{ S.none }}</p>
-              <div v-else class="fans">
-                <div v-for="f in data.fans" :key="f.name" :class="['fan', { 'is-on': f.speed > 0 }]" :title="f.name">
-                  <ui-icon name="fan" :size="26" :style="spin(f)"/>
-                  <span class="fan-text"><span>{{ label(f.name) }}</span>
-                    <strong>{{ pct(f.speed) }}<small v-if="f.rpm"> · {{ num(f.rpm) }} {{ S.rpm }}</small></strong></span>
+            <!-- Beside it what gets warm and what turns -->
+            <div class="mon-side">
+              <!-- Temperatures as bars: the fill up to now, a mark at the target -->
+              <section class="box" aria-labelledby="mon-temps">
+                <h2 id="mon-temps" class="mon-title"><ui-icon name="temp"/>{{ S.temperatures }}</h2>
+                <div v-for="t in data.temperatures" :key="t.name" :class="['thermo', { 'is-heating': t.target > 0 }]">
+                  <span class="thermo-name">{{ label(t.name) }}</span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="{ width: barOf(t) }"></span>
+                    <span v-if="t.target" class="thermo-target" :style="{ left: markOf(t) }"></span></span>
+                  <span class="thermo-value">{{ deg(t.temp) }}<small v-if="t.target"> → {{ deg(t.target) }}</small></span>
+                  <small v-if="t.power" class="thermo-note">{{ S.heaterPower(pct(t.power)) }}</small>
+                  <small v-else-if="t.min != null" class="thermo-note">{{ S.measured(deg(t.min), deg(t.max)) }}</small>
+                  <small v-else-if="t.driver && t.temp == null" class="thermo-note">{{ S.driverIdle }}</small>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            <!-- Filament sensors that belong to no head -->
-            <section v-if="otherSensors.length" class="box" aria-labelledby="mon-sensors">
-              <h2 id="mon-sensors" class="mon-title"><ui-icon name="spool"/>{{ S.sensors }}</h2>
-              <dl class="mon-list">
-                <div v-for="f in otherSensors" :key="f.name"><dt :title="f.name">{{ label(f.name) }}</dt>
-                  <dd :class="f.detected ? 'st-on' : 'is-warn'">{{ f.enabled === false ? S.disabled : f.detected ? S.filamentIn : S.filamentOut }}</dd></div>
-              </dl>
-            </section>
+              <!-- The bed from above with the head on it, the height as a ruler, the speed as a gauge -->
+              <!-- Fans turn with their speed -->
+              <section class="box" aria-labelledby="mon-fans">
+                <h2 id="mon-fans" class="mon-title"><ui-icon name="fan"/>{{ S.fans }}</h2>
+                <p v-if="!data.fans.length" class="note">{{ S.none }}</p>
+                <div v-else class="fans">
+                  <div v-for="f in data.fans" :key="f.name" :class="['fan', { 'is-on': f.speed > 0 }]" :title="f.name">
+                    <ui-icon name="fan" :size="26" :style="spin(f)"/>
+                    <span class="fan-text"><span>{{ label(f.name) }}</span>
+                      <strong>{{ pct(f.speed) }}<small v-if="f.rpm"> · {{ num(f.rpm) }} {{ S.rpm }}</small></strong></span>
+                  </div>
+                </div>
+              </section>
+              <!-- Filament sensors that belong to no head -->
+              <section v-if="otherSensors.length" class="box" aria-labelledby="mon-sensors">
+                <h2 id="mon-sensors" class="mon-title"><ui-icon name="spool"/>{{ S.sensors }}</h2>
+                <dl class="mon-list">
+                  <div v-for="f in otherSensors" :key="f.name"><dt :title="f.name">{{ label(f.name) }}</dt>
+                    <dd :class="f.detected ? 'st-on' : 'is-warn'">{{ f.enabled === false ? S.disabled : f.detected ? S.filamentIn : S.filamentOut }}</dd></div>
+                </dl>
+              </section>
+            </div>
 
             <!-- The computer inside, as tiles -->
-            <section class="box" aria-labelledby="mon-system">
+            <section class="box mon-system" aria-labelledby="mon-system">
               <h2 id="mon-system" class="mon-title"><ui-icon name="window"/>{{ S.system }}</h2>
               <div class="sys-tiles">
                 <div class="sys-tile"><small>{{ S.klipper }}</small><strong :class="data.klipper.state === 'ready' ? 'st-on' : 'is-warn'">{{ S.klipperStates[data.klipper.state] || data.klipper.state || '–' }}</strong></div>

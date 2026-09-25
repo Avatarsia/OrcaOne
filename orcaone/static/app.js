@@ -6,7 +6,7 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
-  printerModels, slicerModel, modelName, modelShown, U1_MODELS, fmtSize, whenText, setLocalPrintFile, AREA_START, loadHosts, machines, slicersOf,
+  printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, setLocalPrintFile, AREA_START, loadHosts, machines, slicersOf, isU1Printer,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
@@ -27,6 +27,8 @@ import AenderungenPage from "./pages/aenderungen.js";
 import BereinigenPage from "./pages/bereinigen.js";
 import KameraPage from "./pages/kamera.js";
 import StatusPage from "./pages/status.js";
+import SteuernPage from "./pages/steuern.js";
+import HoehenkartePage from "./pages/hoehenkarte.js";
 import Druck3dPage from "./pages/druck3d.js";
 import Druck2dPage from "./pages/druck2d.js";
 import DateienPage from "./pages/dateien.js";
@@ -81,6 +83,9 @@ const PAGES = [
   // The printer part needs no slicer data: its pages show at once and stay through "Neu einlesen".
   { id: "drucker", area: "printer", icon: "printer", component: DruckerPage, standalone: true },
   { id: "status", area: "printer", icon: "pulse", component: StatusPage, standalone: true, printer: true },
+  // Everything about the running print (the user's wish of 25.09.2026)
+  { id: "steuern", area: "printer", icon: "sliders", component: SteuernPage, standalone: true, printer: true },
+  { id: "hoehenkarte", area: "printer", icon: "mesh", component: HoehenkartePage, standalone: true, printer: true },
   // "Dateien" before the views: a print file chosen there is the one they show (the user's wish).
   { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, u1: true, printer: true },
   { id: "druck3d", area: "printer", icon: "cube", component: Druck3dPage, standalone: true, printer: true },
@@ -142,17 +147,17 @@ const app = createApp({
     const printers = computed(() => printerModels(inst.value));
     const activeModel = computed(() => printers.value.find((m) => m.model === ui.printer) || null);
     const activeIdx = computed(() => (activeModel.value ? inst.value.models.indexOf(activeModel.value) : null));
-    const isU1 = computed(() => U1_MODELS.includes(ui.printer));
+    const isU1 = computed(() => isU1Printer(ui.printer));
     watch([inst, printers, area, machines], () => {
       if (area.value === "printer") {
-        if (!machines.value.length || machines.value.some((m) => m.model === ui.printer)) return;
+        if (!machines.value.length || machines.value.some((m) => m.key === ui.printer)) return;
         const start = inst.value && slicerModel(inst.value)?.model;
-        ui.printer = (machines.value.find((m) => m.model === start) || machines.value[0]).model;
+        ui.printer = (machines.value.find((m) => m.model === start) || machines.value[0]).key;
       } else if (inst.value && !activeModel.value) ui.printer = slicerModel(inst.value)?.model || null;
     }, { immediate: true });
     // What the choice in the top bar lists: the printers of the installation, or those with an address.
     const choices = computed(() => (area.value === "printer"
-      ? machines.value.map((m) => ({ model: m.model, name: m.name, cover: m.cover,
+      ? machines.value.map((m) => ({ model: m.key, name: m.name, cover: m.cover,
                                      sub: [m.host, slicersOf(m.model).map((s) => s.slicer).join(", ")].filter(Boolean).join(" · ") }))
       : printers.value.map((m) => ({ model: m.model, name: modelName(m), cover: m.cover, sub: modelName(m) !== m.model ? m.model : "" }))));
     const chosen = computed(() => choices.value.find((c) => c.model === ui.printer) || null);
@@ -509,7 +514,7 @@ const app = createApp({
     }
 
     // ------------------------------------------------------------ the print file in the top bar
-    // One print file for "2D-Ansicht" and "3D-Ansicht" (the user's wish of 24.09.2026): chosen here or
+    // One print file for "2D Ansicht" and "3D Ansicht" (the user's wish of 24.09.2026): chosen here or
     // on "Dateien"; when the printer starts a print, from the slicer as from its display, its file.
     // At the start the file it prints, else its newest. Looked at every JOB_MS while the page shows,
     // read only (camera.status).
@@ -600,15 +605,17 @@ const app = createApp({
     const fileFacts = (f) => [jobFile.value === pathOf(f) ? T.fileMenu.printing : "", f.size != null ? fmtSize(f.size) : "",
       f.modified ? whenText(new Date(f.modified * 1000)) : ""].filter(Boolean).join(" · ");
 
-    // ------------------------------------------------------------ print, cancel, emergency stop
+    // ------------------------------------------------------------ print, pause, cancel, emergency stop
     // Next to the print file, so the top bar runs almost everything (the user's wish of 24.09.2026).
     // Each only on a click: a print through the panel of "Dateien" (on the U1 with the options of its
-    // display), cancelling after a question, the emergency stop on a second click.
+    // display), pause and resume at once (25.09.2026), cancelling after a question, the emergency
+    // stop on a second click.
     const printPanel = ref(null);   // { camera, file } while the panel shows
     const cancelAsk = ref(false);
     const stopArmed = ref(false);
     let stopTimer = 0;
     const jobBusy = computed(() => ["printing", "paused"].includes(jobState.value));
+    const jobPaused = computed(() => jobState.value === "paused");
     // Why "Drucken" is off; "" when it is on.
     const startBlock = computed(() => {
       if (!ui.printFile) return T.printBar.noFile;
@@ -624,7 +631,7 @@ const app = createApp({
       try {
         // The list anew: the slicer may just have sent the file, with the filaments for the heads.
         const file = (await readFiles()).find((f) => pathOf(f) === path);
-        const camera = file && isU1.value ? (await api.cameras()).cameras.find((c) => c.model === model)?.id || null : null;
+        const camera = file && isU1.value ? (await api.cameras()).cameras.find((c) => c.printer === model)?.id || null : null;
         if (model !== ui.printer) return;
         if (!file) return flash(T.printBar.gone);
         if (changesOpen.value) closeChanges();
@@ -632,6 +639,16 @@ const app = createApp({
       } catch (err) {
         flash(errorText(err));
       }
+    }
+    async function pauseResume() {
+      const paused = jobPaused.value;
+      try {
+        await (paused ? api.resumePrint(ui.printer) : api.pausePrint(ui.printer));
+        flash(paused ? T.printBar.resumed : T.printBar.pausing);
+      } catch (err) {
+        flash(errorText(err));
+      }
+      lookSoon();
     }
     async function cancelPrint() {
       cancelAsk.value = false;
@@ -699,7 +716,7 @@ const app = createApp({
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
-      thumbOf, fileThumb, jobBusy, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, lookSoon, api,
+      thumbOf, fileThumb, jobBusy, jobPaused, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, lookSoon, api,
     };
   },
 
@@ -753,7 +770,7 @@ const app = createApp({
           </button>
         </div>
       </div>
-      <!-- The print file for "2D-Ansicht" and "3D-Ansicht", next to the printer (the user's wish) -->
+      <!-- The print file for "2D Ansicht" and "3D Ansicht", next to the printer (the user's wish) -->
       <div v-if="area === 'printer' && chosen" class="inst file-pick" @keydown="fileKey">
         <button ref="fileBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="fileOpen ? 'true' : 'false'"
                 :title="ui.printFile ? T.fileMenu.title(fileName) : T.fileMenu.label" @click="toggleFile">
@@ -784,6 +801,8 @@ const app = createApp({
       <div v-if="area === 'printer' && chosen && fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
         <button class="bar-btn" type="button" :disabled="!!startBlock" :title="startBlock || T.printBar.start(fileName)"
                 :aria-label="T.printBar.start(fileName)" @click="openPrint"><ui-icon name="play"/></button>
+        <button class="bar-btn" type="button" :disabled="!jobBusy" :title="!jobBusy ? T.printBar.cancelIdle : jobPaused ? T.printBar.resume : T.printBar.pause"
+                :aria-label="jobPaused ? T.printBar.resume : T.printBar.pause" @click="pauseResume"><ui-icon :name="jobPaused ? 'resume' : 'pause'"/></button>
         <div class="inst cancel-pick" @keydown.esc.stop="cancelAsk = false; $refs.cancelBtn.focus()">
           <button ref="cancelBtn" class="bar-btn" type="button" :disabled="!jobBusy" :title="jobBusy ? T.printBar.cancel : T.printBar.cancelIdle"
                   :aria-label="T.printBar.cancel" aria-haspopup="dialog" :aria-expanded="cancelAsk ? 'true' : 'false'"

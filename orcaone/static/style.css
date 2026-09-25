@@ -51,6 +51,10 @@
   --error-bg: light-dark(#FDE8E8, #4D2020);
   --danger: #E14747;
   --warn: light-dark(#FF842D, #FF9F43);
+  /* The bed mesh (pages/hoehenkarte.js): lower blue, higher red, zero plain */
+  --mesh-low: light-dark(#2F80ED, #5A9BF0);
+  --mesh-high: light-dark(#E5484D, #F06A6E);
+  --mesh-zero: light-dark(#F4F5F5, #2A2E30);
   --warn-bg: light-dark(#FFF3EB, #452A1A);
   --heat-text: light-dark(#C2410C, #FFA566);     /* heating, as text: --warn is too faint on white */
   --changed: #F1754E;       /* Orca's "value changed" */
@@ -792,15 +796,18 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .start-box { display: flex; align-items: center; gap: 14px; }
 .start-label { color: var(--muted); font-size: 12px; font-weight: 600; }
 .start-name { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; }
-.pcards { margin-bottom: 24px; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); }
-.pcard-top { display: flex; gap: 14px; min-width: 0; }
+/* One printer per row across the page, as on "Übersicht" (the user's wish of 25.09.2026): the printer
+   on the left, what it says of itself on the right, the ways on below */
+.pcards { margin-bottom: 24px; grid-template-columns: minmax(0, 1fr); }
+.pcard-top { grid-area: top; display: flex; gap: 14px; min-width: 0; }
 .pcard .pcard-top .card-img { flex: none; width: 120px; height: 120px; margin: 0; }
 .pcard .pcard-top .card-img img { width: 104px; height: 104px; }
 .pcard-top .pcard-body { flex: 1; }
 .card-device { margin-top: -4px; color: var(--label); font-size: 13px; }
 .pcard .card-state { margin-left: 0; font-weight: 600; }
 /* What the printer says of itself: four rows, the details in their tooltips. */
-.pcard-live { display: grid; gap: 6px; margin: 4px 0 0; padding-top: 10px; border-top: 1px solid var(--divider); font-size: 13px; }
+.pcard-live { grid-area: live; display: grid; align-content: start; gap: 6px; margin: 0; padding: 2px 0 0 20px; border-left: 1px solid var(--divider);
+              font-size: 13px; }
 .pcard-live > div { display: grid; grid-template-columns: 84px 1fr; gap: 10px; align-items: center; }
 .pcard-live dt { color: var(--label); }
 .pcard-live dd { margin: 0; min-width: 0; }
@@ -809,9 +816,15 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .live-head small { display: block; color: var(--muted); font-size: 11px; }
 .live-bar { display: block; height: 6px; margin-bottom: 3px; overflow: hidden; border-radius: 3px; background: var(--surface-2); }
 .live-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
-.live-links { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
-.pcard { display: flex; flex-direction: column; gap: 6px; padding: 12px 12px 14px; background: var(--surface); border: 1px solid var(--line-box); border-radius: 8px; }
-.pcard.is-active { padding: 11px 11px 13px; border: 2px solid var(--accent-line); }
+.live-links { grid-area: links; display: flex; flex-wrap: wrap; gap: 4px 14px; padding-top: 10px; border-top: 1px solid var(--divider); font-size: 13px; }
+.pcard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "top live" "links links"; gap: 12px 24px;
+         padding: 12px 14px 14px; background: var(--surface); border: 1px solid var(--line-box); border-radius: 8px; }
+.pcard.is-active { padding: 11px 13px 13px; border: 2px solid var(--accent-line); }
+/* Narrow: the printer's values below it again */
+@media (max-width: 900px) {
+  .pcard { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "live" "links"; }
+  .pcard-live { padding: 10px 0 0; border-top: 1px solid var(--divider); border-left: 0; }
+}
 /* A click on the picture or the name makes the card the printer of the top bar (app.js) */
 .pcard .card-img { cursor: pointer; }
 .card-pick { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -828,6 +841,11 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 8px; }
 /* The printer's network address (OrcaOne's own setting) */
 .card-host { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
+/* Another printer of a model that has one (pages/drucker.js) */
+.machine-add { margin: -4px 0 16px; font-size: 13px; }
+.machine-add .link { display: inline-flex; align-items: center; gap: 4px; }
+.machine-add-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 12px; margin: 8px 0; }
+.machine-add-fields label { display: grid; gap: 4px; color: var(--label); font-size: 13px; }
 /* Page "Drucker" in the printer part: printers of the slicer without an address, one row each */
 .machine-others { margin-top: 20px; }
 .machine-other { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -1632,6 +1650,86 @@ span.cal-check { cursor: default; }
   .home-tile-num { font-size: 26px; }
 }
 
+/* Page "Höhenkarte" (pages/hoehenkarte.js): the numbers on top, the bed from above below them with
+   "hinten" over and "vorne" under it, a scale from blue to red */
+.mesh-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.mesh-facts { margin-bottom: 14px; }
+.mesh-facts .sys-tile small + strong { margin-top: 2px; }
+.mesh-low { color: var(--mesh-low); }
+.mesh-high { color: var(--mesh-high); }
+/* 3D and the fields side by side (the user), one under the other when narrow */
+.mesh-both { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 20px; }
+.mesh-both.no-3d { grid-template-columns: minmax(0, 1fr); }
+.mesh-3d { display: grid; justify-items: center; gap: 6px; margin: 0; }
+.mesh-3d-box { width: 100%; height: 500px; overflow: hidden; border-radius: 6px; background: var(--surface-2); cursor: grab; touch-action: none; }
+.mesh-views { display: flex; gap: 6px; margin-bottom: 12px; }
+.mesh-3d-box:active { cursor: grabbing; }
+.mesh-map { display: grid; justify-items: center; gap: 4px; max-width: 560px; margin: 0 auto; }
+.mesh-map svg { display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 0 0 1px var(--line-box); }
+.mesh-cell { stroke: var(--surface); stroke-width: .6; }
+.mesh-cell.is-hover { stroke: var(--accent-line); stroke-width: 2.5; }
+.mesh-point { min-height: 20px; margin-top: 10px; color: var(--label); font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+.mesh-map text { fill: var(--text); font-variant-numeric: tabular-nums; pointer-events: none; }
+.mesh-side { color: var(--muted); font-size: 12px; }
+.mesh-legend { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 560px; margin: 10px auto 0; color: var(--label); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mesh-scale { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--mesh-low), var(--mesh-zero), var(--mesh-high)); }
+
+/* Page "Druck steuern" (pages/steuern.js): the print on top, then a pause at a layer and the objects
+   on the bed from above, each with its number in the list beside it */
+.ctl-who { color: var(--muted); font-size: 13px; }
+.ctl-file { margin: 2px 0 6px; overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.ctl-bar { height: 8px; margin: 10px 0 4px; overflow: hidden; border-radius: 4px; background: var(--surface-2); }
+.ctl-bar span { display: block; height: 100%; background: var(--accent); transition: width .5s; }
+.ctl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 12px; }
+.ctl-ask { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.ctl-ask-box { display: flex; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--error); border-radius: 6px;
+               background: color-mix(in srgb, var(--error) 8%, var(--surface)); }
+.ctl-now { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+/* The layers: done so far, the pause as a mark, and the three numbers below */
+.ctl-layers { margin-top: 10px; }
+.ctl-layerbar { position: relative; height: 10px; border-radius: 5px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-box); }
+.ctl-layerbar-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 5px; background: var(--accent); transition: width .5s; }
+.ctl-layerbar-stop { position: absolute; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--warn); }
+.ctl-layerfacts { display: flex; flex-wrap: wrap; gap: 6px 28px; margin-top: 8px; }
+.ctl-layerfacts span { display: grid; }
+.ctl-layerfacts small { color: var(--muted); font-size: 12px; }
+.ctl-layerfacts strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.ctl-in { color: var(--label); font-size: 13px; }
+/* Without a print: what it would do, greyed */
+.ctl-idle { display: flex; align-items: flex-start; gap: 6px; color: var(--label); font-size: 13px; }
+.ctl-idle .icon { flex: none; margin-top: 1px; color: var(--accent-text); }
+.ctl-objects.is-empty { grid-template-columns: minmax(0, 420px); }
+.ctl-now .icon { color: var(--accent-text); }
+.ctl-layer { display: inline-flex; align-items: center; gap: 8px; color: var(--label); font-size: 13px; }
+.ctl-layer .input { width: 90px; }
+.ctl-objects { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); align-items: start; gap: 16px; }
+.ctl-plate { display: block; width: 100%; max-height: 460px; }
+.ctl-bed { fill: var(--surface-2); stroke: var(--line-box); }
+.ctl-grid { stroke: var(--divider); stroke-width: .6; }
+.ctl-obj { cursor: pointer; }
+.ctl-obj polygon { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent-line); stroke-width: 1; }
+.ctl-obj:hover polygon { stroke-width: 2.5; }
+.ctl-obj.is-current polygon { fill: color-mix(in srgb, var(--accent) 55%, transparent); stroke-width: 2; }
+.ctl-obj.is-asked polygon { stroke: var(--error); stroke-width: 2.5; }
+.ctl-obj.is-excluded { cursor: default; }
+.ctl-obj.is-excluded polygon { fill: color-mix(in srgb, var(--muted) 18%, transparent); stroke: var(--muted); stroke-dasharray: 3 2; }
+.ctl-obj text { fill: var(--text); font-size: 9px; font-weight: 700; pointer-events: none; }
+.ctl-list { display: grid; gap: 4px; max-height: 460px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.ctl-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 1px solid var(--line-box); border-radius: 6px;
+            background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ctl-item:hover:not(:disabled) { border-color: var(--accent-line); }
+.ctl-item.is-current { border-color: var(--accent-line); background: var(--selected); }
+.ctl-item.is-excluded { color: var(--muted); cursor: default; }
+.ctl-item.is-excluded .ctl-name { text-decoration: line-through; }
+.ctl-item small { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ctl-n { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); font-size: 12px; font-weight: 700; }
+.ctl-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  .ctl-objects { grid-template-columns: minmax(0, 1fr); }
+  .mesh-3d-box { height: 320px; }
+  .mesh-both { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Page "Status" (pages/status.js): the print as a ring beside the heads, the rest in boxes */
 .mon-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 32px; padding: 18px 20px; }
 .mon-job { display: flex; flex: 1 1 340px; align-items: center; gap: 20px; min-width: 0; }
@@ -1646,7 +1744,11 @@ span.cal-check { cursor: default; }
 .mon-job-title { overflow: hidden; font-size: 18px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .mon-state { margin-left: 0; font-weight: 700; }
 .mon-hero .stage { flex: 1 1 400px; }
-.mon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+/* Motion large on the left, temperatures and fans beside it, the computer inside across below (the
+   user: the boxes did not sort well, the position could be larger) */
+.mon-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.mon-side { display: grid; gap: 16px; }
+.mon-system { grid-column: 1 / -1; }
 .mon-grid .box { margin-bottom: 0; }
 .mon-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 16px; font-weight: 700; }
 .mon-title .icon { color: var(--accent-text); }
@@ -1670,8 +1772,8 @@ span.cal-check { cursor: default; }
 .thermo-note { grid-column: 2 / -1; color: var(--muted); font-size: 12px; }
 /* Motion: the bed from above, the front at the bottom, with the head on it; the height as a ruler,
    the speed as a gauge */
-.motion-map { display: flex; align-items: stretch; gap: 6px; }
-.xy-frame { flex: 0 1 250px; min-width: 0; padding: 0 0 24px 56px; }
+.motion-map { display: flex; justify-content: center; align-items: stretch; gap: 6px; }
+.xy-frame { flex: 0 1 380px; min-width: 0; padding: 0 0 24px 56px; }
 .xy { position: relative; width: 100%; border: 1px dashed var(--line-box); border-radius: 8px; background: var(--surface); }
 .xy-bed { position: absolute; border: 2px solid var(--line-box); border-radius: 8px; background-color: var(--surface-2);
           background-image: linear-gradient(var(--line-input) 1px, transparent 1px), linear-gradient(90deg, var(--line-input) 1px, transparent 1px);
@@ -1723,8 +1825,10 @@ span.cal-check { cursor: default; }
 .sys-tile .sys-small { font-size: 14px; }
 .sys-bar { display: block; height: 6px; margin-top: 4px; overflow: hidden; border-radius: 3px; background: var(--line-box); }
 .sys-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .6s ease; }
-@media (max-width: 480px) {
+@media (max-width: 900px) {
   .mon-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
   .mon-hero { padding: 14px; }
   .mon-ring { width: 96px; height: 96px; }
 }

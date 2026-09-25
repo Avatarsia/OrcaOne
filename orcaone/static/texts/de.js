@@ -21,7 +21,7 @@ const T = {
   reloadedDiscarded: "Neu eingelesen. Die vorgemerkten Änderungen sind verworfen.",
   dataFrom: (time) => `Stand der Daten: ${time} Uhr`,
   loading: "Lese Installationen …",
-  // The print file in the top bar (app.js): the one "2D-Ansicht" and "3D-Ansicht" show.
+  // The print file in the top bar (app.js): the one "2D Ansicht" and "3D Ansicht" show.
   fileMenu: {
     label: "Druckdatei für 2D und 3D",
     title: (name) => `Druckdatei für 2D und 3D: ${name}`,
@@ -42,6 +42,10 @@ const T = {
     busy: "Der Drucker druckt gerade.",
     unknown: "Der Drucker antwortet gerade nicht.",
     gone: "Die Datei gibt es auf dem Drucker nicht mehr.",
+    pause: "Druck pausieren",
+    resume: "Druck fortsetzen",
+    pausing: "Der Druck hält an.",
+    resumed: "Der Druck geht weiter.",
     cancel: "Druck abbrechen",
     cancelIdle: "Es läuft kein Druck.",
     cancelAsk: "Den Druck wirklich abbrechen?",
@@ -87,7 +91,7 @@ const T = {
     contact: "Kontakt für eine kommerzielle Lizenz:",
     thirdTitle: "Dateien von Dritten",
     thirdLead: "Diese Teile stehen nicht unter der Lizenz von OrcaOne, sondern unter ihrer eigenen.",
-    uses: { vue: "Oberfläche", three: "3D-Ansicht", xterm: "SSH", inter: "Schrift", mono: "Schrift für G-Code und Werte" },
+    uses: { vue: "Oberfläche", three: "3D Ansicht", xterm: "SSH", inter: "Schrift", mono: "Schrift für G-Code und Werte" },
     termsTitle: "Lizenztext",
     termsLead: "Deutsche Übersetzung, nicht verbindlich. Rechtlich maßgeblich ist das englische Original darunter.",
     originalTitle: "Englischer Originaltext, rechtlich maßgeblich",
@@ -186,7 +190,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", druck3d: "3D-Ansicht", druck2d: "2D-Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Druck steuern", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -893,6 +897,85 @@ const T = {
     },
   },
 
+  // ---------------------------------------------------------------- page "Höhenkarte"
+  mesh: {
+    title: "Höhenkarte",
+    lead: "Wie eben das Bett ist, so wie Klipper es gerade nutzt: von oben, vorne unten. Blau liegt tiefer, Rot höher als null.",
+    reload: "Neu lesen",
+    range: "Spanne",
+    lowest: "Tiefster Punkt",
+    highest: "Höchster Punkt",
+    points: "Messpunkte",
+    meanSpread: (mean, spread) => `Mittel ${mean} · Streuung ${spread}`,
+    tilt: "Schräglage",
+    tiltWhy: "Eine Ebene durch alle Messpunkte, so gut es geht: um so viel steigt sie über das Bett an. Das ist die Schräglage, etwa weil das Bett nicht gerade sitzt.",
+    rises: (side) => `steigt nach ${side} an`,
+    sides: { front: "vorne", back: "hinten", left: "links", right: "rechts" },
+    wave: "Welligkeit",
+    waveSub: "ohne Schräglage",
+    waveWhy: "Was ohne die Schräglage bleibt: Beulen und Mulden im Bett selbst.",
+    pointHint: "Mit der Maus über Karte oder 3D zeigt beide Stellen und die Höhe dort.",
+    profile: (name) => `Profil ${q(name)}`,
+    at: (x, y) => `bei X ${x} · Y ${y} mm`,
+    view: "Ansicht",
+    views: { probed: "Messpunkte", smooth: "Geglättet" },
+    raised: (k) => `Höhe ${n(k)}-fach überhöht · ziehen dreht, Mausrad zoomt`,
+    noWebgl: "3D braucht WebGL, das dieser Browser gerade nicht bietet. Die Messpunkte gehen trotzdem.",
+    front: "vorne",
+    back: "hinten",
+    alt: (range) => `Höhenkarte des Betts, Spanne ${range} mm`,
+    none: "Klipper hat gerade keine Höhenkarte geladen. Beim U1 entsteht sie beim Druckstart, wenn „Bett vermessen“ an ist.",
+    missing: "Dieser Drucker vermisst sein Bett nicht: In Klipper fehlt [bed_mesh].",
+  },
+
+  // ---------------------------------------------------------------- page "Druck steuern"
+  control: {
+    title: "Druck steuern",
+    lead: "Alles zum laufenden Druck: anhalten, weiterdrucken, abbrechen, vor einer Schicht anhalten, einzelne Objekte ausschließen. An den Drucker geht nur, was du anklickst.",
+    noJob: "Gerade läuft kein Druck.",
+    idle: "Geht, sobald ein Druck läuft.",
+    pause: "Pausieren",
+    resume: "Fortsetzen",
+    cancel: "Abbrechen",
+    atLayer: {
+      title: "Pause bei Schicht",
+      lead: "Der Drucker hält an, bevor er die Schicht druckt, etwa um Magnete oder Muttern einzulegen. Danach „Fortsetzen“.",
+      none: "Keine Pause geplant.",
+      at: (k) => `Hält vor Schicht ${k} an.`,
+      next: "Hält nach dieser Schicht an.",
+      now: "Jetzt Schicht",
+      toStop: "Schichten bis zur Pause",
+      thisOne: "diese",
+      total: "Schichten gesamt",
+      nowOf: (k, total) => `Schicht ${k} von ${total}`,
+      inLayers: (k) => (k === 1 ? "in 1 Schicht" : `in ${n(k)} Schichten`),
+      cleared: "Pause aufgehoben.",
+      layer: "Schicht",
+      set: "Pause setzen",
+      nextBtn: "Nach dieser Schicht anhalten",
+      clear: "Aufheben",
+      missing: "Dieser Drucker kennt keine Pause bei Schicht: Klipper fehlen die Makros SET_PAUSE_AT_LAYER und SET_PAUSE_NEXT_LAYER, die Mainsail mitbringt.",
+      noLayers: "Die Druckdatei meldet ihre Schichten nicht, darum geht hier keine Pause bei Schicht.",
+    },
+    objects: {
+      title: "Objekte",
+      lead: "Geht ein Teil schief, schließt du nur dieses aus, der Rest druckt weiter. Ein Klick auf das Teil oder seine Nummer.",
+      current: "druckt gerade",
+      excluded: "ausgeschlossen",
+      ask: (k, name) => `Objekt ${k} „${name}“ ausschließen? Es wird ab jetzt nicht mehr gedruckt, der Rest schon. Das lässt sich nicht zurücknehmen.`,
+      yes: "Ja, ausschließen",
+      no: "Nein",
+      done: (name) => `${q(name)} wird nicht mehr gedruckt.`,
+      none: "Die Druckdatei nennt ihre Objekte nicht. Im Slicer im Prozess „Objekte ausschließen“ einschalten, dann geht es beim nächsten Druck.",
+      idle: "Sobald ein Druck läuft, stehen hier seine Objekte auf der Platte. Die Druckdatei muss sie nennen: im Slicer im Prozess „Objekte ausschließen“ an.",
+      missing: "Dieser Drucker kann keine Objekte ausschließen: In Klipper fehlt [exclude_object].",
+    },
+    errors: {
+      object_invalid: "Dieses Objekt nennt der Drucker nicht mehr.",
+      pause_invalid: "Diese Schicht geht nicht: Sie muss nach der jetzigen kommen und in der Datei liegen.",
+    },
+  },
+
   // ---------------------------------------------------------------- page "Status"
   monitor: {
     title: "Status",
@@ -941,17 +1024,18 @@ const T = {
     nets: { wlan: "WLAN", eth: "LAN", en: "LAN", can: "CAN-Bus" },
     names: {
       bed: "Bett", extruder: (i) => (i ? `Extruder ${i}` : "Extruder"), partFan: "Bauteillüfter", hotendFan: "Hotend",
-      cavity: "Bauraum", chamber: "Bauraum", cavity_fan: "Bauraum",
+      cavity: "Bauraum", chamber: "Bauraum", cavity_fan: "Bauraum", driver: (axis) => `Treiber ${axis}`,
     },
+    driverIdle: "nur bei eingeschalteten Motoren",
     errors: {
       camera_unreachable: "Drucker nicht erreichbar. Ist er an und im selben Netz?",
       printer_not_found: "Dieser Drucker hat keine IP-Adresse mehr. Lade die Seite neu.",
     },
   },
 
-  // ---------------------------------------------------------------- page "3D-Ansicht"
+  // ---------------------------------------------------------------- page "3D Ansicht"
   view3d: {
-    title: "3D-Ansicht",
+    title: "3D Ansicht",
     colourBy: "Farben",
     byFilament: "Filament",
     byType: "Linienart",
@@ -976,7 +1060,7 @@ const T = {
     // The cube at the bottom right (pages/view-cube.js): the names on its faces
     cube: { front: "Vorne", back: "Hinten", left: "Links", right: "Rechts", top: "Oben", bottom: "Unten",
       hint: "Ansicht wählen: eine Fläche, Kante oder Ecke anklicken" },
-    to2d: "2D-Ansicht",
+    to2d: "2D Ansicht",
     types: { "Inner wall": "Innenwand", "Outer wall": "Außenwand", "Overhang wall": "Überhangwand", "Sparse infill": "Füllung",
       "Internal solid infill": "Massive Füllung", "Top surface": "Oberseite", "Bottom surface": "Unterseite", "Ironing": "Glätten",
       "Bridge": "Brücke", "Internal Bridge": "Innere Brücke", "Gap infill": "Lückenfüllung", "Skirt": "Skirt", "Brim": "Rand",
@@ -992,9 +1076,9 @@ const T = {
     },
   },
 
-  // ---------------------------------------------------------------- page "2D-Ansicht"
+  // ---------------------------------------------------------------- page "2D Ansicht"
   view2d: {
-    title: "2D-Ansicht",
+    title: "2D Ansicht",
     colourBy: "Farben",
     modes: { filament: "Filament", type: "Linienart", speed: "Geschwindigkeit", flow: "Volumenstrom", accel: "Beschleunigung",
       fan: "Lüfter", temp: "Temperatur", width: "Linienbreite" },
@@ -1003,7 +1087,7 @@ const T = {
     now: "gerade",
     done: "gedruckt",
     todo: "kommt noch",
-    to3d: "3D-Ansicht",
+    to3d: "3D Ansicht",
     stage: "Eine Schicht von oben",
     fit: "Einpassen",
     layer: "Schicht",
@@ -1543,10 +1627,18 @@ const T = {
       save: "Speichern",
       saved: "IP-Adresse gespeichert",
       removed: "IP-Adresse entfernt",
+      // A second printer of a model that has one already (camera.add_printer)
+      another: "Weiteren Drucker desselben Modells hinzufügen",
+      model: "Modell",
+      name: "Name",
+      nameHint: "z. B. U1 Werkstatt",
+      addPrinter: "Hinzufügen",
+      added: "Drucker hinzugefügt",
       why: "Die Adresse im Netz. Ohne eigene nimmt OrcaOne die des Slicers: aus dem Dialog „Physischer Drucker“, sonst die des Druckers, mit dem Snapmaker Orca verbunden ist. Bei einem U1 zeigen „Kamera“ und „Kalibrieren“ damit Bild und Werte live. Leer speichern entfernt die eigene.",
       errors: {
         camera_host_invalid: "Das ist keine IP-Adresse und kein Rechnername.",
         printer_invalid: "Diesen Drucker kennt OrcaOne nicht. Lies neu ein.",
+        printer_name_taken: "Diesen Namen hat schon ein Drucker.",
         search_failed: "Die Suche im LAN ließ sich nicht starten.",
       },
     },

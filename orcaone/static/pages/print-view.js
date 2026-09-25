@@ -1,4 +1,4 @@
-// Shared by the pages "3D-Ansicht" and "2D-Ansicht": they show the print file set in the top bar
+// Shared by the pages "3D Ansicht" and "2D Ansicht": they show the print file set in the top bar
 // (ui.printFile, app.js; one of the printer there or one from this computer), read with the worker
 // (pages/gcode-worker.js), and follow the printer's job while it prints that file. A file dropped
 // on the page becomes the one set. The last file read stays while OrcaOne is open: going from one
