@@ -11,6 +11,7 @@ A slicer process whose data directory is unknown makes every instance of that
 slicer read only. Details: docs/FINDINGS.md, section 4.1.
 """
 
+import ctypes
 import os
 import struct
 import sys
@@ -115,9 +116,63 @@ def uncovered_runtimes(runtimes: list[tuple[int, str, str]], covered_appimages: 
     return [SlicerProcess(pid, slicer, None) for pid, slicer, exe in runtimes if _normalized(exe) not in covered_appimages]
 
 
+_ATTRS = ["pid", "name", "exe", "cmdline"]
+
+
+class _ProcessEntry(ctypes.Structure):
+    """PROCESSENTRY32W from tlhelp32.h."""
+    _fields_ = [("dwSize", ctypes.c_uint32), ("cntUsage", ctypes.c_uint32), ("th32ProcessID", ctypes.c_uint32),
+                ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", ctypes.c_uint32),
+                ("cntThreads", ctypes.c_uint32), ("th32ParentProcessID", ctypes.c_uint32),
+                ("pcPriClassBase", ctypes.c_int32), ("dwFlags", ctypes.c_uint32), ("szExeFile", ctypes.c_wchar * 260)]
+
+
+def _windows_names() -> list[tuple[int, str]]:
+    """(PID, program file name) of every process, from one Toolhelp32 snapshot."""
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateToolhelp32Snapshot.restype = ctypes.c_void_p
+    kernel32.Process32FirstW.argtypes = kernel32.Process32NextW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_ProcessEntry)]
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if snapshot == ctypes.c_void_p(-1).value:  # INVALID_HANDLE_VALUE
+        raise ctypes.WinError(ctypes.get_last_error())
+    entry = _ProcessEntry(dwSize=ctypes.sizeof(_ProcessEntry))
+    names = []
+    try:
+        more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while more:
+            names.append((entry.th32ProcessID, entry.szExeFile))
+            more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    return names
+
+
+def _candidates():
+    """Processes that may be a slicer, each with .info as psutil.process_iter sets it.
+
+    On Windows psutil takes every process name from the program path, one query per process.
+    On the Windows test machine that took 0.1 to 0.25 s per process, over 40 s for all, and the
+    page hung while loading. The snapshot names all processes in 0.2 s, so psutil only looks at
+    the slicers."""
+    if os.name != "nt":
+        return psutil.process_iter(_ATTRS)
+    found = []
+    for pid, name in _windows_names():
+        if name.lower() not in _EXECUTABLES:
+            continue
+        try:
+            proc = psutil.Process(pid)
+            proc.info = proc.as_dict(_ATTRS)
+        except psutil.Error:  # ended in between
+            continue
+        found.append(proc)
+    return found
+
+
 def find_processes() -> list[SlicerProcess]:
     slicers, runtimes, covered = [], [], set()
-    for proc in psutil.process_iter(["pid", "name", "exe", "cmdline"]):
+    for proc in _candidates():
         info = proc.info
         exe = info["exe"] or ""
         names = {Path(exe).name.lower(), (info["name"] or "").lower()}

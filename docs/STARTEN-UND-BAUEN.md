@@ -2,10 +2,10 @@
 
 Zwei Wege, OrcaOne ohne Tippen im Terminal zu starten:
 
-1. **Per Symbol mit dem mitgelieferten venv** (`.lenv`). Dafür muss Python installiert sein.
-2. **Als eigenes Programm, das du selbst baust.** Es läuft danach ohne Python und ohne `.lenv`.
+1. **Per Symbol mit dem mitgelieferten venv** (`.lenv`, unter Windows `.wenv`). Dafür muss Python installiert sein.
+2. **Als eigenes Programm, das du selbst baust.** Es läuft danach ohne Python und ohne venv.
 
-Linux ist geprüft (Ubuntu 26.04, Python 3.14, PyInstaller 6.22.3). Windows und macOS sind nach den Quellen beschrieben, aber noch nicht ausprobiert.
+Linux ist geprüft (Ubuntu 26.04, Python 3.14, PyInstaller 6.22.3). Unter Windows ist der Start mit `orcaone.cmd` geprüft (Windows 10, Python 3.13), das Bauen noch nicht. macOS ist nach den Quellen beschrieben, aber noch nicht ausprobiert.
 
 ## Was beim Start passiert
 
@@ -32,15 +32,17 @@ Die installierte App startet OrcaOne nicht mit, sie zeigt nur die Seite unter `h
 
 ---
 
-## 1. Per Symbol starten (mit `.lenv`)
+## 1. Per Symbol starten (mit `.lenv` bzw. `.wenv`)
 
 **Voraussetzung:** Python ab 3.11.
 
-- **Windows:** von python.org, bei der Installation „Add python.exe to PATH“ anhaken.
+- **Windows:** von python.org, bei der Installation „Add python.exe to PATH“ anhaken. Die Variante „free-threaded“ (`python3.13t`) geht nicht, weil `cffi` für SSH dort nicht baut. `py -3` wählt sie aber zuerst, wenn sie installiert ist. `orcaone.cmd` probiert deshalb jede Version aus `py -0` durch und nimmt die erste normale.
 - **Linux:** die Pakete `python3` und `python3-venv`.
 - **macOS:** von python.org oder mit Homebrew.
 
-Beim ersten Start legt das Startskript `.lenv` an und installiert die Abhängigkeiten aus `requirements.txt`, dafür braucht es einmal Internet. Danach startet es OrcaOne direkt.
+Beim ersten Start legt das Startskript die Python-Umgebung an und installiert die Abhängigkeiten aus `requirements.txt`, dafür braucht es einmal Internet. Danach startet es OrcaOne direkt. Die Umgebung heißt unter Linux `.lenv` und unter Windows `.wenv`, so behält ein Ordner, der auf beiden Systemen liegt, beide.
+
+Unter Windows zeigt die Konsole beim Installieren jeden Schritt samt Download. Ein normaler Start ruft pip gar nicht erst auf: `orcaone.cmd` vergleicht `requirements.txt` mit der Kopie vom letzten Installieren in `.wenv` und installiert nur, wenn sie sich unterscheiden.
 
 ### Windows
 
@@ -100,7 +102,7 @@ Das Bauskript `tools/build.py` nutzt **PyInstaller**. Es packt Python, alle Pake
 - `data/` legt das Programm beim ersten Speichern neben `OrcaOne` an. Deine bisherigen Einstellungen und Sicherungen nimmst du mit, indem du den Ordner `data` aus dem OrcaOne-Ordner neben das gebaute Programm kopierst.
 - **Neue Version:** Code holen, neu bauen, den alten Programmordner ersetzen. `data` dabei behalten.
 
-**Einmal vorbereiten:** OrcaOne einmal mit dem Startskript starten, damit `.lenv` entsteht, und wieder beenden. Dann PyInstaller in `.lenv` installieren. Das ist nur fürs Bauen nötig, nicht fürs Starten.
+**Einmal vorbereiten:** OrcaOne einmal mit dem Startskript starten, damit `.lenv` bzw. `.wenv` entsteht, und wieder beenden. Dann PyInstaller dort installieren. Das ist nur fürs Bauen nötig, nicht fürs Starten.
 
 ### Linux
 
@@ -117,8 +119,8 @@ cd ~/dev/OrcaOne
 
 ```bat
 cd %USERPROFILE%\OrcaOne
-.lenv\Scripts\python -m pip install pyinstaller
-.lenv\Scripts\python tools\build.py
+.wenv\Scripts\python -m pip install pyinstaller
+.wenv\Scripts\python tools\build.py
 ```
 
 - Ergebnis: `dist\OrcaOne\OrcaOne.exe` mit dem OrcaOne-Symbol. Die Verknüpfung dazu legst du an wie oben, am besten mit „Ausführen: Minimiert“.

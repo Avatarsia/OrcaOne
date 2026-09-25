@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import psutil
 import pytest
 
 from orcaone import guard
@@ -42,8 +43,9 @@ def test_lock_holder_without_cache(tmp_path):
 
 
 def test_process_data_dir():
-    assert process_data_dir(["snapmaker-orca", "--datadir", "/tmp/copy"], None) == Path("/tmp/copy")
-    assert process_data_dir(["orca-slicer", "--datadir=/tmp/copy"], "/somewhere") == Path("/tmp/copy")
+    copy = Path("/tmp/copy").absolute()  # with a drive letter on Windows
+    assert process_data_dir(["snapmaker-orca", "--datadir", str(copy)], None) == copy
+    assert process_data_dir(["orca-slicer", f"--datadir={copy}"], "/somewhere") == copy
     assert process_data_dir(["orca-slicer"], "/home/u/.config/OrcaSlicer/log") == Path("/home/u/.config/OrcaSlicer")
     assert process_data_dir(["orca-slicer"], "/home/u") is None
     assert process_data_dir(["orca-slicer", "--datadir"], None) is None
@@ -95,3 +97,10 @@ def test_lock_held_from_another_pid_namespace(tmp_path, monkeypatch):
 
 def test_find_processes_runs():
     assert isinstance(guard.find_processes(), list)
+
+
+def test_find_processes_sees_a_slicer(monkeypatch):
+    # The test's own Python stands in for a slicer; on Windows this covers the Toolhelp32 snapshot.
+    name = Path(psutil.Process().exe()).name.lower()
+    monkeypatch.setattr(guard, "_EXECUTABLES", {name: "OrcaSlicer"})
+    assert os.getpid() in [p.pid for p in guard.find_processes() if p.slicer == "OrcaSlicer"]
