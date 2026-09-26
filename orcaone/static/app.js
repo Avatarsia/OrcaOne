@@ -87,8 +87,6 @@ const PAGES = [
   // The printer part needs no slicer data: its pages show at once and stay through "Neu einlesen".
   { id: "drucker", area: "printer", icon: "printer", component: DruckerPage, standalone: true },
   { id: "status", area: "printer", icon: "pulse", component: StatusPage, standalone: true, printer: true },
-  // What the printer reports, what it means, what helps (the user's wish of 26.09.2026)
-  { id: "fehler", area: "printer", icon: "warn", component: FehlerPage, standalone: true, printer: true },
   // Everything about the running print (the user's wish of 25.09.2026)
   { id: "steuern", area: "printer", icon: "sliders", component: SteuernPage, standalone: true, printer: true },
   { id: "hoehenkarte", area: "printer", icon: "mesh", component: HoehenkartePage, standalone: true, printer: true },
@@ -102,6 +100,8 @@ const PAGES = [
   // How the printer is in the network, where it gets stuck (the user's wish of 25.09.2026): for any
   // Klipper printer what Moonraker tells, on the U1 over SSH also WLAN, router and internet.
   { id: "netzwerk", area: "printer", icon: "lan", component: NetzwerkPage, standalone: true, printer: true },
+  // What the printer reports, what it means, what helps (the user's wishes of 26.09.2026), right above its logs
+  { id: "fehler", area: "printer", icon: "warn", component: FehlerPage, standalone: true, printer: true },
   // The printer's logs as written, with a search, last as in the slicer part (the user's wishes of 26.09.2026)
   { id: "druckerlogs", area: "printer", icon: "log", component: DruckerLogsPage, standalone: true, printer: true },
   // In neither menu: "by Dr. Klipper" at its bottom leads here; the part stays as it was.

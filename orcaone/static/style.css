@@ -1392,8 +1392,19 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .fault-title { margin: 6px 0 4px; font-size: 16px; }
 .fault-body p { margin: 4px 0; font-size: 14px; }
 .fault-label { color: var(--label); font-weight: 700; }
-.fault-message { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.fault-snap { color: var(--text); }
+/* Labels in a column of their own, the texts beside them in line (pages/fehler.js FaultDetails) */
+.fault-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 16px; margin: 8px 0; font-size: 14px; line-height: 1.45; }
+.fault-facts dt { color: var(--label); font-weight: 700; }
+.fault-facts dd { margin: 0; }
+/* The printer's own text below its label, as it is */
+.fault-printer { margin: 10px 0 6px; font-size: 14px; }
+.fault-printer .fault-label { display: block; margin-bottom: 4px; }
+.fault-message { margin: 0; padding: 8px 10px; border: 1px solid var(--divider); border-radius: 4px; background: var(--surface-2);
+                 font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .fault-facts { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .fault-facts dd { margin-bottom: 6px; }
+}
 .fault-links { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .fault-links .link { font-size: 13px; }
 .fault-list { margin: 8px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--divider); }

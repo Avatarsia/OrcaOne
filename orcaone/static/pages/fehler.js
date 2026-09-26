@@ -14,8 +14,32 @@ const F = T.faults;
 const WIKI = "https://wiki.snapmaker.com/en/snapmaker_u1/troubleshooting/u1_error_codes";
 const LEVEL_CLASS = { 1: "wait", 2: "warn", 3: "err" };
 
+// What an error means, the same under "Jetzt" and in "Vorher": the labels in a column of their own,
+// the texts beside them in line; the printer's own text below its label as it is (the user's wish
+// of 26.09.2026: aligned, a line break after the label).
+const FaultDetails = {
+  name: "FaultDetails",
+  props: { e: { type: Object, required: true }, snap: { type: Object, default: null }, own: { type: Object, default: null } },
+  emits: ["log"],
+  setup() {
+    return { F, WIKI };
+  },
+  template: `
+    <dl v-if="snap?.desc || own" class="fault-facts">
+      <template v-if="snap?.desc"><dt>{{ F.snapmakerSays }}</dt><dd>{{ snap.desc }}</dd></template>
+      <template v-if="own"><dt>{{ F.meaning }}</dt><dd>{{ own.what }}</dd><dt>{{ F.fix }}</dt><dd>{{ own.fix }}</dd></template>
+    </dl>
+    <div v-if="e.message" class="fault-printer"><span class="fault-label">{{ F.printerSays }}</span><pre class="fault-message">{{ e.message }}</pre></div>
+    <p class="fault-links">
+      <a v-if="e.code" class="link" :href="WIKI" target="_blank" rel="noopener">{{ F.wiki }}</a>
+      <a v-if="e.doc" class="link" :href="e.doc" target="_blank" rel="noopener">{{ F.docs }}</a>
+      <button v-if="e.log" class="link" type="button" @click="$emit('log')">{{ F.toLog }}</button>
+    </p>`,
+};
+
 export default {
   name: "FehlerPage",
+  components: { FaultDetails },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -132,18 +156,7 @@ export default {
                 <span class="fault-place">{{ place(e) }}</span>
               </div>
               <h3 class="fault-title">{{ headline(e) }}</h3>
-              <div class="fault-body">
-                <p v-if="snap(e)?.desc" class="fault-snap"><span class="fault-label">{{ F.snapmakerSays }}</span>{{ snap(e).desc }}</p>
-                <template v-if="own(e)">
-                  <p><span class="fault-label">{{ F.meaning }}</span>{{ own(e).what }}</p>
-                  <p><span class="fault-label">{{ F.fix }}</span>{{ own(e).fix }}</p>
-                </template>
-                <p v-if="e.message"><span class="fault-label">{{ F.printerSays }}</span><code class="fault-message">{{ e.message }}</code></p>
-                <p class="fault-links">
-                  <a v-if="e.code" class="link" :href="WIKI" target="_blank" rel="noopener">{{ F.wiki }}</a>
-                  <a v-if="e.doc" class="link" :href="e.doc" target="_blank" rel="noopener">{{ F.docs }}</a>
-                </p>
-              </div>
+              <div class="fault-body"><fault-details :e="e" :snap="snap(e)" :own="own(e)"/></div>
             </article>
             <p v-if="!data.codes" class="note">{{ F.noCodes }}</p>
           </section>
@@ -164,17 +177,7 @@ export default {
                 </button>
                 <div v-if="open === i" class="fault-body">
                   <p v-if="levelText(e) || place(e)" class="fault-place">{{ [levelText(e), place(e)].filter(Boolean).join(' · ') }}</p>
-                  <p v-if="snap(e)?.desc" class="fault-snap"><span class="fault-label">{{ F.snapmakerSays }}</span>{{ snap(e).desc }}</p>
-                  <template v-if="own(e)">
-                    <p><span class="fault-label">{{ F.meaning }}</span>{{ own(e).what }}</p>
-                    <p><span class="fault-label">{{ F.fix }}</span>{{ own(e).fix }}</p>
-                  </template>
-                  <p><span class="fault-label">{{ F.printerSays }}</span><code class="fault-message">{{ e.message }}</code></p>
-                  <p class="fault-links">
-                    <a v-if="e.code" class="link" :href="WIKI" target="_blank" rel="noopener">{{ F.wiki }}</a>
-                    <a v-if="e.doc" class="link" :href="e.doc" target="_blank" rel="noopener">{{ F.docs }}</a>
-                    <button v-if="e.log" class="link" type="button" @click="toLog(e)">{{ F.toLog }}</button>
-                  </p>
+                  <fault-details :e="e" :snap="snap(e)" :own="own(e)" @log="toLog(e)"/>
                 </div>
               </li>
             </ul>
