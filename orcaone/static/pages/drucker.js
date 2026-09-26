@@ -142,6 +142,13 @@ export default {
       return P.live.days(Math.floor(minutes / 1440));
     }
     // Before the job: whether it answers at all and Klipper is ready.
+    // No answer from it: the card goes last and pale (the user's wish of 26.09.2026).
+    const isAway = (model) => !!machine[model]?.error || printerLive[model]?.error === "camera_unreachable";
+    // The active printer first, as the page found it (a click on a card then does not move the cards),
+    // those that do not answer last; else as they come.
+    const firstKey = ui.printer;
+    const ordered = computed(() => [...machines.value].sort((a, b) => rank(a.key) - rank(b.key)));
+    const rank = (key) => (key === firstKey ? 0 : isAway(key) ? 2 : 1);
     function problemOf(model) {
       const m = machine[model] || { asking: true }, now = printerLive[model];
       if (m.error || now?.error === "camera_unreachable") return { cls: "is-err", text: P.live.unreachable };
@@ -197,7 +204,7 @@ export default {
     };
 
     return {
-      sshState, checkSsh, SSH_CLASS,
+      sshState, checkSsh, SSH_CLASS, ordered, isAway,
       T, P, M, hosts, machines, others, machine, isU1, isActive, choose, openFor, editing, draft, addressError, hostFrom, edit, save, slicersOf,
       models, adding, startAdd, add, modelLabel,
       searching, found, search, take, problemOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)), hashOf,
@@ -213,7 +220,7 @@ export default {
       </div>
 
       <div v-if="machines.length" class="cards pcards">
-        <article v-for="m in machines" :key="m.key" :class="['pcard', { 'is-active': isActive(m.key) }]" :aria-label="m.name">
+        <article v-for="m in ordered" :key="m.key" :class="['pcard', { 'is-active': isActive(m.key), 'is-away': isAway(m.key) }]" :aria-label="m.name">
           <div class="pcard-top">
             <span class="card-img" :title="P.makeActive" @click="choose(m.key)"><img :src="m.cover" alt="" width="104" height="104"></span>
             <div class="pcard-body">

@@ -868,6 +868,10 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .pcard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "top live" "links links"; gap: 12px 24px;
          padding: 12px 14px 14px; background: var(--surface); border: 1px solid var(--line-box); border-radius: 8px; }
 .pcard.is-active { padding: 11px 13px 13px; border: 2px solid var(--accent-line); }
+/* A printer that does not answer: last and pale, full again under the mouse or the keyboard */
+.pcard.is-away { opacity: .55; transition: opacity .15s; }
+.pcard.is-away .card-img img { filter: grayscale(1); }
+.pcard.is-away:hover, .pcard.is-away:focus-within { opacity: 1; }
 /* Narrow: the printer's values below it again */
 @media (max-width: 900px) {
   .pcard { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "live" "links"; }
