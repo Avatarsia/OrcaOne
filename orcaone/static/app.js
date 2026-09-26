@@ -95,12 +95,12 @@ const PAGES = [
   { id: "druck2d", area: "printer", icon: "toolpath", component: Druck2dPage, standalone: true, printer: true },
   { id: "kamera", area: "printer", icon: "camera", component: KameraPage, standalone: true, u1: true, printer: true },
   { id: "konsole", area: "printer", icon: "code", component: KonsolePage, standalone: true, printer: true },
-  // The printer's logs as written, with a search (the user's wish of 26.09.2026)
-  { id: "druckerlogs", area: "printer", icon: "log", component: DruckerLogsPage, standalone: true, printer: true },
   { id: "ssh", area: "printer", icon: "terminal", component: SshPage, standalone: true, printer: true },
   // How the printer is in the network, where it gets stuck (the user's wish of 25.09.2026): for any
   // Klipper printer what Moonraker tells, on the U1 over SSH also WLAN, router and internet.
   { id: "netzwerk", area: "printer", icon: "lan", component: NetzwerkPage, standalone: true, printer: true },
+  // The printer's logs as written, with a search, last as in the slicer part (the user's wishes of 26.09.2026)
+  { id: "druckerlogs", area: "printer", icon: "log", component: DruckerLogsPage, standalone: true, printer: true },
   // In neither menu: "by Dr. Klipper" at its bottom leads here; the part stays as it was.
   { id: "lizenz", icon: "info", component: LizenzPage, standalone: true, hidden: true },
 ].map((p) => ({ ...p, label: T.nav.pages[p.id] }));

@@ -282,6 +282,7 @@ export default {
             <a class="link" :href="hashOf('konsole', null)" @click.prevent="openFor(m.key, 'konsole')">{{ T.nav.pages.konsole }}</a>
             <a class="link" :href="hashOf('ssh', null)" @click.prevent="openFor(m.key, 'ssh')">{{ T.nav.pages.ssh }}</a>
             <a class="link" :href="hashOf('netzwerk', null)" @click.prevent="openFor(m.key, 'netzwerk')">{{ T.nav.pages.netzwerk }}</a>
+            <a class="link" :href="hashOf('druckerlogs', null)" @click.prevent="openFor(m.key, 'druckerlogs')">{{ T.nav.pages.druckerlogs }}</a>
           </p>
         </article>
       </div>

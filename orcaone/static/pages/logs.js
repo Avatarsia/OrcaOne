@@ -5,6 +5,7 @@
 import { INSTANCES, fmtSize, whenText } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { RegexHelp } from "./regex-help.js";
 
 const { ref, computed, watch, nextTick, onMounted } = Vue;
 const L = T.logs;
@@ -12,6 +13,7 @@ const SHOWS = ["all", "problems", "errors"];
 
 export default {
   name: "LogsPage",
+  components: { RegexHelp },
   props: { instId: { type: String, required: true } },
 
   setup(props) {
@@ -67,6 +69,11 @@ export default {
     }
 
     watch([name, show, regex], loadLog);
+    // An example of the cheat sheet: as a regular expression; the watches load it.
+    function useExample(pattern) {
+      query.value = pattern;
+      regex.value = true;
+    }
     watch(query, () => {
       clearTimeout(typing);
       typing = setTimeout(loadLog, 250);
@@ -81,7 +88,7 @@ export default {
     };
     const shownText = computed(() => log.value ? L.shown(log.value.entries.length, log.value.matched) : "");
 
-    return { T, L, SHOWS, inst, files, location, name, show, query, regex, log, error, listEl, fileLabel, countOf, shownText, refresh };
+    return { T, L, SHOWS, inst, files, location, name, show, query, regex, useExample, log, error, listEl, fileLabel, countOf, shownText, refresh };
   },
 
   template: `
@@ -112,6 +119,7 @@ export default {
             <input v-model="query" class="input" type="search" :placeholder="L.search" :aria-label="L.search">
           </span>
           <button class="chip" type="button" :aria-pressed="regex ? 'true' : 'false'" :title="L.regexHint" @click="regex = !regex">{{ L.regex }}</button>
+          <regex-help examples="slicer" @use="useExample"/>
         </div>
 
         <p v-if="error" class="alert" role="alert">{{ error }}</p>

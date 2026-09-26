@@ -367,6 +367,9 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 }
 .chip:hover { border-color: var(--accent-line); }
 .chip[aria-pressed="true"] { border-color: var(--accent-line); background: var(--selected); font-weight: 700; }
+/* A switch shown as its symbol only, what it does in the tooltip */
+.chip.chip-icon { justify-content: center; width: 34px; padding: 0; }
+.chip.chip-icon[aria-pressed="true"] .icon { color: var(--accent-text); }
 .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
 
 .kind { border-top: 1px solid var(--divider); }
@@ -1356,14 +1359,20 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .plog-context { display: flex; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
 .plog-context .input { width: auto; }
 .plog-window { margin: 0 0 4px; color: var(--muted); font-size: 12px; }
-.plog-list { flex: 1; min-height: 240px; max-height: none; margin-top: 0; }
-.plog-line { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* position: relative, so the hidden labels of coloured lines stay inside the list; else each one far
+   down in the log stretched the whole page (the user: a scrollbar far too long) */
+.plog-list { position: relative; flex: 1; min-height: 150px; max-height: none; margin-top: 0; }
+/* Where a line begins stays visible (the user: klippy.log's long lines ran into each other): a hair
+   line between lines, a wrapped line's continuation indented; or not wrapped at all */
+.plog-line { padding: 1px 10px 1px 30px; border-bottom: 1px solid var(--divider); text-indent: -20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.plog-list.is-nowrap .plog-line { width: max-content; min-width: 100%; padding-left: 10px; text-indent: 0; white-space: pre; overflow-wrap: normal; }
+.plog-following { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .plog-line.is-start { margin-top: 4px; border-top: 2px solid var(--accent-line); background: var(--focus-bg); color: var(--accent-text); font-weight: 600; }
 .plog-line.is-shutdown, .plog-line.is-error { background: var(--error-bg); color: var(--error); }
 .plog-line.is-focus { outline: 2px solid var(--accent-line); outline-offset: -2px; }
 .plog-list mark, .plog-results mark { border-radius: 2px; background: color-mix(in srgb, var(--warn) 40%, transparent); color: inherit; }
 .plog-more { display: block; margin: 6px 10px; font-family: var(--font); }
-.plog-results { max-height: 40vh; margin-bottom: 12px; padding: 8px 10px; overflow: auto; border: 1px solid var(--line-box); border-radius: 6px; background: var(--surface); }
+.plog-results { max-height: 30vh; margin-bottom: 12px; padding: 8px 10px; overflow: auto; border: 1px solid var(--line-box); border-radius: 6px; background: var(--surface); }
 .plog-results-head { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 6px; font-size: 13px; }
 .plog-hit-group { margin: 6px 0; padding-left: 6px; border-left: 3px solid var(--divider); }
 .plog-hit-line { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; width: 100%; padding: 1px 6px; border: 0; background: none;
@@ -1372,6 +1381,21 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .plog-hit-line.is-hit { background: var(--focus-bg); font-weight: 600; }
 .plog-hit-n { color: var(--muted); text-align: right; }
 .plog-hit-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Regex cheat sheet on both log pages (pages/regex-help.js): a line of its own below the search */
+.regex-help-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.regex-help { flex-basis: 100%; max-height: 28vh; overflow: auto; padding: 10px 14px; border-left: 3px solid var(--accent-line); border-radius: 4px; background: var(--focus-bg);
+              color: var(--text); font-size: 13px; }
+.regex-help-lead { margin: 0 0 8px; color: var(--muted); }
+.regex-help-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px 28px; }
+.regex-help-signs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 0; }
+.regex-help-signs dd { margin: 0; }
+.regex-help code { font-family: var(--mono); font-size: 12px; }
+.regex-help-examples { display: grid; align-content: start; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.regex-help-examples li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.regex-help-examples .link { font: inherit; text-align: left; }
+@media (max-width: 640px) {
+  .regex-help-cols { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Page "Kalibrieren": the U1 live on top, then the steps to tick off */
 .cal-page .log-file { max-width: 520px; }

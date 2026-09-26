@@ -5,9 +5,10 @@
 // runs through the whole file on OrcaOne's side, plain or as a regular expression, and lists the
 // hits with lines around them; a click shows the hit in the log. Typing marks what matches in the
 // lines loaded, it hides none.
-import { go, hashOf, ui, activeName, flash, fmtSize, whenText } from "../common.js";
+import { go, hashOf, ui, activeName, flash, fmtSize, whenText, LOCALE } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { RegexHelp } from "./regex-help.js";
 
 const { ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const L = T.printerLogs;
@@ -17,6 +18,7 @@ const CONTEXTS = [0, 2, 5, 10];
 
 export default {
   name: "DruckerLogsPage",
+  components: { RegexHelp },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -33,6 +35,10 @@ export default {
     const busy = ref(false);
     const failed = ref("");
     const follow = ref(false);
+    const followed = ref(null);   // { at, added }: the last look while following, said next to the switch
+    // While following, always the newest line in view (the user: "Ende anzeigen", besides the tail).
+    const showEnd = ref(true);
+    const wrap = ref(true);       // long lines wrapped; off: one line each, the list scrolls sideways
     const box = ref(null);
     const focusAt = ref(null);    // the line a jump went to, marked
     const query = ref("");
@@ -117,13 +123,16 @@ export default {
 
     // Following: what came since, every few seconds while the tab shows; a smaller file than before
     // was turned over (the printer began a new one), so its end anew.
+    // Each look is said next to the switch (the user: following seemed not to work; klippy.log of an
+    // idle U1 does not grow at all, checked 26.09.2026).
     async function tick() {
       if (document.hidden || busy.value || !path.value) return;
-      const stick = atBottom();
+      const stick = showEnd.value || atBottom();
       const v = await api.printerLog(model.value, path.value, { start: next.value }).catch(() => null);
       if (!v || !follow.value) return;
       if (v.size != null && v.size < next.value) return toEnd();
       if (v.size != null) size.value = v.size;
+      followed.value = { at: new Date(), added: v.lines.length };
       if (v.lines.length) {
         lines.value = [...lines.value, ...v.lines].slice(-KEEP);
         from.value = lines.value[0].at;
@@ -131,12 +140,20 @@ export default {
         if (stick) nextTick(scrollDown);
       }
     }
+    const followText = computed(() => followed.value
+      && L.following(followed.value.at.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }), followed.value.added));
     watch(follow, async (on) => {
       clearInterval(timer);
+      followed.value = null;
       if (!on) return;
       if (!atEnd.value || focusAt.value != null) await toEnd();
+      tick();   // a look at once, not only after the first interval
       timer = setInterval(tick, FOLLOW_MS);
     });
+    // Back in view: a look at once (the looks rest while the tab is hidden).
+    const onVisible = () => follow.value && !document.hidden && tick();
+    watch(showEnd, (on) => on && follow.value && nextTick(scrollDown));
+    document.addEventListener("visibilitychange", onVisible);
 
     // The search: typing marks what matches in the lines loaded; Enter goes through the whole file.
     const marker = computed(() => {
@@ -176,6 +193,12 @@ export default {
       }
     }
 
+    // An example of the cheat sheet: as a regular expression, through the whole file at once.
+    function useExample(pattern) {
+      query.value = pattern;
+      regex.value = true;
+      searchAll();
+    }
     async function loadFiles() {
       files.value = null;
       try {
@@ -205,12 +228,15 @@ export default {
         loadError.value = errorText(err);
       }
     });
-    onUnmounted(() => clearInterval(timer));
+    onUnmounted(() => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    });
 
     return {
       T, L, CONTEXTS, printers, loadError, model, host, activeName, go, hashOf, files, path, groups, fileLabel, lines, from, next, size,
-      busy, failed, follow, box, focusAt, query, regex, context, results, searching, atEnd, download, toEnd, older, newer, jump,
-      lastStart, parts, marker, marked, searchAll, fmtSize,
+      busy, failed, follow, followText, showEnd, wrap, box, focusAt, query, regex, context, results, searching, atEnd, download, toEnd, older, newer, jump,
+      lastStart, parts, marker, marked, searchAll, fmtSize, useExample,
     };
   },
 
@@ -228,21 +254,31 @@ export default {
       <template v-else>
         <div class="log-bar">
           <label class="log-file"><span>{{ L.file }}</span>
-            <select v-model="path" class="input">
+            <!-- :value, not v-model: v-model sets the choice anew on every update, which closed the open
+                 list each time following looked (the user) -->
+            <select :value="path" class="input" @change="path = $event.target.value">
               <optgroup v-for="g in groups" :key="g.name" :label="g.name">
                 <option v-for="(f, i) in g.files" :key="f.path" :value="f.path">{{ fileLabel(f, i) }}</option>
               </optgroup>
             </select></label>
           <button class="btn" type="button" :disabled="busy" @click="toEnd">{{ L.toEnd }}</button>
           <button class="btn" type="button" :disabled="busy" @click="lastStart">{{ L.lastStart }}</button>
-          <button class="chip" type="button" :aria-pressed="follow ? 'true' : 'false'" @click="follow = !follow">{{ L.follow }}</button>
+          <!-- Symbols only, what they do in the tooltip (the user's wish of 26.09.2026) -->
+          <button class="chip chip-icon" type="button" :aria-pressed="wrap ? 'true' : 'false'" :aria-label="L.wrap"
+                  :title="L.wrap + ': ' + L.wrapHint" @click="wrap = !wrap"><ui-icon name="wrap" :size="17"/></button>
+          <button class="chip chip-icon" type="button" :aria-pressed="follow ? 'true' : 'false'" :aria-label="L.follow"
+                  :title="L.follow + ': ' + L.followHint" @click="follow = !follow"><ui-icon name="live" :size="17"/></button>
+          <button v-if="follow" class="chip chip-icon" type="button" :aria-pressed="showEnd ? 'true' : 'false'" :aria-label="L.showEnd"
+                  :title="L.showEnd + ': ' + L.showEndHint" @click="showEnd = !showEnd"><ui-icon name="toEnd" :size="17"/></button>
+          <span v-if="follow" class="plog-following" role="status">{{ followText || L.followStart }}</span>
           <a v-if="download" class="btn" :href="download" download>{{ L.download }}</a>
         </div>
         <form class="plog-search" role="search" @submit.prevent="searchAll">
           <input v-model="query" class="input" type="search" :placeholder="L.find" :aria-label="L.find" spellcheck="false" autocomplete="off">
           <button class="chip" type="button" :aria-pressed="regex ? 'true' : 'false'" :title="L.regexHint" @click="regex = !regex">{{ L.regex }}</button>
+          <regex-help examples="printer" @use="useExample"/>
           <label class="plog-context">{{ L.context }}
-            <select v-model.number="context" class="input"><option v-for="n in CONTEXTS" :key="n" :value="n">{{ n }}</option></select></label>
+            <select :value="context" class="input" @change="context = Number($event.target.value)"><option v-for="n in CONTEXTS" :key="n" :value="n">{{ n }}</option></select></label>
           <button class="btn btn-primary" type="submit" :disabled="!query.trim() || searching">{{ searching ? L.searching : L.searchAll }}</button>
           <span v-if="marker" class="note">{{ L.marked(marked) }}</span>
         </form>
@@ -261,7 +297,7 @@ export default {
         </section>
 
         <p v-if="lines.length" class="plog-window">{{ L.window(fmtSize(from), fmtSize(next), fmtSize(size)) }}</p>
-        <div ref="box" class="log-list plog-list">
+        <div ref="box" :class="['log-list', 'plog-list', { 'is-nowrap': !wrap }]">
           <button v-if="from > 0 && lines.length" class="link plog-more" type="button" :disabled="busy" @click="older">{{ L.older }}</button>
           <div v-for="l in lines" :key="l.at" :data-at="l.at" :title="l.kind ? L.kinds[l.kind] : null"
                :class="['plog-line', l.kind ? 'is-' + l.kind : '', { 'is-focus': l.at === focusAt }]"><span v-if="l.kind" class="sr-only">{{ L.kinds[l.kind] }}: </span><template v-for="(p, i) in parts(l.text)" :key="i"><mark v-if="p.m">{{ p.t }}</mark><template v-else>{{ p.t }}</template></template></div>

@@ -538,6 +538,10 @@ export const ICONS = {
   folderOpen: '<path d="M3.5 17V7a2 2 0 0 1 2-2h4l2 2.5h6a2 2 0 0 1 2 2v1"/><path d="M3.5 17l2.3-6a1.5 1.5 0 0 1 1.4-1h12.6a1 1 0 0 1 .9 1.4L18.4 17.8a1.8 1.8 0 0 1-1.7 1.2H5.2a1.7 1.7 0 0 1-1.7-2z"/>',
   file: '<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/>',
   log: '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4.5"/>',
+  // The switches of the page "Logs" (pages/druckerlogs.js): wrap lines, follow live, keep the end in view
+  wrap: '<path d="M4 6.5h16M4 12h12.5a3.5 3.5 0 0 1 0 7H11.5"/><path d="m13.5 17-2 2 2 2"/><path d="M4 17.5h4"/>',
+  live: '<circle cx="12" cy="12" r="1.8"/><path d="M8.6 8.6a4.8 4.8 0 0 0 0 6.8M15.4 8.6a4.8 4.8 0 0 1 0 6.8M5.8 5.8a8.8 8.8 0 0 0 0 12.4M18.2 5.8a8.8 8.8 0 0 1 0 12.4"/>',
+  toEnd: '<path d="M12 4v11.5M7 10.5l5 5 5-5"/><path d="M5.5 19.5h13"/>',
   layers: '<path d="M12 4 3.5 8.5 12 13l8.5-4.5z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5"/><path d="m3.5 16.5 8.5 4.5 8.5-4.5"/>',
   pencil: '<path d="M4.5 19.5l1-4.5L15.5 5l3.5 3.5-10 10z"/><path d="m13 7.5 3.5 3.5"/>',
   undo: '<path d="M9 13.5 4.5 9 9 4.5"/><path d="M4.5 9H14a5.5 5.5 0 0 1 0 11h-3"/>',
