@@ -11,10 +11,12 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
+import anyio
 from fastapi import Body, FastAPI, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import ClientDisconnect
 
 from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, live, logs, monitor,
                errors, network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
@@ -166,6 +168,7 @@ def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "printer_name_taken": 400, "search_failed": 500,
               "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
               "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400,
+              "name_invalid": 400, "name_taken": 409, "file_refused": 409, "upload_failed": 400,
               "wifi_printing": 409, "wifi_printing_unknown": 409, "ssh_login": 403, "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_login_invalid": 400, "log_query_invalid": 400, "range_unsatisfiable": 416, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
@@ -216,6 +219,8 @@ LANGUAGES = ("de", "en")
 THEMES = ("light", "dark")
 # The two parts of OrcaOne (the user's wish of 25.09.2026): the slicers' profiles and the printers.
 AREAS = ("slicer", "printer")
+# What the page "Dateien" sorts by: name, size, date, print time.
+FILE_SORT_KEYS = ("name", "size", "modified", "time")
 
 
 def _chosen(value) -> dict:
@@ -243,6 +248,13 @@ def _view3d(value) -> dict | None:
             if isinstance(value, dict) and point(value.get("position")) and point(value.get("target")) else None)
 
 
+def _files_sort(value) -> dict | None:
+    """How the page "Dateien" sorts: {"key": "name", "size", "modified" or "time", "desc": bool}."""
+    if isinstance(value, dict) and value.get("key") in FILE_SORT_KEYS and isinstance(value.get("desc"), bool) and len(value) == 2:
+        return {"key": value["key"], "desc": value["desc"]}
+    return None
+
+
 def _risk(value):
     """The confirmation "use at your own risk" (the user's wish of 26.09.2026): when, and with which
     version of OrcaOne; None while there is none."""
@@ -259,6 +271,7 @@ def get_settings():
             "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None,
             "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d")),
             "chosen_instance": _chosen_instance(stored.get("chosen_instance")), "print_file": _print_files(stored.get("print_file")),
+            "files_sort": _files_sort(stored.get("files_sort")),
             "version": __version__, "risk_accepted": _risk(stored.get("risk_accepted"))}
 
 
@@ -277,11 +290,13 @@ def set_settings(payload: dict = Body(...)):
     which it takes again instead of the standard view; the user's wish of 25.09.2026), "accept_risk"
     (true: the user confirmed "use at your own risk", kept with the time and the version),
     "chosen_instance" (the installation chosen last) and "print_file" ({"<printer>": "<path>"}: the
-    print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026)."""
+    print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026).
+    "files_sort" ({"key", "desc"}): how the page "Dateien" sorts, kept for the next visit."""
     changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area") if key in payload}
     chosen, view, accept = payload.get("chosen_printer"), payload.get("view3d"), payload.get("accept_risk")
-    instance, files = payload.get("chosen_instance"), payload.get("print_file")
-    if ((not changed and chosen is None and view is None and accept is None and instance is None and files is None)
+    instance, files, sort = payload.get("chosen_instance"), payload.get("print_file"), payload.get("files_sort")
+    if ((not changed and chosen is None and view is None and accept is None and instance is None and files is None and sort is None)
+            or (sort is not None and _files_sort(sort) != sort)
             or ("language" in changed and changed["language"] not in LANGUAGES)
             or ("chosen_instance" in payload and _chosen_instance(instance) is None)
             or (files is not None and (not isinstance(files, dict) or not files or _print_files(files) != files))
@@ -303,6 +318,8 @@ def set_settings(payload: dict = Body(...)):
             data["chosen_instance"] = instance
         if files:
             data["print_file"] = {**_print_files(data.get("print_file")), **files}
+        if sort is not None:
+            data["files_sort"] = sort
         if accept:
             data["risk_accepted"] = {"at": datetime.now().astimezone().isoformat(timespec="seconds"), "version": __version__}
     try:
@@ -657,23 +674,73 @@ def camera_image(camera_id: str):
     return Response(content=data, media_type="image/jpeg", headers={} if age is None else {"X-Image-Age": f"{age:.0f}"})
 
 
-# ---------------------------------------------------------------- files on the U1 (orcaone/printer_files.py)
-# By camera id as the page "Kamera": every U1 with an address. Text files open as text in the browser.
+# ---------------------------------------------------------------- the page "Dateien" (orcaone/printer_files.py)
+# By model, for every Klipper printer with an address; the videos only on the U1. Text files open as
+# text in the browser.
 _TEXT_FILES = (".gcode", ".log", ".cfg", ".conf", ".json", ".txt", ".bkp")
 # Types a printer's file keeps: pictures and videos the pages show.
 _SHOWN_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "video/mp4", "text/plain"}
 
 
-@app.get("/api/cameras/{camera_id}/files")
-def printer_folder(camera_id: str, folder: str = "gcodes"):
-    host = camera.find(camera_id)["host"]
-    return {"folders": printer_files.folders(host), "folder": folder, **printer_files.listing(host, folder)}
+def _u1(model: str) -> bool:
+    return (camera.printers().get(model) or {}).get("model") in camera.U1_MODELS
 
 
-@app.get("/api/cameras/{camera_id}/file")
-def printer_file(camera_id: str, folder: str = "", path: str = "", download: bool = False):
+@app.get("/api/printers/folder")
+def printer_folder(model: str = "", folder: str = "gcodes", path: str = ""):
+    host, u1 = camera.host_of(model), _u1(model)
+    return {"folders": printer_files.folders(host, u1), "folder": folder, "path": path, **printer_files.listing(host, folder, path, u1)}
+
+
+@app.get("/api/printers/folder/file")
+def printer_file(model: str = "", folder: str = "", path: str = "", download: bool = False):
     # Pictures, videos and files pass through OrcaOne: the browser never talks to the printer itself.
-    return _passed_on(printer_files.open_file(camera.find(camera_id)["host"], folder, path), path, download)
+    return _passed_on(printer_files.open_file(camera.host_of(model), folder, path), path, download)
+
+
+@app.post("/api/printers/folder/delete")
+def delete_printer_files(payload: dict = Body(...)):
+    # Print files, folders in "gcodes" and the U1's videos, on the user's click after a question.
+    model = str(payload.get("model", ""))
+    host, folder = camera.host_of(model), payload.get("folder")
+    if folder == "camera" and not _u1(model):
+        return _error("folder_read_only")
+    return printer_files.delete(host, folder, payload.get("names"), payload.get("dirs"))
+
+
+@app.post("/api/printers/folder/move")
+def move_printer_files(payload: dict = Body(...)):
+    # On the user's drag and drop: files and folders into another folder in "gcodes".
+    return printer_files.move(camera.host_of(str(payload.get("model", ""))), payload.get("paths"), payload.get("target"))
+
+
+@app.post("/api/printers/folder/make")
+def make_printer_folder(payload: dict = Body(...)):
+    return printer_files.make_dir(camera.host_of(str(payload.get("model", ""))), payload.get("parent"), payload.get("name"))
+
+
+@app.post("/api/printers/folder/upload")
+async def upload_printer_file(request: Request, model: str = "", folder: str = "", name: str = "", replace: bool = False):
+    # A print file dropped on the page, the file itself as the body, passed on to Moonraker block by
+    # block while it arrives (printer_files.upload); the blocking request runs in a thread.
+    size = request.headers.get("content-length", "")
+    if not size.isdigit():
+        return _error("upload_failed", 411)
+    host = camera.host_of(model)
+    blocks = request.stream().__aiter__()
+
+    async def next_block() -> bytes:
+        try:
+            return await blocks.__anext__()
+        except StopAsyncIteration:
+            return b""
+        except ClientDisconnect:
+            raise ValueError("the browser went away") from None
+
+    def chunks():
+        while block := anyio.from_thread.run(next_block):
+            yield block
+    return await anyio.to_thread.run_sync(lambda: printer_files.upload(host, folder, name, int(size), chunks(), replace))
 
 
 def _passed_on(response, path: str, download: bool = False):
@@ -817,11 +884,6 @@ def printer_reboot(request: Request, payload: dict = Body(...)):
     # computer's keys only for a page on it (hard rule 8).
     return network.reboot(str(payload.get("model", "")), keys=not is_remote(request.client))
 
-
-@app.post("/api/cameras/{camera_id}/files/delete")
-def delete_printer_files(camera_id: str, payload: dict = Body(...)):
-    # Print files and videos, on the user's wish (orcaone/printer_files.py).
-    return printer_files.delete(camera.find(camera_id)["host"], payload.get("folder"), payload.get("names"))
 
 
 @app.get("/api/cameras/{camera_id}/print")

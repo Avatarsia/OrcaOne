@@ -275,7 +275,7 @@ export default {
           <p class="live-links">
             <a class="link" :href="'http://' + m.host + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
             <a class="link" :href="hashOf('status', null)" @click.prevent="openFor(m.key, 'status')">{{ T.nav.pages.status }}</a>
-            <a v-if="isU1(m.model)" class="link" :href="hashOf('dateien', null)" @click.prevent="openFor(m.key, 'dateien')">{{ T.nav.pages.dateien }}</a>
+            <a class="link" :href="hashOf('dateien', null)" @click.prevent="openFor(m.key, 'dateien')">{{ T.nav.pages.dateien }}</a>
             <a class="link" :href="hashOf('druck3d', null)" @click.prevent="openFor(m.key, 'druck3d')">{{ T.nav.pages.druck3d }}</a>
             <a class="link" :href="hashOf('druck2d', null)" @click.prevent="openFor(m.key, 'druck2d')">{{ T.nav.pages.druck2d }}</a>
             <a v-if="isU1(m.model)" class="link" :href="hashOf('kamera', null)" @click.prevent="openFor(m.key, 'kamera')">{{ T.nav.pages.kamera }}</a>

@@ -94,7 +94,7 @@ const PAGES = [
   { id: "druck3d", area: "printer", icon: "cube", component: Druck3dPage, standalone: true, printer: true },
   { id: "druck2d", area: "printer", icon: "toolpath", component: Druck2dPage, standalone: true, printer: true },
   { id: "kamera", area: "printer", icon: "camera", component: KameraPage, standalone: true, u1: true, printer: true },
-  { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, u1: true, printer: true },
+  { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, printer: true },
   { id: "hoehenkarte", area: "printer", icon: "mesh", component: HoehenkartePage, standalone: true, printer: true },
   { id: "konsole", area: "printer", icon: "code", component: KonsolePage, standalone: true, printer: true },
   // How the printer is in the network, where it gets stuck (the user's wish of 25.09.2026): for any

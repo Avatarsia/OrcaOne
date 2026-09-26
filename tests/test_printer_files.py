@@ -1,10 +1,13 @@
-"""The files on the U1 (orcaone/printer_files.py) against a small stand-in for Moonraker, never a
-real printer: the folders and what may be deleted, deleting one by one, and a print with the
-options of the display."""
+"""The files on a Klipper printer (orcaone/printer_files.py) against a small stand-in for Moonraker,
+never a real printer: the folders and what may be deleted, deleting one by one, folders in
+"gcodes", moving, uploading, and a print with the options of the display."""
 
+import email.parser
+import email.policy
 import json
 import re
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,7 +36,14 @@ TASK_CONFIG = {"filament_type": ["PLA", "PLA", "PETG", "PLA"], "filament_sub_typ
 @pytest.fixture
 def moonraker():
     """GETs as the U1 answers them; DELETE and POST are recorded. A file in "busy" is being printed."""
-    seen = {"deleted": [], "started": [], "busy": set(), "start_answer": {"state": "success", "message": "Print started"}}
+    seen = {"deleted": [], "started": [], "busy": set(), "start_answer": {"state": "success", "message": "Print started"},
+            "dirs_deleted": [], "made": [], "moved": [], "uploads": [], "printing": None}
+    top = {"files": [{**PRINT_FILE, "filename": "old.gcode", "modified": 1.0, "filament_weight": [3.0]}, PRINT_FILE],
+           "dirs": [{"dirname": ".thumbs"}, {"dirname": "calibration_data"}, {"dirname": "Projekte", "modified": 5.0, "size": 4096}],
+           "disk_usage": {"total": 100, "used": 40, "free": 60}}
+    # Moonraker names the pictures relative to the file's own folder.
+    inner = {"files": [{**PRINT_FILE, "filename": "Box.gcode", "thumbnails": [{"width": 300, "relative_path": ".thumbs/Box-300x300.png"}]}],
+             "dirs": [{"dirname": "Alt", "modified": 6.0}, {"dirname": ".thumbs"}], "disk_usage": top["disk_usage"]}
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status, result=None, body=None, kind="application/json", headers=()):
@@ -49,9 +59,13 @@ def moonraker():
         def do_GET(self):
             answers = {
                 "/server/files/roots": ROOTS,
-                "/server/files/directory?path=gcodes&extended=true": {
-                    "files": [{**PRINT_FILE, "filename": "old.gcode", "modified": 1.0, "filament_weight": [3.0]}, PRINT_FILE],
-                    "dirs": [{"dirname": ".thumbs"}], "disk_usage": {"total": 100, "used": 40, "free": 60}},
+                "/server/files/directory?path=gcodes&extended=true": top,
+                "/server/files/directory?path=gcodes": top,
+                "/server/files/directory?path=gcodes/Projekte&extended=true": inner,
+                "/server/files/directory?path=gcodes/Projekte": inner,
+                "/server/files/directory?path=gcodes/Projekte/Alt": {"files": [], "dirs": []},
+                "/printer/objects/query?print_stats": {"status": {"print_stats": {
+                    "state": "printing" if seen["printing"] else "standby", "filename": seen["printing"] or ""}}},
                 "/server/files/list?root=logs": [{"path": "moonraker.log", "size": 12, "modified": 2.0},
                                                  {"path": "klippy.log", "size": 7, "modified": 1.0}],
                 "/printer/objects/query?print_task_config&print_stats": {
@@ -72,6 +86,10 @@ def moonraker():
             self._send(404, {"error": {"code": 404, "message": "Not Found"}})
 
         def do_DELETE(self):
+            if self.path.startswith("/server/files/directory?"):
+                query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                seen["dirs_deleted"].append((query["path"][0], query.get("force")))
+                return self._send(200, {"result": {"item": {"path": query["path"][0]}, "action": "delete_dir"}})
             name = urllib.parse.unquote(self.path[len("/server/files/gcodes/"):])
             if name in seen["busy"]:
                 return self._send(403, {"error": {"code": 403, "message": f"File is in use: {name}"}})
@@ -83,6 +101,23 @@ def moonraker():
             if self.path in ("/server/files/start_local_print", "/printer/emergency_stop"):
                 return self._send(404, {"error": {"code": 404, "message": "Not Found"}})
             raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            if self.path == "/server/files/upload":
+                # Broken off before its end: Moonraker drops what came (on_connection_close).
+                if len(raw) < int(self.headers["Content-Length"]) or not raw.endswith(b"--\r\n"):
+                    return self._send(400, {"error": {"code": 400, "message": "Incomplete upload"}})
+                # The form as Moonraker reads it: root, path, the file with its name.
+                form = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
+                    b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n" + raw)
+                parts = {part.get_param("name", header="content-disposition"): part for part in form.iter_parts()}
+                seen["uploads"].append({key: part.get_payload(decode=True) for key, part in parts.items()}
+                                       | {"filename": parts["file"].get_filename()})
+                return self._send(201, {"result": {"item": {"path": parts["file"].get_filename(), "root": "gcodes"}, "action": "create_file"}})
+            if self.path in ("/server/files/directory", "/server/files/move"):
+                body = json.loads(raw)
+                if body.get("dest") == "gcodes/Projekte/refused.gcode":
+                    return self._send(400, {"error": {"code": 400, "message": "Refused by Moonraker"}})
+                seen["made" if self.path.endswith("directory") else "moved"].append(body)
+                return self._send(200, {"result": {"item": {}, "action": "ok"}})
             seen["started"].append((self.path, json.loads(raw) if raw else None))
             if self.path == "/printer/print/cancel" and "cancel" in seen["busy"]:
                 return self._send(400, {"error": {"code": 400, "message": "No print in progress"}})
@@ -209,33 +244,162 @@ def test_a_print_with_the_options_of_the_display(moonraker, service):
     assert [method for method, _ in service].count("server.files.start_local_print") == 3
 
 
+def test_folders_in_print_files(moonraker, service):
+    """The file explorer (the user's wish of 26.09.2026): a folder in "gcodes" with its files and
+    folders, pictures relative to it, the printer's own folders hidden; details for the side panel."""
+    host, _ = moonraker
+    top = printer_files.listing(host, "gcodes")
+    assert top["dirs"] == [{"name": "Projekte", "path": "Projekte", "size": 4096, "modified": 5.0}]
+    assert top["files"][0]["path"] == "Puzzel_PLA_1h28m.gcode"
+    inner = printer_files.listing(host, "gcodes", "Projekte")
+    box = inner["files"][0]
+    assert (box["name"], box["path"], box["thumb"]) == ("Box.gcode", "Projekte/Box.gcode", "Projekte/.thumbs/Box-300x300.png")
+    assert [d["path"] for d in inner["dirs"]] == ["Projekte/Alt"]
+    for key in printer_files.DETAILS:
+        assert key in box
+    for wrong in ("../x", "/abs", "a\\b"):
+        with pytest.raises(camera.CameraError) as err:
+            printer_files.listing(host, "gcodes", wrong)
+        assert err.value.code == "file_invalid"
+    # Another Klipper printer has no camera service: no videos, "config" read only although writable.
+    assert printer_files.folders(host, u1=False) == [{"name": "gcodes", "delete": True}, {"name": "logs", "delete": False},
+                                                     {"name": "config", "delete": False}]
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.listing(host, "camera", u1=False)
+    assert err.value.code == "folder_unknown"
+
+
+def test_making_moving_and_deleting_folders(moonraker, service):
+    host, seen = moonraker
+    assert printer_files.make_dir(host, "Projekte", "Neu") == {"created": "Projekte/Neu"}
+    assert printer_files.make_dir(host, "", "Serie 2") == {"created": "Serie 2"}
+    assert seen["made"] == [{"path": "gcodes/Projekte/Neu"}, {"path": "gcodes/Serie 2"}]
+    for parent, name, code in (("", "Projekte", "name_taken"), ("Projekte/", "x", "file_invalid"), ("a//b", "x", "file_invalid"), ("", ".versteckt", "name_invalid"), ("", "a/b", "name_invalid"),
+                               ("", 'a"b', "name_invalid"), ("", " ", "name_invalid"), ("", 5, "name_invalid"),
+                               (".thumbs", "x", "file_invalid"), ("calibration_data", "x", "file_invalid"), ("../x", "y", "file_invalid")):
+        with pytest.raises(camera.CameraError) as err:
+            printer_files.make_dir(host, parent, name)
+        assert err.value.code == code, (parent, name)
+    assert len(seen["made"]) == 2
+
+    # One by one: already there is skipped, the same name, into itself, the printer's own and a refusal fail.
+    seen["printing"] = "Projekte/Alt/running.gcode"
+    result = printer_files.move(host, ["old.gcode", "Projekte/Box.gcode", "Projekte/Alt", "refused.gcode", ".thumbs/x.png"], "Projekte")
+    assert result["moved"] == ["old.gcode"]
+    assert seen["moved"] == [{"source": "gcodes/old.gcode", "dest": "gcodes/Projekte/old.gcode"}]
+    assert result["failed"] == [{"name": "refused.gcode", "detail": "Refused by Moonraker"}, {"name": ".thumbs/x.png", "detail": "file_invalid"}]
+    result = printer_files.move(host, ["Projekte", "Projekte/Alt", "Projekte/Alt/Box.gcode"], "")
+    assert result["failed"] == [{"name": "Projekte/Alt", "detail": "file_in_use"}]
+    assert result["moved"] == ["Projekte/Alt/Box.gcode"]    # "Projekte" is there already, it stays
+    assert printer_files.move(host, ["Projekte/Alt/Box.gcode"], "Projekte")["failed"] == [{"name": "Projekte/Alt/Box.gcode", "detail": "exists"}]
+    assert printer_files.move(host, ["Projekte"], "Projekte/Alt")["failed"] == [{"name": "Projekte", "detail": "move_into_itself"}]
+    for paths, target in (([], ""), ("old.gcode", ""), (["old.gcode"], "../x")):
+        with pytest.raises(camera.CameraError):
+            printer_files.move(host, paths, target)
+    assert len(seen["moved"]) == 2
+
+    # A folder with all it holds, but not the one with the print in it.
+    result = printer_files.delete(host, "gcodes", ["old.gcode"], ["Serie 2", "Projekte", "calibration_data"])
+    assert result["deleted"] == ["old.gcode", "Serie 2"]
+    assert result["failed"] == [{"name": "Projekte", "detail": "file_in_use"}, {"name": "calibration_data", "detail": "file_invalid"}]
+    assert seen["dirs_deleted"] == [("gcodes/Serie 2", ["true"])]
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.delete(host, "camera", [], ["x"])
+    assert err.value.code == "file_invalid"
+
+
+def test_uploading_block_by_block(moonraker, service):
+    host, seen = moonraker
+    blocks = [b";Model\n", b"G1 X1\n" * 1000, "; Ä\n".encode()]
+    size = sum(map(len, blocks))
+    assert printer_files.upload(host, "Projekte", "Würfel 2.gcode", size, iter(blocks)) == {"uploaded": "Projekte/Würfel 2.gcode"}
+    assert seen["uploads"] == [{"root": b"gcodes", "path": b"Projekte", "file": b"".join(blocks), "filename": "Würfel 2.gcode"}]
+    assert printer_files.upload(host, "", "neu.gcode", 3, iter([b"G28"]))["uploaded"] == "neu.gcode"
+    assert "path" not in seen["uploads"][-1]
+    # Over a file of the same name only when asked, as Moonraker would overwrite it silently.
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.upload(host, "", "old.gcode", 3, iter([b"G28"]))
+    assert (err.value.code, err.value.detail) == ("name_taken", "old.gcode")
+    printer_files.upload(host, "", "old.gcode", 3, iter([b"G28"]), replace=True)
+    # A browser that sends less or more than it announced: nothing lands on the printer.
+    for sent in ([b"G2"], [b"G28", b"X"]):
+        with pytest.raises(camera.CameraError) as err:
+            printer_files.upload(host, "", "kurz.gcode", 3, iter(sent))
+        assert err.value.code == "upload_failed"
+    for folder, name, code in (("", "../x.gcode", "name_invalid"), (".thumbs", "x.gcode", "file_invalid"), ("", ".hidden", "name_invalid")):
+        with pytest.raises(camera.CameraError) as err:
+            printer_files.upload(host, folder, name, 1, iter([b"x"]))
+        assert err.value.code == code
+    assert len(seen["uploads"]) == 3
+    # The printer gone: unreachable, not a refusal.
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.upload("127.0.0.1:1", "", "x.gcode", 1, iter([b"x"]), replace=True)
+    assert err.value.code == "camera_unreachable"
+
+
+def send_file(url, data):
+    """A file as the page sends it: the bytes as the body."""
+    request = urllib.request.Request(url, data=data, method="POST", headers={"Content-Type": "application/octet-stream"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as err:
+        return err.code, err.read()
+
+
 def test_api(server, moonraker, service):
     host, seen = moonraker
     camera.set_host("Snapmaker U1", host)
-    cam = json.loads(call(f"{server}/api/cameras")[1])["cameras"][0]
-    base = f"{server}/api/cameras/{cam['id']}"
-    status, body = call(f"{base}/files?folder=gcodes")
+    base, model = f"{server}/api/printers/folder", "model=Snapmaker%20U1"
+    status, body = call(f"{base}?{model}&folder=gcodes")
     data = json.loads(body)
     assert status == 200 and [f["name"] for f in data["folders"]] == ["gcodes", "camera", "logs", "config"]
     assert data["folder"] == "gcodes" and len(data["files"]) == 2 and data["disk"]["free"] == 60
+    assert [d["name"] for d in data["dirs"]] == ["Projekte"]
+    data = json.loads(call(f"{base}?{model}&folder=gcodes&path=Projekte")[1])
+    assert (data["path"], [f["path"] for f in data["files"]]) == ("Projekte", ["Projekte/Box.gcode"])
     # A video through OrcaOne, and as a download under its own name.
-    with urllib.request.urlopen(f"{base}/file?folder=camera&path=hex-key_20260916140019.mp4") as response:
+    with urllib.request.urlopen(f"{base}/file?{model}&folder=camera&path=hex-key_20260916140019.mp4") as response:
         assert response.headers["Content-Type"] == "video/mp4" and response.read().endswith(b"ftypisom")
-    with urllib.request.urlopen(f"{base}/file?folder=camera&path=hex-key_20260916140019.mp4&download=true") as response:
+    with urllib.request.urlopen(f"{base}/file?{model}&folder=camera&path=hex-key_20260916140019.mp4&download=true") as response:
         assert response.headers["Content-Disposition"] == "attachment; filename*=UTF-8''hex-key_20260916140019.mp4"
-    assert json.loads(call(f"{base}/file?folder=gcodes&path=../x")[1]) == {"error": "file_invalid"}
-    assert call(f"{base}/file?folder=gcodes&path=missing.gcode")[0] == 404
-    status, body = call(f"{base}/files/delete", "POST", {"folder": "gcodes", "names": ["old.gcode"]})
+    assert json.loads(call(f"{base}/file?{model}&folder=gcodes&path=../x")[1]) == {"error": "file_invalid"}
+    assert call(f"{base}/file?{model}&folder=gcodes&path=missing.gcode")[0] == 404
+    status, body = call(f"{base}/delete", "POST", {"model": "Snapmaker U1", "folder": "gcodes", "names": ["old.gcode"]})
     assert (status, json.loads(body)) == (200, {"deleted": ["old.gcode"], "failed": []})
-    status, body = call(f"{base}/files/delete", "POST", {"folder": "logs", "names": ["klippy.log"]})
+    status, body = call(f"{base}/delete", "POST", {"model": "Snapmaker U1", "folder": "logs", "names": ["klippy.log"]})
     assert (status, json.loads(body)) == (400, {"error": "folder_read_only"})
-    assert json.loads(call(f"{base}/print")[1])["state"] == "standby"
-    status, body = call(f"{base}/print", "POST", {"path": "old.gcode", "options": {"bed_level": True}, "map": [[0, 0]]})
+    status, body = call(f"{base}/move", "POST", {"model": "Snapmaker U1", "paths": ["old.gcode"], "target": "Projekte"})
+    assert (status, json.loads(body)) == (200, {"moved": ["old.gcode"], "failed": []})
+    status, body = call(f"{base}/make", "POST", {"model": "Snapmaker U1", "parent": "", "name": "Projekte"})
+    assert (status, json.loads(body)) == (409, {"error": "name_taken", "detail": "Projekte"})
+    # The file itself as the body, passed on to Moonraker; without a length it is refused.
+    status, body = send_file(f"{base}/upload?{model}&folder=Projekte&name=Teil.gcode", b"G28\nG1 X5\n")
+    assert (status, json.loads(body)) == (200, {"uploaded": "Projekte/Teil.gcode"})
+    assert seen["uploads"][-1]["file"] == b"G28\nG1 X5\n"
+    status, body = send_file(f"{base}/upload?{model}&name=old.gcode", b"G28")
+    assert (status, json.loads(body)) == (409, {"error": "name_taken", "detail": "old.gcode"})
+    status, body = send_file(f"{base}/upload?{model}&name=chunked.gcode", iter([b"G28"]))  # chunked, no length
+    assert (status, json.loads(body)) == (411, {"error": "upload_failed"})
+    assert len(seen["uploads"]) == 1
+    assert call(f"{server}/api/printers/folder?model=Unbekannt")[0] == 404
+
+    # Another Klipper printer: no videos, neither listed nor deleted.
+    camera.set_host("Voron 2.4", host)
+    data = json.loads(call(f"{base}?model=Voron%202.4&folder=gcodes")[1])
+    assert [f["name"] for f in data["folders"]] == ["gcodes", "logs", "config"]
+    status, body = call(f"{base}/delete", "POST", {"model": "Voron 2.4", "folder": "camera", "names": ["20260915044700"]})
+    assert (status, json.loads(body)) == (400, {"error": "folder_read_only"})
+
+    # The print with the options of the U1's display stays by camera id.
+    cam = json.loads(call(f"{server}/api/cameras")[1])["cameras"][0]
+    assert json.loads(call(f"{server}/api/cameras/{cam['id']}/print")[1])["state"] == "standby"
+    status, body = call(f"{server}/api/cameras/{cam['id']}/print", "POST", {"path": "old.gcode", "options": {"bed_level": True}, "map": [[0, 0]]})
     assert (status, json.loads(body)) == (200, {"started": "old.gcode"})
     seen["start_answer"] = {"state": "error", "message": "Printer is busy, cannot start print"}
-    status, body = call(f"{base}/print", "POST", {"path": "old.gcode", "options": {}, "map": []})
+    status, body = call(f"{server}/api/cameras/{cam['id']}/print", "POST", {"path": "old.gcode", "options": {}, "map": []})
     assert (status, json.loads(body)) == (409, {"error": "print_refused", "detail": "Printer is busy, cannot start print"})
-    assert call(f"{server}/api/cameras/nope/files")[0] == 404
+    assert call(f"{server}/api/cameras/nope/print")[0] == 404
 
 
 def test_print_files_for_the_3d_and_2d_view(server, moonraker):

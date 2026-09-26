@@ -72,6 +72,7 @@ export const api = {
   setChosenInstance: (id) => request("POST", "/api/settings", { chosen_instance: id }),
   setPrintFile: (printer, path) => request("POST", "/api/settings", { print_file: { [printer]: path } }),
   // Where the camera of "3D Ansicht" was left: the page opens with it again.
+  setFilesSort: (sort) => request("POST", "/api/settings", { files_sort: sort }),
   setView3d: (view) => request("POST", "/api/settings", { view3d: view }),
   // "Use at your own risk" confirmed: the server keeps it with the time and the version
   acceptRisk: () => request("POST", "/api/settings", { accept_risk: true }),
@@ -129,12 +130,38 @@ export const api = {
   wakeCamera: (id) => request("POST", `/api/cameras/${encodeURIComponent(id)}/wake`),
   // The light in the U1 on or off.
   cameraLight: (id, on) => request("POST", `/api/cameras/${encodeURIComponent(id)}/light`, { on }),
-  // Page "Dateien" (orcaone/printer_files.py): a folder of the U1, deleting print files and
-  // videos, and a print with the options of the printer's display.
-  printerFiles: (id, folder) => request("GET", `/api/cameras/${encodeURIComponent(id)}/files?folder=${encodeURIComponent(folder)}`),
-  printerFileUrl: (id, folder, path, download = false) =>
-    `/api/cameras/${encodeURIComponent(id)}/file?folder=${encodeURIComponent(folder)}&path=${encodeURIComponent(path)}${download ? "&download=true" : ""}`,
-  deletePrinterFiles: (id, folder, names) => request("POST", `/api/cameras/${encodeURIComponent(id)}/files/delete`, { folder, names }),
+  // Page "Dateien" (orcaone/printer_files.py): a folder of any Klipper printer, in "gcodes" also a
+  // folder in it (path); deleting, moving, a new folder, an upload; on the U1 a print with the
+  // options of the printer's display.
+  printerFiles: (model, folder, path = "") =>
+    request("GET", `/api/printers/folder?model=${encodeURIComponent(model)}&folder=${encodeURIComponent(folder)}&path=${encodeURIComponent(path)}`),
+  printerFileUrl: (model, folder, path, download = false) =>
+    `/api/printers/folder/file?model=${encodeURIComponent(model)}&folder=${encodeURIComponent(folder)}&path=${encodeURIComponent(path)}${download ? "&download=true" : ""}`,
+  deletePrinterFiles: (model, folder, names, dirs = []) => request("POST", "/api/printers/folder/delete", { model, folder, names, dirs }),
+  movePrinterFiles: (model, paths, target) => request("POST", "/api/printers/folder/move", { model, paths, target }),
+  makePrinterFolder: (model, parent, name) => request("POST", "/api/printers/folder/make", { model, parent, name }),
+  // The file as the body; onProgress(sent, total) while it goes, since fetch cannot say so. An
+  // AbortSignal (signal) stops it.
+  uploadPrinterFile: (model, folder, file, replace, onProgress, signal) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/api/printers/folder/upload?model=${encodeURIComponent(model)}&folder=${encodeURIComponent(folder)}`
+      + `&name=${encodeURIComponent(file.name)}${replace ? "&replace=true" : ""}`);
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.upload.onprogress = (ev) => onProgress?.(ev.loaded, ev.total);
+    xhr.onload = () => {
+      let data = {};
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch { /* not JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new ApiError(data.error || "unknown", data));
+    };
+    xhr.onerror = xhr.ontimeout = () => reject(new ApiError("network"));
+    xhr.onabort = () => reject(new ApiError("upload_failed"));
+    if (signal?.aborted) return xhr.onabort();
+    signal?.addEventListener("abort", () => xhr.abort(), { once: true });
+    xhr.send(file);
+  }),
   printSetup: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/print`),
   startPrint: (id, path, options, map) => request("POST", `/api/cameras/${encodeURIComponent(id)}/print`, { path, options, map }),
   // The buttons next to the print file in the top bar, each only on the user's click.

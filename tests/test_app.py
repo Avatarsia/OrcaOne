@@ -126,7 +126,7 @@ def test_serves_every_module_the_ui_imports(server):
 
 
 NO_RISK = {"version": __version__, "risk_accepted": None}
-NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}}
+NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}, "files_sort": None}
 
 
 def test_use_at_your_own_risk_is_kept_with_its_date(server, data_dir):
@@ -215,6 +215,18 @@ def test_the_installation_and_print_file_are_settings(server, data_dir):
     settings.change(lambda data: data.update(chosen_instance=7, print_file={"Snapmaker U1": 5, "Voron": "a.gcode"}))
     got = json.loads(call(f"{server}/api/settings")[1])
     assert (got["chosen_instance"], got["print_file"]) == (None, {"Voron": "a.gcode"})
+
+
+def test_the_sorting_of_files_is_a_setting(server, data_dir):
+    """How the page "Dateien" sorts, kept for the next visit (the user's wish of 26.09.2026)."""
+    status, body = call(f"{server}/api/settings", "POST", {"files_sort": {"key": "size", "desc": True}})
+    assert status == 200 and json.loads(body)["files_sort"] == {"key": "size", "desc": True}
+    for wrong in ({"key": "colour", "desc": True}, {"key": "size"}, {"key": "size", "desc": "ja"},
+                  {"key": "size", "desc": True, "more": 1}, "size", []):
+        status, body = call(f"{server}/api/settings", "POST", {"files_sort": wrong})
+        assert status == 400 and json.loads(body) == {"error": "setting_invalid"}, wrong
+    settings.change(lambda data: data.update(files_sort={"key": "name"}))
+    assert json.loads(call(f"{server}/api/settings")[1])["files_sort"] is None
 
 
 def test_the_3d_camera_is_a_setting(server, data_dir):
