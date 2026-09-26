@@ -105,7 +105,7 @@ def printers() -> dict:
         extra = {"every": mine["every"]} if isinstance(mine.get("every"), int) else {}
         # SSH user and key (ssh.save_setting), only what could be one.
         ssh = mine.get("ssh") if isinstance(mine.get("ssh"), dict) else {}
-        ssh = {k: v for k, v in ssh.items() if k in ("user", "key") and isinstance(v, str) and 0 < len(v) <= 100}
+        ssh = {k: v for k, v in ssh.items() if k in ("user", "key", "login") and isinstance(v, str) and 0 < len(v) <= 100}
         extra = {**extra, **({"ssh": ssh} if ssh else {})}
         if isinstance(mine.get("host"), str):
             out[key] = {"host": mine["host"], "from": "orcaone", "model": model, **extra}

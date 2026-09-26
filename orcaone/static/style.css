@@ -1438,7 +1438,6 @@ span.cal-check { cursor: default; }
 .ssh-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 8px; }
 .ssh-commands { display: flex; align-items: center; gap: 8px; color: var(--label); font-size: 13px; font-weight: 700; }
 .ssh-commands .input { width: 240px; font-weight: 400; }
-.ssh-key { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 /* Like the other boxes of the page; xterm takes its colours from the same variables (pages/ssh.js) */
 .ssh-screen { display: flex; flex: 1; min-height: 240px; padding: 8px; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface); }
 /* xterm's fit addon measures its parent's full height: so a parent without padding and border */
@@ -1980,7 +1979,7 @@ span.cal-check { cursor: default; }
 .wifi-rows .link { margin-left: 10px; }
 .wifi-flag { font-weight: 700; }
 .wifi-flag.is-ok { color: var(--success); }
-.wifi-flag.is-warn { color: var(--heat-text); }
+.wifi-flag.is-warn { color: var(--warn); }
 .wifi-chart { position: relative; margin: 0 0 10px 34px; }
 .wifi-chart figcaption { margin-bottom: 4px; color: var(--muted); font-size: 12px; }
 .wifi-chart svg { display: block; width: 100%; height: 150px; border: 1px solid var(--line-box); border-radius: 4px; background: var(--surface-2); }
@@ -2004,7 +2003,7 @@ span.cal-check { cursor: default; }
 .wifi-key.is-rx::before { border-top: 2px dashed var(--muted); }
 .wifi-axis { display: flex; justify-content: space-between; margin: -4px 0 0 34px; color: var(--muted); font-size: 12px; }
 .wifi-hints { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
-.wifi-hints li { display: flex; align-items: baseline; gap: 8px; }
+.wifi-hints li { display: flex; align-items: baseline; gap: 8px; color: var(--text); }
 .wifi-hints .cam-dot { flex: none; transform: translateY(1px); }
 .wifi-hints .is-ok .cam-dot { background: var(--success); }
 .wifi-hints .is-warn .cam-dot { background: var(--warn); }
@@ -2016,7 +2015,7 @@ span.cal-check { cursor: default; }
 .wifi-spin { flex: none; width: 14px; height: 14px; border: 2px solid var(--divider); border-top-color: var(--accent-line); border-radius: 50%; animation: spin .8s linear infinite; }
 .wifi-outcome { margin-top: 14px; font-size: 14px; font-weight: 700; }
 .wifi-outcome.is-ok { color: var(--success); }
-.wifi-outcome.is-warn { color: var(--heat-text); }
+.wifi-outcome.is-warn { color: var(--warn); }
 .wifi-outcome.is-err { color: var(--error); }
 .wifi-help .chips { margin-top: 12px; }
 .wifi-steps { display: flex; flex-direction: column; gap: 12px; margin: 14px 0 0; padding-left: 22px; font-size: 14px; }
@@ -2028,7 +2027,22 @@ span.cal-check { cursor: default; }
   .wifi-tick { left: -30px; width: 26px; }
   .wifi-cmd { flex-direction: column; }
 }
-.note.is-warn { color: var(--heat-text); }
+.note.is-warn { color: var(--warn); }
+/* The overview of the page "Netzwerk": a tile per part (as on "Übersicht", its button opens the tab),
+   its number in the colour of its state; below the parts as tabs, one at a time */
+.net-tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.net-tile-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.net-tile.is-current { border-color: var(--accent-line); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.net-tile.is-ok .home-tile-num { color: var(--success); }
+.net-tile.is-warn .home-tile-num { color: var(--warn); }
+.net-tile.is-err .home-tile-num { color: var(--error); }
+.net-tile .home-tile-num { font-size: 26px; }
+.net-tabs { display: flex; flex-wrap: wrap; gap: 2px 4px; margin: 4px 0 16px; border-bottom: 1px solid var(--line-box); scroll-margin-top: 72px; }
+.net-tab { margin-bottom: -1px; padding: 9px 14px 8px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted);
+           font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.net-tab:hover { color: var(--text); }
+.net-tab.is-current { border-bottom-color: var(--accent-line); color: var(--text); }
+.net-traffic { margin-top: 16px; }
 /* The way from this computer to the internet: nodes, and between them a line in the state's colour */
 .net-path { display: flex; align-items: flex-start; margin: 0; padding: 0; list-style: none; }
 .net-node { display: flex; flex: none; flex-direction: column; align-items: center; gap: 4px; width: 110px; text-align: center; font-size: 13px; }
@@ -2055,7 +2069,7 @@ span.cal-check { cursor: default; }
 .net-if-ip { margin-top: 8px; font-family: var(--mono); font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
 .net-if .tag { display: inline-flex; margin-top: 6px; }
 .net-if-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; color: var(--muted); font-size: 13px; }
-.net-if-facts .is-warn { color: var(--heat-text); }
+.net-if-facts .is-warn { color: var(--warn); }
 .net-wifi { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider); }
 .net-wifi .wifi-dbm { font-size: 24px; }
 /* The checks */
@@ -2068,7 +2082,7 @@ span.cal-check { cursor: default; }
 .net-checks .is-wait .cam-dot { background: var(--accent-line); }
 .net-check-value { color: var(--muted); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
 .net-checks .is-err .net-check-value { color: var(--error); }
-.net-checks .is-warn .net-check-value { color: var(--heat-text); }
+.net-checks .is-warn .net-check-value { color: var(--warn); }
 .net-measure { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
 .net-measure .note { margin: 0; }
 /* The WLANs around: one hump per access point over its channel, as high as its signal */
@@ -2087,17 +2101,38 @@ span.cal-check { cursor: default; }
 .wifi-help[open] > summary::before { transform: rotate(90deg); }
 .wifi-help > summary h2 { font-size: 16px; font-weight: 700; }
 .net-help-h { margin-top: 16px; font-size: 14px; font-weight: 700; }
-/* The key a printer's SSH logs in with (pages/ssh-key.js), on "SSH" and "Netzwerk" */
-.ssh-keypick { margin: 10px 0; }
-.ssh-keypick-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-bottom: 8px; }
-.ssh-keypick-row .ssh-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13px; }
-.ssh-keypick-row select { max-width: 100%; }
-.ssh-keypick-ask { flex: 1 1 260px; }
-.ssh-keypick-result { font-size: 14px; font-weight: 700; }
-.ssh-keypick-result.is-ok { color: var(--success); }
-.ssh-keypick-result.is-warn { color: var(--heat-text); }
-.ssh-keypick-result.is-err { color: var(--error); }
+/* How a printer's SSH logs in (pages/ssh-login.js), on "SSH" and "Netzwerk". In the bar of "SSH"
+   its box vanishes, so its fields join the bar's row, and its rows below go after the bar's last. */
+.ssh-login { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin: 10px 0; }
+.ssh-bar .ssh-login { display: contents; }
+.ssh-login-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ssh-login-helpbtn { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--accent-text);
+                     font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+.ssh-login-helpbtn:hover, .ssh-login-helpbtn[aria-expanded="true"] { text-decoration: underline; }
+.ssh-login-pick { max-width: 100%; }
+.ssh-login-more { order: 1; flex-basis: 100%; }
+.ssh-login-ask { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.ssh-login-ask .ssh-field { flex: 0 1 420px; }
+.ssh-login-result { margin: 0; font-size: 14px; font-weight: 700; }
+.ssh-login-result.is-ok { color: var(--success); }
+.ssh-login-result.is-warn { color: var(--warn); }
+.ssh-login-result.is-err { color: var(--error); }
+.ssh-login-help { padding: 10px 14px; border-left: 3px solid var(--accent-line); border-radius: 4px; background: var(--focus-bg);
+                  color: var(--text); font-size: 13px; line-height: 1.5; }
+.ssh-login-help dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; }
+.ssh-login-help dt { font-weight: 700; }
+.ssh-login-help dd { margin: 0; }
+.ssh-login-help p { margin: 8px 0 0; }
+.ssh-login-help code { padding: 6px 8px; border-radius: 4px; background: var(--surface); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .ssh-login-help dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ssh-login-help dd { margin-bottom: 6px; }
+}
 @media (max-width: 560px) {
+  /* Two tiles side by side on a phone, else the overview would be as long as the page was */
+  .net-tiles { gap: 10px; }
+  .net-tile { padding: 10px 12px; }
+  .net-tile .home-tile-num { font-size: 22px; }
   .net-path { flex-direction: column; align-items: stretch; }
   .net-node { flex-direction: row; width: auto; gap: 10px; text-align: left; }
   .net-node small { margin-left: auto; }

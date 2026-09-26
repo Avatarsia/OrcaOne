@@ -2,11 +2,13 @@
 browser shows it with xterm.js, OrcaOne speaks SSH with paramiko and passes the bytes on over a
 WebSocket. Only to a printer whose address OrcaOne knows (camera.printers), never to any host.
 
-The login: a password typed on the page, else first the key chosen for the printer (a file in
-~/.ssh, the user's wish of 25.09.2026: a key with another name than id_* was never tried), the keys
-in ~/.ssh and the SSH agent, as ssh would try them, then the printer's password as shipped
-(DEFAULT_PASSWORDS); if none fits, the page asks. This computer's keys and agent only for a page on
-this computer (app.is_remote): from the LAN anyone could name a "printer" at any host. Passwords only pass through, nothing keeps them. The printer's host key is
+The login, as chosen per printer (login_of; the user's wish of 26.09.2026: the password first,
+as most use it): a password typed on the page, else the printer's password as shipped
+(DEFAULT_PASSWORDS); or the keys, first the one chosen for the printer (a file in ~/.ssh, the user's
+wish of 25.09.2026: a key with another name than id_* was never tried), the keys in ~/.ssh and the
+SSH agent, as ssh would try them, then the password as shipped. If none fits, the page asks. This
+computer's keys and agent only for a page on this computer (app.is_remote): from the LAN anyone
+could name a "printer" at any host. Passwords only pass through, nothing keeps them. The printer's host key is
 taken as it comes and shown: the U1 makes a new one whenever Root Access is switched on after a
 start, since its /etc/dropbear lies in the overlay that /etc/init.d/S01aoverlayfs clears at every
 start (checked 24.09.2026). A remembered key would only raise false alarms.
@@ -132,7 +134,7 @@ def list_keys() -> list[dict]:
 
 
 def setting(printer: str) -> dict:
-    """{"user", "key"} chosen for a printer, either may be missing (camera.printers)."""
+    """{"user", "key", "login"} chosen for a printer, each may be missing (camera.printers)."""
     found = camera.printers().get(printer) if isinstance(printer, str) else None
     return (found or {}).get("ssh") or {}
 
@@ -142,16 +144,25 @@ def key_of(printer: str) -> Path | None:
     return keys_dir() / name if isinstance(name, str) and KEY_NAME.fullmatch(name) else None
 
 
-def save_setting(printer, user, key) -> dict:
-    """The user and key for a printer's SSH; None or "" takes one away. The key must be one of
-    list_keys()."""
+def login_of(printer: str) -> str:
+    """How a printer's SSH logs in: "key" (the chosen one first, then as "auto"), "auto" (this
+    computer's keys and agent as ssh tries them, then the password as shipped) or "password", also
+    when nothing is chosen (the user's wish of 26.09.2026: most use one)."""
+    return "key" if key_of(printer) else "auto" if setting(printer).get("login") == "auto" else "password"
+
+
+def save_setting(printer, user, key, login=None) -> dict:
+    """The user and the login for a printer's SSH: a key (one of list_keys()), else login "auto"
+    or none, the password; None or "" takes one away."""
     if not isinstance(printer, str) or printer not in camera.printers():
         raise CameraError("printer_not_found")
     if user not in (None, "") and not (isinstance(user, str) and USER.match(user)):
         raise CameraError("ssh_user_invalid")
     if key not in (None, "") and key not in {k["name"] for k in list_keys()}:
         raise CameraError("ssh_key_invalid")
-    chosen = {k: v for k, v in (("user", user), ("key", key)) if v}
+    if login not in (None, "", "password", "auto"):
+        raise CameraError("ssh_login_invalid")
+    chosen = {k: v for k, v in (("user", user), ("key", key), ("login", "auto" if login == "auto" and not key else None)) if v}
 
     def edit(data):
         found = data.get("printers") if isinstance(data.get("printers"), dict) else {}
@@ -279,12 +290,15 @@ async def session(ws: WebSocket, model: str, keys: bool = True) -> None:
             return
         cols, rows = _size(start)
         # What to try, in order, each as (password or None for the keys, typed by the user).
-        typed = start.get("password")
+        typed = start.get("password") if isinstance(start.get("password"), str) else ""
         kind = camera.printers()[model]["model"]   # by the model: a second U1 goes by a name of its own
-        key = key_of(model) if keys else None
+        use_keys = keys and login_of(model) != "password"
+        key = key_of(model) if use_keys else None
         # Each as (password or None for the keys, how it logged in).
-        tries = ([(typed, "typed")] if isinstance(typed, str) and typed
-                 else ([(None, "key")] if keys else []) + ([(DEFAULT_PASSWORDS[kind], "default")] if kind in DEFAULT_PASSWORDS else []))
+        tries = ([(typed, "typed")] if typed
+                 else ([(None, "key")] if use_keys else []) + ([(DEFAULT_PASSWORDS[kind], "default")] if kind in DEFAULT_PASSWORDS else []))
+        # The chosen key, if it was tried: the pages warn only when that one no longer fits.
+        tried = key.name if key is not None and not typed else None
         again = False  # the last password the user typed did not fit
         while client is None:
             if not tries:
@@ -306,9 +320,9 @@ async def session(ws: WebSocket, model: str, keys: bool = True) -> None:
                 return
         transport = client.get_transport()
         transport.set_keepalive(30)
-        # via: "key", "default" or "typed"; a key chosen but "default" means the printer forgot it,
-        # if keys were tried at all (not from another device).
-        await ws.send_json({"type": "open", "host": hostname(printer), "user": user, "via": via, "keys": keys,
+        # via: "key", "default" or "typed"; key: the chosen key, if tried: with "default" the printer
+        # forgot it (the U1 at every start). keys: this computer's keys may be used (not from the LAN).
+        await ws.send_json({"type": "open", "host": hostname(printer), "user": user, "via": via, "keys": keys, "key": tried,
                             "fingerprint": fingerprint(transport.get_remote_server_key())})
         channel = await asyncio.to_thread(client.invoke_shell, TERM, cols, rows)
 

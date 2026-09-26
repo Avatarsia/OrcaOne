@@ -1,12 +1,12 @@
 // Page "SSH": a command line on a printer over SSH (orcaone/ssh.py, the user's wish of
 // 24.09.2026). xterm.js draws it (vendor/xterm, loaded only once this page connects); OrcaOne
 // speaks SSH and passes the bytes on over a WebSocket, only to printers with an address from the
-// page "Drucker". The login tries the keys in ~/.ssh first, else the page asks for the password,
-// which only passes through.
+// page "Drucker". The login as chosen per printer (pages/ssh-login.js): a password, which only
+// passes through, or the keys in ~/.ssh; if nothing fits, the page asks for the password.
 import { go, hashOf, ui, isU1Printer, activeName, darkQuery, isDark, hosts } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
-import { SshKey } from "./ssh-key.js";
+import { SshLogin } from "./ssh-login.js";
 
 const { ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const S = T.ssh;
@@ -159,7 +159,7 @@ async function loadXterm() {
 
 export default {
   name: "SshPage",
-  components: { SshKey },
+  components: { SshLogin },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -168,7 +168,7 @@ export default {
     const model = ref("");        // the printer of the top bar (app.js), once it has an address
     const host = computed(() => printers.value?.[ui.printer]?.host || "");
     const user = ref("root");     // the U1 knows root (and lava), other Klipper printers mostly pi
-    const typed = ref("");        // a password from the bar; empty: keys, then the U1's default (ssh.py)
+    const typed = ref("");        // a password from the bar, with "Passwort" chosen; empty: the U1's default (ssh.py)
     const state = ref("idle");    // idle, connecting, password, open, closed
     const opened = ref(null);     // {host, user, fingerprint} once logged in
     const error = ref("");
@@ -183,8 +183,11 @@ export default {
     const commands = computed(() => COMMANDS[isU1.value ? "u1" : "klipper"]);
     // The user kept for the printer (ssh.save_setting), else root on a U1, pi on others.
     watch(model, () => { user.value = printers.value?.[model.value]?.ssh?.user || (isU1.value ? "root" : "pi"); });
-    // A key chosen, but the login went by the password as shipped: the U1 forgot it at its last start.
-    const keyForgotten = computed(() => opened.value?.via === "default" && opened.value?.keys !== false && !!hosts.value?.[model.value]?.ssh?.key);
+    // The chosen key was tried, but the login went by the password as shipped: the U1 forgot it at its
+    // last start. Not for a key chosen after the login, nor once it was brought onto the printer again.
+    const brought = ref(false);
+    const keyForgotten = computed(() => opened.value?.via === "default" && !!opened.value?.key
+      && opened.value.key === hosts.value?.[model.value]?.ssh?.key && !brought.value);
     function runCommand(ev) {
       const [kind, i] = ev.target.value.split(":");
       ev.target.value = "";
@@ -220,6 +223,7 @@ export default {
       errorDetail.value = "";
       opened.value = null;
       again.value = false;
+      brought.value = false;
       state.value = "connecting";
       const { Terminal, FitAddon } = await loadXterm();
       await nextTick();
@@ -255,7 +259,7 @@ export default {
           // at the computer itself (from the LAN: local_only, nothing kept).
           const kept = hosts.value?.[model.value]?.ssh;
           if (m.user !== (kept?.user || (isU1.value ? "root" : "pi"))) {
-            api.setSsh(model.value, m.user, kept?.key || null).then((r) => { hosts.value = r.printers; }).catch(() => {});
+            api.setSsh(model.value, m.user, kept?.key || null, kept?.login || null).then((r) => { hosts.value = r.printers; }).catch(() => {});
           }
         } else if (m.type === "error") {
           error.value = S.errors[m.code] || T.errors[m.code] || T.errors.unknown;
@@ -299,7 +303,7 @@ export default {
 
     return {
       T, S, STATUS, GROUPS, printers, loadError, model, user, typed, state, isU1, commands, runCommand, opened, error, errorDetail, password, again, box, active, host, activeName,
-      statusText, connect, login, disconnect, go, hashOf, clearScreen, keyForgotten,
+      statusText, connect, login, disconnect, go, hashOf, clearScreen, keyForgotten, brought,
     };
   },
 
@@ -318,15 +322,13 @@ export default {
           <label class="ssh-field">{{ S.user }}
             <input v-model="user" class="input ssh-user" type="text" autocomplete="off" spellcheck="false" :disabled="active">
           </label>
-          <label class="ssh-field" :title="S.passwordHint">{{ S.password }}
-            <input v-model="typed" class="input ssh-pass" type="password" autocomplete="off" :disabled="active"
-                   :placeholder="isU1 ? 'snapmaker' : S.optional">
-          </label>
+          <ssh-login :printer="model" v-model:password="typed" :disabled="active" @brought="brought = true"/>
           <button v-if="!active" class="btn btn-primary" type="submit" :disabled="!model || !user.trim()"><ui-icon name="terminal"/>{{ S.connect }}</button>
           <button v-else class="btn" type="button" @click="disconnect">{{ S.disconnect }}</button>
-          <span :class="['cam-status', 'is-' + STATUS[state]]"><span class="cam-dot"></span>{{ statusText }}</span>
+          <!-- The printer's host key only in the tooltip (the user: "Was bringt mir die Info?"; the U1 makes a new one at every start) -->
+          <span :class="['cam-status', 'is-' + STATUS[state]]" :title="opened ? S.key(opened.fingerprint) + '\\n' + S.keyWhy : null">
+            <span class="cam-dot"></span>{{ statusText }}</span>
         </form>
-        <ssh-key v-if="model" :printer="model"/>
         <form v-if="state === 'password'" class="ssh-password" @submit.prevent="login">
           <label for="ssh-password">{{ again ? S.passwordAgain : S.passwordAsk(user.trim() + '@' + host) }}</label>
           <input id="ssh-password" v-model="password" class="input" type="password" autocomplete="off">
@@ -344,7 +346,6 @@ export default {
             </select>
           </label>
           <button v-if="state === 'open'" class="btn" type="button" :title="S.clearHint" @click="clearScreen">{{ S.clear }}</button>
-          <span class="ssh-key" :title="S.keyWhy">{{ S.key(opened.fingerprint) }}</span>
         </div>
         <div v-show="state !== 'idle'" class="ssh-screen"><div ref="box" class="ssh-term"></div></div>
         <p v-if="state === 'idle' && !error" class="note">{{ S.hint }}</p>

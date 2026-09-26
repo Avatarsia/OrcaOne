@@ -52,6 +52,10 @@ PING_IPUTILS = ("--- 10.30.40.1 ping statistics ---\n3 packets transmitted, 3 re
                 "rtt min/avg/max/mdev = 1.021/3.456/7.012/2.100 ms\n")
 PING_BUSYBOX = "--- 1.1.1.1 ping statistics ---\n3 packets transmitted, 2 packets received, 33% packet loss\nround-trip min/avg/max = 12.1/15.3/18.4 ms\n"
 PING_NONE = "--- 1.1.1.1 ping statistics ---\n3 packets transmitted, 0 received, 100% packet loss, time 2040ms\n"
+ROUTER = "ping -c 3 -W 1 10.30.40.1 2>&1; echo @@; ip -j neigh show 10.30.40.1"
+# The router in the printer's ARP table: it answered; FAILED: it did not.
+NEIGH_FOUND = json.dumps([{"dst": "10.30.40.1", "dev": "wlan0", "lladdr": "02:00:00:00:00:01", "state": ["STALE"]}])
+NEIGH_FAILED = json.dumps([{"dst": "10.30.40.1", "dev": "wlan0", "state": ["FAILED"]}])
 SCAN = """BSS 02:00:00:aa:bb:cc(on wlan0) -- associated
 \tfreq: 2437
 \tsignal: -71.00 dBm
@@ -104,6 +108,10 @@ def test_what_ping_and_a_scan_say():
     assert network.ping(PING_BUSYBOX) == {"loss": 33.0, "ms": 15}
     assert network.ping(PING_NONE) == {"loss": 100.0, "ms": None}
     assert network.ping("ping: bad address") == {"loss": None, "ms": None}
+    assert network.neighbour(NEIGH_FOUND) is True
+    assert network.neighbour(NEIGH_FAILED) is False
+    assert network.neighbour(json.dumps([{"dst": "10.30.40.1", "lladdr": "02:00:00:00:00:01", "state": "REACHABLE"}])) is True
+    assert network.neighbour("") is False and network.neighbour("[]") is False and network.neighbour("{}") is False
     assert network.networks(SCAN) == [
         {"bssid": "02:00:00:dd:ee:ff", "ssid": "Werkstatt", "frequency": 2412, "channel": 1, "signal": -58.0, "associated": False},
         {"bssid": "02:00:00:aa:bb:cc", "ssid": "Werkstatt", "frequency": 2437, "channel": 6, "signal": -71.0, "associated": True},
@@ -193,7 +201,7 @@ class Printer(paramiko.ServerInterface):
     def __init__(self):
         self.password, self.logins, self.commands = "snapmaker", 0, []
         self.outputs = {network.READ: said(), network.ROUTE: ROUTE, network.SCAN: SCAN,
-                        "ping -c 3 -W 1 10.30.40.1 2>&1": PING_IPUTILS, "ping -c 3 -W 1 1.1.1.1 2>&1": PING_BUSYBOX,
+                        ROUTER: PING_IPUTILS + "@@\n[]\n", "ping -c 3 -W 1 1.1.1.1 2>&1": PING_BUSYBOX,
                         f"timeout 5 python3 -c \"import socket;print(socket.gethostbyname('{network.NAME}'))\" 2>&1": "13.248.169.48\n"}
 
     def check_channel_request(self, kind, chanid):
@@ -219,9 +227,12 @@ class Printer(paramiko.ServerInterface):
         # Output, exit status and end of output, but not closed: paramiko acknowledges the command only
         # after this returns, and a channel closed before that fails the command. The client closes it.
         def reply():
-            channel.sendall(answer.encode())
-            channel.send_exit_status(0)
-            channel.shutdown_write()
+            try:
+                channel.sendall(answer.encode())
+                channel.send_exit_status(0)
+                channel.shutdown_write()
+            except (OSError, EOFError):
+                pass   # the test closed the page, and so the connection, meanwhile
         threading.Thread(target=reply, daemon=True).start()
         return True
 
@@ -296,13 +307,13 @@ def test_the_page_on_a_u1(server, printer):
         assert info["usb"] == [{"name": "Realtek USB 10/100 LAN", "id": "0bda:8152"}]
         assert info["computer"]["same_net"] is True
         # No key here: the password as shipped.
-        assert _next(ws, "ssh") == {"type": "ssh", "state": "open", "via": "default", "keys": True}
+        assert _next(ws, "ssh") == {"type": "ssh", "state": "open", "via": "default", "keys": True, "key": None}
         assert _next(ws, "route") == {"type": "route", "gateway": "10.30.40.1", "device": "wlan0", "dns": ["10.30.40.1", "1.1.1.1"]}
         assert _check(ws, "printer")["state"] == "ok"
         assert _check(ws, "clock")["state"] == "ok"
-        assert {k: v for k, v in _check(ws, "router").items() if k != "type"} == {"item": "router", "state": "ok", "loss": 0.0, "ms": 3}
         assert (_check(ws, "internet")["state"], _check(ws, "dns")) == (
             "warn", {"type": "check", "item": "dns", "state": "ok", "value": "13.248.169.48"})
+        assert {k: v for k, v in _check(ws, "router").items() if k != "type"} == {"item": "router", "state": "ok", "loss": 0.0, "ms": 3}
         values = _next(ws, "values")
         assert (values["ssid"], values["signal"], values["channel"]) == ("Werkstatt", -71.0, 6)
         assert [(l["name"], l["speed"]) for l in values["links"]] == [("wlan0", None), ("eth0", 100)]
@@ -313,17 +324,36 @@ def test_the_page_on_a_u1(server, printer):
         printer.outputs["ping -c 3 -W 1 1.1.1.1 2>&1"] = PING_NONE
         ws.send(json.dumps({"do": "check"}))
         assert _check(ws, "internet")["state"] == "err"
-        _check(ws, "dns")
+        _check(ws, "router")
         ws.send(json.dumps({"do": "scan"}))
         networks = _next(ws, "scan")["networks"]
         assert [n["channel"] for n in networks] == [1, 6, 11] and networks[1]["associated"]
         assert printer.logins == 1
 
 
+def test_a_router_that_ignores_a_ping(server, printer):
+    """UniFi ignores a ping from an isolated network: the router is there all the same when the
+    internet answers through it or it answered ARP; only with neither it is not."""
+    printer.outputs[ROUTER] = PING_NONE + "@@\n" + NEIGH_FAILED
+    with _open(server) as ws:
+        found = _check(ws, "router")
+        assert (found["state"], found["code"], found["ms"]) == ("ok", "no_ping", None)
+        printer.outputs["ping -c 3 -W 1 1.1.1.1 2>&1"] = PING_NONE
+        printer.outputs[ROUTER] = PING_NONE + "@@\n" + NEIGH_FOUND
+        ws.send(json.dumps({"do": "check"}))
+        assert _check(ws, "internet")["state"] == "err"
+        found = _check(ws, "router")
+        assert (found["state"], found["code"]) == ("ok", "no_ping")
+        printer.outputs[ROUTER] = PING_NONE + "@@\n" + NEIGH_FAILED
+        ws.send(json.dumps({"do": "check"}))
+        found = _check(ws, "router")
+        assert found["state"] == "err" and "code" not in found
+
+
 def test_connect_anew_and_wait(server, printer, monkeypatch):
     # The link goes, the printer does not answer twice, then it is back.
     with _open(server) as ws:
-        _check(ws, "dns")
+        _check(ws, "router")
         _answering(monkeypatch, False, False, True)
         ws.send(json.dumps({"do": "reconnect"}))
         ws.send(json.dumps({"do": "reconnect"}))   # while it waits: one at a time
@@ -332,7 +362,7 @@ def test_connect_anew_and_wait(server, printer, monkeypatch):
         assert back["action"] == "reconnect" and back["seconds"] >= 0
         # Then it reads again, over a new connection, and says how it logged in (the U1 may have
         # forgotten a key at a start).
-        assert _next(ws, "ssh") == {"type": "ssh", "state": "open", "via": "default", "keys": True}
+        assert _next(ws, "ssh") == {"type": "ssh", "state": "open", "via": "default", "keys": True, "key": None}
         _next(ws, "values")
         assert printer.commands.count(network.RECONNECT) == 1 and printer.logins == 2
         # Never back: after WAIT the page says so.
@@ -346,7 +376,7 @@ def test_start_anew_only_without_a_print(server, printer, monkeypatch):
     printing = [True]
     monkeypatch.setattr(network, "_printing", lambda host: printing[0])
     with _open(server) as ws:
-        _check(ws, "dns")
+        _check(ws, "router")
         ws.send(json.dumps({"do": "reboot"}))
         assert _next(ws, "failed") == {"type": "failed", "action": "reboot", "code": "wifi_printing"}
         assert network.REBOOT not in printer.commands
@@ -364,7 +394,7 @@ def test_power_saving_off_and_speed(server, printer, monkeypatch):
     monkeypatch.setattr(network, "measure", lambda host: {"latency": 12, "down": 18.5, "bytes": 4194304})
     with _open(server) as ws:
         assert _next(ws, "values")["power_save"] is True
-        _check(ws, "dns")
+        _check(ws, "router")
         ws.send(json.dumps({"do": "power_save_off"}))
         assert _next(ws, "values", lambda m: m["power_save"] is False)
         assert f"{network.POWER_SAVE_OFF}; {network.READ}" in printer.commands
@@ -410,9 +440,23 @@ def test_from_another_device_no_keys_of_this_computer(server, printer, monkeypat
     monkeypatch.setattr(app_module, "is_remote", lambda client: True)
     tried, real = [], ssh.connect
     monkeypatch.setattr(ssh, "connect", lambda host, user, password=None, key=None: tried.append(password) or real(host, user, password, key))
+    ssh.save_setting("Snapmaker U1", None, None, "auto")   # at the computer the keys would come first
     with _open(server) as ws:
-        _next(ws, "values")
+        assert (_next(ws, "ssh")["keys"], _next(ws, "values") is not None) == (False, True)
     assert tried == ["snapmaker"]
+
+
+def test_the_login_as_chosen(server, printer, monkeypatch):
+    """As chosen on "SSH" (ssh.login_of): with nothing chosen only the password as shipped, with
+    "auto" the keys first; the chosen key is said, so the page warns only when that one failed."""
+    tried, real = [], ssh.connect
+    monkeypatch.setattr(ssh, "connect", lambda host, user, password=None, key=None: tried.append(password) or real(host, user, password, key))
+    for login, expected in ((None, ["snapmaker"]), ("auto", [None, "snapmaker"])):
+        tried.clear()
+        ssh.save_setting("Snapmaker U1", None, None, login)
+        with _open(server) as ws:
+            assert _next(ws, "ssh") == {"type": "ssh", "state": "open", "via": "default", "keys": True, "key": None}
+        assert tried == expected, login
 
 
 def test_one_action_at_a_time_is_said(server, printer):

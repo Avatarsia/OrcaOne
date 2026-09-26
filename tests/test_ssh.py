@@ -90,9 +90,12 @@ def printer(monkeypatch):
         if channel is None:
             return
         served.shell.wait(10)
-        channel.sendall(b"welcome\r\n$ ")
-        while (data := channel.recv(1024)) and b"exit" not in data:
-            channel.sendall(data)
+        try:
+            channel.sendall(b"welcome\r\n$ ")
+            while (data := channel.recv(1024)) and b"exit" not in data:
+                channel.sendall(data)
+        except OSError:
+            pass   # the test left after the login already
         channel.close()
         transport.close()
 
@@ -126,7 +129,7 @@ def test_a_session_with_password(server, printer):
         ws.send(json.dumps({"type": "password", "password": "wrong"}))
         assert json.loads(ws.recv(timeout=15)) == {"type": "password", "again": True}
         ws.send(json.dumps({"type": "password", "password": "secret"}))
-        assert json.loads(ws.recv(timeout=15)) == {"type": "open", "host": "127.0.0.1", "user": "root", "via": "typed", "keys": True,
+        assert json.loads(ws.recv(timeout=15)) == {"type": "open", "host": "127.0.0.1", "user": "root", "via": "typed", "keys": True, "key": None,
                                                    "fingerprint": ssh.fingerprint(key)}
         seen = b""
         while b"$ " not in seen:
@@ -214,9 +217,11 @@ def test_from_another_device_no_keys_of_this_computer(server, printer, monkeypat
     _, served = printer
     served.password = "snapmaker"
     camera.set_host("Snapmaker U1", "127.0.0.1")
+    ssh.save_setting("Snapmaker U1", None, None, "auto")   # at the computer the keys would come first
     with connect(_url(server), origin=server, open_timeout=5) as ws:
         ws.send(json.dumps({"type": "start", "user": "root", "cols": 80, "rows": 24}))
-        assert json.loads(ws.recv(timeout=15))["type"] == "open"
+        answer = json.loads(ws.recv(timeout=15))
+        assert (answer["type"], answer["keys"], answer["key"]) == ("open", False, None)
     assert tried == ["snapmaker"]
 
 
@@ -278,6 +283,48 @@ def test_a_key_per_printer(server, printer, fake_home):
     with connect(_url(server), origin=server, open_timeout=5) as ws:
         ws.send(json.dumps(start))
         assert json.loads(ws.recv(timeout=15))["via"] == "default"
+
+
+def test_the_login_per_printer(server, printer, fake_home):
+    """One choice per printer (the user's wish of 26.09.2026): the password when nothing is chosen,
+    as most use one, without trying any key; "auto" tries this computer's keys as ssh does; a
+    chosen key goes before them. A key and "auto" never both."""
+    _, served = printer
+    blob = _key(fake_home / ".ssh", "id_ed25519", ed25519.Ed25519PrivateKey.generate())
+    _key(fake_home / ".ssh", "u1_key", ed25519.Ed25519PrivateKey.generate())
+    served.keys, served.password = {blob}, "snapmaker"
+    camera.set_host("Snapmaker U1", "127.0.0.1")
+    start = {"type": "start", "user": "root", "cols": 80, "rows": 24}
+
+    def via():
+        with connect(_url(server), origin=server, open_timeout=5) as ws:
+            ws.send(json.dumps(start))
+            answer = json.loads(ws.recv(timeout=15))
+            assert answer["key"] == (ssh.setting("Snapmaker U1").get("key") if ssh.login_of("Snapmaker U1") == "key" else None)
+            return answer["via"]
+
+    def choose(**payload):
+        status, body = call(f"{server}/api/printers/ssh", "POST", {"model": "Snapmaker U1", "user": "root", **payload}, headers={"Origin": server})
+        return status, json.loads(body)
+
+    # Nothing chosen: the password, though id_ed25519 would fit.
+    assert (ssh.login_of("Snapmaker U1"), via()) == ("password", "default")
+    status, body = choose(login="auto")
+    assert status == 200 and body["printers"]["Snapmaker U1"]["ssh"] == {"user": "root", "login": "auto"}
+    assert (ssh.login_of("Snapmaker U1"), via()) == ("auto", "key")
+    status, body = choose(key="u1_key", login="auto")
+    assert status == 200 and body["printers"]["Snapmaker U1"]["ssh"] == {"user": "root", "key": "u1_key"}
+    assert (ssh.login_of("Snapmaker U1"), via()) == ("key", "key")   # u1_key does not fit, id_ed25519 after it does
+    status, body = choose(login="password")
+    assert status == 200 and body["printers"]["Snapmaker U1"]["ssh"] == {"user": "root"}
+    assert (ssh.login_of("Snapmaker U1"), via()) == ("password", "default")
+    assert choose(login="keys") == (400, {"error": "ssh_login_invalid"})
+    # A typed password goes before everything, as before.
+    served.tried = []
+    with connect(_url(server), origin=server, open_timeout=5) as ws:
+        ws.send(json.dumps({**start, "password": "snapmaker"}))
+        assert json.loads(ws.recv(timeout=15))["via"] == "typed"
+    assert served.tried == ["snapmaker"]
 
 
 def test_bring_the_key_onto_the_printer(server, printer, fake_home, monkeypatch):

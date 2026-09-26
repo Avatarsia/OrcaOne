@@ -174,6 +174,21 @@ def ping(text: str) -> dict:
     return {"loss": float(loss.group(1)) if loss else None, "ms": round(float(average.group(1))) if average else None}
 
 
+def neighbour(text: str) -> bool:
+    """Whether the printer's neighbour table (`ip -j neigh show <address>`) holds the address with the
+    MAC it answered ARP with: then it is in the network, whether it answers a ping or not."""
+    try:
+        found = json.loads(text)
+    except ValueError:
+        return False
+    for n in found if isinstance(found, list) else []:
+        states = n.get("state") if isinstance(n, dict) else None
+        states = states if isinstance(states, list) else [states]
+        if n.get("lladdr") and any(s in ("REACHABLE", "STALE", "DELAY", "PROBE", "PERMANENT") for s in states):
+            return True
+    return False
+
+
 def networks(text: str) -> list[dict]:
     """The WLANs iw found (SCAN): per access point SSID, address, frequency, channel, signal, and
     whether the printer is connected to it; strongest first, at most 40."""
@@ -305,10 +320,12 @@ def _printer(printer) -> tuple[str, str]:
     return found["host"], found["model"]
 
 
-def _login(printer: str, host: str, model: str, keys: bool = True) -> tuple[paramiko.SSHClient, str]:
-    """The key chosen for the printer, this computer's keys and agent (only for a page on this
-    computer, app.is_remote), then the password as shipped (ssh.DEFAULT_PASSWORDS); and how it
-    logged in, "key" or "default"."""
+def _login(printer: str, host: str, model: str, keys: bool = True) -> tuple[paramiko.SSHClient, str, str | None]:
+    """As chosen on "SSH" (ssh.login_of): the key chosen for the printer, this computer's keys and
+    agent (only for a page on this computer, app.is_remote), then the password as shipped
+    (ssh.DEFAULT_PASSWORDS), with the password chosen only that one; how it logged in, "key" or
+    "default", and the chosen key if it was tried (the page warns when that one no longer fits)."""
+    keys = keys and ssh.login_of(printer) != "password"
     key = ssh.key_of(printer) if keys else None
     for password, via in ([(None, "key")] if keys else []) + ([(ssh.DEFAULT_PASSWORDS[model], "default")] if model in ssh.DEFAULT_PASSWORDS else []):
         try:
@@ -321,7 +338,7 @@ def _login(printer: str, host: str, model: str, keys: bool = True) -> tuple[para
             # Refused or silent: Root Access is off, or the printer is not there.
             raise CameraError("ssh_unreachable", str(exc) or type(exc).__name__) from None
         client.get_transport().set_keepalive(15)
-        return client, via
+        return client, via, key.name if key is not None else None
     raise CameraError("ssh_login")
 
 
@@ -383,7 +400,7 @@ class _Watch:
             self.client.close()
             self.client = None
 
-    async def logged_in(self) -> tuple[paramiko.SSHClient, str]:
+    async def logged_in(self) -> tuple[paramiko.SSHClient, str, str | None]:
         """A login in a thread; one whose page went meanwhile is closed when it is done."""
         task = asyncio.ensure_future(asyncio.to_thread(_login, self.printer, self.host, self.model, self.keys))
         try:
@@ -395,9 +412,9 @@ class _Watch:
     async def run(self, command: str) -> str:
         async with self.login:
             if self.client is None:
-                self.client, via = await self.logged_in()
+                self.client, via, key = await self.logged_in()
                 # Anew, after a drop or a start of the printer: it may have forgotten its key.
-                await self.send(type="ssh", state="open", via=via, keys=self.keys)
+                await self.send(type="ssh", state="open", via=via, keys=self.keys, key=key)
             client = self.client
         try:
             return await asyncio.to_thread(_run, client, command)
@@ -417,8 +434,8 @@ class _Watch:
         if self.ssh:
             try:
                 async with self.login:
-                    self.client, via = await self.logged_in()
-                await self.send(type="ssh", state="open", via=via, keys=self.keys)
+                    self.client, via, key = await self.logged_in()
+                await self.send(type="ssh", state="open", via=via, keys=self.keys, key=key)
             except CameraError as exc:
                 self.ssh = False
                 await self.send(type="ssh", state="failed", code=exc.code, **({"detail": exc.detail} if exc.detail else {}))
@@ -463,7 +480,9 @@ class _Watch:
 
     async def checks(self) -> None:
         """One after the other, each said when done: the printer and its clock (Moonraker), then over
-        SSH its router, the internet by address and by name."""
+        SSH the internet by address and by name, and its router last: one that does not answer a
+        ping is there all the same when the internet answers through it or it answers ARP."""
+        reached = {}
         async def printer():
             found = await asyncio.to_thread(answer_time, self.host)
             self.clock = found["clock"]
@@ -482,12 +501,24 @@ class _Watch:
             return {"state": "ok" if found["loss"] == 0 and (found["ms"] or 0) < good else "warn", **found}
 
         async def router():
-            if not self.gateway:
+            try:
+                gateway = str(ipaddress.ip_address(self.gateway)) if self.gateway else None
+            except ValueError:
+                gateway = None
+            if not gateway:
                 return {"state": "err", "code": "no_gateway"}
-            return pinged(await self.run(f"ping -c 3 -W 1 {self.gateway} 2>&1"), 20)
+            said, _, table = (await self.run(f"ping -c 3 -W 1 {gateway} 2>&1; echo @@; ip -j neigh show {gateway}")).partition("@@")
+            found = pinged(said, 20)
+            # Many routers ignore a ping, UniFi's for one from an isolated network (the user: "wenn er
+            # ins Inet kommt sollte er auch seinen Router erreicht haben").
+            if found["state"] == "err" and (reached.get("internet") or neighbour(table)):
+                return {"state": "ok", "code": "no_ping", "loss": found["loss"], "ms": None}
+            return found
 
         async def internet():
-            return pinged(await self.run("ping -c 3 -W 1 1.1.1.1 2>&1"), 80)
+            found = pinged(await self.run("ping -c 3 -W 1 1.1.1.1 2>&1"), 80)
+            reached["internet"] = found["state"] != "err"
+            return found
 
         async def dns():
             text = (await self.run(f"timeout 5 python3 -c \"import socket;print(socket.gethostbyname('{NAME}'))\" 2>&1")).strip()
@@ -495,7 +526,7 @@ class _Watch:
 
         await self.check("printer", printer)
         await self.check("clock", clock)
-        for item, work in (("router", router), ("internet", internet), ("dns", dns)):
+        for item, work in (("internet", internet), ("dns", dns), ("router", router)):
             if self.ssh:
                 await self.check(item, work)
             else:

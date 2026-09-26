@@ -1,15 +1,16 @@
 // Page "Netzwerk" (the user's wish of 25.09.2026, grown out of the page "WLAN": sending from
 // Snapmaker Orca crawled now and then, only switching the U1 off and on helped): how the printer of
-// the top bar is in the network and where it gets stuck (orcaone/network.py). The way from this
-// computer over the printer and its router to the internet as a picture, each hop coloured by its
-// state; the assessment; the interfaces (WLAN with its signal, a cable, a USB-LAN adapter); signal,
-// radio rate and traffic of the last minutes as curves; the checks; the WLANs around as a channel
-// picture; connect anew or start anew, waiting until the printer answers again; and how to set up
-// SSH with a key. What Moonraker tells shows for any Klipper printer, the rest needs SSH on the U1.
+// the top bar is in the network and where it gets stuck (orcaone/network.py). On top the way from
+// this computer over the printer and its router to the internet as a picture, each hop coloured by
+// its state, and a tile per part with its main number, as on "Übersicht"; below the parts as tabs,
+// one at a time (the user: the page was too long): the assessment; the WLAN with its signal, its
+// curves and connecting or starting anew; the interfaces with their traffic; the checks; the WLANs
+// around as a channel picture; SSH with a key. What Moonraker tells shows for any Klipper printer,
+// the rest needs SSH on the U1.
 import { go, hashOf, ui, activeName, hosts, loadHosts, machines, LOCALE, flash, fmtSize } from "../common.js";
 import { T } from "../texts.js";
 import { useLive } from "../live.js";
-import { SshKey } from "./ssh-key.js";
+import { SshLogin, keygen, keyPath } from "./ssh-login.js";
 
 const { ref, reactive, computed, watch, onMounted, onUnmounted } = Vue;
 const N = T.network;
@@ -32,10 +33,12 @@ const ARCS = [1, 2, 3, 4].map((i) => {
 const SYSTEMS = ["windows", "mac", "linux"];
 const mySystem = /Win/.test(navigator.userAgent) ? "windows" : /Mac/.test(navigator.userAgent) ? "mac" : "linux";
 const isWlan = (name) => /^wl/.test(name);
+// The tab shown last, again when the page comes back (while OrcaOne is open); first the WLAN (the user's wish).
+let lastTab = "wifi";
 
 export default {
   name: "NetzwerkPage",
-  components: { SshKey },
+  components: { SshLogin },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -81,6 +84,7 @@ export default {
         info.value = m;
       } else if (m.type === "ssh") {
         ssh.value = m;
+        brought.value = false;
       } else if (m.type === "values") {
         lost.value = "";
         now.value = m;
@@ -201,8 +205,11 @@ export default {
     const sshOpen = computed(() => ssh.value?.state === "open");
     const connected = computed(() => now.value?.connected === true);
     const level = computed(() => (connected.value ? quality(now.value.signal) : ""));
-    // A key chosen, keys tried (not from another device), but in with the password: the U1 forgot it.
-    const keyForgotten = computed(() => ssh.value?.via === "default" && ssh.value?.keys !== false && !!hosts.value?.[printer.value]?.ssh?.key);
+    // The chosen key was tried, but in with the password: the U1 forgot it. Not for a key chosen
+    // after the login, nor once it was brought onto the printer again.
+    const brought = ref(false);
+    const keyForgotten = computed(() => ssh.value?.via === "default" && !!ssh.value?.key
+      && ssh.value.key === hosts.value?.[printer.value]?.ssh?.key && !brought.value);
     const statusOf = computed(() => {
       if (state.value === "error") return { cls: "err", text: errorText(error.value) };
       if (state.value === "connecting" || (state.value === "open" && !ssh.value)) return { cls: "wait", text: N.status.connecting };
@@ -331,6 +338,7 @@ export default {
       else if (c.state === "running") value = N.checks.running;
       else if (c.state === "ssh") value = N.checks.ssh;
       else if (c.code === "no_gateway") value = N.checks.noGateway;
+      else if (c.code === "no_ping") value = N.checks.noPing;
       else if (item === "clock") value = c.value != null ? N.checks.clock(c.value) : N.checks.none;
       else if (item === "dns") value = c.state === "ok" ? N.checks.resolved(c.value) : N.checks.failed;
       else if (c.state === "err" && c.ms == null) value = c.code ? errorText(c.code) : N.checks.failed;
@@ -414,19 +422,61 @@ export default {
       return { cls, text: N.speedText(num(s.down, 1), num(s.latency), num(s.bytes / 1048576, 1)), verdict: N.speedVerdict[cls] };
     });
 
+    // ------------------------------------------------------------ tabs and the tiles above them
+    const tab = ref(lastTab);
+    const tabBar = ref(null);
+    const withSsh = computed(() => ssh.value?.state !== "none");   // the U1: the parts over SSH exist
+    const tabList = computed(() => ["wifi", "hints", "ifs", "checks", "scan", "ssh"].filter((t) => withSsh.value || !["wifi", "scan", "ssh"].includes(t)));
+    function show(t, scroll = false) {
+      tab.value = lastTab = t;
+      if (scroll) tabBar.value?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    // No WLAN tab (a printer without SSH here): the first there is, the choice kept for the next U1.
+    watch(tabList, (list) => { if (!list.includes(tab.value)) tab.value = list[0]; });
+    // SSH did not work, or the U1 forgot the key: the tab that says what to do, unless one was chosen.
+    watch(() => ssh.value?.state === "failed" || keyForgotten.value, (want) => { if (want && tab.value === "wifi") show("ssh"); });
+    const tiles = computed(() => {
+      const c = checks, n = now.value, out = [];
+      if (withSsh.value) {
+        out.push(!sshOpen.value ? { id: "wifi", icon: "network", cls: "", num: "–", sub: N.path.needsSsh }
+          : connected.value ? { id: "wifi", icon: "network", cls: QUALITY_CLASS[level.value], num: `${num(n.signal)} dBm`,
+                                sub: [N.levels[level.value], n.channel ? N.scan.channel(n.channel) : ""].filter(Boolean).join(" · ") }
+          : { id: "wifi", icon: "network", cls: n && isWlan(usedName.value) ? "err" : "", num: "–",
+              sub: !n ? N.checks.running : isWlan(usedName.value) ? N.notConnected : N.tiles.cable });
+      }
+      const serious = hints.value.filter((h) => h.cls !== "ok");
+      out.push({ id: "hints", icon: "info", cls: worst(...serious.map((h) => h.cls)) || (hints.value.length ? "ok" : ""),
+                 num: serious.length ? String(serious.length) : hints.value.length ? "✓" : "–",
+                 sub: serious.length ? N.tiles.hints(serious.length) : hints.value.length ? N.tiles.fine : N.checks.running });
+      const used = cards.value.find((i) => i.used);
+      out.push({ id: "ifs", icon: "lan", cls: used ? used.cls : "", num: String(cards.value.length),
+                 sub: used?.rate ? N.ifs.traffic(perSecond(used.rate.down), perSecond(used.rate.up)) : used ? used.title : N.ifs.none });
+      const judged = CHECKS.map((k) => c[k]).filter((x) => x && ["ok", "warn", "err"].includes(x.state));
+      const failing = CHECKS.find((k) => c[k] && ["err", "warn"].includes(c[k].state));
+      out.push({ id: "checks", icon: "pulse", cls: worst(...judged.map((x) => x.state)),
+                 num: judged.length ? `${judged.filter((x) => x.state === "ok").length}/${judged.length}` : "–",
+                 sub: failing ? N.checks.items[failing] : CHECKS.some((k) => !c[k] || c[k].state === "running") ? N.checks.running : N.tiles.allReached });
+      if (withSsh.value) {
+        out.push({ id: "scan", icon: "search", cls: "", num: networks.value ? String(around.value.count) : "–",
+                   sub: networks.value ? N.scan.count(around.value.count) : N.tiles.scanOnClick });
+      }
+      return out;
+    });
+
     // ------------------------------------------------------------ SSH with a key
     const system = ref(mySystem);
     const steps = computed(() => {
       const at = `root@${address.value || "IP"}`;
-      const copy = system.value === "linux" ? `ssh-copy-id ${at}`
-        : `cat ~/.ssh/id_ed25519.pub | ssh ${at} "mkdir -p ~/.ssh; tr -d '\\r' >> ~/.ssh/authorized_keys; chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys"`;
+      const key = keyPath(system.value);   // the key by its name (ssh-login.js)
+      const copy = system.value === "linux" ? `ssh-copy-id -i ${key}.pub ${at}`
+        : `cat ${key}.pub | ssh ${at} "mkdir -p ~/.ssh; tr -d '\\r' >> ~/.ssh/authorized_keys; chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys"`;
       return [
         { text: N.help.rootAccess },
         { text: N.help.terminal[system.value] },
-        { text: N.help.keygen, command: "ssh-keygen -t ed25519" },
+        { text: N.help.keygen, command: keygen(system.value) },
         { text: N.help.forget, command: `ssh-keygen -R ${address.value || "IP"}` },
         { text: N.help.send, command: copy },
-        { text: N.help.test, command: `ssh ${at} "echo ok"` },
+        { text: N.help.test, command: `ssh -i ${key} ${at} "echo ok"` },
       ];
     });
     async function copyCommand(command) {
@@ -440,9 +490,9 @@ export default {
 
     return {
       T, N, SYSTEMS, CHART, CHAN, ARCS, CHECKS, printer, address, cover, printing, state, info, ssh, sshOpen, now, busy, askReboot,
-      run, open, statusOf, keyForgotten, connected, level, bars, QUALITY_CLASS, hops, cards, wifiRows, hints, checkRows, perSecond, num,
+      run, open, statusOf, keyForgotten, brought, connected, level, bars, QUALITY_CLASS, hops, cards, wifiRows, hints, checkRows, perSecond, num,
       curves, switchXs, gaps, bands, signalTicks, rateTicks, trafficTicks, traffic, around, channelTicks, networks, waitingText,
-      outcome, outcomeText, speedOf, system, steps, copyCommand, activeName, go, hashOf, points, route,
+      outcome, outcomeText, speedOf, system, steps, copyCommand, activeName, go, hashOf, points, route, tab, tabBar, tabList, show, tiles,
     };
   },
 
@@ -462,184 +512,208 @@ export default {
         <p v-if="ssh && ssh.state === 'failed'" class="note">{{ N.errors[ssh.code] || T.errors.unknown }} {{ N.noSsh }}</p>
         <p v-else-if="ssh && ssh.state === 'none'" class="note">{{ N.notU1 }}</p>
 
-        <!-- The way from this computer to the internet -->
-        <section v-if="info" class="box" aria-labelledby="net-path-h">
-          <h2 id="net-path-h" class="sr-only">{{ N.path.title }}</h2>
-          <ol class="net-path">
-            <li class="net-node"><span class="net-icon"><ui-icon name="window" :size="28"/></span><strong>{{ N.path.computer }}</strong>
-              <small>{{ info.computer?.address || '' }}</small></li>
-            <li :class="['net-hop', 'is-' + (hops[0].state || 'none')]"><span class="net-label">{{ hops[0].label }}</span><span class="net-line"></span>
-              <span class="net-sub">{{ hops[0].sub }}</span></li>
-            <li class="net-node"><span class="net-icon"><img v-if="cover" :src="cover" alt="" width="40" height="40"></span><strong>{{ activeName() }}</strong>
-              <small>{{ address }}</small></li>
-            <li :class="['net-hop', 'is-' + (hops[1].state || 'none')]"><span class="net-label">{{ hops[1].label }}</span><span class="net-line"></span>
-              <span class="net-sub">{{ hops[1].sub }}</span></li>
-            <li class="net-node"><span class="net-icon"><ui-icon name="lan" :size="28"/></span><strong>{{ N.path.router }}</strong>
-              <small>{{ route?.gateway || '' }}</small></li>
-            <li :class="['net-hop', 'is-' + (hops[2].state || 'none')]"><span class="net-label">{{ hops[2].label }}</span><span class="net-line"></span>
-              <span class="net-sub">{{ hops[2].sub }}</span></li>
-            <li class="net-node"><span class="net-icon"><ui-icon name="globe" :size="28"/></span><strong>{{ N.path.internet }}</strong></li>
-          </ol>
-        </section>
+        <template v-if="info">
+          <!-- The overview: the way from this computer to the internet, and a tile per part -->
+          <section class="box" aria-labelledby="net-path-h">
+            <h2 id="net-path-h" class="sr-only">{{ N.path.title }}</h2>
+            <ol class="net-path">
+              <li class="net-node"><span class="net-icon"><ui-icon name="window" :size="28"/></span><strong>{{ N.path.computer }}</strong>
+                <small>{{ info.computer?.address || '' }}</small></li>
+              <li :class="['net-hop', 'is-' + (hops[0].state || 'none')]"><span class="net-label">{{ hops[0].label }}</span><span class="net-line"></span>
+                <span class="net-sub">{{ hops[0].sub }}</span></li>
+              <li class="net-node"><span class="net-icon"><img v-if="cover" :src="cover" alt="" width="40" height="40"></span><strong>{{ activeName() }}</strong>
+                <small>{{ address }}</small></li>
+              <li :class="['net-hop', 'is-' + (hops[1].state || 'none')]"><span class="net-label">{{ hops[1].label }}</span><span class="net-line"></span>
+                <span class="net-sub">{{ hops[1].sub }}</span></li>
+              <li class="net-node"><span class="net-icon"><ui-icon name="lan" :size="28"/></span><strong>{{ N.path.router }}</strong>
+                <small>{{ route?.gateway || '' }}</small></li>
+              <li :class="['net-hop', 'is-' + (hops[2].state || 'none')]"><span class="net-label">{{ hops[2].label }}</span><span class="net-line"></span>
+                <span class="net-sub">{{ hops[2].sub }}</span></li>
+              <li class="net-node"><span class="net-icon"><ui-icon name="globe" :size="28"/></span><strong>{{ N.path.internet }}</strong></li>
+            </ol>
+          </section>
+          <div class="home-tiles net-tiles">
+            <section v-for="t in tiles" :key="t.id" :class="['home-tile', 'net-tile', t.cls ? 'is-' + t.cls : '', { 'is-current': tab === t.id }]"
+                     :aria-labelledby="'net-tile-' + t.id">
+              <h2 :id="'net-tile-' + t.id" class="home-tile-title">
+                <button class="home-tile-link net-tile-link" type="button" @click="show(t.id, true)"><ui-icon :name="t.icon"/>{{ N.tabs[t.id] }}</button></h2>
+              <p class="home-tile-num">{{ t.num }}</p>
+              <p class="home-tile-sub">{{ t.sub }}</p>
+            </section>
+          </div>
 
-        <section v-if="hints.length" class="box" aria-labelledby="net-hints-h">
-          <div class="box-head"><h2 id="net-hints-h">{{ N.hintsTitle }}</h2></div>
-          <ul class="wifi-hints">
-            <li v-for="(h, i) in hints" :key="i" :class="'is-' + h.cls"><span class="cam-dot"></span>{{ h.text }}</li>
-          </ul>
-        </section>
+          <!-- The parts, one at a time -->
+          <div ref="tabBar" class="net-tabs" role="tablist" :aria-label="N.tabs.label">
+            <button v-for="t in tabList" :id="'net-tab-' + t" :key="t" :class="['net-tab', { 'is-current': tab === t }]" type="button" role="tab"
+                    :aria-selected="tab === t ? 'true' : 'false'" :aria-controls="'net-panel-' + t" @click="show(t)">{{ N.tabs[t] }}</button>
+          </div>
+          <p v-if="busy && busy !== 'scan'" class="wifi-wait" role="status"><span class="wifi-spin" aria-hidden="true"></span>{{ waitingText }}</p>
+          <p v-else-if="outcome" :class="['wifi-outcome', outcome.ok ? 'is-ok' : 'is-err']" role="status">{{ outcomeText }}</p>
+          <div :id="'net-panel-' + tab" class="net-panel" role="tabpanel" :aria-labelledby="'net-tab-' + tab">
 
-        <!-- The interfaces -->
-        <section v-if="info" class="box" aria-labelledby="net-if-h">
-          <div class="box-head"><h2 id="net-if-h">{{ N.ifs.title }}</h2></div>
-          <p v-if="!cards.length" class="note">{{ N.ifs.none }}</p>
-          <div class="net-ifs">
-            <article v-for="c in cards" :key="c.name" :class="['net-if', { 'is-used': c.used }]" :title="[c.mac, ...c.ipv6].filter(Boolean).join('\\n')">
-              <div class="net-if-head">
-                <ui-icon :name="c.wlan ? 'network' : 'lan'" :size="20"/>
-                <strong>{{ c.title }}</strong>
-                <span :class="['cam-status', 'is-' + c.cls]"><span class="cam-dot"></span>{{ N.ifs.states[c.stateKey] }}</span>
-              </div>
-              <p v-if="c.ipv4.length" class="net-if-ip">{{ c.ipv4.join(', ') }}</p>
-              <p v-if="c.used" class="tag tag-active">{{ N.ifs.used }}</p>
-              <p class="net-if-facts">
-                <span v-if="c.rate" :title="N.ifs.trafficHint">{{ N.ifs.traffic(perSecond(c.rate.down), perSecond(c.rate.up)) }}</span>
-                <span v-if="c.speed">{{ c.speed }}</span>
-                <span v-if="c.errors" class="is-warn">{{ c.errors }}</span>
-              </p>
-              <!-- The WLAN: its signal, network, access point, channel, rates, power saving (SSH) -->
-              <div v-if="c.wlan && sshOpen && now" class="net-wifi">
-                <div :class="['wifi-signal', connected ? 'is-' + QUALITY_CLASS[level] : 'is-off']">
-                  <svg viewBox="0 0 64 52" width="72" height="58" aria-hidden="true">
-                    <path v-for="(d, i) in ARCS" :key="i" :class="['wifi-arc', { 'is-on': i < bars(connected ? now.signal : null) }]" :d="d"/>
-                    <circle cx="32" cy="46" r="3.2" class="wifi-arc-dot"/>
-                  </svg>
-                  <div>
-                    <strong class="wifi-dbm">{{ connected && now.signal != null ? num(now.signal) + ' dBm' : N.noSignal }}</strong>
-                    <span class="wifi-level">{{ connected ? N.levels[level] : now.connected === false ? N.notConnected : N.unknown }}</span>
+            <!-- The assessment -->
+            <section v-if="tab === 'hints'" class="box">
+              <ul v-if="hints.length" class="wifi-hints">
+                <li v-for="(h, i) in hints" :key="i" :class="'is-' + h.cls"><span class="cam-dot"></span>{{ h.text }}</li>
+              </ul>
+              <p v-else class="note">{{ N.checks.running }}</p>
+            </section>
+
+            <!-- The WLAN: its signal and values, its curves, connect anew, start anew -->
+            <template v-if="tab === 'wifi'">
+              <p v-if="!sshOpen" class="empty">{{ N.noSsh }}</p>
+              <template v-else>
+                <section v-if="now" class="box wifi-now">
+                  <div :class="['wifi-signal', connected ? 'is-' + QUALITY_CLASS[level] : 'is-off']">
+                    <svg viewBox="0 0 64 52" width="80" height="65" aria-hidden="true">
+                      <path v-for="(d, i) in ARCS" :key="i" :class="['wifi-arc', { 'is-on': i < bars(connected ? now.signal : null) }]" :d="d"/>
+                      <circle cx="32" cy="46" r="3.2" class="wifi-arc-dot"/>
+                    </svg>
+                    <div>
+                      <strong class="wifi-dbm">{{ connected && now.signal != null ? num(now.signal) + ' dBm' : N.noSignal }}</strong>
+                      <span class="wifi-level">{{ connected ? N.levels[level] : now.connected === false ? N.notConnected : N.unknown }}</span>
+                    </div>
                   </div>
-                </div>
-                <dl class="wifi-rows">
-                  <div v-for="r in wifiRows" :key="r[0]" :title="r[2] || null"><dt>{{ r[0] }}</dt><dd :class="{ mono: r[3] }">{{ r[1] }}</dd></div>
-                  <div v-if="now.power_save != null"><dt>{{ N.powerSave }}</dt>
-                    <dd><span :class="['wifi-flag', now.power_save ? 'is-warn' : 'is-ok']">{{ now.power_save ? N.on : N.off }}</span>
-                      <button v-if="now.power_save" class="link" type="button" :disabled="!!busy" @click="run('power_save_off')">{{ N.powerSaveOff }}</button></dd></div>
-                </dl>
+                  <dl class="wifi-rows">
+                    <div v-for="r in wifiRows" :key="r[0]" :title="r[2] || null"><dt>{{ r[0] }}</dt><dd :class="{ mono: r[3] }">{{ r[1] }}</dd></div>
+                    <div v-if="now.power_save != null"><dt>{{ N.powerSave }}</dt>
+                      <dd><span :class="['wifi-flag', now.power_save ? 'is-warn' : 'is-ok']">{{ now.power_save ? N.on : N.off }}</span>
+                        <button v-if="now.power_save" class="link" type="button" :disabled="!!busy" @click="run('power_save_off')">{{ N.powerSaveOff }}</button></dd></div>
+                  </dl>
+                </section>
+                <section v-if="points.length" class="box" aria-labelledby="net-curve-h">
+                  <div class="box-head"><h2 id="net-curve-h">{{ N.curveTitle }}</h2><span class="sub">{{ N.curveSub }}</span></div>
+                  <figure class="wifi-chart">
+                    <figcaption>{{ N.signalAxis }}</figcaption>
+                    <svg :viewBox="'0 0 ' + CHART.w + ' ' + CHART.signal" preserveAspectRatio="none" role="img" :aria-label="N.signalAxis">
+                      <rect v-for="b in bands" :key="b.cls" :class="'wifi-band is-' + b.cls" x="0" :y="b.y" :width="CHART.w" :height="b.h"/>
+                      <line v-for="t in signalTicks" :key="t.v" class="wifi-grid" x1="0" :x2="CHART.w" :y1="t.y" :y2="t.y"/>
+                      <line v-for="(g, i) in gaps" :key="'g' + i" class="wifi-gap" :x1="g" :x2="g" y1="0" :y2="CHART.signal"/>
+                      <line v-for="(s, i) in switchXs" :key="'s' + i" class="wifi-switch" :x1="s" :x2="s" y1="0" :y2="CHART.signal"/>
+                      <path class="wifi-line" :d="curves.signal"/>
+                    </svg>
+                    <span v-for="t in signalTicks" :key="t.v" class="wifi-tick" :style="{ top: (t.y / CHART.signal * 100) + '%' }">{{ t.v }}</span>
+                  </figure>
+                  <figure class="wifi-chart is-small">
+                    <figcaption>{{ N.rateAxis }} <span class="wifi-key">{{ N.sending }}</span> <span class="wifi-key is-rx">{{ N.receiving }}</span></figcaption>
+                    <svg :viewBox="'0 0 ' + CHART.w + ' ' + CHART.rate" preserveAspectRatio="none" role="img" :aria-label="N.rateAxis">
+                      <line v-for="t in rateTicks" :key="t.v" class="wifi-grid" x1="0" :x2="CHART.w" :y1="t.y" :y2="t.y"/>
+                      <line v-for="(s, i) in switchXs" :key="'s' + i" class="wifi-switch" :x1="s" :x2="s" y1="0" :y2="CHART.rate"/>
+                      <path class="wifi-line is-rx" :d="curves.rx"/>
+                      <path class="wifi-line" :d="curves.tx"/>
+                    </svg>
+                    <span v-for="t in rateTicks" :key="t.v" class="wifi-tick" :style="{ top: (t.y / CHART.rate * 100) + '%' }">{{ t.v }}</span>
+                  </figure>
+                  <p class="wifi-axis"><span>{{ N.minutesAgo(5) }}</span><span>{{ N.now }}</span></p>
+                  <p class="note">{{ N.curveNote }}</p>
+                </section>
+                <section class="box" aria-labelledby="net-act-h">
+                  <div class="box-head"><h2 id="net-act-h">{{ N.actTitle }}</h2></div>
+                  <div class="wifi-acts">
+                    <div class="wifi-act">
+                      <button class="btn btn-primary" type="button" :disabled="!!busy" @click="run('reconnect')"><ui-icon name="network"/>{{ N.reconnect }}</button>
+                      <p class="note">{{ N.reconnectHint }}</p>
+                    </div>
+                    <div class="wifi-act">
+                      <button class="btn" type="button" :disabled="!!busy || printing" :title="printing ? N.rebootPrinting : null"
+                              @click="askReboot = !askReboot"><ui-icon name="rotateRight"/>{{ N.reboot }}</button>
+                      <p class="note">{{ printing ? N.rebootPrinting : N.rebootHint }}</p>
+                      <p v-if="askReboot" class="wifi-ask" role="alert">{{ N.rebootAsk }}
+                        <button class="btn btn-primary" type="button" @click="run('reboot')">{{ N.rebootYes }}</button>
+                        <button class="btn" type="button" @click="askReboot = false">{{ T.cancel }}</button></p>
+                    </div>
+                  </div>
+                </section>
+              </template>
+            </template>
+
+            <!-- The interfaces, and the traffic of the one OrcaOne speaks over -->
+            <template v-if="tab === 'ifs'">
+              <p v-if="!cards.length" class="empty">{{ N.ifs.none }}</p>
+              <div class="net-ifs">
+                <article v-for="c in cards" :key="c.name" :class="['net-if', { 'is-used': c.used }]" :title="[c.mac, ...c.ipv6].filter(Boolean).join('\\n')">
+                  <div class="net-if-head">
+                    <ui-icon :name="c.wlan ? 'network' : 'lan'" :size="20"/>
+                    <strong>{{ c.title }}</strong>
+                    <span :class="['cam-status', 'is-' + c.cls]"><span class="cam-dot"></span>{{ N.ifs.states[c.stateKey] }}</span>
+                  </div>
+                  <p v-if="c.ipv4.length" class="net-if-ip">{{ c.ipv4.join(', ') }}</p>
+                  <p v-if="c.used" class="tag tag-active">{{ N.ifs.used }}</p>
+                  <p class="net-if-facts">
+                    <span v-if="c.rate" :title="N.ifs.trafficHint">{{ N.ifs.traffic(perSecond(c.rate.down), perSecond(c.rate.up)) }}</span>
+                    <span v-if="c.wlan && connected">{{ num(now.signal) }} dBm</span>
+                    <span v-if="c.speed">{{ c.speed }}</span>
+                    <span v-if="c.errors" class="is-warn">{{ c.errors }}</span>
+                  </p>
+                </article>
               </div>
-            </article>
+              <section v-if="traffic.length" class="box net-traffic" aria-labelledby="net-traffic-h">
+                <div class="box-head"><h2 id="net-traffic-h">{{ N.trafficAxis }}</h2><span class="sub">{{ N.curveSub }}</span></div>
+                <figure class="wifi-chart is-small">
+                  <figcaption><span class="wifi-key">{{ N.down }}</span> <span class="wifi-key is-rx">{{ N.up }}</span></figcaption>
+                  <svg :viewBox="'0 0 ' + CHART.w + ' ' + CHART.traffic" preserveAspectRatio="none" role="img" :aria-label="N.trafficAxis">
+                    <line v-for="t in trafficTicks" :key="t.v" class="wifi-grid" x1="0" :x2="CHART.w" :y1="t.y" :y2="t.y"/>
+                    <path class="wifi-line is-rx" :d="curves.up"/>
+                    <path class="wifi-line" :d="curves.down"/>
+                  </svg>
+                  <span v-for="t in trafficTicks" :key="t.v" class="wifi-tick" :style="{ top: (t.y / CHART.traffic * 100) + '%' }">{{ t.v }}</span>
+                </figure>
+                <p class="wifi-axis"><span>{{ N.minutesAgo(5) }}</span><span>{{ N.now }}</span></p>
+              </section>
+            </template>
+
+            <!-- The checks -->
+            <section v-if="tab === 'checks'" class="box">
+              <div class="box-head"><span class="sub">{{ N.checks.lead }}</span>
+                <button class="btn right" type="button" :disabled="state !== 'open' || !!busy" @click="run('check')">{{ N.checks.again }}</button></div>
+              <ul class="net-checks">
+                <li v-for="r in checkRows" :key="r.item" :class="'is-' + r.cls"><span class="cam-dot"></span><span>{{ r.text }}</span><span class="net-check-value">{{ r.value }}</span></li>
+              </ul>
+              <div class="net-measure">
+                <button class="btn" type="button" :disabled="state !== 'open' || !!busy" @click="run('speed')"><ui-icon name="download"/>{{ N.measure }}</button>
+                <span class="note">{{ N.measureHint }}</span>
+              </div>
+              <p v-if="speedOf" :class="['wifi-outcome', 'is-' + speedOf.cls]" role="status">{{ speedOf.text }} {{ speedOf.verdict }}</p>
+            </section>
+
+            <!-- The WLANs around, as a picture of the channels -->
+            <section v-if="tab === 'scan'" class="box">
+              <p v-if="!sshOpen" class="note">{{ N.noSsh }}</p>
+              <template v-else>
+                <div class="box-head"><span class="sub">{{ networks ? N.scan.count(around.count) : N.scan.hint }}</span>
+                  <button class="btn right" type="button" :disabled="!!busy" @click="run('scan')">{{ busy === 'scan' ? N.scan.busy : N.scan.button }}</button></div>
+                <p v-if="networks && !around.count" class="note">{{ N.scan.none }}</p>
+                <figure v-if="around.count" class="net-chan">
+                  <svg :viewBox="'0 0 ' + CHAN.w + ' ' + CHAN.h" role="img" :aria-label="N.scan.title">
+                    <line v-for="t in channelTicks" :key="t.c" class="wifi-grid" :x1="t.x" :x2="t.x" y1="0" :y2="CHAN.h"/>
+                    <path v-for="n in around.shown" :key="n.key" :class="['net-hump', n.cls]" :d="n.d"><title>{{ (n.ssid || N.scan.hidden) + ' · ' + N.scan.channel(n.channel) + ' · ' + num(n.signal) + ' dBm' }}</title></path>
+                    <text v-for="n in around.shown.filter((n) => n.label)" :key="'t' + n.key" class="net-hump-label" :x="n.x" :y="CHAN.h - n.h - 6" text-anchor="middle">{{ n.label }}</text>
+                  </svg>
+                  <p class="wifi-axis net-chan-axis"><span v-for="t in channelTicks" :key="t.c" :style="{ left: (t.x / CHAN.w * 100) + '%' }">{{ t.c }}</span></p>
+                </figure>
+                <p v-for="(s, i) in around.sentences" :key="i" class="note">{{ s }}</p>
+              </template>
+            </section>
+
+            <!-- SSH with a key -->
+            <section v-if="tab === 'ssh'" class="box wifi-help">
+              <p class="note">{{ N.help.lead }}</p>
+              <ssh-login :printer="printer" keys-only @brought="brought = true"/>
+              <h3 class="net-help-h">{{ N.help.manual }}</h3>
+              <div class="chips" role="group" :aria-label="N.help.system">
+                <button v-for="s in SYSTEMS" :key="s" class="chip" type="button" :aria-pressed="system === s ? 'true' : 'false'" @click="system = s">{{ N.help.systems[s] }}</button>
+              </div>
+              <ol class="wifi-steps">
+                <li v-for="(s, i) in steps" :key="i">
+                  <p>{{ s.text }}</p>
+                  <div v-if="s.command" class="wifi-cmd"><code>{{ s.command }}</code>
+                    <button class="link" type="button" @click="copyCommand(s.command)">{{ N.help.copy }}</button></div>
+                </li>
+              </ol>
+              <p class="note">{{ N.help.after }}</p>
+            </section>
           </div>
-        </section>
-
-        <!-- Signal, radio rate and traffic of the last minutes -->
-        <section v-if="info && (points.length || traffic.length)" class="box" aria-labelledby="net-curve-h">
-          <div class="box-head"><h2 id="net-curve-h">{{ N.curveTitle }}</h2><span class="sub">{{ N.curveSub }}</span></div>
-          <template v-if="points.length">
-            <figure class="wifi-chart">
-              <figcaption>{{ N.signalAxis }}</figcaption>
-              <svg :viewBox="'0 0 ' + CHART.w + ' ' + CHART.signal" preserveAspectRatio="none" role="img" :aria-label="N.signalAxis">
-                <rect v-for="b in bands" :key="b.cls" :class="'wifi-band is-' + b.cls" x="0" :y="b.y" :width="CHART.w" :height="b.h"/>
-                <line v-for="t in signalTicks" :key="t.v" class="wifi-grid" x1="0" :x2="CHART.w" :y1="t.y" :y2="t.y"/>
-                <line v-for="(g, i) in gaps" :key="'g' + i" class="wifi-gap" :x1="g" :x2="g" y1="0" :y2="CHART.signal"/>
-                <line v-for="(s, i) in switchXs" :key="'s' + i" class="wifi-switch" :x1="s" :x2="s" y1="0" :y2="CHART.signal"/>
-                <path class="wifi-line" :d="curves.signal"/>
-              </svg>
-              <span v-for="t in signalTicks" :key="t.v" class="wifi-tick" :style="{ top: (t.y / CHART.signal * 100) + '%' }">{{ t.v }}</span>
-            </figure>
-            <figure class="wifi-chart is-small">
-              <figcaption>{{ N.rateAxis }} <span class="wifi-key">{{ N.sending }}</span> <span class="wifi-key is-rx">{{ N.receiving }}</span></figcaption>
-              <svg :viewBox="'0 0 ' + CHART.w + ' ' + CHART.rate" preserveAspectRatio="none" role="img" :aria-label="N.rateAxis">
-                <line v-for="t in rateTicks" :key="t.v" class="wifi-grid" x1="0" :x2="CHART.w" :y1="t.y" :y2="t.y"/>
-                <line v-for="(s, i) in switchXs" :key="'s' + i" class="wifi-switch" :x1="s" :x2="s" y1="0" :y2="CHART.rate"/>
-                <path class="wifi-line is-rx" :d="curves.rx"/>
-                <path class="wifi-line" :d="curves.tx"/>
-              </svg>
-              <span v-for="t in rateTicks" :key="t.v" class="wifi-tick" :style="{ top: (t.y / CHART.rate * 100) + '%' }">{{ t.v }}</span>
-            </figure>
-          </template>
-          <figure v-if="traffic.length" class="wifi-chart is-small">
-            <figcaption>{{ N.trafficAxis }} <span class="wifi-key">{{ N.down }}</span> <span class="wifi-key is-rx">{{ N.up }}</span></figcaption>
-            <svg :viewBox="'0 0 ' + CHART.w + ' ' + CHART.traffic" preserveAspectRatio="none" role="img" :aria-label="N.trafficAxis">
-              <line v-for="t in trafficTicks" :key="t.v" class="wifi-grid" x1="0" :x2="CHART.w" :y1="t.y" :y2="t.y"/>
-              <path class="wifi-line is-rx" :d="curves.up"/>
-              <path class="wifi-line" :d="curves.down"/>
-            </svg>
-            <span v-for="t in trafficTicks" :key="t.v" class="wifi-tick" :style="{ top: (t.y / CHART.traffic * 100) + '%' }">{{ t.v }}</span>
-          </figure>
-          <p class="wifi-axis"><span>{{ N.minutesAgo(5) }}</span><span>{{ N.now }}</span></p>
-          <p v-if="points.length" class="note">{{ N.curveNote }}</p>
-        </section>
-
-        <!-- The checks -->
-        <section v-if="info" class="box" aria-labelledby="net-check-h">
-          <div class="box-head"><h2 id="net-check-h">{{ N.checks.title }}</h2>
-            <button class="btn right" type="button" :disabled="state !== 'open' || !!busy" @click="run('check')">{{ N.checks.again }}</button></div>
-          <ul class="net-checks">
-            <li v-for="r in checkRows" :key="r.item" :class="'is-' + r.cls"><span class="cam-dot"></span><span>{{ r.text }}</span><span class="net-check-value">{{ r.value }}</span></li>
-          </ul>
-          <div class="net-measure">
-            <button class="btn" type="button" :disabled="state !== 'open' || !!busy" @click="run('speed')"><ui-icon name="download"/>{{ N.measure }}</button>
-            <span class="note">{{ N.measureHint }}</span>
-          </div>
-          <p v-if="speedOf" :class="['wifi-outcome', 'is-' + speedOf.cls]" role="status">{{ speedOf.text }} {{ speedOf.verdict }}</p>
-        </section>
-
-        <!-- The WLANs around, as a picture of the channels -->
-        <section v-if="sshOpen" class="box" aria-labelledby="net-scan-h">
-          <div class="box-head"><h2 id="net-scan-h">{{ N.scan.title }}</h2>
-            <span v-if="networks" class="sub">{{ N.scan.count(around.count) }}</span>
-            <button class="btn right" type="button" :disabled="!!busy" @click="run('scan')">{{ busy === 'scan' ? N.scan.busy : N.scan.button }}</button></div>
-          <p v-if="!networks" class="note">{{ N.scan.hint }}</p>
-          <p v-else-if="!around.count" class="note">{{ N.scan.none }}</p>
-          <figure v-else class="net-chan">
-            <svg :viewBox="'0 0 ' + CHAN.w + ' ' + CHAN.h" role="img" :aria-label="N.scan.title">
-              <line v-for="t in channelTicks" :key="t.c" class="wifi-grid" :x1="t.x" :x2="t.x" y1="0" :y2="CHAN.h"/>
-              <path v-for="n in around.shown" :key="n.key" :class="['net-hump', n.cls]" :d="n.d"><title>{{ (n.ssid || N.scan.hidden) + ' · ' + N.scan.channel(n.channel) + ' · ' + num(n.signal) + ' dBm' }}</title></path>
-              <text v-for="n in around.shown.filter((n) => n.label)" :key="'t' + n.key" class="net-hump-label" :x="n.x" :y="CHAN.h - n.h - 6" text-anchor="middle">{{ n.label }}</text>
-            </svg>
-            <p class="wifi-axis net-chan-axis"><span v-for="t in channelTicks" :key="t.c" :style="{ left: (t.x / CHAN.w * 100) + '%' }">{{ t.c }}</span></p>
-          </figure>
-          <p v-for="(s, i) in around.sentences" :key="i" class="note">{{ s }}</p>
-        </section>
-
-        <!-- Connect anew, start anew -->
-        <section v-if="sshOpen" class="box" aria-labelledby="net-act-h">
-          <div class="box-head"><h2 id="net-act-h">{{ N.actTitle }}</h2></div>
-          <div class="wifi-acts">
-            <div class="wifi-act">
-              <button class="btn btn-primary" type="button" :disabled="!!busy" @click="run('reconnect')"><ui-icon name="network"/>{{ N.reconnect }}</button>
-              <p class="note">{{ N.reconnectHint }}</p>
-            </div>
-            <div class="wifi-act">
-              <button class="btn" type="button" :disabled="!!busy || printing" :title="printing ? N.rebootPrinting : null"
-                      @click="askReboot = !askReboot"><ui-icon name="rotateRight"/>{{ N.reboot }}</button>
-              <p class="note">{{ printing ? N.rebootPrinting : N.rebootHint }}</p>
-              <p v-if="askReboot" class="wifi-ask" role="alert">{{ N.rebootAsk }}
-                <button class="btn btn-primary" type="button" @click="run('reboot')">{{ N.rebootYes }}</button>
-                <button class="btn" type="button" @click="askReboot = false">{{ T.cancel }}</button></p>
-            </div>
-          </div>
-        </section>
-        <p v-if="busy && busy !== 'scan'" class="wifi-wait" role="status"><span class="wifi-spin" aria-hidden="true"></span>{{ waitingText }}</p>
-        <p v-else-if="outcome" :class="['wifi-outcome', outcome.ok ? 'is-ok' : 'is-err']" role="status">{{ outcomeText }}</p>
-
-        <!-- SSH with a key: open while SSH does not work -->
-        <details v-if="ssh && ssh.state !== 'none'" class="box wifi-help" :open="ssh.state === 'failed' || keyForgotten">
-          <summary><h2>{{ N.help.title }}</h2></summary>
-          <p class="note">{{ N.help.lead }}</p>
-          <ssh-key :printer="printer"/>
-          <h3 class="net-help-h">{{ N.help.manual }}</h3>
-          <div class="chips" role="group" :aria-label="N.help.system">
-            <button v-for="s in SYSTEMS" :key="s" class="chip" type="button" :aria-pressed="system === s ? 'true' : 'false'" @click="system = s">{{ N.help.systems[s] }}</button>
-          </div>
-          <ol class="wifi-steps">
-            <li v-for="(s, i) in steps" :key="i">
-              <p>{{ s.text }}</p>
-              <div v-if="s.command" class="wifi-cmd"><code>{{ s.command }}</code>
-                <button class="link" type="button" @click="copyCommand(s.command)">{{ N.help.copy }}</button></div>
-            </li>
-          </ol>
-          <p class="note">{{ N.help.after }}</p>
-        </details>
+        </template>
       </template>
     </div>
   `,

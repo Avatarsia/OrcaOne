@@ -165,7 +165,7 @@ def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "printer_name_taken": 400, "search_failed": 500,
               "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
               "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400,
-              "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
+              "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_login_invalid": 400, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
 
@@ -543,10 +543,10 @@ def ssh_keys(request: Request):
 
 @app.post("/api/printers/ssh")
 def printer_ssh(request: Request, payload: dict = Body(...)):
-    # The user and the key (a file name in ~/.ssh) a printer's SSH logs in with.
+    # The user and how a printer's SSH logs in: a key (a file name in ~/.ssh), login "auto" or the password.
     if is_remote(request.client):
         return _error("local_only", 403)
-    return {"printers": ssh.save_setting(payload.get("model"), payload.get("user"), payload.get("key"))}
+    return {"printers": ssh.save_setting(payload.get("model"), payload.get("user"), payload.get("key"), payload.get("login"))}
 
 
 @app.post("/api/printers/ssh-key")
