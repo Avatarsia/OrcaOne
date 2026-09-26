@@ -1956,3 +1956,155 @@ span.cal-check { cursor: default; }
   .v2d-stage { height: 65vh; }
   .v2d-side { overflow: visible; }
 }
+
+/* ---------------------------------------------------------------- page "Netzwerk" (pages/netzwerk.js) */
+.wifi-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 12px 0 16px; }
+.wifi-status .cam-status { margin-left: 0; }
+.wifi-now { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; }
+.wifi-signal { display: flex; align-items: center; gap: 14px; }
+.wifi-signal > div { display: flex; flex-direction: column; }
+.wifi-arc { fill: none; stroke: var(--toggle-off); stroke-width: 5; stroke-linecap: round; }
+.wifi-arc-dot { fill: var(--toggle-off); }
+.wifi-signal.is-ok { color: var(--success); }
+.wifi-signal.is-warn { color: var(--warn); }
+.wifi-signal.is-err { color: var(--error); }
+.wifi-signal.is-off { color: var(--muted); }
+.wifi-arc.is-on { stroke: currentColor; }
+.wifi-signal:not(.is-off) .wifi-arc-dot { fill: currentColor; }
+.wifi-dbm { color: var(--text); font-size: 30px; font-weight: 700; line-height: 1.1; }
+.wifi-level { font-size: 14px; font-weight: 700; }
+.wifi-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 16px; flex: 1 1 280px; margin: 0; font-size: 14px; }
+.wifi-rows > div { display: contents; }
+.wifi-rows dt { color: var(--muted); }
+.wifi-rows dd { margin: 0; overflow-wrap: anywhere; }
+.wifi-rows .link { margin-left: 10px; }
+.wifi-flag { font-weight: 700; }
+.wifi-flag.is-ok { color: var(--success); }
+.wifi-flag.is-warn { color: var(--heat-text); }
+.wifi-chart { position: relative; margin: 0 0 10px 34px; }
+.wifi-chart figcaption { margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+.wifi-chart svg { display: block; width: 100%; height: 150px; border: 1px solid var(--line-box); border-radius: 4px; background: var(--surface-2); }
+.wifi-chart.is-small svg { height: 80px; }
+.wifi-chart svg * { vector-effect: non-scaling-stroke; }
+.wifi-band { opacity: .14; }
+.wifi-band.is-good { fill: var(--success); }
+.wifi-band.is-fair { fill: var(--warn); }
+.wifi-band.is-weak { fill: var(--error); }
+.wifi-grid { stroke: var(--line-box); stroke-width: 1; }
+.wifi-gap { stroke: var(--error); stroke-width: 3; opacity: .35; }
+.wifi-switch { stroke: var(--text); stroke-width: 1; stroke-dasharray: 4 3; }
+.wifi-line { fill: none; stroke: var(--accent-line); stroke-width: 2.5; stroke-linejoin: round; }
+.wifi-line.is-tx { stroke: var(--accent-line); }
+.wifi-line.is-rx { stroke: var(--muted); stroke-dasharray: 5 3; stroke-width: 2; }
+/* The scale left of the curve, at the height of its line (figcaption above it: 18px) */
+.wifi-tick { position: absolute; left: -34px; width: 28px; margin-top: 18px; color: var(--muted); font-size: 11px; line-height: 1; text-align: right; transform: translateY(-50%); }
+.wifi-chart svg + .wifi-tick, .wifi-chart .wifi-tick { pointer-events: none; }
+.wifi-key { display: inline-flex; align-items: center; gap: 5px; margin-left: 12px; }
+.wifi-key::before { content: ""; width: 16px; border-top: 2.5px solid var(--accent-line); }
+.wifi-key.is-rx::before { border-top: 2px dashed var(--muted); }
+.wifi-axis { display: flex; justify-content: space-between; margin: -4px 0 0 34px; color: var(--muted); font-size: 12px; }
+.wifi-hints { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.wifi-hints li { display: flex; align-items: baseline; gap: 8px; }
+.wifi-hints .cam-dot { flex: none; transform: translateY(1px); }
+.wifi-hints .is-ok .cam-dot { background: var(--success); }
+.wifi-hints .is-warn .cam-dot { background: var(--warn); }
+.wifi-hints .is-err .cam-dot { background: var(--error); }
+.wifi-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 20px; }
+.wifi-act .note { margin-top: 6px; }
+.wifi-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; font-weight: 700; }
+.wifi-wait { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; }
+.wifi-spin { flex: none; width: 14px; height: 14px; border: 2px solid var(--divider); border-top-color: var(--accent-line); border-radius: 50%; animation: spin .8s linear infinite; }
+.wifi-outcome { margin-top: 14px; font-size: 14px; font-weight: 700; }
+.wifi-outcome.is-ok { color: var(--success); }
+.wifi-outcome.is-warn { color: var(--heat-text); }
+.wifi-outcome.is-err { color: var(--error); }
+.wifi-help .chips { margin-top: 12px; }
+.wifi-steps { display: flex; flex-direction: column; gap: 12px; margin: 14px 0 0; padding-left: 22px; font-size: 14px; }
+.wifi-cmd { display: flex; align-items: flex-start; gap: 10px; margin-top: 6px; }
+.wifi-cmd code { flex: 1; min-width: 0; padding: 6px 8px; user-select: all; }
+.wifi-cmd .link { flex: none; margin-top: 6px; font-size: 13px; }
+@media (max-width: 600px) {
+  .wifi-chart, .wifi-axis { margin-left: 28px; }
+  .wifi-tick { left: -30px; width: 26px; }
+  .wifi-cmd { flex-direction: column; }
+}
+.note.is-warn { color: var(--heat-text); }
+/* The way from this computer to the internet: nodes, and between them a line in the state's colour */
+.net-path { display: flex; align-items: flex-start; margin: 0; padding: 0; list-style: none; }
+.net-node { display: flex; flex: none; flex-direction: column; align-items: center; gap: 4px; width: 110px; text-align: center; font-size: 13px; }
+.net-node small { min-height: 1.2em; color: var(--muted); font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.net-icon { display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid var(--line-box); border-radius: 50%; background: var(--surface-2); color: var(--icon); }
+.net-icon img { width: 40px; height: 40px; object-fit: contain; }
+.net-hop { display: flex; flex: 1; flex-direction: column; align-items: center; min-width: 40px; padding-top: 6px; font-size: 12px; }
+.net-line { width: 100%; margin: 4px 0; border-top: 4px solid var(--toggle-off); border-radius: 2px; }
+.net-label { min-height: 1.2em; font-weight: 700; }
+.net-sub { min-height: 1.2em; color: var(--muted); text-align: center; }
+.net-hop.is-ok .net-line { border-color: var(--success); }
+.net-hop.is-warn .net-line { border-color: var(--warn); }
+.net-hop.is-err .net-line { border-color: var(--error); }
+.net-hop.is-wait .net-line { border-top-style: dotted; border-color: var(--accent-line); }
+.net-hop.is-none .net-line { border-top: 2px dashed var(--line-box); }
+.net-hop.is-none .net-label { color: var(--muted); font-weight: 400; }
+/* One card per interface */
+.net-ifs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.net-if { padding: 12px 14px; border: 1px solid var(--line-box); border-radius: 8px; }
+.net-if.is-used { border-color: var(--accent-line); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.net-if-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.net-if-head .icon { color: var(--icon); }
+.net-if-head .cam-status { margin-left: auto; }
+.net-if-ip { margin-top: 8px; font-family: var(--mono); font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+.net-if .tag { display: inline-flex; margin-top: 6px; }
+.net-if-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; color: var(--muted); font-size: 13px; }
+.net-if-facts .is-warn { color: var(--heat-text); }
+.net-wifi { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider); }
+.net-wifi .wifi-dbm { font-size: 24px; }
+/* The checks */
+.net-checks { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.net-checks li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 8px; }
+.net-checks .cam-dot { transform: translateY(1px); }
+.net-checks .is-ok .cam-dot { background: var(--success); }
+.net-checks .is-warn .cam-dot { background: var(--warn); }
+.net-checks .is-err .cam-dot { background: var(--error); }
+.net-checks .is-wait .cam-dot { background: var(--accent-line); }
+.net-check-value { color: var(--muted); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
+.net-checks .is-err .net-check-value { color: var(--error); }
+.net-checks .is-warn .net-check-value { color: var(--heat-text); }
+.net-measure { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
+.net-measure .note { margin: 0; }
+/* The WLANs around: one hump per access point over its channel, as high as its signal */
+.net-chan { position: relative; margin: 0 0 8px; }
+.net-chan svg { display: block; width: 100%; height: 140px; border: 1px solid var(--line-box); border-radius: 4px; background: var(--surface-2); }
+.net-hump { fill: var(--muted); fill-opacity: .18; stroke: var(--muted); stroke-width: 1; }
+.net-hump.is-own { fill: var(--accent); fill-opacity: .25; stroke: var(--accent-line); }
+.net-hump.is-used { fill: var(--accent); fill-opacity: .45; stroke: var(--accent-line); stroke-width: 2.5; }
+.net-hump-label { fill: var(--text); font-size: 11px; }
+.net-chan-axis { position: relative; height: 16px; margin: 2px 0 0; }
+.net-chan-axis span { position: absolute; transform: translateX(-50%); }
+/* The help: open while SSH does not work */
+.wifi-help > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.wifi-help > summary::-webkit-details-marker { display: none; }
+.wifi-help > summary::before { content: "▸"; color: var(--icon); transition: transform .12s; }
+.wifi-help[open] > summary::before { transform: rotate(90deg); }
+.wifi-help > summary h2 { font-size: 16px; font-weight: 700; }
+.net-help-h { margin-top: 16px; font-size: 14px; font-weight: 700; }
+/* The key a printer's SSH logs in with (pages/ssh-key.js), on "SSH" and "Netzwerk" */
+.ssh-keypick { margin: 10px 0; }
+.ssh-keypick-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-bottom: 8px; }
+.ssh-keypick-row .ssh-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13px; }
+.ssh-keypick-row select { max-width: 100%; }
+.ssh-keypick-ask { flex: 1 1 260px; }
+.ssh-keypick-result { font-size: 14px; font-weight: 700; }
+.ssh-keypick-result.is-ok { color: var(--success); }
+.ssh-keypick-result.is-warn { color: var(--heat-text); }
+.ssh-keypick-result.is-err { color: var(--error); }
+@media (max-width: 560px) {
+  .net-path { flex-direction: column; align-items: stretch; }
+  .net-node { flex-direction: row; width: auto; gap: 10px; text-align: left; }
+  .net-node small { margin-left: auto; }
+  .net-hop { flex-direction: row; align-items: center; gap: 10px; min-height: 34px; margin-left: 25px; padding: 0 0 0 16px; border-left: 4px solid var(--toggle-off); }
+  .net-hop .net-line { display: none; }
+  .net-hop.is-ok { border-left-color: var(--success); }
+  .net-hop.is-warn { border-left-color: var(--warn); }
+  .net-hop.is-err { border-left-color: var(--error); }
+  .net-hop.is-none { border-left: 2px dashed var(--line-box); }
+}

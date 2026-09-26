@@ -248,7 +248,10 @@ def profile_details(instance: Instance, kind: str, name: str) -> dict | None:
         for key, value in q.values.items():
             # "…_settings_id" repeats the name.
             if key not in values and key not in scanner.META_KEYS and not key.endswith("_settings_id"):
-                values[key] = {"value": value, "source": q.name, "own": q is p}
+                # A printer's API key or password (printhost_apikey, printhost_password) stays hidden:
+                # any device in the LAN may open this page (the user's wish of 25.09.2026).
+                shown = "***" if snapshot.SECRET.search(key) and value not in ("", None, []) else value
+                values[key] = {"value": shown, "source": q.name, "own": q is p}
     if kind == "process":
         for key, value in PROCESS_DEFAULTS.items():
             values.setdefault(key, {"value": value, "source": None, "own": False, "default": True})

@@ -6,6 +6,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import paramiko
 import pytest
 import uvicorn
 
@@ -16,12 +17,23 @@ from orcaone.app import app
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+class _NoAgent:
+    def get_keys(self):
+        return ()
+
+    def close(self):
+        pass
+
+
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path, monkeypatch):
     """OrcaOne's own folder data/ (settings, backups) in the test's temporary folder, never the
     real one next to orcaone.sh."""
     folder = tmp_path / "orcaone-data"
     monkeypatch.setattr(settings, "DATA_DIR", folder)
+    # No SSH agent of the real user: on Windows paramiko asks Pageant and OpenSSH's pipe whatever
+    # SSH_AUTH_SOCK says (paramiko/agent.py).
+    monkeypatch.setattr(paramiko.client, "Agent", _NoAgent)
     # What the last scan found in the slicers' printer profiles (overview.build_all).
     monkeypatch.setattr(camera, "_slicer_hosts", {})
     monkeypatch.setattr(camera, "_estimates", {})
@@ -36,6 +48,9 @@ def fake_home(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(Path, "home", lambda: home)
+    # What os.path.expanduser follows, so paramiko finds no key of the real user in ~/.ssh either.
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("XDG_DATA_HOME", str(home / ".local" / "share"))
     monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))

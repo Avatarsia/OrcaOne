@@ -371,3 +371,15 @@ def test_address_of_a_printer_snapmaker_orca_connected_to(fake_home, monkeypatch
                        encoding="utf-8")
     overview.build_all()
     assert camera.printers()["Snapmaker U1"]["host"] == "10.30.40.9"
+
+
+def test_profile_details_hide_a_printers_key(fake_home):
+    """The side panel of a profile: a printer's API key masked, any device in the LAN may see it."""
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    machine = data_dir / "user" / "default" / "machine"
+    machine.mkdir(parents=True, exist_ok=True)
+    (machine / "Mein U1.json").write_text(json.dumps({
+        "name": "Mein U1", "from": "User", "inherits": U1_04, "printer_settings_id": "Mein U1",
+        "print_host": "10.30.40.174", "printhost_apikey": "geheim"}), encoding="utf-8")
+    values = overview.profile_details(instances.load_instance(data_dir, "manual"), "machine", "Mein U1")["values"]
+    assert (values["printhost_apikey"]["value"], values["print_host"]["value"]) == ("***", "10.30.40.174")

@@ -129,3 +129,12 @@ def test_what_orcaone_writes_counts_as_seen(server, fake_home):
     (data_dir / "Snapmaker_Orca.conf").write_text("{", encoding="utf-8")
     status, body = call(f"{base}/news")
     assert (status, json.loads(body)) == (409, {"error": "conf_unreadable"})
+
+
+def test_changed_secrets_show_no_hash(inst):
+    """The page "Änderungen" (any device in the LAN may open it): a changed password as "***" only,
+    the hash in the snapshot would let one try passwords offline."""
+    snapshot.news(inst)
+    edit_json(inst.data_dir / "user/default/machine/Mein U1.json", lambda d: d.update(printhost_password="Sommer2024"))
+    keys = {k["key"]: k for k in snapshot.news(inst)["own"][0]["keys"]}
+    assert keys["printhost_password"]["new"] == "***"

@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
+export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "ssh", "netzwerk", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -491,6 +491,9 @@ export const ICONS = {
   package: '<path d="m12 3.5 8 4v9l-8 4-8-4v-9z"/><path d="m4 7.5 8 4 8-4M12 11.5v9M8 5.5l8 4"/>',
   camera: '<path d="M4 8.5h3.2l1.6-2.5h6.4l1.6 2.5H20v10.5H4z"/><circle cx="12" cy="13.3" r="3.4"/>',
   network: '<path d="M4.5 9.8a10.8 10.8 0 0 1 15 0M7.3 12.9a6.6 6.6 0 0 1 9.4 0M10.1 16a2.6 2.6 0 0 1 3.8 0"/><circle cx="12" cy="18.7" r=".9"/>',
+  // A network of cables (page "Netzwerk"), and the internet as a globe.
+  lan: '<rect x="9" y="3.5" width="6" height="5" rx="1"/><rect x="3.5" y="15.5" width="6" height="5" rx="1"/><rect x="14.5" y="15.5" width="6" height="5" rx="1"/><path d="M12 8.5V12M6.5 15.5V12h11v3.5"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.2 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.2-3.5-8.5s1.2-6.2 3.5-8.5z"/>',
   window: '<rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M7 9.5V8h1.5M17 9.5V8h-1.5M7 14.5V16h1.5M17 14.5V16h-1.5"/>',
   fullscreen: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
   fit: '<path d="M4 8.5V4h4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5"/><circle cx="12" cy="12" r="3"/>',

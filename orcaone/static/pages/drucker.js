@@ -2,7 +2,7 @@
 // profiles and the printers themselves apart). One card per printer with a network address, with
 // what it says of itself, read only over Moonraker, for any Klipper printer: its state and job,
 // firmware, storage, prints in total; a U1 also its name and the nozzle and spool of every head.
-// From the card on to its web interface, status, files, views, camera, console and SSH. The address
+// From the card on to its web interface, status, files, views, camera, console, SSH and network. The address
 // is OrcaOne's own setting per printer (camera.py), saved at once; without one OrcaOne takes the
 // slicer's (print_host of an own printer, or the printer Snapmaker Orca is connected to). A printer
 // goes by its model, a second one of the same model by a name of its own (the user's wish of
@@ -265,6 +265,7 @@ export default {
             <a v-if="isU1(m.model)" class="link" :href="hashOf('kamera', null)" @click.prevent="openFor(m.key, 'kamera')">{{ T.nav.pages.kamera }}</a>
             <a class="link" :href="hashOf('konsole', null)" @click.prevent="openFor(m.key, 'konsole')">{{ T.nav.pages.konsole }}</a>
             <a class="link" :href="hashOf('ssh', null)" @click.prevent="openFor(m.key, 'ssh')">{{ T.nav.pages.ssh }}</a>
+            <a class="link" :href="hashOf('netzwerk', null)" @click.prevent="openFor(m.key, 'netzwerk')">{{ T.nav.pages.netzwerk }}</a>
           </p>
         </article>
       </div>

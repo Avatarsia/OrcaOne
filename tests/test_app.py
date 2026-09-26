@@ -2,14 +2,18 @@ import json
 import os
 import posixpath
 import re
+import socket
 import struct
 import sys
 import urllib.parse
 import urllib.request
+from collections import namedtuple
+from types import SimpleNamespace
 
 import pytest
 
 from conftest import call, copy_fixture
+from orcaone import app as app_module
 from orcaone import settings
 
 
@@ -284,3 +288,91 @@ def test_profile_details_on_demand(server, fake_home):
     assert call(f"{base}?kind=process&name=nope")[0] == 404
     assert call(f"{base}?kind=zauber&name=nope")[0] == 404
 
+
+def test_any_device_in_the_lan(server):
+    """OrcaOne listens on every interface (the user's wish of 25.09.2026): a page at an IP address
+    or at this computer's name works; any other name (DNS rebinding) and another page's Origin not."""
+    for host in ("192.168.1.20:4711", "[::1]:4711", f"{socket.gethostname()}:4711", f"{socket.gethostname()}.local"):
+        assert call(f"{server}/api/settings", headers={"Host": host})[0] == 200, host
+    for host in ("evil.example", "192.168.1.20.evil.example", "0.0.0.0:4711", "224.0.0.1", "["):
+        assert call(f"{server}/api/settings", headers={"Host": host})[0] == 403, host
+    lan = {"Host": "192.168.1.20:4711", "Origin": "http://192.168.1.20:4711"}
+    assert call(f"{server}/api/settings", "POST", {"theme": "dark"}, headers=lan)[0] == 200
+    assert call(f"{server}/api/settings", "POST", {"theme": "dark"}, headers={**lan, "Origin": "http://192.168.1.21:4711"})[0] == 403
+
+
+def test_only_at_this_computer(server, monkeypatch):
+    """From another device no data folder is added or removed and no backup deleted: a folder of
+    another device (\\\\host\\share) would make Windows send the user's NTLM hash, a backup is the
+    way back after every change."""
+    local = app_module.is_remote
+    monkeypatch.setattr(app_module, "is_remote", lambda client: True)
+    assert json.loads(call(f"{server}/api/instances/manual", "POST", {"path": "\\\\evil\\share"})[1]) == {"error": "local_only"}
+    assert call(f"{server}/api/instances/manual?path=x", "DELETE")[0] == 403
+    assert json.loads(call(f"{server}/api/instances/3b40ea9c4721/backups/x", "DELETE")[1]) == {"error": "local_only"}
+    monkeypatch.setattr(app_module, "is_remote", local)
+    # Not an installation's id: nothing outside OrcaOne's own backups.
+    assert json.loads(call(f"{server}/api/instances/..%5C..%5Cx/backups/y", "DELETE")[1]) == {"error": "backup_not_found"}
+
+
+def test_who_is_this_computer():
+    client = namedtuple("Client", "host")
+    assert not any(app_module.is_remote(client(h)) for h in ("127.0.0.1", "127.0.0.2", "::1", "::ffff:127.0.0.1"))
+    assert all(app_module.is_remote(c) for c in (client("192.168.1.5"), client("fe80::1"), client("testclient"), None))
+
+
+def test_answers_of_the_api_never_run_as_a_page(server):
+    """A printer's file opened in a tab (HTML or SVG of a printer, or of a host posing as one) must
+    not run script as OrcaOne: files keep only the types the pages show, the API is sandboxed."""
+    with urllib.request.urlopen(f"{server}/api/settings", timeout=5) as response:
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["Content-Security-Policy"].startswith("sandbox")
+    with urllib.request.urlopen(f"{server}/", timeout=5) as response:
+        assert "sandbox" not in response.headers["Content-Security-Policy"]
+
+    class Answer:
+        status = 200
+
+        def __init__(self, kind):
+            self.headers = {"Content-Type": kind}
+
+        def read(self, size):
+            return b""
+
+        def close(self):
+            pass
+    kinds = {name: app_module._passed_on(Answer(kind), f"x/{name}").media_type
+             for name, kind in (("evil.html", "text/html; charset=utf-8"), ("a.svg", "image/svg+xml"), ("a.png", "image/png"),
+                                ("a.mp4", "video/mp4"), ("a.gcode", "application/octet-stream"))}
+    assert kinds == {"evil.html": "application/octet-stream", "a.svg": "application/octet-stream", "a.png": "image/png",
+                     "a.mp4": "video/mp4", "a.gcode": "text/plain; charset=utf-8"}
+
+
+def test_websockets_refuse_a_rebound_name():
+    """DNS rebinding: a page of evil.example whose name resolves to this computer sends its own
+    name as Host and its own Origin; only the Host check stops it, for /api/ssh, /api/network, /api/live."""
+    page = lambda host, origin: SimpleNamespace(headers={"host": host, "origin": origin})
+    assert not app_module._own_page(page("evil.example:4711", "http://evil.example:4711"))
+    assert app_module._own_page(page("127.0.0.1:4711", "http://127.0.0.1:4711"))
+    assert app_module._own_page(page("192.168.1.20:4711", "http://192.168.1.20:4711"))
+    assert not app_module._own_page(page("192.168.1.20:4711", "http://evil.example"))
+
+
+def test_printer_addresses_and_backups_only_at_this_computer(server, monkeypatch):
+    """A device in the LAN could point a printer at its own host, where the pages on this computer
+    log in with its SSH keys; and a backup is the way back. Neither from there."""
+    monkeypatch.setattr(app_module, "is_remote", lambda client: True)
+    for body in ({"model": "Snapmaker U1", "host": "192.168.1.66"}, {"model": "Snapmaker U1", "name": "Zweiter", "host": "192.168.1.66"}):
+        assert json.loads(call(f"{server}/api/printers", "POST", body)[1]) == {"error": "local_only"}
+
+
+def test_a_backup_outside_an_installation_is_never_touched(server, monkeypatch):
+    monkeypatch.setattr(app_module.backup, "delete", lambda *a: pytest.fail("reached backup.delete"))
+    for instance_id in ("..%5C..%5Cx", "3B40EA9C4721", "3b40ea9c472"):
+        status, body = call(f"{server}/api/instances/{instance_id}/backups/2026-09-25_120000_manual", "DELETE")
+        assert (status, json.loads(body)) == (404, {"error": "backup_not_found"}), instance_id
+
+
+def test_a_huge_number_for_the_3d_camera(server, data_dir):
+    view = {"position": [10 ** 400, 0, 0], "target": [0, 0, 0]}
+    assert call(f"{server}/api/settings", "POST", {"view3d": view})[0] == 400

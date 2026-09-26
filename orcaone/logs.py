@@ -14,6 +14,10 @@ LIMIT = 2000               # entries sent to the page, the last ones
 TEXT_MAX = 2000            # characters of one entry sent; OrcaSlicer logs whole profile lists (2.7 MB)
 MAX_BYTES = 20 * 1024 * 1024  # of a larger file only its end is read
 SHOW = {"all": None, "problems": {"fatal", "error", "warning"}, "errors": {"fatal", "error"}}
+# A secret in a line, from its name to the end of the line: Snapmaker Orca logs the MQTT login of
+# the U1 at level info ("…, username: …, password: …", MQTT.cpp), and any device in the LAN may
+# read the logs (the user's wish of 25.09.2026).
+_SECRET = re.compile(r"(\b(?:password|passwd|api_?key|access_?code|token|secret)\b[\"']?\s*[:=]\s*).*", re.IGNORECASE)
 _ENTRY = re.compile(r"\[(trace|debug|info|warning|error|fatal)\]\t(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)[.\d]*(?:\[Thread [^\]]*\])?:?")
 
 
@@ -60,7 +64,7 @@ def read(data_dir: Path, name: str, show: str = "all", query: str = "", limit: i
             raw = fh.read()
     except OSError:
         raise LogError("log_not_found") from None
-    lines = raw.decode("utf-8", "replace").splitlines()
+    lines = [_SECRET.sub(r"\1***", line) for line in raw.decode("utf-8", "replace").splitlines()]
     if cut:
         lines = lines[1:]  # begins in the middle of a line
 

@@ -9,7 +9,8 @@
         "orcaone",
         "--port",
         "8765",
-        "--no-browser"
+        "--no-browser",
+        "--local"
       ],
       "port": 8765
     },
@@ -21,7 +22,8 @@
         "orcaone",
         "--port",
         "8765",
-        "--no-browser"
+        "--no-browser",
+        "--local"
       ],
       "port": 8765
     }

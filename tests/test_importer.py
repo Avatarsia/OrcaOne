@@ -392,3 +392,16 @@ def test_export(server, fake_home):
     assert status == 200 and again["profiles"][0]["status"] == "same"
     status, body = call(f"{base}/export", "POST", {"profiles": [{"kind": "filament", "name": "Gibt es nicht"}]})
     assert (status, json.loads(body)) == (404, {"error": "unknown_profile", "name": "Gibt es nicht"})
+
+
+def test_nothing_that_runs_on_this_computer_and_no_keys_shown(target):
+    """post_process runs on this computer after slicing (both slicers): never from a file, said like
+    any key left out. A printer's API key never goes to the page, any device in the LAN may see it."""
+    process = {"name": "Fremd 0.16", "inherits": "0.20mm Standard @Snapmaker U1 (0.4 nozzle)", "from": "User",
+               "print_settings_id": "Fremd 0.16", "layer_height": "0.16", "post_process": ["C:\\Temp\\evil.bat"]}
+    copy = importer.convert(target, "Snapmaker_Orca", "process", process, [], False)
+    assert "post_process" not in copy.data and "post_process" in copy.dropped and copy.data["layer_height"] == "0.16"
+    printer = {"name": "Mein U1", "inherits": U1_04, "from": "User", "printer_settings_id": "Mein U1",
+               "print_host": "10.0.0.5", "printhost_apikey": "geheim", "printhost_password": ""}
+    entry = importer.analyse(importer.read(json.dumps(printer).encode(), "Mein U1.json"), target, "Snapmaker_Orca")[0]
+    assert (entry["profile"]["printhost_apikey"], entry["profile"]["printhost_password"], entry["profile"]["print_host"]) == ("***", "", "10.0.0.5")

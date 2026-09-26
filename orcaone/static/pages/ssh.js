@@ -3,9 +3,10 @@
 // speaks SSH and passes the bytes on over a WebSocket, only to printers with an address from the
 // page "Drucker". The login tries the keys in ~/.ssh first, else the page asks for the password,
 // which only passes through.
-import { go, hashOf, ui, isU1Printer, activeName, darkQuery, isDark } from "../common.js";
+import { go, hashOf, ui, isU1Printer, activeName, darkQuery, isDark, hosts } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { SshKey } from "./ssh-key.js";
 
 const { ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const S = T.ssh;
@@ -158,6 +159,7 @@ async function loadXterm() {
 
 export default {
   name: "SshPage",
+  components: { SshKey },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -179,7 +181,10 @@ export default {
     const active = computed(() => ["connecting", "password", "open"].includes(state.value));
     const isU1 = computed(() => isU1Printer(model.value));
     const commands = computed(() => COMMANDS[isU1.value ? "u1" : "klipper"]);
-    watch(model, () => { user.value = isU1.value ? "root" : "pi"; });
+    // The user kept for the printer (ssh.save_setting), else root on a U1, pi on others.
+    watch(model, () => { user.value = printers.value?.[model.value]?.ssh?.user || (isU1.value ? "root" : "pi"); });
+    // A key chosen, but the login went by the password as shipped: the U1 forgot it at its last start.
+    const keyForgotten = computed(() => opened.value?.via === "default" && opened.value?.keys !== false && !!hosts.value?.[model.value]?.ssh?.key);
     function runCommand(ev) {
       const [kind, i] = ev.target.value.split(":");
       ev.target.value = "";
@@ -246,6 +251,12 @@ export default {
           state.value = "open";
           opened.value = m;
           term?.focus();
+          // The user it logged in as, kept for the printer: "Auf den Drucker bringen" goes by it. Only
+          // at the computer itself (from the LAN: local_only, nothing kept).
+          const kept = hosts.value?.[model.value]?.ssh;
+          if (m.user !== (kept?.user || (isU1.value ? "root" : "pi"))) {
+            api.setSsh(model.value, m.user, kept?.key || null).then((r) => { hosts.value = r.printers; }).catch(() => {});
+          }
         } else if (m.type === "error") {
           error.value = S.errors[m.code] || T.errors[m.code] || T.errors.unknown;
           errorDetail.value = m.detail || "";
@@ -288,7 +299,7 @@ export default {
 
     return {
       T, S, STATUS, GROUPS, printers, loadError, model, user, typed, state, isU1, commands, runCommand, opened, error, errorDetail, password, again, box, active, host, activeName,
-      statusText, connect, login, disconnect, go, hashOf, clearScreen,
+      statusText, connect, login, disconnect, go, hashOf, clearScreen, keyForgotten,
     };
   },
 
@@ -315,11 +326,13 @@ export default {
           <button v-else class="btn" type="button" @click="disconnect">{{ S.disconnect }}</button>
           <span :class="['cam-status', 'is-' + STATUS[state]]"><span class="cam-dot"></span>{{ statusText }}</span>
         </form>
+        <ssh-key v-if="model" :printer="model"/>
         <form v-if="state === 'password'" class="ssh-password" @submit.prevent="login">
           <label for="ssh-password">{{ again ? S.passwordAgain : S.passwordAsk(user.trim() + '@' + host) }}</label>
           <input id="ssh-password" v-model="password" class="input" type="password" autocomplete="off">
           <button class="btn btn-primary" type="submit" :disabled="!password">{{ S.login }}</button>
         </form>
+        <p v-if="keyForgotten" class="note is-warn">{{ S.keys.refused }}</p>
         <p v-if="error" class="alert" role="alert">{{ error }}<small v-if="errorDetail" class="ssh-detail">{{ errorDetail }}</small></p>
         <div v-if="opened" class="ssh-tools">
           <label v-if="state === 'open'" class="ssh-commands" :title="S.commandsHint">{{ S.commandsLabel }}

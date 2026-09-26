@@ -90,7 +90,7 @@ def remember_slicer_hosts(found: list) -> None:
 
 def printers() -> dict:
     """The printers with an address, by name: {"<name>": {"host": "10.30.40.174", "from": "orcaone"
-    or "slicer", "slicer"?, "model", "every"?}}. The first printer of a model goes by the model, so
+    or "slicer", "slicer"?, "model", "every"?, "ssh"?}}. The first printer of a model goes by the model, so
     the same U1 has one address in Snapmaker Orca and in OrcaSlicer; a second one of the same model
     by a name of its own (add_printer, or its printer profile in the slicer). One typed in on the
     page "Drucker" goes before the slicer's, and the slicer's address of a printer typed in under
@@ -102,11 +102,15 @@ def printers() -> dict:
     for key in sorted(set(own) | set(_slicer_hosts)):
         mine, theirs = own.get(key, {}), _slicer_hosts.get(key)
         model = mine["model"] if isinstance(mine.get("model"), str) else theirs["model"] if theirs else key
-        every = {"every": mine["every"]} if isinstance(mine.get("every"), int) else {}
+        extra = {"every": mine["every"]} if isinstance(mine.get("every"), int) else {}
+        # SSH user and key (ssh.save_setting), only what could be one.
+        ssh = mine.get("ssh") if isinstance(mine.get("ssh"), dict) else {}
+        ssh = {k: v for k, v in ssh.items() if k in ("user", "key") and isinstance(v, str) and 0 < len(v) <= 100}
+        extra = {**extra, **({"ssh": ssh} if ssh else {})}
         if isinstance(mine.get("host"), str):
-            out[key] = {"host": mine["host"], "from": "orcaone", "model": model, **every}
+            out[key] = {"host": mine["host"], "from": "orcaone", "model": model, **extra}
         elif theirs and theirs["host"] not in typed:
-            out[key] = {"host": theirs["host"], "from": "slicer", "slicer": theirs["slicer"], "model": model, **every}
+            out[key] = {"host": theirs["host"], "from": "slicer", "slicer": theirs["slicer"], "model": model, **extra}
     return out
 
 

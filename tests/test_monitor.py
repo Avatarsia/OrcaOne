@@ -57,7 +57,7 @@ U1 = {**COMMON,
       "tmc2209 stepper_z": {"run_current": 0.8}}
 SYSTEM = {"cpu_temp": 40.1, "system_cpu_usage": {"cpu": 3.8}, "system_uptime": 21980.0,
           "system_memory": {"total": 984740, "available": 770828, "used": 213912},
-          "network": {"lo": {"rx_bytes": 10, "bandwidth": 1.0}, "wlan0": {"rx_bytes": 964, "bandwidth": 379.4},
+          "network": {"lo": {"rx_bytes": 10, "bandwidth": 1.0}, "wlan0": {"rx_bytes": 964, "tx_bytes": 1508, "rx_errs": 1, "tx_errs": 2, "bandwidth": 379.4},
                       "wlan1": {"rx_bytes": 0, "bandwidth": 0.0}}}
 
 
@@ -125,7 +125,7 @@ def test_a_plain_klipper_printer(moonraker):
     system = got["system"]
     assert (system["cpu"], system["cpu_temp"], system["uptime"]) == (3.8, 40.1, 21980.0)
     assert system["memory"] == {"total": 984740, "used": 213912}
-    assert system["network"] == [{"name": "wlan0", "bandwidth": 379.4}]
+    assert system["network"] == [{"name": "wlan0", "bandwidth": 379.4, "rx": 964, "tx": 1508, "errors": 3, "drops": None}]
 
 
 def test_the_u1_shows_more(moonraker):

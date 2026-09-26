@@ -100,6 +100,11 @@ export const api = {
   gcodeHistory: (model, since) => request("GET", `/api/printers/gcode?model=${encodeURIComponent(model)}&since=${since}`),
   gcodeSend: (model, script) => request("POST", "/api/printers/gcode", { model, script }),
   setPrinterHost: (model, host) => request("POST", "/api/printers", { model, host }),
+  // SSH per printer (orcaone/ssh.py): the keys in ~/.ssh of the computer OrcaOne runs on, the one
+  // chosen for a printer, and bringing it onto the printer (a typed password only passes through).
+  sshKeys: () => request("GET", "/api/ssh/keys"),
+  setSsh: (model, user, key) => request("POST", "/api/printers/ssh", { model, user, key }),
+  bringKey: (model, password) => request("POST", "/api/printers/ssh-key", { model, password }),
   addPrinter: (model, name, host) => request("POST", "/api/printers", { model, name, host }),
   // About 6 s: Snapmaker printers that answer in the LAN (mDNS, as Snapmaker Orca looks for them).
   searchPrinters: () => request("POST", "/api/printers/search"),

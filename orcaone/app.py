@@ -1,9 +1,11 @@
 """FastAPI app: JSON API under /api, the static UI under /."""
 
+import ipaddress
 import json
 import math
 import mimetypes
 import re
+import socket
 from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -14,11 +16,15 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, live, logs, monitor,
-               operations, overview, printer_files, scanner, settings, snapshot, ssh)
+               network, operations, overview, printer_files, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
-_LOCAL_HOSTS = {"127.0.0.1", "localhost"}
+# The names this computer goes by in the LAN besides its addresses; not getfqdn(), whose reverse
+# lookup can block the start.
+_OWN_NAMES = {name.lower() for name in ("localhost", socket.gethostname(), socket.gethostname() + ".local")}
+# An installation's id (instances.instance_id), part of a path to its backups.
+_INSTANCE_ID = re.compile(r"[0-9a-f]{12}")
 
 # On Windows the registry can map .js to text/plain, and browsers then refuse to
 # run ES modules.
@@ -42,23 +48,65 @@ app = FastAPI(title="OrcaOne", version=__version__, docs_url=None, redoc_url=Non
 
 
 def _hostname(value: str) -> str | None:
-    return urlparse(f"//{value}").hostname
+    try:
+        return urlparse(f"//{value}").hostname
+    except ValueError:
+        return None   # "[" without "]" and the like
+
+
+def _host_ok(value: str) -> bool:
+    """A Host header a page of OrcaOne sends: an IP address, localhost or this computer's name.
+    Any other name may be DNS rebinding (a page whose name its owner lets resolve to this
+    computer), an address cannot: only this computer serves a page at its address."""
+    name = _hostname(value)
+    if not name:
+        return False
+    try:
+        ip = ipaddress.ip_address(name)
+    except ValueError:
+        return name.rstrip(".") in _OWN_NAMES
+    return not (ip.is_unspecified or ip.is_multicast)
+
+
+def _own_page(websocket: WebSocket) -> bool:
+    """For WebSockets, which the HTTP guard below does not see and which browsers let any page
+    open: Host as there, and Origin exactly OrcaOne's own. Closing before accepting refuses them."""
+    host = websocket.headers.get("host", "")
+    return _host_ok(host) and websocket.headers.get("origin") == f"http://{host}"
+
+
+def is_remote(client) -> bool:
+    """A client on another device (Starlette's request.client or websocket.client): the address of
+    the connection, as uvicorn runs without proxy headers (__main__.py). What lends out this
+    computer's identity or reaches its folders stays with the computer itself."""
+    try:
+        ip = ipaddress.ip_address(client.host)
+    except (AttributeError, ValueError):
+        return True
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return not ip.is_loopback
 
 
 @app.middleware("http")
-async def local_only(request: Request, call_next):
-    # The server listens on 127.0.0.1 only. Checking Host blocks DNS rebinding,
-    # checking Origin blocks other pages (even other local ports) from sending
-    # changes, and refusing frames blocks clickjacking.
+async def check_request(request: Request, call_next):
+    # OrcaOne listens on every interface and needs no login (the user's wish of 25.09.2026: any
+    # device in the LAN, "Ist nix wichtiges dran"). Against other web pages in the user's
+    # browser: checking Host blocks DNS rebinding, checking Origin blocks other pages (even other
+    # local ports) from sending changes, and refusing frames blocks clickjacking.
     host = request.headers.get("host", "")
-    if _hostname(host) not in _LOCAL_HOSTS:
+    if not _host_ok(host):
         return Utf8Response({"error": "forbidden"}, status_code=403)
     origin = request.headers.get("origin")
     if request.method not in ("GET", "HEAD") and origin and origin != f"http://{host}":
         return Utf8Response({"error": "forbidden"}, status_code=403)
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # An answer of the API never runs as a page: a printer's file opened in a tab (an HTML or SVG
+    # file of a printer, or of a host posing as one) would otherwise run script as OrcaOne.
+    response.headers["Content-Security-Policy"] = ("sandbox; frame-ancestors 'none'" if request.url.path.startswith("/api/")
+                                                   else "frame-ancestors 'none'")
     # Revalidate every file: browsers otherwise keep old ES modules after an
     # update of OrcaOne and mix them with new ones.
     response.headers["Cache-Control"] = "no-cache"
@@ -86,21 +134,27 @@ def _backup_error(request: Request, exc: backup.BackupError):
 
 @app.websocket("/api/ssh")
 async def ssh_terminal(websocket: WebSocket, model: str = ""):
-    # The page "SSH" (orcaone/ssh.py). The HTTP guard above does not see WebSockets, and
-    # browsers let any page open one: so Host and Origin are checked here, and closing before
-    # accepting refuses the connection.
-    host = websocket.headers.get("host", "")
-    if _hostname(host) not in _LOCAL_HOSTS or websocket.headers.get("origin") != f"http://{host}":
+    # The page "SSH" (orcaone/ssh.py). This computer's SSH keys and agent only for a page on this
+    # computer: from the LAN anyone could name a "printer" at any host and log in there with them.
+    if not _own_page(websocket):
         await websocket.close(code=1008)
         return
-    await ssh.session(websocket, model)
+    await ssh.session(websocket, model, keys=not is_remote(websocket.client))
+
+
+@app.websocket("/api/network")
+async def network_page(websocket: WebSocket, model: str = ""):
+    # The page "Netzwerk" (orcaone/network.py): SSH to the printer as for "SSH", so the same rules.
+    if not _own_page(websocket):
+        await websocket.close(code=1008)
+        return
+    await network.session(websocket, model, keys=not is_remote(websocket.client))
 
 
 @app.websocket("/api/live")
 async def live_values(websocket: WebSocket):
-    # Live values of the printers a page watches (orcaone/live.py); Host and Origin checked as for "SSH".
-    host = websocket.headers.get("host", "")
-    if _hostname(host) not in _LOCAL_HOSTS or websocket.headers.get("origin") != f"http://{host}":
+    # Live values of the printers a page watches (orcaone/live.py).
+    if not _own_page(websocket):
         await websocket.close(code=1008)
         return
     await live.serve(websocket)
@@ -110,7 +164,8 @@ async def live_values(websocket: WebSocket):
 def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "printer_name_taken": 400, "search_failed": 500,
               "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
-              "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400}.get(exc.code, 502)
+              "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400,
+              "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
 
@@ -229,7 +284,11 @@ def data():
 
 
 @app.post("/api/instances/manual")
-def add_manual(payload: dict = Body(...)):
+def add_manual(request: Request, payload: dict = Body(...)):
+    # Only at the computer itself: a folder of another device (\\host\share) would make Windows
+    # send it the user's NTLM hash, and the answer would tell which paths exist.
+    if is_remote(request.client):
+        return _error("local_only", 403)
     path = payload.get("path")
     if not isinstance(path, str):
         return _error("path_not_found")
@@ -243,7 +302,9 @@ def add_manual(payload: dict = Body(...)):
 
 
 @app.delete("/api/instances/manual")
-def remove_manual(path: str):
+def remove_manual(request: Request, path: str):
+    if is_remote(request.client):
+        return _error("local_only", 403)
     try:
         instances.remove_manual_path(path)
     except ValueError as exc:
@@ -296,8 +357,13 @@ def backup_now(instance_id: str):
 
 
 @app.delete("/api/instances/{instance_id}/backups/{name}")
-def delete_backup(instance_id: str, name: str):
-    # Works without the installation, too: its folder may be gone, its backups not.
+def delete_backup(request: Request, instance_id: str, name: str):
+    # Works without the installation, too: its folder may be gone, its backups not. Only at the
+    # computer itself: a backup is the way back after every change (hard rule 4).
+    if is_remote(request.client):
+        return _error("local_only", 403)
+    if not _INSTANCE_ID.fullmatch(instance_id):
+        return _error("backup_not_found", 404)
     backup.delete(instance_id, name)
     return {"deleted": name}
 
@@ -466,6 +532,32 @@ def gcode_send(payload: dict = Body(...)):
     return console.send(camera.host_of(payload.get("model")), payload.get("script"))
 
 
+# ---------------------------------------------------------------- SSH key per printer (orcaone/ssh.py)
+# The keys of this computer: only for a page on it (is_remote), as the logins with them.
+@app.get("/api/ssh/keys")
+def ssh_keys(request: Request):
+    if is_remote(request.client):
+        return _error("local_only", 403)
+    return {"keys": ssh.list_keys()}
+
+
+@app.post("/api/printers/ssh")
+def printer_ssh(request: Request, payload: dict = Body(...)):
+    # The user and the key (a file name in ~/.ssh) a printer's SSH logs in with.
+    if is_remote(request.client):
+        return _error("local_only", 403)
+    return {"printers": ssh.save_setting(payload.get("model"), payload.get("user"), payload.get("key"))}
+
+
+@app.post("/api/printers/ssh-key")
+def printer_ssh_key(request: Request, payload: dict = Body(...)):
+    # On the user's click: the chosen key onto the printer; a typed password only passes through.
+    if is_remote(request.client):
+        return _error("local_only", 403)
+    password = payload.get("password")
+    return ssh.install_key(payload.get("model"), password if isinstance(password, str) and password else None)
+
+
 @app.post("/api/printers/search")
 def search_printers():
     # About 6 s: Snapmaker printers that answer in the LAN (mDNS, orcaone/camera.py search).
@@ -473,9 +565,13 @@ def search_printers():
 
 
 @app.post("/api/printers")
-def set_printer(payload: dict = Body(...)):
+def set_printer(request: Request, payload: dict = Body(...)):
     # The address of a printer by its name, from its card on the page "Drucker"; empty takes it away.
-    # With "name": another printer of the model "model" (camera.add_printer).
+    # With "name": another printer of the model "model" (camera.add_printer). Only at the computer
+    # itself: the pages there log in at this address with its SSH keys, a device in the LAN would
+    # choose the host they go to.
+    if is_remote(request.client):
+        return _error("local_only", 403)
     try:
         if "name" in payload:
             return {"printers": camera.add_printer(payload.get("model"), payload.get("name"), payload.get("host"))}
@@ -521,6 +617,8 @@ def camera_image(camera_id: str):
 # ---------------------------------------------------------------- files on the U1 (orcaone/printer_files.py)
 # By camera id as the page "Kamera": every U1 with an address. Text files open as text in the browser.
 _TEXT_FILES = (".gcode", ".log", ".cfg", ".conf", ".json", ".txt", ".bkp")
+# Types a printer's file keeps: pictures and videos the pages show.
+_SHOWN_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "video/mp4", "text/plain"}
 
 
 @app.get("/api/cameras/{camera_id}/files")
@@ -538,9 +636,12 @@ def printer_file(camera_id: str, folder: str = "", path: str = "", download: boo
 def _passed_on(response, path: str, download: bool = False):
     """Moonraker's answer with a file, handed on to the browser block by block."""
     name = path.rsplit("/", 1)[-1]
-    kind = response.headers.get("Content-Type") or mimetypes.guess_type(name)[0] or "application/octet-stream"
+    kind = (response.headers.get("Content-Type") or mimetypes.guess_type(name)[0] or "").split(";")[0].strip().lower()
     if not download and name.lower().endswith(_TEXT_FILES):
         kind = "text/plain; charset=utf-8"
+    elif kind not in _SHOWN_TYPES:
+        # What the printer names HTML, SVG or script comes as bytes, never as a page of OrcaOne.
+        kind = "application/octet-stream"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"} if download else {}
     for name in ("Content-Length", "Content-Range"):
         if response.headers.get(name):

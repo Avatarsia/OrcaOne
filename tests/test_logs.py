@@ -120,3 +120,17 @@ def test_api(server, fake_home):
     assert json.loads(call(f"{base}/missing.log")[1]) == {"error": "log_not_found"}
     assert call(f"{base}/2026-09-23-08-55-19.log.0?show=x")[0] == 400
     assert call(f"{server}/api/instances/nope/logs")[0] == 404
+
+
+def test_secrets_never_leave(tmp_path):
+    """Snapmaker Orca logs the MQTT login of the U1 at level info (MQTT.cpp); any device in the LAN
+    may read the logs: from the name of a secret to the end of the line it is hidden, before any
+    search, so a search cannot tell it either."""
+    line = ("[info]\t2026-09-25 18:01:02.000001[Thread 0x1]:[MQTT_INFO] initializing MQTT SSL connection, server_address: "
+            "10.30.40.174:8883, client_id: x, ca_content: A, cert_content: B, username: u1, password: Geh eim, 99\n"
+            '[info]\t2026-09-25 18:01:03.000001[Thread 0x1]:{"access_code": "12345678", "token":"abc"}\n'
+            "[info]\t2026-09-25 18:01:04.000001[Thread 0x1]:token refreshed\n")
+    write_log(tmp_path, "s.log.0", line, 1_000)
+    texts = [e["text"] for e in logs.read(tmp_path, "s.log.0")["entries"]]
+    assert texts[0].endswith("username: u1, password: ***") and '"access_code": ***' in texts[1] and texts[2] == "token refreshed"
+    assert logs.read(tmp_path, "s.log.0", query="Geh eim")["matched"] == 0

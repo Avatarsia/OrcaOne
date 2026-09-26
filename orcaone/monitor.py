@@ -133,9 +133,17 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
                    "memory": {"total": _number(memory.get("total")), "used": _number(memory.get("used"))},
                    "uptime": _number(system.get("system_uptime")),
                    # Only interfaces that carried something: the U1 lists an unused second WLAN.
-                   "network": [{"name": name, "bandwidth": _number(i.get("bandwidth"))} for name, i in network.items()
-                               if name != "lo" and isinstance(i, dict) and i.get("rx_bytes")]},
+                   # rx and tx count up; the page "Netzwerk" draws the traffic from them.
+                   "network": [{"name": name, "bandwidth": _number(i.get("bandwidth")), "rx": _number(i.get("rx_bytes")),
+                                "tx": _number(i.get("tx_bytes")), "errors": _sum(i, "rx_errs", "tx_errs"), "drops": _sum(i, "rx_drop", "tx_drop")}
+                               for name, i in network.items() if name != "lo" and isinstance(i, dict) and i.get("rx_bytes")]},
     }
+
+
+def _sum(found: dict, *keys) -> float | None:
+    """Moonraker's counters of an interface added up; None if it gives none of them."""
+    values = [_number(found.get(k)) for k in keys]
+    return sum(v for v in values if v is not None) if any(v is not None for v in values) else None
 
 
 def mesh(host: str) -> dict:

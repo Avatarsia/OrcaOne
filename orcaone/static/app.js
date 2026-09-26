@@ -35,6 +35,7 @@ import Druck2dPage from "./pages/druck2d.js";
 import DateienPage from "./pages/dateien.js";
 import KonsolePage from "./pages/konsole.js";
 import SshPage from "./pages/ssh.js";
+import NetzwerkPage from "./pages/netzwerk.js";
 import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
 import LizenzPage from "./pages/lizenz.js";
@@ -61,7 +62,7 @@ if (SETTINGS.theme) document.documentElement.dataset.theme = SETTINGS.theme;
 // on 25.09.2026, "Slicer" is the part now; its id stays "slicer"). sub: a page about the one
 // above, set in a little under it: Übertragen, Vergleichen, Kalibrieren, Import/Export and Details
 // work on filament profiles; backups, "Änderungen" and logs are the slicer's. Printer part: the
-// printers with their address, then status, files, 3D and 2D view, camera, G-code console and SSH.
+// printers with their address, then status, files, 3D and 2D view, camera, G-code console, SSH and network.
 // u1: in the menu only while a U1 is the printer in the top bar (the user's wish); printer: built
 // anew for another printer there ("Filamente" and "Prozesse" have it in the address).
 const PAGES = [
@@ -93,6 +94,9 @@ const PAGES = [
   { id: "kamera", area: "printer", icon: "camera", component: KameraPage, standalone: true, u1: true, printer: true },
   { id: "konsole", area: "printer", icon: "code", component: KonsolePage, standalone: true, printer: true },
   { id: "ssh", area: "printer", icon: "terminal", component: SshPage, standalone: true, printer: true },
+  // How the printer is in the network, where it gets stuck (the user's wish of 25.09.2026): for any
+  // Klipper printer what Moonraker tells, on the U1 over SSH also WLAN, router and internet.
+  { id: "netzwerk", area: "printer", icon: "lan", component: NetzwerkPage, standalone: true, printer: true },
   // In neither menu: "by Dr. Klipper" at its bottom leads here; the part stays as it was.
   { id: "lizenz", icon: "info", component: LizenzPage, standalone: true, hidden: true },
 ].map((p) => ({ ...p, label: T.nav.pages[p.id] }));

@@ -28,7 +28,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from . import transfer
+from . import snapshot, transfer
 from .resolver import Resolver, as_list, first
 from .scanner import META_KEYS, alias_of
 
@@ -57,6 +57,9 @@ _BACKUP_FILE = re.compile(r"[^/]+/(machine|process|filament)/(?:base/)?[^/]+\.js
 _NOT_PROFILES = {"bundle_structure.json", "bundle_metadata.json", "orcaone-backup.json", "orfix-backup.json"}
 # A printer's connection and its credentials; the slicers' export drops them too (FINDINGS 4.8).
 _CONNECTION = re.compile(r"print_?host")
+# Scripts the slicer runs on this computer after slicing (post_process; BackgroundSlicingProcess of
+# both slicers): never from a file, whoever sent it, the page or a device in the LAN.
+_RUNS_HERE = {"post_process"}
 # A filament's colour in a project, "#RRGGBB" and in some versions with alpha.
 _COLOUR = re.compile(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?")
 # Values the page shows per profile, besides name and printers.
@@ -140,6 +143,12 @@ def _add(out: dict, data, where: str, full: bool = False) -> None:
         out["skipped"].append({"where": where, "code": "twice", "name": name})
         return
     out["profiles"].append(Found(kind, name, data, where, full))
+
+
+def _hidden(data: dict) -> dict:
+    """A profile for the page: a printer's API key or password masked, any device in the LAN may
+    see it (the user's wish of 25.09.2026). The import drops them anyway (_CONNECTION)."""
+    return {k: "***" if snapshot.SECRET.search(k) and v not in ("", None, []) else v for k, v in data.items()}
 
 
 def _entry(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes | None:
@@ -378,6 +387,8 @@ def convert(res: Resolver, app: str, kind: str, profile: dict, parents: list, fu
     values, target_parent = _resolved(res, kind, profile, parents, full)
     if kind == "machine":
         values = {k: v for k, v in values.items() if not _CONNECTION.match(k)}
+    here = [k for k in _RUNS_HERE if k in values]
+    values = {k: v for k, v in values.items() if k not in _RUNS_HERE}
     printers_wanted = [n for n in as_list(values.get("compatible_printers")) if isinstance(n, str)] if kind != "machine" else []
     have = transfer.target_printers(res)
     printers = [n for n in printers_wanted if n in have]
@@ -385,6 +396,7 @@ def convert(res: Resolver, app: str, kind: str, profile: dict, parents: list, fu
         raise ImportFailed("no_target_printer", printers=printers_wanted)
     data, dropped, cut = transfer.adapt({k: v for k, v in values.items() if k not in transfer.OWN_KEYS},
                                         transfer.OPTIONS[app], kind, same_app=True)
+    dropped = sorted(set(dropped) | set(here))   # said in the plan like any key the slicer lacks
     if kind != "machine" and (target_parent is None or printers_wanted):
         data["compatible_printers"] = printers
     if kind != "machine" and target_parent is None:
@@ -473,7 +485,7 @@ def analyse(source: dict, res: Resolver, app: str) -> list:
             seen.add((current.kind, current.name))
             parents.append(current)
         entry = {"kind": f.kind, "name": f.name, "where": f.where, "full": f.full,
-                 "profile": f.data, "parents": [p.data for p in parents], "from_file": [p.name for p in parents]}
+                 "profile": _hidden(f.data), "parents": [_hidden(p.data) for p in parents], "from_file": [p.name for p in parents]}
         if (f.kind, f.name) in templates and f.data.get("instantiation") == "false":
             out.append({**entry, "status": "template", "params": {}})
             continue

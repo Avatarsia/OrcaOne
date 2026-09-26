@@ -29,7 +29,7 @@ from .resolver import Resolver
 
 # Values of own printer profiles that are credentials: the dialog "Physical Printer" saves them
 # there (printhost_apikey, printhost_password, FINDINGS "Wo die Slicer die Adresse ablegen").
-_SECRET = re.compile(r"apikey|password|token|secret|access_code", re.IGNORECASE)
+SECRET = re.compile(r"apikey|password|token|secret|access_code", re.IGNORECASE)
 _MISSING = object()
 _lock = threading.Lock()
 
@@ -45,7 +45,7 @@ def _hash(value) -> str:
 
 
 def _hidden(data: dict) -> dict:
-    return {k: "***" + _hash(v)[:8] if _SECRET.search(k) and v not in ("", None, []) else v for k, v in data.items()}
+    return {k: "***" + _hash(v)[:8] if SECRET.search(k) and v not in ("", None, []) else v for k, v in data.items()}
 
 
 def items(scan: scanner.Scan, res: Resolver) -> dict:
@@ -167,6 +167,10 @@ def compare(old: dict, new: dict) -> dict:
         if isinstance(a, dict) and isinstance(b, dict):
             entry["keys"] = [{"key": k, "old": a.get(k), "new": b.get(k)} for k in sorted({*a, *b}) if a.get(k) != b.get(k)]
             entry["why"] = _why(a, b, entry["keys"])
+            # A secret only as "***": the hash in the snapshot would let a device in the LAN try
+            # passwords offline.
+            entry["keys"] = [{**e, **{s: "***" for s in ("old", "new") if SECRET.search(e["key"]) and e[s] not in ("", None, [])}}
+                             for e in entry["keys"]]
         elif entry["change"] == "changed":
             entry["why"] = "unreadable" if b is None else None
         out["own"].append(entry)
