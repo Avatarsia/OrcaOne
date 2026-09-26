@@ -15,7 +15,7 @@ The page "Höhenkarte" (the user's wish of 25.09.2026) reads the bed mesh Klippe
 import math
 import re
 
-from . import camera, printer_files
+from . import camera, errors, printer_files
 from .camera import CameraError, _get, _part
 
 FANS = ("fan", "fan_generic", "heater_fan", "controller_fan", "temperature_fan")
@@ -32,7 +32,8 @@ MONITORS = ("tmc2240",)
 FIXED = ["webhooks", "print_stats", "display_status", "gcode_move=speed_factor,extrude_factor",
          "toolhead=extruder,homed_axes,position,axis_minimum,axis_maximum,max_velocity,max_accel",
          "motion_report=live_position,live_velocity,live_extruder_velocity", "heaters",
-         "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max", "virtual_sdcard=file_position"]
+         "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max", "virtual_sdcard=file_position",
+         "exception_manager"]   # the U1's error codes that stay until acknowledged (orcaone/errors.py)
 # mm² of 1.75 mm filament, as on the U1: the flow from the speed of the extruder. Klipper keeps the
 # diameter in its configuration only, which is too big to read every two seconds.
 FILAMENT_AREA = math.pi * (1.75 / 2) ** 2
@@ -111,7 +112,10 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
     memory = system.get("system_memory") if isinstance(system.get("system_memory"), dict) else {}
     network = system.get("network") if isinstance(system.get("network"), dict) else {}
     return {
-        "klipper": {"state": webhooks.get("state"), "message": webhooks.get("state_message") or None},
+        # The U1's shutdown message begins with {"coded": ...}: its code and words apart.
+        "klipper": dict(zip(("code", "message"), errors.split_coded(webhooks.get("state_message"))), state=webhooks.get("state")),
+        "exceptions": [{k: e[k] for k in ("code", "level", "message")} for e in
+                       map(errors._exception, part("exception_manager").get("exceptions") or []) if e],
         "job": {**job, "filament": _number(stats.get("filament_used")), "message": stats.get("message") or None,
                 "speed_factor": _number(gcode.get("speed_factor")), "flow_factor": _number(gcode.get("extrude_factor")),
                 "options": options},

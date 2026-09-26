@@ -36,6 +36,7 @@ import Druck2dPage from "./pages/druck2d.js";
 import DateienPage from "./pages/dateien.js";
 import KonsolePage from "./pages/konsole.js";
 import DruckerLogsPage from "./pages/druckerlogs.js";
+import FehlerPage from "./pages/fehler.js";
 import SshPage from "./pages/ssh.js";
 import NetzwerkPage from "./pages/netzwerk.js";
 import LogsPage from "./pages/logs.js";
@@ -86,6 +87,8 @@ const PAGES = [
   // The printer part needs no slicer data: its pages show at once and stay through "Neu einlesen".
   { id: "drucker", area: "printer", icon: "printer", component: DruckerPage, standalone: true },
   { id: "status", area: "printer", icon: "pulse", component: StatusPage, standalone: true, printer: true },
+  // What the printer reports, what it means, what helps (the user's wish of 26.09.2026)
+  { id: "fehler", area: "printer", icon: "warn", component: FehlerPage, standalone: true, printer: true },
   // Everything about the running print (the user's wish of 25.09.2026)
   { id: "steuern", area: "printer", icon: "sliders", component: SteuernPage, standalone: true, printer: true },
   { id: "hoehenkarte", area: "printer", icon: "mesh", component: HoehenkartePage, standalone: true, printer: true },
@@ -383,6 +386,12 @@ const app = createApp({
       if (!out.aenderungen && news) out.aenderungen = { n: news, text: T.nav.news, changed: false };
       const backups = inst.value ? BACKUPS[inst.value.id]?.backups.length || 0 : 0;
       if (!out.sicherungen && backups) out.sicherungen = { n: backups, text: T.nav.backups, changed: false };
+      // "Fehler": Klipper down, and the codes of level 2 and 3 that stay (live values)
+      const m = area.value === "printer" && !live[ui.printer]?.error ? live[ui.printer]?.data?.monitor : null;
+      // A shutdown stands in the list of codes too: each code once.
+      const faults = m ? new Set([...(["shutdown", "error"].includes(m.klipper?.state) ? [m.klipper.code || "klipper"] : []),
+                                  ...(m.exceptions || []).filter((e) => e.level >= 2).map((e) => e.code)]).size : 0;
+      if (faults) out.fehler = { n: faults, text: T.nav.faults, fault: true };
       return out;
     });
 
@@ -910,7 +919,7 @@ const app = createApp({
         <a v-for="p in menuPages" :key="p.id" :class="['nav-item', { 'is-sub': p.sub }]" :href="navHash(p)"
            :aria-current="route.page === p.id ? 'page' : null" @click="navOpen = false; go($event, navHash(p))">
           <ui-icon :name="p.icon"/><span class="nav-text">{{ p.label }}</span>
-          <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed }]"
+          <span v-if="badges[p.id]" :class="['nav-count', { 'is-changed': badges[p.id].changed, 'is-fault': badges[p.id].fault }]"
                 :title="badges[p.id].n + ' ' + badges[p.id].text">{{ badges[p.id].n }}<span class="sr-only"> {{ badges[p.id].text }}</span></span>
         </a>
         <!-- Two switches: the language (the page loads anew) and light or dark -->
@@ -941,7 +950,9 @@ const app = createApp({
         <div v-if="klipper && klipper.state && klipper.state !== 'ready'" :class="['page', 'klipper-strip', { 'is-down': klipperDown }]" role="status">
           <!-- The reason only while down: starting anew, Klipper keeps the old one until it is ready -->
           <span class="klipper-strip-text" :title="klipperDown ? klipper.message : null"><strong>{{ T.klipperBar.states[klipper.state] || klipper.state }}</strong>
-            <template v-if="klipperDown">{{ (klipper.message || '').split('\\n')[0] }}</template></span>
+            <template v-if="klipperDown">{{ (klipper.message || '').split('\\n')[0] }}
+              <code v-if="klipper.code" class="klipper-strip-code">{{ klipper.code }}</code>
+              <a class="link" :href="hashOf('fehler', ui.instId)" @click="go($event, hashOf('fehler', ui.instId))">{{ T.klipperBar.meaning }}</a></template></span>
           <klipper-actions v-if="klipperDown" :printer="ui.printer"/>
         </div>
         <component v-if="inst || page.standalone" :is="page.component" :key="pageKey" v-bind="pageProps"/>

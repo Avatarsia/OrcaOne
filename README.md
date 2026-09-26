@@ -25,6 +25,7 @@ A local web app to manage **OrcaSlicer** and **Snapmaker Orca** profiles, plus l
 
 **Printer**
 - Live status, print control (pause, cancel, pause at layer, exclude objects), restart Klipper
+- Errors explained: the U1's codes and Klipper's messages, what they mean and what helps
 - 3D and 2D view of the print file, following the running print
 - Bed mesh, G-code console, logs with search, SSH in the browser, network and Wi-Fi diagnostics
 - Snapmaker U1: camera, files, start prints like on its display, filament calibration
@@ -83,6 +84,7 @@ Eine lokale Web-App für die Profile von **OrcaSlicer** und **Snapmaker Orca**, 
 
 **Drucker**
 - Status live, Druck steuern (Pause, Abbruch, Pause bei Schicht, Objekte ausschließen), Klipper neu starten
+- Fehler erklärt: die Codes des U1 und Klippers Meldungen, was sie heißen und was hilft
 - 3D und 2D Ansicht der Druckdatei, folgt dem laufenden Druck
 - Höhenkarte, G-Code-Konsole, Logs mit Suche, SSH im Browser, Netzwerk und WLAN
 - Snapmaker U1: Kamera, Dateien, Druckstart wie am Display, Filament kalibrieren

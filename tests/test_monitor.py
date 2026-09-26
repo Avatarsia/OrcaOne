@@ -103,7 +103,7 @@ def test_a_plain_klipper_printer(moonraker):
     # One query, with the objects found by their kind; nothing it did not need.
     assert len(asked) == 1 and "configfile" not in asked[0] and "mcu" not in asked[0]
     assert {"extruder", "heater_bed", "fan", "heater_fan hotend_fan", "filament_switch_sensor runout"} <= set(asked[0])
-    assert got["klipper"] == {"state": "ready", "message": "Printer is ready"}
+    assert got["klipper"] == {"state": "ready", "message": "Printer is ready", "code": None} and got["exceptions"] == []
     job = got["job"]
     assert (job["state"], job["file"], job["progress"], job["layer"], job["layers"]) == ("printing", "Benchy.gcode", 0.25, 12, 100)
     assert (job["left"], job["filament"], job["speed_factor"], job["flow_factor"]) == (3000.0, 1234.5, 1.1, 0.95)

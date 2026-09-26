@@ -115,6 +115,12 @@ def read(host: str, path: str, start: int | None = None, end: int | None = None)
     return {"path": path, "lines": lines, "from": begin, "next": after, "size": size}
 
 
+def tail(host: str, path: str, count: int) -> bytes:
+    """The last count bytes of a log, from where its first whole line begins (orcaone/errors.py)."""
+    body, first, _ = _piece(host, path, f"bytes=-{count}")
+    return body[body.find(b"\n") + 1:] if first > 0 else body
+
+
 def last_start(host: str, path: str) -> int | None:
     """Where the last start of Klipper or Moonraker begins, looked for from the end back, BACK at a
     time with a little overlap so a mark cut by a piece is found; None if there is none."""

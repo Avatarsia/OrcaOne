@@ -211,7 +211,16 @@ export default {
       }
       // Klipper's current log first: the newest file of a log named klippy, else the first one.
       const klippy = files.value.filter((f) => f.group.includes("klippy")).sort((a, b) => (b.modified || 0) - (a.modified || 0))[0];
-      path.value = (klippy || files.value[0])?.path || "";
+      // From "Fehler" ("Im Log zeigen"): that file, searched for the time of the error.
+      const focus = ui.logFocus;
+      ui.logFocus = null;
+      const wanted = focus && focus.printer === model.value && files.value.find((f) => f.path === focus.path);
+      path.value = (wanted || klippy || files.value[0])?.path || "";
+      if (wanted && focus.query) {
+        query.value = focus.query;
+        regex.value = false;
+        searchAll();
+      }
     }
     watch(path, () => {
       follow.value = false;

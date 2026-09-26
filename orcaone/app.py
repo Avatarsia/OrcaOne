@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, live, logs, monitor,
-               network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
+               errors, network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -690,6 +690,13 @@ def printer_print_file(request: Request, model: str = "", path: str = ""):
     wanted = request.headers.get("range", "")
     wanted = wanted if re.fullmatch(r"bytes=\d+-\d*", wanted) else None
     return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, wanted), path)
+
+
+# ---------------------------------------------------------------- errors of any Klipper printer (orcaone/errors.py)
+@app.get("/api/printers/errors")
+def printer_errors(model: str = ""):
+    # Read only: now, before, and Snapmaker's words for the U1's codes (from Snapmaker Orca here).
+    return errors.read(camera.host_of(model))
 
 
 # ---------------------------------------------------------------- logs of any Klipper printer (orcaone/printer_logs.py)

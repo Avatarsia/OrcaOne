@@ -94,6 +94,7 @@ export const api = {
   printerInfo: (model) => request("GET", `/api/printers/info?model=${encodeURIComponent(model)}`),
   sshState: (model) => request("GET", `/api/printers/ssh-state?model=${encodeURIComponent(model)}`),
   // The logs of a printer (page "Logs" of the printer part): list, a view, the last start, a search.
+  printerErrors: (model) => request("GET", `/api/printers/errors?model=${encodeURIComponent(model)}`),
   printerLogs: (model) => request("GET", `/api/printers/logs?model=${encodeURIComponent(model)}`),
   printerLog: (model, path, where = {}) => request("GET", `/api/printers/log?${new URLSearchParams({ model, path, ...where })}`),
   printerLogStart: (model, path) => request("GET", `/api/printers/log/start?${new URLSearchParams({ model, path })}`),

@@ -216,6 +216,8 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
   border-radius: 10px; background: var(--surface-2); color: var(--label); font-size: 12px; font-weight: 700;
 }
 .nav-count.is-changed { background: var(--changed-bg); color: var(--text); }
+.nav-count.is-fault { background: var(--error-bg); color: var(--error); }
+.nav-count.is-fault::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--error); }
 .nav-count.is-changed::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--changed); }
 .nav-item:hover { background: var(--row-hover); color: var(--text); }
 .nav-item[aria-current="page"] { background: var(--selected); color: var(--text); font-weight: 700; }
@@ -294,6 +296,7 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .klipper-strip-text { flex: 1 1 260px; min-width: 0; }
 .klipper-strip.is-down strong { color: var(--error); }
 .klipper-strip-text strong { margin-right: 6px; }
+.klipper-strip-code { margin: 0 8px; padding: 1px 6px; border-radius: 4px; background: var(--surface); font-family: var(--mono); font-size: 12px; }
 /* Each restart with what it does behind it (pages/klipper-actions.js), in the strip and on "Druck steuern" */
 .klipper-actions { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px 14px; margin: 0; padding: 0; list-style: none; }
 .klipper-strip .klipper-actions { flex-basis: 100%; }
@@ -1380,6 +1383,32 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .plog-hit-line.is-hit { background: var(--focus-bg); font-weight: 600; }
 .plog-hit-n { color: var(--muted); text-align: right; }
 .plog-hit-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Page "Fehler" (pages/fehler.js): an error with its code, where, and what it means */
+.fault { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line-box); border-left: 3px solid var(--error); border-radius: 6px; background: var(--surface); }
+.fault-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.fault-head .cam-status, .fault-row .cam-status { margin-left: 0; }
+.fault-code { font-family: var(--mono); font-size: 12px; }
+.fault-place { color: var(--muted); font-size: 13px; }
+.fault-title { margin: 6px 0 4px; font-size: 16px; }
+.fault-body p { margin: 4px 0; font-size: 14px; }
+.fault-label { color: var(--label); font-weight: 700; }
+.fault-message { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fault-snap { color: var(--text); }
+.fault-links { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.fault-links .link { font-size: 13px; }
+.fault-list { margin: 8px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--divider); }
+.fault-list > li { border-bottom: 1px solid var(--divider); }
+.fault-list > li.is-open { background: var(--focus-bg); }
+.fault-list .fault-body { padding: 0 12px 10px; }
+.fault-row { display: grid; grid-template-columns: 118px 90px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 12px; width: 100%;
+             padding: 8px 12px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.fault-row:hover { background: var(--focus-bg); }
+.fault-when, .fault-source { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.fault-row-title { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .fault-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .fault-row-title { grid-column: 1 / -1; }
+}
 /* Regex cheat sheet on both log pages (pages/regex-help.js): a line of its own below the search */
 .regex-help-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
 .regex-help { flex-basis: 100%; max-height: 28vh; overflow: auto; padding: 10px 14px; border-left: 3px solid var(--accent-line); border-radius: 4px; background: var(--focus-bg);
