@@ -142,19 +142,32 @@ const app = createApp({
 
     // ------------------------------------------------------------ the printer in the top bar
     // The one printer OrcaOne works with, for every page (the user's wish of 24.09.2026). In the
-    // slicer part a printer of the installation, at the start the one the slicer starts with;
-    // another installation keeps the model if it has it. In the printer part one with an address.
+    // slicer part a printer of the installation, in the printer part one with an address. At the start
+    // the one chosen last in that part (data/settings.json, the user's wish of 25.09.2026: after a
+    // reload OrcaOne took a printer not in the network), else the one the slicer starts with; another
+    // installation keeps the model if it has it.
     const printers = computed(() => printerModels(inst.value));
     const activeModel = computed(() => printers.value.find((m) => m.model === ui.printer) || null);
     const activeIdx = computed(() => (activeModel.value ? inst.value.models.indexOf(activeModel.value) : null));
     const isU1 = computed(() => isU1Printer(ui.printer));
+    const remembered = { ...SETTINGS.chosen_printer };
     watch([inst, printers, area, machines], () => {
       if (area.value === "printer") {
         if (!machines.value.length || machines.value.some((m) => m.key === ui.printer)) return;
         const start = inst.value && slicerModel(inst.value)?.model;
-        ui.printer = (machines.value.find((m) => m.model === start) || machines.value[0]).key;
-      } else if (inst.value && !activeModel.value) ui.printer = slicerModel(inst.value)?.model || null;
+        ui.printer = (machines.value.find((m) => m.key === remembered.printer) || machines.value.find((m) => m.model === start)
+          || machines.value[0]).key;
+      } else if (inst.value && !activeModel.value) {
+        ui.printer = (printers.value.find((m) => m.model === remembered.slicer) || slicerModel(inst.value))?.model || null;
+      }
     }, { immediate: true });
+    // Every choice is remembered for its part, from the top bar as from a card, once it is one of that part.
+    watch(() => [area.value, ui.printer], ([a, p]) => {
+      const valid = a === "printer" ? machines.value.some((m) => m.key === p) : !!activeModel.value;
+      if (!p || !valid || remembered[a] === p) return;
+      remembered[a] = p;
+      api.setChosenPrinter(a, p).catch(() => {});   // only what the next start begins with
+    });
     // What the choice in the top bar lists: the printers of the installation, or those with an address.
     const choices = computed(() => (area.value === "printer"
       ? machines.value.map((m) => ({ model: m.key, name: m.name, cover: m.cover,

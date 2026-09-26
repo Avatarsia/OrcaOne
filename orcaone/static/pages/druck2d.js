@@ -670,7 +670,7 @@ export default {
           <button class="chip" type="button" :aria-pressed="travels ? 'true' : 'false'" @click="travels = !travels">{{ V.travels }}</button>
           <button class="chip" type="button" :aria-pressed="below ? 'true' : 'false'" @click="below = !below">{{ V.below }}</button>
         </template>
-        <label v-if="printing" class="v3d-follow"><input v-model="follow" type="checkbox">{{ V3.follow }}</label>
+        <button v-if="printing" class="chip" type="button" :aria-pressed="follow ? 'true' : 'false'" @click="follow = !follow">{{ V3.follow }}</button>
         <a class="btn" :href="hashOf('druck3d', instId)" @click="to3d"><ui-icon name="cube"/>{{ V.to3d }}</a>
       </div>
       <p v-if="host === ''" class="note">{{ V3.noHost(activeName()) }}</p>

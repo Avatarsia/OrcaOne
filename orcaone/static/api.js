@@ -66,6 +66,10 @@ export const api = {
   setMenuCollapsed: (collapsed) => request("POST", "/api/settings", { menu_collapsed: collapsed }),
   setTheme: (theme) => request("POST", "/api/settings", { theme }),
   setArea: (area) => request("POST", "/api/settings", { area }),
+  // The printer chosen last in a part ("slicer": a model, "printer": a printer's name): the next start takes it.
+  setChosenPrinter: (area, name) => request("POST", "/api/settings", { chosen_printer: { [area]: name } }),
+  // Where the camera of "3D Ansicht" was left: the page opens with it again.
+  setView3d: (view) => request("POST", "/api/settings", { view3d: view }),
   addManual: (path) => request("POST", "/api/instances/manual", { path }),
   removeManual: (path) => request("DELETE", `/api/instances/manual?path=${encodeURIComponent(path)}`),
   // Writing takes two steps (hard rule 5): the plan shows what would happen, only its id goes to

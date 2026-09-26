@@ -10,6 +10,8 @@ orcaone.sh, or next to the program file of a build (the user's wish of 23.09.202
   "menu_collapsed": true while the menu on the left is folded away (app.js);
   "theme": the design chosen at the bottom of the menu, "light" or "dark" (app.py); missing: the system's;
   "area": the part of OrcaOne used last, "slicer" or "printer" (app.js); the next start begins there;
+  "chosen_printer": per part the printer chosen last, {"slicer": model, "printer": name} (app.js);
+  "view3d": the camera of the page "3D Ansicht", {"position", "target"} in mm (pages/druck3d.js);
   "calibration": the ticks of the page "Kalibrieren" (calibration.py).
 - backups/: the backups (backup.py). They hold credentials, so data/ is not in Git.
 - snapshots/: per installation the state the page "Änderungen" compares with (snapshot.py).

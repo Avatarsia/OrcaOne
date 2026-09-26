@@ -121,17 +121,17 @@ def test_serves_every_module_the_ui_imports(server):
 
 
 def test_language_is_a_setting(server, data_dir):
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
     status, body = call(f"{server}/api/settings", "POST", {"language": "en"})
-    assert status == 200 and json.loads(body) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None}
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None}
+    assert status == 200 and json.loads(body) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
     assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["language"] == "en"
     for wrong in ({"language": "fr"}, {"language": None}, {"language": 1}, {"menu_collapsed": "yes"}, {"colour": "red"}, {"area": "profile"}, {}):
         status, body = call(f"{server}/api/settings", "POST", wrong)
         assert status == 400 and json.loads(body) == {"error": "setting_invalid"}
     # Changed by hand to something unknown: the page takes the browser's language.
     settings.change(lambda data: data.update(language="xx"))
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
 
 
 def test_the_design_is_a_setting(server, data_dir):
@@ -153,15 +153,49 @@ def test_the_design_is_a_setting(server, data_dir):
     assert b"data-theme" not in call(f"{server}/")[1]
 
 
+def test_the_chosen_printer_is_a_setting(server, data_dir):
+    """The printer chosen last in each part: the next start takes it again (app.js, the user's wish of
+    25.09.2026). One part at a time, the other stays."""
+    status, body = call(f"{server}/api/settings", "POST", {"chosen_printer": {"printer": "Snapmaker U1"}})
+    assert status == 200 and json.loads(body)["chosen_printer"] == {"printer": "Snapmaker U1"}
+    call(f"{server}/api/settings", "POST", {"chosen_printer": {"slicer": "Voron 2.4 300"}})
+    assert json.loads(call(f"{server}/api/settings")[1])["chosen_printer"] == {"printer": "Snapmaker U1", "slicer": "Voron 2.4 300"}
+    for wrong in ({"chosen_printer": {}}, {"chosen_printer": "Snapmaker U1"}, {"chosen_printer": {"printer": ""}},
+                  {"chosen_printer": {"profile": "Snapmaker U1"}}, {"chosen_printer": {"printer": 1}},
+                  {"chosen_printer": {"printer": "x" * 201}}, {"chosen_printer": None}):
+        status, body = call(f"{server}/api/settings", "POST", wrong)
+        assert status == 400 and json.loads(body) == {"error": "setting_invalid"}, wrong
+    # Changed by hand to something odd: only what could be a name is passed on.
+    settings.change(lambda data: data.update(chosen_printer={"printer": 5, "slicer": "Snapmaker U1", "other": "x"}))
+    assert json.loads(call(f"{server}/api/settings")[1])["chosen_printer"] == {"slicer": "Snapmaker U1"}
+
+
+def test_the_3d_camera_is_a_setting(server, data_dir):
+    """Where the user left the camera of "3D Ansicht": the page takes it again instead of the standard
+    view (the user's wish of 25.09.2026)."""
+    view = {"position": [135.5, -210, 180.25], "target": [135, 135, 20]}
+    status, body = call(f"{server}/api/settings", "POST", {"view3d": view})
+    assert status == 200 and json.loads(body)["view3d"] == view
+    assert json.loads(call(f"{server}/api/settings")[1])["view3d"] == view
+    for wrong in ({"view3d": {"position": [1, 2], "target": [0, 0, 0]}}, {"view3d": {"position": [1, 2, "3"], "target": [0, 0, 0]}},
+                  {"view3d": {"position": [1, 2, True], "target": [0, 0, 0]}}, {"view3d": {"position": [1, 2, 3]}},
+                  {"view3d": {**view, "zoom": 2}}, {"view3d": [1, 2, 3]}, {"view3d": {"position": [1e9, 0, 0], "target": [0, 0, 0]}}):
+        status, body = call(f"{server}/api/settings", "POST", wrong)
+        assert status == 400 and json.loads(body) == {"error": "setting_invalid"}, wrong
+    # Changed by hand to something odd: no camera, the page starts with the standard view.
+    settings.change(lambda data: data.update(view3d={"position": "oben"}))
+    assert json.loads(call(f"{server}/api/settings")[1])["view3d"] is None
+
+
 def test_the_folded_menu_is_a_setting(server, data_dir):
     """The button in the top bar folds the menu away; the next start keeps it so (app.js)."""
     status, body = call(f"{server}/api/settings", "POST", {"menu_collapsed": True})
-    assert status == 200 and json.loads(body) == {"language": None, "menu_collapsed": True, "theme": None, "area": None}
+    assert status == 200 and json.loads(body) == {"language": None, "menu_collapsed": True, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
     assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["menu_collapsed"] is True
     call(f"{server}/api/settings", "POST", {"language": "de"})
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": True, "theme": None, "area": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": True, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
     call(f"{server}/api/settings", "POST", {"menu_collapsed": False})
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": False, "theme": None, "area": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
 
 
 def test_no_draft_routes(server):

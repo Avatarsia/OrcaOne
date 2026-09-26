@@ -1,6 +1,7 @@
 """FastAPI app: JSON API under /api, the static UI under /."""
 
 import json
+import math
 import mimetypes
 import re
 from dataclasses import asdict
@@ -161,12 +162,27 @@ THEMES = ("light", "dark")
 AREAS = ("slicer", "printer")
 
 
+def _chosen(value) -> dict:
+    """The printer chosen last per part, {"slicer": model, "printer": name}: names only."""
+    return ({a: v for a, v in value.items() if a in AREAS and isinstance(v, str) and 0 < len(v) <= 200}
+            if isinstance(value, dict) else {})
+
+
+def _view3d(value) -> dict | None:
+    """The camera of "3D Ansicht" as the user left it, in mm: {"position": [x, y, z], "target": [x, y, z]}."""
+    point = lambda v: (isinstance(v, list) and len(v) == 3
+                       and all(isinstance(n, (int, float)) and not isinstance(n, bool) and abs(n) < 1e6 and math.isfinite(n) for n in v))
+    return ({"position": value["position"], "target": value["target"]}
+            if isinstance(value, dict) and point(value.get("position")) and point(value.get("target")) else None)
+
+
 @app.get("/api/settings")
 def get_settings():
     stored = settings.load()
     language, theme, area = stored.get("language"), stored.get("theme"), stored.get("area")
     return {"language": language if language in LANGUAGES else None, "menu_collapsed": stored.get("menu_collapsed") is True,
-            "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None}
+            "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None,
+            "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d"))}
 
 
 @app.get("/api/progress")
@@ -178,15 +194,28 @@ def scan_progress():
 @app.post("/api/settings")
 def set_settings(payload: dict = Body(...)):
     """Any of: "language" ("de", "en"), "menu_collapsed" (the menu folded away), "theme" ("light", "dark"),
-    "area" ("slicer", "printer": the part of OrcaOne used last, where the next start begins)."""
+    "area" ("slicer", "printer": the part of OrcaOne used last, where the next start begins),
+    "chosen_printer" ({"slicer": model} or {"printer": name}: the printer chosen last in that part, which
+    the next start takes again; the user's wish of 25.09.2026), "view3d" (the camera of "3D Ansicht",
+    which it takes again instead of the standard view; the user's wish of 25.09.2026)."""
     changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area") if key in payload}
-    if (not changed or ("language" in changed and changed["language"] not in LANGUAGES)
+    chosen, view = payload.get("chosen_printer"), payload.get("view3d")
+    if ((not changed and chosen is None and view is None) or ("language" in changed and changed["language"] not in LANGUAGES)
             or not isinstance(changed.get("menu_collapsed", False), bool)
             or ("theme" in changed and changed["theme"] not in THEMES)
-            or ("area" in changed and changed["area"] not in AREAS)):
+            or ("area" in changed and changed["area"] not in AREAS)
+            or (chosen is not None and (not isinstance(chosen, dict) or not chosen or _chosen(chosen) != chosen))
+            or (view is not None and _view3d(view) != view)):
         return _error("setting_invalid")
+
+    def edit(data):
+        data.update(changed)
+        if chosen:
+            data["chosen_printer"] = {**_chosen(data.get("chosen_printer")), **chosen}
+        if view is not None:
+            data["view3d"] = view
     try:
-        settings.change(lambda data: data.update(changed))
+        settings.change(edit)
     except OSError:
         return _error("save_failed", 500)
     return get_settings()

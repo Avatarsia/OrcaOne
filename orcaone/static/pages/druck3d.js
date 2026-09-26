@@ -8,7 +8,8 @@
 // virtual_sdcard.file_position). A slider shows the layers up to one. As in OrcaSlicer, the axes
 // stand at the origin of the bed, and a cube at the bottom right turns the view (view-cube.js).
 import { go, hashOf, ui, LOCALE, activeName, fmtSize, saveBlob } from "../common.js";
-import { T } from "../texts.js";
+import { T, SETTINGS } from "../texts.js";
+import { api } from "../api.js";
 import { usePrintFile, bedArea, STAGE_STATE, typeColour, toolColour, activeHead, isLight } from "./print-view.js";
 import { makeViewCube, makeAxes, sizeAxes } from "./view-cube.js";
 
@@ -152,6 +153,7 @@ export default {
       controls = new orbit.OrbitControls(camera, renderer.domElement);
       controls.zoomToCursor = true;
       controls.addEventListener("change", render);
+      controls.addEventListener("change", keepView);
       cube = makeViewCube(THREE, cubeBox.value, { camera, controls, render, names: V.cube, colour: cssColour });
       observer = new ResizeObserver(resize);
       observer.observe(box.value);
@@ -359,10 +361,40 @@ export default {
       const size = Math.max(b.maxX - b.minX, b.maxY - b.minY, b.maxZ, 20);
       const at = from === "top" ? new THREE.Vector3(0, -0.01, 1.9) : new THREE.Vector3(0, -1.45, 1.05);
       camera.position.copy(c).addScaledVector(at, size * 1.25);
-      camera.near = size / 100;
-      camera.far = size * 40;
-      camera.updateProjectionMatrix();
       controls.target.copy(c);
+      clip(b);
+      controls.update();
+      render();
+    }
+    // Near and far plane for the model and for where the camera stands: nothing cut off, also from afar.
+    function clip(b) {
+      const size = Math.max(b.maxX - b.minX, b.maxY - b.minY, b.maxZ, 20);
+      camera.near = size / 100;
+      camera.far = Math.max(size, camera.position.distanceTo(controls.target)) * 40;
+      camera.updateProjectionMatrix();
+    }
+    // Where the user leaves the camera, kept for the next time in data/settings.json (the user's wish of
+    // 25.09.2026: not the standard view every time); saved once it rests.
+    let keepTimer = 0;
+    function keepView() {
+      clearTimeout(keepTimer);
+      keepTimer = setTimeout(saveView, 800);
+    }
+    function saveView() {
+      keepTimer = 0;
+      const round = (v) => v.toArray().map((n) => Math.round(n * 10) / 10);
+      const kept = { position: round(camera.position), target: round(controls.target) };
+      if (JSON.stringify(kept) === JSON.stringify(SETTINGS.view3d)) return;
+      SETTINGS.view3d = kept;
+      api.setView3d(kept).catch(() => {});
+    }
+    // The camera kept last, else the standard view.
+    function takeView() {
+      const kept = SETTINGS.view3d, b = data.value?.bounds;
+      if (!kept || !b) return view();
+      camera.position.fromArray(kept.position);
+      controls.target.fromArray(kept.target);
+      clip(b);
       controls.update();
       render();
     }
@@ -409,7 +441,7 @@ export default {
         return;
       }
       makeModel();
-      view();
+      takeView();
     }
     // The printer's bed mesh comes with its first answer: then the real bed, drawn at once. A file from
     // the cache shows before that answer, and nothing else draws while the printer stands still: the
@@ -422,6 +454,10 @@ export default {
     // To "2D Ansicht", which shows the same file and layer (ui.viewLayer).
     const to2d = (ev) => go(ev, hashOf("druck2d", props.instId));
     onUnmounted(() => {
+      if (keepTimer) {
+        clearTimeout(keepTimer);
+        saveView();   // turned just before leaving
+      }
       document.removeEventListener("fullscreenchange", onFullscreen);
       observer?.disconnect();
       themeWatch?.disconnect();
@@ -464,7 +500,7 @@ export default {
           <button class="chip" type="button" :aria-pressed="!byKind ? 'true' : 'false'" @click="byKind = false">{{ V.byFilament }}</button>
           <button class="chip" type="button" :aria-pressed="byKind ? 'true' : 'false'" @click="byKind = true">{{ V.byType }}</button>
         </div>
-        <label v-if="printing" class="v3d-follow"><input v-model="follow" type="checkbox">{{ V.follow }}</label>
+        <button v-if="printing" class="chip" type="button" :aria-pressed="follow ? 'true' : 'false'" @click="follow = !follow">{{ V.follow }}</button>
         <a class="btn" :href="hashOf('druck2d', instId)" @click="to2d"><ui-icon name="toolpath"/>{{ V.to2d }}</a>
       </div>
       <p v-if="host === ''" class="note">{{ V.noHost(activeName()) }}</p>
