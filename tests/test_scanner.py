@@ -158,6 +158,22 @@ def test_backup_leaves_out_logs_caches_and_temp(tmp_path):
     assert raw == sum(p.stat().st_size for p in expected) and 0 < zipped < raw
 
 
+def test_backup_measure_zips_again_only_after_a_change(tmp_path, monkeypatch):
+    data = copy_fixture("snorca", tmp_path / "snorca")
+    first = scanner.backup_measure(data)
+    zips = []
+    real = scanner.zipfile.ZipFile
+    monkeypatch.setattr(scanner.zipfile, "ZipFile", lambda *a, **k: zips.append(1) or real(*a, **k))
+    assert scanner.backup_measure(data) == first and not zips
+    # Outside the backup: no new zip either.
+    (data / "log").mkdir(exist_ok=True)
+    (data / "log" / "a.log").write_text("x", encoding="utf-8")
+    assert scanner.backup_measure(data) == first and not zips
+    (data / "user" / "new.json").write_text("{}", encoding="utf-8")
+    raw, _, files = scanner.backup_measure(data)
+    assert zips and (raw, files) == (first[0] + 2, first[2] + 1)
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the web view folders exist on Linux only")
 def test_outside_folders(fake_home):
     (fake_home / ".cache" / "snapmaker-orca").mkdir(parents=True)
