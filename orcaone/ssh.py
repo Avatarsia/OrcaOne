@@ -25,6 +25,7 @@ import hashlib
 import json
 import re
 import shlex
+import socket
 from pathlib import Path
 
 import paramiko
@@ -35,6 +36,9 @@ from .camera import CameraError
 
 PORT = 22
 TIMEOUT = 10  # s, for the connection, the greeting and the login each
+# s, for the look whether SSH is on (probe): Windows says "refused" only after about 2 s, as it
+# tries twice more (measured 26.09.2026), so more than that.
+PROBE_TIMEOUT = 4
 USER = re.compile(r"^[a-z_][a-z0-9_.-]{0,31}$")
 TERM = "xterm-256color"
 # The root password of a U1 as shipped, for root and lava, public in the docs of the Extended
@@ -61,6 +65,20 @@ def fingerprint(key: paramiko.PKey) -> str:
 def hostname(host: str) -> str:
     """The printer's address without Moonraker's port: "10.30.40.174:7125" → "10.30.40.174"."""
     return host.rsplit(":", 1)[0] if host.count(":") == 1 else host.strip("[]")
+
+
+def probe(host: str) -> str:
+    """Whether a printer lets SSH in, without a login (the user's wish of 26.09.2026: see on the page
+    "Drucker" that it must be switched on first): "on" when port 22 greets with SSH, "off" when it
+    refuses (the U1 with Root Access off, checked 23.09.2026), "unknown" when nothing answers."""
+    try:
+        with socket.create_connection((hostname(host), PORT), timeout=PROBE_TIMEOUT) as conn:
+            greeting = conn.recv(64)
+    except ConnectionRefusedError:
+        return "off"
+    except OSError:
+        return "unknown"
+    return "on" if greeting.startswith(b"SSH-") else "unknown"
 
 
 def connect(host: str, user: str, password: str | None = None, key: Path | None = None) -> paramiko.SSHClient:

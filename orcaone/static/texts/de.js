@@ -72,12 +72,14 @@ const T = {
       restart: { label: "Klipper neu starten", sent: "Klipper startet neu.",
                  what: "Liest printer.cfg neu und startet Klipper (RESTART), die Platinen laufen weiter. Etwa nach einer Änderung der Konfiguration." },
       reboot: { label: "Drucker neu starten", sent: "Der Drucker startet neu. Das dauert etwa eine Minute.",
-                what: "Der ganze Drucker, auch Display und Moonraker, wie Aus- und Einschalten. Wenn das Display beim Fehler bleibt; dauert etwa eine Minute, beim U1 braucht es Root Access." },
+                what: "Der ganze Drucker, auch Display und Moonraker, wie Aus- und Einschalten. Wenn das Display beim Fehler bleibt; dauert etwa eine Minute." },
     },
     title: "Klipper",
     printingAsk: "Ein Neustart beendet den laufenden Druck. Trotzdem neu starten?",
     rebootAsk: "Den ganzen Drucker neu starten?",
     rebootPrinting: "Nicht während eines Drucks.",
+    sshNeed: "Beim U1 geht das über SSH.",
+    rebootSshOff: "Geht beim U1 nur über SSH, und das ist aus. Am Touchscreen Root Access einschalten: Settings → Maintenance → Root Access.",
     yes: "Ja, neu starten",
     no: "Abbrechen",
     // Why a restart did not go, before the general texts (a name of its own: tests find "errors" by name)
@@ -1834,6 +1836,17 @@ const T = {
     tags: { vendor: "Vom Hersteller", own: "Eigener", active: "In OrcaOne gewählt" },
     makeActive: "Klicken: OrcaOne arbeitet mit diesem Drucker, wie oben in der Leiste gewählt",
     bundleLocked: "Aus einem Profilpaket. Entfernen lässt er sich nur in OrcaSlicer.",
+    // Whether the printer lets SSH in (ssh.probe), on its card
+    ssh: {
+      label: "SSH",
+      states: { on: "an", off: "aus", unknown: "unklar" },
+      asking: "prüft …",
+      why: "Netzwerk, SSH und beim U1 „Drucker neu starten“ brauchen SSH. OrcaOne schaut nur, ob Port 22 antwortet, ohne sich anzumelden.",
+      offU1: "Am Touchscreen Root Access einschalten: Settings → Maintenance → Root Access.",
+      off: "Der Drucker lässt kein SSH zu.",
+      isOff: "SSH ist aus.",
+      again: "Erneut prüfen",
+    },
     live: {
       asking: "Frage den Drucker …",
       unreachable: "Nicht erreichbar",

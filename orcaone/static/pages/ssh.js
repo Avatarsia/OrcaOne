@@ -3,7 +3,7 @@
 // speaks SSH and passes the bytes on over a WebSocket, only to printers with an address from the
 // page "Drucker". The login as chosen per printer (pages/ssh-login.js): a password, which only
 // passes through, or the keys in ~/.ssh; if nothing fits, the page asks for the password.
-import { go, hashOf, ui, isU1Printer, activeName, darkQuery, isDark, hosts } from "../common.js";
+import { go, hashOf, ui, isU1Printer, activeName, darkQuery, isDark, hosts, sshState, checkSsh } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 import { SshLogin } from "./ssh-login.js";
@@ -182,7 +182,10 @@ export default {
     const isU1 = computed(() => isU1Printer(model.value));
     const commands = computed(() => COMMANDS[isU1.value ? "u1" : "klipper"]);
     // The user kept for the printer (ssh.save_setting), else root on a U1, pi on others.
-    watch(model, () => { user.value = printers.value?.[model.value]?.ssh?.user || (isU1.value ? "root" : "pi"); });
+    watch(model, () => {
+      user.value = printers.value?.[model.value]?.ssh?.user || (isU1.value ? "root" : "pi");
+      checkSsh(model.value);   // off: said before a connection fails (the user's wish of 26.09.2026)
+    });
     // The chosen key was tried, but the login went by the password as shipped: the U1 forgot it at its
     // last start. Not for a key chosen after the login, nor once it was brought onto the printer again.
     const brought = ref(false);
@@ -303,7 +306,7 @@ export default {
 
     return {
       T, S, STATUS, GROUPS, printers, loadError, model, user, typed, state, isU1, commands, runCommand, opened, error, errorDetail, password, again, box, active, host, activeName,
-      statusText, connect, login, disconnect, go, hashOf, clearScreen, keyForgotten, brought,
+      statusText, connect, login, disconnect, go, hashOf, clearScreen, keyForgotten, brought, sshState, checkSsh,
     };
   },
 
@@ -335,6 +338,8 @@ export default {
           <button class="btn btn-primary" type="submit" :disabled="!password">{{ S.login }}</button>
         </form>
         <p v-if="keyForgotten" class="note is-warn">{{ S.keys.refused }}</p>
+        <p v-if="sshState[model] === 'off' && !opened" class="note is-warn">{{ isU1 ? T.printers.ssh.isOff + ' ' + T.printers.ssh.offU1 : T.printers.ssh.off }}
+          <button class="link" type="button" @click="checkSsh(model, true)">{{ T.printers.ssh.again }}</button></p>
         <p v-if="error" class="alert" role="alert">{{ error }}<small v-if="errorDetail" class="ssh-detail">{{ errorDetail }}</small></p>
         <div v-if="opened" class="ssh-tools">
           <label v-if="state === 'open'" class="ssh-commands" :title="S.commandsHint">{{ S.commandsLabel }}

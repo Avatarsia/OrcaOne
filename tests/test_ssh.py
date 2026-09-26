@@ -201,6 +201,42 @@ def test_ssh_off(server, monkeypatch):
         assert answer["type"] == "error" and answer["code"] == "ssh_unreachable"
 
 
+def test_whether_ssh_is_on(server, monkeypatch):
+    """A look at port 22 without a login (the user's wish of 26.09.2026: the page "Drucker" says it must
+    be switched on first): on when it greets with SSH, off when it refuses (the U1 with Root Access
+    off), unknown when something answers without a greeting."""
+    def listen(greeting):
+        server_socket = socket.create_server(("127.0.0.1", 0))
+
+        def serve():
+            try:
+                conn, _ = server_socket.accept()
+            except OSError:
+                return
+            with conn:
+                if greeting:
+                    conn.sendall(greeting)
+                threading.Event().wait(1)
+        threading.Thread(target=serve, daemon=True).start()
+        return server_socket
+
+    camera.set_host("Snapmaker U1", "127.0.0.1:7125")   # Moonraker's port goes, SSH's comes
+    greets = listen(b"SSH-2.0-dropbear_2022.83\r\n")
+    monkeypatch.setattr(ssh, "PORT", greets.getsockname()[1])
+    assert json.loads(call(f"{server}/api/printers/ssh-state?model=Snapmaker%20U1")[1]) == {"state": "on"}
+    greets.close()
+    closed = socket.create_server(("127.0.0.1", 0))
+    monkeypatch.setattr(ssh, "PORT", closed.getsockname()[1])
+    closed.close()
+    assert ssh.probe("127.0.0.1:7125") == "off"
+    quiet = listen(b"")
+    monkeypatch.setattr(ssh, "PORT", quiet.getsockname()[1])
+    monkeypatch.setattr(ssh, "PROBE_TIMEOUT", 0.3)
+    assert ssh.probe("127.0.0.1") == "unknown"
+    quiet.close()
+    assert call(f"{server}/api/printers/ssh-state?model=Unbekannt")[0] == 404
+
+
 def test_hostname_and_size():
     assert ssh.hostname("10.30.40.174:7125") == "10.30.40.174"
     assert ssh.hostname("u1.local") == "u1.local" and ssh.hostname("[fe80::1]") == "fe80::1"

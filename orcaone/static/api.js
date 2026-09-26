@@ -89,6 +89,7 @@ export const api = {
   // Read only, by model: what a printer with an address says of itself. What it is doing comes live
   // (live.js), no longer asked for here.
   printerInfo: (model) => request("GET", `/api/printers/info?model=${encodeURIComponent(model)}`),
+  sshState: (model) => request("GET", `/api/printers/ssh-state?model=${encodeURIComponent(model)}`),
   // Page "3D Ansicht": the print files of a printer and the address of one (read in pages/gcode-worker.js).
   printFiles: (model) => request("GET", `/api/printers/files?model=${encodeURIComponent(model)}`),
   printFileUrl: (model, path) => `/api/printers/file?model=${encodeURIComponent(model)}&path=${encodeURIComponent(path)}`,

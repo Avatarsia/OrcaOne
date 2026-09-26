@@ -502,6 +502,13 @@ def list_printers():
     return {"printers": camera.printers()}
 
 
+@app.get("/api/printers/ssh-state")
+def printer_ssh_state(model: str = ""):
+    # Whether the printer lets SSH in, a short look at port 22 without a login (ssh.probe); only a
+    # printer OrcaOne knows, so from the LAN too.
+    return {"state": ssh.probe(camera.host_of(model))}
+
+
 @app.get("/api/printers/info")
 def printer_info(model: str = ""):
     # Read only, any printer with Klipper and Moonraker: what its card on the page "Drucker" shows.

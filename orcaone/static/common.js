@@ -203,6 +203,20 @@ export function activeName() {
 // part. The first of a model goes by the model, a second of the same model by a name of its own
 // (the user's wish of 25.09.2026). null until read; the page "Drucker" sets it anew when one changes.
 export const hosts = ref(null);
+// Whether a printer lets SSH in (ssh.probe, no login; the user's wish of 26.09.2026: what needs SSH
+// should say so): "on", "off" (on the U1 Root Access is off) or "unknown"; by printer name, looked
+// at once a minute at most, or at once when asked to.
+export const sshState = reactive({});
+const sshLooked = {};
+export async function checkSsh(printer, now = false) {
+  if (!printer || (!now && Date.now() - (sshLooked[printer] || 0) < 60000)) return;
+  sshLooked[printer] = Date.now();
+  try {
+    sshState[printer] = (await api.sshState(printer)).state;
+  } catch {
+    sshState[printer] = "unknown";
+  }
+}
 export async function loadHosts() {
   try {
     hosts.value = (await api.printers()).printers;

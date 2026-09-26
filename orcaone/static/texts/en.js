@@ -66,12 +66,14 @@ const T = {
       restart: { label: "Restart Klipper", sent: "Klipper restarts.",
                  what: "Reads printer.cfg anew and restarts Klipper (RESTART), the boards keep running. For example after a change of the configuration." },
       reboot: { label: "Restart printer", sent: "The printer restarts. This takes about a minute.",
-                what: "The whole printer, display and Moonraker too, like switching it off and on. When the display keeps its error; takes about a minute, on the U1 it needs Root Access." },
+                what: "The whole printer, display and Moonraker too, like switching it off and on. When the display keeps its error; takes about a minute." },
     },
     title: "Klipper",
     printingAsk: "A restart ends the running print. Restart anyway?",
     rebootAsk: "Restart the whole printer?",
     rebootPrinting: "Not during a print.",
+    sshNeed: "On the U1 this goes over SSH.",
+    rebootSshOff: "On the U1 this only goes over SSH, and that is off. Switch on Root Access at the touchscreen: Settings → Maintenance → Root Access.",
     yes: "Yes, restart",
     no: "Cancel",
     // Why a restart did not go, before the general texts (a name of its own: tests find "errors" by name)
@@ -1820,6 +1822,17 @@ const T = {
     tags: { vendor: "From the vendor", own: "Own", active: "Chosen in OrcaOne" },
     makeActive: "Click: OrcaOne works with this printer, as if chosen in the top bar",
     bundleLocked: "From a profile bundle. It can only be removed in OrcaSlicer.",
+    // Whether the printer lets SSH in (ssh.probe), on its card
+    ssh: {
+      label: "SSH",
+      states: { on: "on", off: "off", unknown: "unclear" },
+      asking: "checking …",
+      why: "Network, SSH and on the U1 “Restart printer” need SSH. OrcaOne only looks whether port 22 answers, without logging in.",
+      offU1: "Switch on Root Access at the touchscreen: Settings → Maintenance → Root Access.",
+      off: "The printer allows no SSH.",
+      isOff: "SSH is off.",
+      again: "Check again",
+    },
     live: {
       asking: "Asking the printer …",
       unreachable: "Not reachable",

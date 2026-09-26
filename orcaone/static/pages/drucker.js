@@ -2,6 +2,7 @@
 // profiles and the printers themselves apart). One card per printer with a network address, with
 // what it says of itself, read only over Moonraker, for any Klipper printer: its state and job,
 // firmware, storage, prints in total; a U1 also its name and the nozzle and spool of every head.
+// Whether it lets SSH in, with what to do if not (ssh.probe, the user's wish of 26.09.2026).
 // From the card on to its web interface, status, files, views, camera, console, SSH and network. The address
 // is OrcaOne's own setting per printer (camera.py), saved at once; without one OrcaOne takes the
 // slicer's (print_host of an own printer, or the printer Snapmaker Orca is connected to). A printer
@@ -11,7 +12,7 @@
 // only in the same LAN, not over a VPN).
 import {
   INSTANCES, LOCALE, flash, fmtSize, go, hashOf, nozzleLabel, printerModels, modelName, U1_MODELS, ui, hosts, loadHosts, machines, slicersOf,
-  addressKey,
+  addressKey, sshState, checkSsh,
 } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
@@ -20,6 +21,7 @@ import { watchPrinters, live as printerLive } from "../live.js";
 
 const { ref, reactive, computed, nextTick, onMounted } = Vue;
 const P = T.printers, M = T.machines;
+const SSH_CLASS = { on: "ok", off: "warn", unknown: "wait" };
 
 export default {
   name: "DruckerPage",
@@ -125,6 +127,7 @@ export default {
     onMounted(async () => {
       await loadHosts();
       for (const m of machines.value) readMachine(m.key);
+      for (const m of machines.value) checkSsh(m.key);
       // From "Übersicht" ("Mit dem Drucker verbinden"): the form for that printer at once.
       const asked = ui.addressFor;
       ui.addressFor = null;
@@ -194,6 +197,7 @@ export default {
     };
 
     return {
+      sshState, checkSsh, SSH_CLASS,
       T, P, M, hosts, machines, others, machine, isU1, isActive, choose, openFor, editing, draft, addressError, hostFrom, edit, save, slicersOf,
       models, adding, startAdd, add, modelLabel,
       searching, found, search, take, problemOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)), hashOf,
@@ -255,6 +259,11 @@ export default {
             <div v-if="rowsOf[m.key].storage" :title="rowsOf[m.key].storage.title"><dt>{{ P.live.storage }}</dt>
               <dd><span class="live-bar"><span :style="{ width: rowsOf[m.key].storage.pct + '%' }"></span></span>{{ rowsOf[m.key].storage.text }}</dd></div>
             <div v-if="rowsOf[m.key].jobs" :title="rowsOf[m.key].jobs.title"><dt>{{ P.live.jobs }}</dt><dd>{{ rowsOf[m.key].jobs.text }}</dd></div>
+            <!-- SSH on or off, and what to do (Netzwerk, SSH and restarting the U1 need it) -->
+            <div :title="P.ssh.why"><dt>{{ P.ssh.label }}</dt>
+              <dd class="pcard-ssh"><span :class="['cam-status', 'is-' + (SSH_CLASS[sshState[m.key]] || 'wait')]"><span class="cam-dot"></span>{{ P.ssh.states[sshState[m.key]] || P.ssh.asking }}</span>
+                <template v-if="sshState[m.key] === 'off'"><span>{{ isU1(m.model) ? P.ssh.offU1 : P.ssh.off }}</span>
+                  <button class="link" type="button" @click="checkSsh(m.key, true)">{{ P.ssh.again }}</button></template></dd></div>
           </dl>
           <p class="live-links">
             <a class="link" :href="'http://' + m.host + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
