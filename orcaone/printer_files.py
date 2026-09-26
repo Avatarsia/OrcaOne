@@ -123,7 +123,7 @@ def _check_path(folder: str, path) -> str:
 def open_file(host: str, folder: str, path: str, byte_range: str | None = None):
     """Moonraker's answer with one file, for OrcaOne to pass on to the browser; the caller closes it.
     With byte_range ("bytes=100-199") only that piece: Moonraker answers 206 (checked on the U1)."""
-    url = f"http://{host}/server/files/{folder}/{urllib.parse.quote(_check_path(folder, path))}"
+    url = camera.moonraker_url(host, f"/server/files/{folder}/{urllib.parse.quote(_check_path(folder, path))}")
     try:
         return _direct.open(urllib.request.Request(url, headers={"Range": byte_range} if byte_range else {}), timeout=TIMEOUT)
     except urllib.error.HTTPError as exc:
@@ -155,7 +155,7 @@ def delete(host: str, folder: str, names) -> dict:
     for name in dict.fromkeys(names):
         try:
             if folder == "gcodes":
-                url = f"http://{host}/server/files/gcodes/{urllib.parse.quote(_check_path(folder, name))}"
+                url = camera.moonraker_url(host, f"/server/files/gcodes/{urllib.parse.quote(_check_path(folder, name))}")
                 with _direct.open(urllib.request.Request(url, method="DELETE"), timeout=TIMEOUT) as response:
                     json.loads(response.read())["result"]
             else:
@@ -258,7 +258,7 @@ def restart(host: str, firmware: bool) -> dict:
 
 
 def _command(host: str, path: str, body: dict | None = None):
-    request = urllib.request.Request(f"http://{host}{path}", data=json.dumps(body or {}).encode(), method="POST",
+    request = urllib.request.Request(camera.moonraker_url(host, path), data=json.dumps(body or {}).encode(), method="POST",
                                      headers={"Content-Type": "application/json"})
     try:
         with _direct.open(request, timeout=TIMEOUT) as response:

@@ -240,6 +240,7 @@ def test_whether_ssh_is_on(server, monkeypatch):
 def test_hostname_and_size():
     assert ssh.hostname("10.30.40.174:7125") == "10.30.40.174"
     assert ssh.hostname("u1.local") == "u1.local" and ssh.hostname("[fe80::1]") == "fe80::1"
+    assert ssh.hostname("https://voron.example.de") == "voron.example.de"
     assert ssh._size({"cols": 120, "rows": 40}) == (120, 40)
     assert ssh._size({"cols": True, "rows": 99999}) == (80, 24)
 

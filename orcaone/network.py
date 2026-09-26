@@ -271,7 +271,7 @@ def answer_time(host: str) -> dict:
     for _ in range(5):
         start = time.monotonic()
         try:
-            with camera._direct.open(f"http://{host}/server/info", timeout=5) as response:
+            with camera._direct.open(camera.moonraker_url(host, "/server/info"), timeout=5) as response:
                 response.read()
                 date = response.headers.get("Date")
         except OSError as exc:
@@ -298,7 +298,7 @@ def measure(host: str) -> dict:
     if not files:
         raise CameraError("wifi_no_file")
     biggest = max(files, key=lambda f: f["size"])
-    request = urllib.request.Request(f"http://{host}/server/files/gcodes/{urllib.parse.quote(biggest['path'])}",
+    request = urllib.request.Request(camera.moonraker_url(host, f"/server/files/gcodes/{urllib.parse.quote(biggest['path'])}"),
                                      headers={"Range": f"bytes=0-{LIMIT - 1}"})
     got, start = 0, time.monotonic()
     try:
@@ -374,7 +374,7 @@ def reboot(printer: str, keys: bool = True) -> dict:
 def _answers(host: str) -> bool:
     """Whether Moonraker answers, within 2 s."""
     try:
-        with camera._direct.open(f"http://{host}/server/info", timeout=2) as response:
+        with camera._direct.open(camera.moonraker_url(host, "/server/info"), timeout=2) as response:
             response.read()
         return True
     except (OSError, ValueError):

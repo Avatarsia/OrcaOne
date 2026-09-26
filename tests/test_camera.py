@@ -17,6 +17,16 @@ def test_hosts():
     assert camera.normalize(" http://10.30.40.174/ ") == "10.30.40.174"
     assert camera.normalize("u1.local:8080") == "u1.local:8080"
     assert [camera.normalize(x) for x in ("", "10.0.0.1/admin", "a b", "http://x/../y")] == [None] * 4
+    # Behind a reverse proxy that only speaks HTTPS the scheme stays, else http would get a redirect.
+    assert camera.normalize("https://voron.example.de/") == "https://voron.example.de"
+    assert camera.normalize("https://x/../y") is None
+
+
+def test_urls():
+    assert camera.moonraker_url("10.30.40.174:7125", "/server/info") == "http://10.30.40.174:7125/server/info"
+    assert camera.moonraker_url("https://voron.example.de", "/server/info") == "https://voron.example.de/server/info"
+    assert camera.ws_url("10.30.40.174") == "ws://10.30.40.174/websocket"
+    assert camera.ws_url("https://voron.example.de") == "wss://voron.example.de/websocket"
 
 
 def test_address_per_printer_model():

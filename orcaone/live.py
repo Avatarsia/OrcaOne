@@ -126,7 +126,7 @@ class _Hub:
     async def _session(self) -> None:
         """One connection, until Moonraker closes it or the task is cancelled."""
         host = camera.host_of(self.printer)
-        async with connect(f"ws://{host}/websocket", origin=f"http://{host}", proxy=None, open_timeout=TIMEOUT,
+        async with connect(camera.ws_url(host), origin=camera.moonraker_url(host), proxy=None, open_timeout=TIMEOUT,
                            max_size=MAX_MESSAGE) as ws:
             waiting = {}   # request id: future of the answer
             counter = iter(range(1, 2 ** 31))

@@ -64,6 +64,7 @@ def fingerprint(key: paramiko.PKey) -> str:
 
 def hostname(host: str) -> str:
     """The printer's address without Moonraker's port: "10.30.40.174:7125" → "10.30.40.174"."""
+    host = host.removeprefix("https://")
     return host.rsplit(":", 1)[0] if host.count(":") == 1 else host.strip("[]")
 
 
