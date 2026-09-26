@@ -29,7 +29,7 @@ const T = {
     localNow: (name) => `From this computer: ${name}`,
   },
   printBar: {
-    label: "Control the print",
+    label: "Print and Klipper",
     start: (name) => `Print ${q(name)}`,
     noFile: "Choose a print file first.",
     localFile: "Only a file on the printer can be printed.",
@@ -56,8 +56,9 @@ const T = {
     done: (clock) => `done around ${clock}`,
     toStatus: "A click shows the page \"Status\"."
   },
-  // Klipper anew: the strip above every page of the printer part (app.js) and "Druck steuern"
+  // Klipper anew: the list next to the emergency stop and the strip above every page of the printer part (app.js)
   klipperBar: {
+    menu: "Restart: firmware, Klipper or printer",
     meaning: "What does it mean?",
     states: { shutdown: "Klipper is shut down.", error: "Klipper reports an error.", startup: "Klipper is starting …" },
     // Each with what it does, behind its button (the user's wish of 26.09.2026)
@@ -69,7 +70,6 @@ const T = {
       reboot: { label: "Restart printer", sent: "The printer restarts. This takes about a minute.",
                 what: "The whole printer, display and Moonraker too, like switching it off and on. When the display keeps its error; takes about a minute." },
     },
-    title: "Klipper",
     printingAsk: "A restart ends the running print. Restart anyway?",
     rebootAsk: "Restart the whole printer?",
     rebootPrinting: "Not during a print.",
@@ -223,7 +223,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Area", slicer: "Slicer", printer: "Printers",
       hint: { slicer: "The slicers' profiles: filaments, processes, printers", printer: "The printers themselves: status, files, views, camera, console" } },
-    pages: { fehler: "Errors", uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Print control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
+    pages: { fehler: "Errors", uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
     byHint: "Who made OrcaOne, and the license",
     news: "changes since last time",
     faults: "errors reported",
@@ -968,9 +968,9 @@ const T = {
     missing: "This printer does not probe its bed: Klipper lacks [bed_mesh].",
   },
 
-  // ---------------------------------------------------------------- page "Druck steuern"
+  // ---------------------------------------------------------------- page "Steuerung"
   control: {
-    title: "Print control",
+    title: "Control",
     lead: "Everything about the running print: pause, resume, cancel, pause before a layer, exclude single objects. Only what you click goes to the printer.",
     noJob: "No print is running.",
     idle: "Works once a print is running.",

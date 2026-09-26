@@ -104,7 +104,7 @@ export const api = {
   // Page "3D Ansicht": the print files of a printer and the address of one (read in pages/gcode-worker.js).
   printFiles: (model) => request("GET", `/api/printers/files?model=${encodeURIComponent(model)}`),
   printFileUrl: (model, path) => `/api/printers/file?model=${encodeURIComponent(model)}&path=${encodeURIComponent(path)}`,
-  // Page "Höhenkarte" (orcaone/monitor.py, mesh), once; page "Druck steuern": its two commands.
+  // Page "Höhenkarte" (orcaone/monitor.py, mesh), once; page "Steuerung": its two commands.
   printerMesh: (model) => request("GET", `/api/printers/mesh?model=${encodeURIComponent(model)}`),
   excludeObject: (model, name) => request("POST", "/api/printers/exclude", { model, name }),
   pauseAt: (model, what) => request("POST", "/api/printers/pause-at", { model, ...what }),

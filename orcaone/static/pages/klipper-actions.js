@@ -1,9 +1,9 @@
 // Klipper, its firmware or the whole printer anew, each button with a line on what it does (the
 // user's wish of 26.09.2026: after the emergency stop there was no restart, and after one the U1's
-// display kept its error, so the whole printer too). In the strip above the pages of the printer
-// part while Klipper is down (app.js) and on "Druck steuern". Only on a click; during a print the
-// restarts after a question, the printer not at all (the server says no too, network.reboot); the
-// printer after a question always, as it takes a minute.
+// display kept its error, so the whole printer too). In the list next to the emergency stop and in
+// the strip above the pages of the printer part while Klipper is down (app.js). Only on a click;
+// during a print the restarts after a question, the printer not at all (the server says no too,
+// network.reboot); the printer after a question always, as it takes a minute.
 import { flash, hosts, U1_MODELS, sshState, checkSsh } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
@@ -18,8 +18,9 @@ export const KlipperActions = {
     printer: { type: String, required: true },
     running: { type: Boolean, default: false },   // a print runs or is paused
   },
+  emits: ["sent"],   // a restart went out: the list at the top closes
 
-  setup(props) {
+  setup(props, { emit }) {
     const busy = ref(false);
     const asking = ref(null);   // the action waiting for its yes
     // The U1 starts anew over SSH (network.reboot): marked so, and off while SSH is.
@@ -38,6 +39,7 @@ export const KlipperActions = {
       try {
         await (what === "reboot" ? api.rebootPrinter(props.printer) : api.restartKlipper(props.printer, what === "firmware"));
         flash(K.actions[what].sent);
+        emit("sent");
       } catch (err) {
         flash(errorText(err));
       } finally {

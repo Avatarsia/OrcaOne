@@ -35,7 +35,7 @@ const T = {
   },
   // Next to it (app.js): print that file, cancel the print, emergency stop. Each only on a click.
   printBar: {
-    label: "Druck steuern",
+    label: "Druck und Klipper",
     start: (name) => `${q(name)} drucken`,
     noFile: "Erst eine Druckdatei wählen.",
     localFile: "Drucken geht nur mit einer Datei auf dem Drucker.",
@@ -55,15 +55,16 @@ const T = {
     stop: "Notstopp: Klipper hält sofort alles an. Zum Auslösen zweimal klicken.",
     stopArmed: "Notstopp?",
     stopArmedHint: "Noch einmal klicken löst den Notstopp aus.",
-    stopped: "Notstopp ausgelöst. Klipper steht, bis du oben „Firmware neu starten“ klickst.",
+    stopped: "Notstopp ausgelöst. Klipper steht, bis du „Firmware neu starten“ klickst.",
     // How far the print is, in the top bar on every page
     paused: "Pausiert",
     left: (time) => `noch ${time}`,
     done: (clock) => `fertig gegen ${clock} Uhr`,
     toStatus: "Ein Klick zeigt die Seite „Status“.",
   },
-  // Klipper anew: the strip above every page of the printer part (app.js) and "Druck steuern"
+  // Klipper anew: the list next to the emergency stop and the strip above every page of the printer part (app.js)
   klipperBar: {
+    menu: "Neu starten: Firmware, Klipper oder Drucker",
     meaning: "Was heißt das?",
     states: { shutdown: "Klipper ist abgeschaltet.", error: "Klipper meldet einen Fehler.", startup: "Klipper startet …" },
     // Each with what it does, behind its button (the user's wish of 26.09.2026)
@@ -75,7 +76,6 @@ const T = {
       reboot: { label: "Drucker neu starten", sent: "Der Drucker startet neu. Das dauert etwa eine Minute.",
                 what: "Der ganze Drucker, auch Display und Moonraker, wie Aus- und Einschalten. Wenn das Display beim Fehler bleibt; dauert etwa eine Minute." },
     },
-    title: "Klipper",
     printingAsk: "Ein Neustart beendet den laufenden Druck. Trotzdem neu starten?",
     rebootAsk: "Den ganzen Drucker neu starten?",
     rebootPrinting: "Nicht während eines Drucks.",
@@ -234,7 +234,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Druck steuern", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Steuerung", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -980,9 +980,9 @@ const T = {
     missing: "Dieser Drucker vermisst sein Bett nicht: In Klipper fehlt [bed_mesh].",
   },
 
-  // ---------------------------------------------------------------- page "Druck steuern"
+  // ---------------------------------------------------------------- page "Steuerung"
   control: {
-    title: "Druck steuern",
+    title: "Steuerung",
     lead: "Alles zum laufenden Druck: anhalten, weiterdrucken, abbrechen, vor einer Schicht anhalten, einzelne Objekte ausschließen. An den Drucker geht nur, was du anklickst.",
     noJob: "Gerade läuft kein Druck.",
     idle: "Geht, sobald ein Druck läuft.",

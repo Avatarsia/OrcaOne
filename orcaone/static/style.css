@@ -162,6 +162,8 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .bar-btn.estop:hover { background: rgba(225, 71, 71, .25); }
 .bar-btn.estop.is-armed { border-color: var(--danger); background: var(--danger); color: #fff; font-weight: 700; }
 .bar-ask { min-width: 240px; padding: 12px; }
+.bar-restart { width: min(560px, calc(100vw - 32px)); padding: 6px 12px 12px; }
+.bar-restart .inst-menu-label { padding: 4px 0 10px; }
 .bar-ask-q { margin-bottom: 10px; font-weight: 700; }
 .bar-ask-actions { display: flex; gap: 8px; }
 
@@ -297,7 +299,7 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .klipper-strip.is-down strong { color: var(--error); }
 .klipper-strip-text strong { margin-right: 6px; }
 .klipper-strip-code { margin: 0 8px; padding: 1px 6px; border-radius: 4px; background: var(--surface); font-family: var(--mono); font-size: 12px; }
-/* Each restart with what it does behind it (pages/klipper-actions.js), in the strip and on "Druck steuern" */
+/* Each restart with what it does behind it (pages/klipper-actions.js), in the strip and in the list next to the emergency stop */
 .klipper-actions { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px 14px; margin: 0; padding: 0; list-style: none; }
 .klipper-strip .klipper-actions { flex-basis: 100%; }
 .klipper-actions li { display: contents; }

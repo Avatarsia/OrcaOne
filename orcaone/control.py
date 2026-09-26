@@ -1,4 +1,4 @@
-"""The page "Druck steuern" (the user's wish of 25.09.2026: everything about the running print in one
+"""The page "Steuerung" (the user's wish of 25.09.2026: everything about the running print in one
 place), for any printer with Klipper and an address: what it prints, and on the user's click leave
 one object out or pause at a layer. Pause, resume and cancel go through printer_files.py, as from
 the top bar.

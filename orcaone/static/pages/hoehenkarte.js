@@ -5,7 +5,7 @@
 // Mainsail draw it (three.js, the height raised so it shows, turned with the mouse) and the same
 // from above as fields with their height. Both show the probed points or the smoothed mesh, one
 // switch for both (the user). Blue lower, red higher than zero; the front at the bottom of the
-// fields and towards the viewer in 3D, as on "Status" and "Druck steuern". The mouse over a field
+// fields and towards the viewer in 3D, as on "Status" and "Steuerung". The mouse over a field
 // marks the point in 3D and the other way round (the user's wish). From the probed points more than
 // the range (the user: "da geht noch mehr"): a plane fitted through them tells the tilt of the bed
 // and where it rises; what is left without it is its waviness.

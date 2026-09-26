@@ -12,7 +12,7 @@ every way but HTTP (Snapmaker/u1-moonraker: TransportType.all() & ~TransportType
 U1 answered 404, 24.09.2026), so both go over the WebSocket.
 
 What it sends a printer, only when the user asks for it: delete a print file, delete a video,
-start a print; from the top bar and the page "Druck steuern" also on any Klipper printer start,
+start a print; from the top bar and the page "Steuerung" also on any Klipper printer start,
 pause, resume, cancel, emergency stop and a restart of Klipper or its firmware.
 """
 

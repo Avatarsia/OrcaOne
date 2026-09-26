@@ -1,25 +1,22 @@
-// Page "Druck steuern" (the user's wish of 25.09.2026: everything about the running print in one place,
+// Page "Steuerung" (the user's wish of 25.09.2026: everything about the running print in one place,
 // "alles behandelt ja den aktuellen Druck-Workflow"), for any Klipper printer with an address: the
 // print with pause, resume and cancel as in the top bar, a pause at a layer, and the objects on the
 // bed from above, one left out on a click. All three show without a print too, greyed, with what
 // they do and need (the user: one wants to see what there is to control). Live over Moonraker's
 // WebSocket while the page is visible (live.js, shaped by orcaone/control.py); a command goes to the
 // printer only on a click, cancelling and leaving an object out after a question, as they cannot be
-// taken back. At the end Klipper, its firmware or the printer anew (pages/klipper-actions.js).
+// taken back. Restarting Klipper is next to the emergency stop (app.js; the user: that is something else).
 import { go, hashOf, ui, activeName, flash, LOCALE } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 import { useLive } from "../live.js";
-import { KlipperActions } from "./klipper-actions.js";
 
 const { ref, computed, onMounted } = Vue;
 const C = T.control;
-const K = T.klipperBar;
 const JOB_CLASS = { standby: "ok", printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" };
 
 export default {
   name: "SteuernPage",
-  components: { KlipperActions },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -132,7 +129,7 @@ export default {
     return {
       T, C, host, data, failed, busy, running, paused, jobClass, pct, pauseResume, cancelAsk, cancel,
       layerWanted, layerMin, hasLayers, pauseText, setLayer, pauseNext, clearPause, layerShare, toStop, wantedIn,
-      plate, asking, ask, leaveOut, shortName, num, activeName, go, hashOf, K, ui,
+      plate, asking, ask, leaveOut, shortName, num, activeName, go, hashOf,
     };
   },
 
@@ -238,11 +235,6 @@ export default {
                 <button class="btn" type="button" @click="asking = null">{{ C.objects.no }}</button>
               </div>
             </template>
-          </section>
-          <!-- Klipper anew: after a change of its configuration, or out of a shutdown -->
-          <section class="box" aria-labelledby="ctl-klipper-h">
-            <div class="box-head"><h2 id="ctl-klipper-h">{{ K.title }}</h2></div>
-            <klipper-actions :printer="ui.printer" :running="running"/>
           </section>
         </template>
       </template>

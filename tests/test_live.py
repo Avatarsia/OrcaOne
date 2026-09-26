@@ -85,7 +85,7 @@ def _until(test):
 
 
 def test_one_subscription_for_all_pages():
-    # "virtual_sdcard" for "Status" and for "Druck steuern": asked for once, with the fields of both;
+    # "virtual_sdcard" for "Status" and for "Steuerung": asked for once, with the fields of both;
     # "toolhead" whole, as one of them wants all of it.
     wanted = ["toolhead", "virtual_sdcard=file_position", "bed_mesh=mesh_min,mesh_max", "virtual_sdcard=progress",
               "toolhead=axis_minimum,axis_maximum", "bed_mesh=mesh_min,mesh_max"]

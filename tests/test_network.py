@@ -390,7 +390,7 @@ def test_start_anew_only_without_a_print(server, printer, monkeypatch):
 
 
 def test_the_printer_anew_from_the_strip(server, printer, monkeypatch):
-    """The whole printer anew from the strip above the pages or "Druck steuern" (the user's wish of
+    """The whole printer anew from the strip above the pages or the list next to the emergency stop (the user's wish of
     26.09.2026: after a restart of Klipper the U1's display kept its error): the U1 over SSH as on
     this page, never while it prints; any other Klipper printer through Moonraker."""
     printing = [True]

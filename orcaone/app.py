@@ -744,7 +744,7 @@ def printer_mesh(model: str = ""):
 
 @app.get("/api/printers/control")
 def printer_control(model: str = ""):
-    # The page "Druck steuern" (orcaone/control.py): the running print, its objects, a pause at a layer.
+    # The page "Steuerung" (orcaone/control.py): the running print, its objects, a pause at a layer.
     return control.state(camera.host_of(model))
 
 
@@ -762,7 +762,7 @@ def printer_pause_at(payload: dict = Body(...)):
 
 @app.post("/api/printers/pause")
 def printer_pause(payload: dict = Body(...)):
-    # On the user's click (the top bar, the page "Druck steuern").
+    # On the user's click (the top bar, the page "Steuerung").
     return printer_files.pause(camera.host_of(str(payload.get("model", ""))))
 
 

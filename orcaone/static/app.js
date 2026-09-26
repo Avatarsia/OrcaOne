@@ -6,7 +6,7 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
-  printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, clockText, setLocalPrintFile, AREA_START, loadHosts, hosts, machines, slicersOf, isU1Printer,
+  printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, clockText, setLocalPrintFile, AREA_START, hosts, machines, slicersOf, isU1Printer,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
@@ -86,20 +86,21 @@ const PAGES = [
   { id: "logs", area: "slicer", icon: "log", component: LogsPage, sub: true },
   // The printer part needs no slicer data: its pages show at once and stay through "Neu einlesen".
   { id: "drucker", area: "printer", icon: "printer", component: DruckerPage, standalone: true },
+  // First what one needs while printing, then files, then care and diagnosis (the user's wish of
+  // 26.09.2026: "Im Normalfall will ich über diese Seite Kontrolle"; the network before SSH).
   { id: "status", area: "printer", icon: "pulse", component: StatusPage, standalone: true, printer: true },
-  // Everything about the running print (the user's wish of 25.09.2026)
+  // Everything about the running print (the user's wish of 25.09.2026), one word as the others (26.09.2026)
   { id: "steuern", area: "printer", icon: "sliders", component: SteuernPage, standalone: true, printer: true },
-  { id: "hoehenkarte", area: "printer", icon: "mesh", component: HoehenkartePage, standalone: true, printer: true },
-  // "Dateien" before the views: a print file chosen there is the one they show (the user's wish).
-  { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, u1: true, printer: true },
   { id: "druck3d", area: "printer", icon: "cube", component: Druck3dPage, standalone: true, printer: true },
   { id: "druck2d", area: "printer", icon: "toolpath", component: Druck2dPage, standalone: true, printer: true },
   { id: "kamera", area: "printer", icon: "camera", component: KameraPage, standalone: true, u1: true, printer: true },
+  { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, u1: true, printer: true },
+  { id: "hoehenkarte", area: "printer", icon: "mesh", component: HoehenkartePage, standalone: true, printer: true },
   { id: "konsole", area: "printer", icon: "code", component: KonsolePage, standalone: true, printer: true },
-  { id: "ssh", area: "printer", icon: "terminal", component: SshPage, standalone: true, printer: true },
   // How the printer is in the network, where it gets stuck (the user's wish of 25.09.2026): for any
   // Klipper printer what Moonraker tells, on the U1 over SSH also WLAN, router and internet.
   { id: "netzwerk", area: "printer", icon: "lan", component: NetzwerkPage, standalone: true, printer: true },
+  { id: "ssh", area: "printer", icon: "terminal", component: SshPage, standalone: true, printer: true },
   // What the printer reports, what it means, what helps (the user's wishes of 26.09.2026), right above its logs
   { id: "fehler", area: "printer", icon: "warn", component: FehlerPage, standalone: true, printer: true },
   // The printer's logs as written, with a search, last as in the slicer part (the user's wishes of 26.09.2026)
@@ -149,7 +150,6 @@ const app = createApp({
     }, { immediate: true });
     // The switch shows once a printer has an address: without one the printer part has nothing to show.
     const showSwitch = computed(() => machines.value.length > 0 || area.value === "printer");
-    loadHosts();
 
     // ------------------------------------------------------------ the printer in the top bar
     // The one printer OrcaOne works with, for every page (the user's wish of 24.09.2026). In the
@@ -685,6 +685,9 @@ const app = createApp({
     const cancelAsk = ref(false);
     const stopArmed = ref(false);
     let stopTimer = 0;
+    // Firmware, Klipper or the whole printer anew: a list next to the emergency stop (the user's wish
+    // of 26.09.2026: it belongs there, not to the print), each with what it does (pages/klipper-actions.js).
+    const restartOpen = ref(false);
     const jobBusy = computed(() => ["printing", "paused"].includes(jobState.value));
     const jobPaused = computed(() => jobState.value === "paused");
     // Why "Drucken" is off; "" when it is on.
@@ -781,6 +784,7 @@ const app = createApp({
       if (fileOpen.value && !at(".file-pick")) fileOpen.value = false;
       if (cancelAsk.value && !at(".cancel-pick")) cancelAsk.value = false;
       if (stopArmed.value && !at(".estop")) disarmStop();
+      if (restartOpen.value && !at(".restart-pick")) restartOpen.value = false;
     });
 
     return {
@@ -793,8 +797,8 @@ const app = createApp({
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       riskShown, riskBusy, riskBtn, acceptRisk, appVersion,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
-      thumbOf, fileThumb, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, api,
-      klipper, klipperDown,
+      thumbOf, fileThumb, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, restartOpen, api,
+      klipper, klipperDown, hosts,
     };
   },
 
@@ -879,7 +883,7 @@ const app = createApp({
       <a v-if="running" :class="['job-pill', { 'is-paused': running.paused }]" :href="hashOf('status', ui.instId)" :title="running.title"
          @click="openStatus"><span class="job-ring" :style="{ '--pct': running.pct }" aria-hidden="true"></span>
         <strong>{{ running.pct }} %</strong><span v-if="running.text" class="job-left">{{ running.text }}</span></a>
-      <!-- Print that file, cancel, emergency stop (the user's wish); the tooltip says why one is off -->
+      <!-- Print that file, cancel, emergency stop, restarts (the user's wish); the tooltip says why one is off -->
       <div v-if="area === 'printer' && chosen && fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
         <button class="bar-btn" type="button" :disabled="!!startBlock" :title="startBlock || T.printBar.start(fileName)"
                 :aria-label="T.printBar.start(fileName)" @click="openPrint"><ui-icon name="play"/></button>
@@ -900,6 +904,15 @@ const app = createApp({
         <button :class="['bar-btn', 'estop', { 'is-armed': stopArmed }]" type="button" :title="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop"
                 :aria-label="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop" @click="emergencyStop">
           <ui-icon name="estop"/><span v-if="stopArmed">{{ T.printBar.stopArmed }}</span></button>
+        <div class="inst restart-pick" @keydown.esc.stop="restartOpen = false; $refs.restartBtn.focus()">
+          <button ref="restartBtn" class="bar-btn" type="button" :title="T.klipperBar.menu" :aria-label="T.klipperBar.menu"
+                  aria-haspopup="dialog" :aria-expanded="restartOpen ? 'true' : 'false'"
+                  @click="restartOpen = !restartOpen; restartOpen && $nextTick(() => $refs.restartMenu.querySelector('button').focus())"><ui-icon name="power"/></button>
+          <div v-if="restartOpen" ref="restartMenu" class="inst-menu bar-restart" role="dialog" :aria-label="T.klipperBar.menu">
+            <p class="inst-menu-label">{{ T.klipperBar.menu }}</p>
+            <klipper-actions :printer="ui.printer" :running="jobBusy" @sent="restartOpen = false"/>
+          </div>
+        </div>
       </div>
       <!-- The icon alone (the user); what it does and the time of the data in the tooltip -->
       <button v-if="area === 'slicer' && loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
@@ -955,7 +968,8 @@ const app = createApp({
               <a class="link" :href="hashOf('fehler', ui.instId)" @click="go($event, hashOf('fehler', ui.instId))">{{ T.klipperBar.meaning }}</a></template></span>
           <klipper-actions v-if="klipperDown" :printer="ui.printer"/>
         </div>
-        <component v-if="inst || page.standalone" :is="page.component" :key="pageKey" v-bind="pageProps"/>
+        <!-- The printer part's pages once the printers with an address are read (common.js load) -->
+        <component v-if="inst || (page.standalone && (hosts || page.area !== 'printer'))" :is="page.component" :key="pageKey" v-bind="pageProps"/>
         <div v-else class="page">
           <p v-if="loadState.status === 'loading'" class="loading" role="status">{{ T.loading }}</p>
           <section v-else-if="loadState.status === 'error'" class="soon" role="alert">

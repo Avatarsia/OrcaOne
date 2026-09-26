@@ -1,4 +1,4 @@
-"""The page "Druck steuern" (orcaone/control.py) against a small stand-in for Moonraker, never a real
+"""The page "Steuerung" (orcaone/control.py) against a small stand-in for Moonraker, never a real
 printer: the running print with its objects, leaving one out, and a pause at a layer."""
 
 import json
