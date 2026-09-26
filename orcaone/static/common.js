@@ -370,7 +370,9 @@ function enrich(raw) {
 function pickInstance() {
   const wanted = parseHash(location.hash);
   const kept = INSTANCES.some((i) => i.id === ui.instId) ? ui.instId : null;
-  ui.instId = wanted.instId || kept || INSTANCES[0]?.id || null;
+  // At the start the one chosen last (app.js keeps it, the user's wish of 26.09.2026), if it is still there.
+  const last = INSTANCES.some((i) => i.id === SETTINGS.chosen_instance) ? SETTINGS.chosen_instance : null;
+  ui.instId = wanted.instId || kept || last || INSTANCES[0]?.id || null;
   if (!wanted.instId && ui.instId) history.replaceState(null, "", hashOf(wanted.page, ui.instId));
   syncRoute();
 }

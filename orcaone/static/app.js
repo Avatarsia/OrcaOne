@@ -620,8 +620,10 @@ const app = createApp({
       }
       return printFiles.value || [];
     }
-    // With the first values and when a print starts: its file becomes the print file, at the first
-    // look else the newest; the list anew then (for the pictures), the slicer may just have sent it.
+    // With the first values and when a print starts: its file becomes the print file. At the first
+    // look the one chosen last for this printer goes first, if it is still on it (the user's wish of
+    // 26.09.2026), else the one printing, else the newest. The list anew then (for the pictures), the
+    // slicer may just have sent it.
     async function lookAtJob() {
       const model = ui.printer, job = liveJob.value;
       if (!job || area.value !== "printer") return;
@@ -629,10 +631,23 @@ const app = createApp({
       const first = jobFile.value === undefined;
       if (first || (printing && printing !== jobFile.value)) await readFiles();
       if (model !== ui.printer) return;
-      if (printing && printing !== jobFile.value) ui.printFile = { model, path: printing };
-      else if (first && !ui.printFile && printFiles.value?.[0]) ui.printFile = { model, path: pathOf(printFiles.value[0]) };
+      const kept = first && printFiles.value?.find((f) => pathOf(f) === SETTINGS.print_file?.[model]);
+      if (printing && printing !== jobFile.value && !kept) ui.printFile = { model, path: printing };
+      else if (first && !ui.printFile && (kept || printFiles.value?.[0])) ui.printFile = { model, path: pathOf(kept || printFiles.value[0]) };
       jobFile.value = printing;
     }
+    // Kept for the next start; one from this computer cannot be read again then.
+    watch(() => ui.printFile, (f) => {
+      if (!f?.model || !f.path || f.local || SETTINGS.print_file?.[f.model] === f.path) return;
+      SETTINGS.print_file = { ...SETTINGS.print_file, [f.model]: f.path };
+      api.setPrintFile(f.model, f.path).catch(() => {});
+    });
+    // The installation chosen last, for the next start (common.js pickInstance).
+    watch(() => ui.instId, (id) => {
+      if (!id || id === SETTINGS.chosen_instance || !INSTANCES.some((i) => i.id === id)) return;
+      SETTINGS.chosen_instance = id;
+      api.setChosenInstance(id).catch(() => {});
+    });
     watch(() => `${liveJob.value?.state}|${liveJob.value?.file}`, lookAtJob);
     // Another printer: its files; one of the other printer is not the file any more.
     watch(() => ui.printer, (model) => {

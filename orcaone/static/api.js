@@ -68,6 +68,9 @@ export const api = {
   setArea: (area) => request("POST", "/api/settings", { area }),
   // The printer chosen last in a part ("slicer": a model, "printer": a printer's name): the next start takes it.
   setChosenPrinter: (area, name) => request("POST", "/api/settings", { chosen_printer: { [area]: name } }),
+  // The installation, and a printer's print file, chosen last: the next start takes them (26.09.2026).
+  setChosenInstance: (id) => request("POST", "/api/settings", { chosen_instance: id }),
+  setPrintFile: (printer, path) => request("POST", "/api/settings", { print_file: { [printer]: path } }),
   // Where the camera of "3D Ansicht" was left: the page opens with it again.
   setView3d: (view) => request("POST", "/api/settings", { view3d: view }),
   // "Use at your own risk" confirmed: the server keeps it with the time and the version
