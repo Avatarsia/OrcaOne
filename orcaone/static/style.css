@@ -1366,7 +1366,6 @@ body:has(.panel) .changebar { right: var(--panel-w); }
    line between lines, a wrapped line's continuation indented; or not wrapped at all */
 .plog-line { padding: 1px 10px 1px 30px; border-bottom: 1px solid var(--divider); text-indent: -20px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .plog-list.is-nowrap .plog-line { width: max-content; min-width: 100%; padding-left: 10px; text-indent: 0; white-space: pre; overflow-wrap: normal; }
-.plog-following { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .plog-line.is-start { margin-top: 4px; border-top: 2px solid var(--accent-line); background: var(--focus-bg); color: var(--accent-text); font-weight: 600; }
 .plog-line.is-shutdown, .plog-line.is-error { background: var(--error-bg); color: var(--error); }
 .plog-line.is-focus { outline: 2px solid var(--accent-line); outline-offset: -2px; }

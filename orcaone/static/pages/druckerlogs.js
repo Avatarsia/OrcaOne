@@ -35,7 +35,7 @@ export default {
     const busy = ref(false);
     const failed = ref("");
     const follow = ref(false);
-    const followed = ref(null);   // { at, added }: the last look while following, said next to the switch
+    const followed = ref(null);   // { at, added }: the last look while following, in the switch's tooltip
     // While following, always the newest line in view (the user: "Ende anzeigen", besides the tail).
     const showEnd = ref(true);
     const wrap = ref(true);       // long lines wrapped; off: one line each, the list scrolls sideways
@@ -123,8 +123,9 @@ export default {
 
     // Following: what came since, every few seconds while the tab shows; a smaller file than before
     // was turned over (the printer began a new one), so its end anew.
-    // Each look is said next to the switch (the user: following seemed not to work; klippy.log of an
-    // idle U1 does not grow at all, checked 26.09.2026).
+    // The time of each look in the switch's tooltip, nothing more (the user: following seemed not to
+    // work, as klippy.log of an idle U1 does not grow at all, checked 26.09.2026; a line next to the
+    // switch was too much).
     async function tick() {
       if (document.hidden || busy.value || !path.value) return;
       const stick = showEnd.value || atBottom();
@@ -140,8 +141,8 @@ export default {
         if (stick) nextTick(scrollDown);
       }
     }
-    const followText = computed(() => followed.value
-      && L.following(followed.value.at.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }), followed.value.added));
+    const followTitle = computed(() => [L.follow + ": " + L.followHint, followed.value
+      && L.lastLook(followed.value.at.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" }))].filter(Boolean).join(" "));
     watch(follow, async (on) => {
       clearInterval(timer);
       followed.value = null;
@@ -235,7 +236,7 @@ export default {
 
     return {
       T, L, CONTEXTS, printers, loadError, model, host, activeName, go, hashOf, files, path, groups, fileLabel, lines, from, next, size,
-      busy, failed, follow, followText, showEnd, wrap, box, focusAt, query, regex, context, results, searching, atEnd, download, toEnd, older, newer, jump,
+      busy, failed, follow, followTitle, showEnd, wrap, box, focusAt, query, regex, context, results, searching, atEnd, download, toEnd, older, newer, jump,
       lastStart, parts, marker, marked, searchAll, fmtSize, useExample,
     };
   },
@@ -267,10 +268,9 @@ export default {
           <button class="chip chip-icon" type="button" :aria-pressed="wrap ? 'true' : 'false'" :aria-label="L.wrap"
                   :title="L.wrap + ': ' + L.wrapHint" @click="wrap = !wrap"><ui-icon name="wrap" :size="17"/></button>
           <button class="chip chip-icon" type="button" :aria-pressed="follow ? 'true' : 'false'" :aria-label="L.follow"
-                  :title="L.follow + ': ' + L.followHint" @click="follow = !follow"><ui-icon name="live" :size="17"/></button>
+                  :title="followTitle" @click="follow = !follow"><ui-icon name="live" :size="17"/></button>
           <button v-if="follow" class="chip chip-icon" type="button" :aria-pressed="showEnd ? 'true' : 'false'" :aria-label="L.showEnd"
                   :title="L.showEnd + ': ' + L.showEndHint" @click="showEnd = !showEnd"><ui-icon name="toEnd" :size="17"/></button>
-          <span v-if="follow" class="plog-following" role="status">{{ followText || L.followStart }}</span>
           <a v-if="download" class="btn" :href="download" download>{{ L.download }}</a>
         </div>
         <form class="plog-search" role="search" @submit.prevent="searchAll">
