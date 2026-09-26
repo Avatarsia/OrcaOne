@@ -1,6 +1,6 @@
 # Arbeitsstand
 
-Stand 26.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, wo was liegt. Was eine Seite genau tut, steht im [README](../README.md), geprüfte Fakten stehen in [FINDINGS](FINDINGS.md), der Verlauf in `git log`.
+Stand 26.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, wo was liegt. Was eine Seite genau tut, steht im [Handbuch](HANDBUCH.md), geprüfte Fakten stehen in [FINDINGS](FINDINGS.md), der Verlauf in `git log`.
 
 ## Überblick
 
@@ -237,7 +237,8 @@ In FINDINGS unter „Offen: nur am laufenden Slicer prüfbar“:
 | `docs/RECHERCHE-STOLPERSTEINE.md` | wo Nutzer in Orca und SnOrca oft stolpern |
 | `docs/TEST-VERGLEICH.md` | Test „was zeigt SnOrca, was OrcaOne“ |
 | `docs/STARTEN-UND-BAUEN.md` | per Symbol starten, selbst bauen |
-| `README.md` | Seiten, Module, Tests |
+| `README.md` | die Seite auf GitHub, kurz, Englisch und Deutsch |
+| `docs/HANDBUCH.md` | Seiten, Module, Tests |
 | `orcaone/` | die App; Oberfläche in `static/`, Seiten in `static/pages/`, Texte in `static/texts/de.js` und `en.js` |
 | `tools/` | `make_icons.py` (App-Symbol), `make_options.py` (`options.json` aus dem Quellcode der Slicer), `build.py` (PyInstaller) |
 | `prototypes/` | `opc/` (`.opc`-Leser), `U1Cam/` (vom Nutzer), `U1 Filament Kalibrierung.md` (Anleitung des Nutzers); Testdateien des Nutzers wie die 3MF liegen dort ohne Git |

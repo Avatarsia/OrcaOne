@@ -76,4 +76,5 @@ Lokale Web-App zum Überblicken, Aufräumen, Importieren und Exportieren der Pro
 - **KISS:** wenige Schichten, keine Abstraktionen auf Vorrat. Keine Platzhalter, jede Datei ist nach jedem Schritt vollständig und lauffähig.
 - **Tests:** pytest. Resolver und alle Schreiboperationen brauchen Tests gegen Fixtures. Fixtures entstehen mit `tests/fixtures/make_snorca_fixture.py`, anonymisiert.
 - **Commits:** kleine Commits pro abgeschlossenem Schritt, aber nur auf Auftrag.
-- **Phasenende:** Jede Phase endet mit lauffähiger App, grünen Tests, aktualisierter README und offenen Punkten. Danach anhalten und auf Feedback warten.
+- **README und Handbuch:** Die `README.md` ist die Seite auf GitHub, kurz wie die der Extended Firmware, erst Englisch, dann Deutsch, oben Sprungmarken zu beiden (Wünsche des Nutzers vom 26.09.2026: „VIEL zu lang“, „English und Deutsch mit Quick link“); je Sprache: was OrcaOne ist, Warnhinweis, Funktionen in einer Zeile je Punkt, Starten, Sicherheit, Links, Lizenz. Alles Einzelne steht auf Deutsch in `docs/HANDBUCH.md` (jede Seite, eigene Daten, Aufbau, Tests, offene Punkte).
+- **Phasenende:** Jede Phase endet mit lauffähiger App, grünen Tests, aktualisiertem Handbuch (und README, wenn sich eine Funktion der Liste ändert) und offenen Punkten. Danach anhalten und auf Feedback warten.
