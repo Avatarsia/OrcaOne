@@ -166,7 +166,9 @@ def search(host: str, path: str, query, regex: bool = False, context: int = 0) -
                 text = raw.decode("utf-8", "replace").rstrip("\r")
                 line = {"at": at, "n": number, "text": text[:LINE_MAX] + ("…" if len(text) > LINE_MAX else ""), "kind": _kind(text)}
                 at += len(raw) + 1
-                if pattern.search(text):
+                # Only what the page shows: a regular expression like ".*x" takes quadratic time on a
+                # line of megabytes, and one call cannot be stopped at SEARCH_SECONDS.
+                if pattern.search(text[:LINE_MAX]):
                     hits += 1
                     line["hit"] = True
                     if current is None:

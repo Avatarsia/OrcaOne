@@ -65,12 +65,16 @@ export default {
 
     const scrollDown = () => box.value && (box.value.scrollTop = box.value.scrollHeight);
     const atBottom = () => !box.value || box.value.scrollTop + box.value.clientHeight >= box.value.scrollHeight - 24;
+    // Whether an answer is still for the printer and file shown: a search through 10 MB takes seconds.
+    const isStill = ([m, p]) => m === model.value && p === path.value;
     // A piece of the log: in place of what shows, before it ("older") or after it ("newer").
     async function view(where = {}, how = "replace") {
       busy.value = true;
       failed.value = "";
+      const asked = [model.value, path.value];
       try {
         const v = await api.printerLog(model.value, path.value, where);
+        if (!isStill(asked)) return null;   // another file was chosen meanwhile: its offsets are others
         if (v.size != null) size.value = v.size;
         if (how === "replace") {
           lines.value = v.lines;
@@ -129,8 +133,9 @@ export default {
     async function tick() {
       if (document.hidden || busy.value || !path.value) return;
       const stick = showEnd.value || atBottom();
+      const asked = [model.value, path.value];
       const v = await api.printerLog(model.value, path.value, { start: next.value }).catch(() => null);
-      if (!v || !follow.value) return;
+      if (!v || !follow.value || !isStill(asked)) return;
       if (v.size != null && v.size < next.value) return toEnd();
       if (v.size != null) size.value = v.size;
       followed.value = { at: new Date(), added: v.lines.length };
@@ -170,6 +175,7 @@ export default {
       if (!m) return [{ t: text }];
       const out = [];
       let last = 0;
+      m.lastIndex = 0;   // matchAll begins where the last test() of "marked" stopped
       for (const found of text.matchAll(m)) {
         if (!found[0]) continue;   // an empty match marks nothing
         if (found.index > last) out.push({ t: text.slice(last, found.index) });
@@ -180,17 +186,20 @@ export default {
       return out;
     }
     const marked = computed(() => (marker.value ? lines.value.filter((l) => { marker.value.lastIndex = 0; return marker.value.test(l.text); }).length : 0));
+    let searchSeq = 0;   // the search in progress; an answer to an older one is dropped
     async function searchAll() {
       if (!query.value.trim()) return;
       searching.value = true;
       results.value = null;
       failed.value = "";
+      const mine = ++searchSeq;
       try {
-        results.value = await api.printerLogSearch(model.value, path.value, query.value, regex.value, context.value);
+        const found = await api.printerLogSearch(model.value, path.value, query.value, regex.value, context.value);
+        if (mine === searchSeq) results.value = found;   // hits of another file would jump to its offsets here
       } catch (err) {
-        failed.value = errorText(err);
+        if (mine === searchSeq) failed.value = errorText(err);
       } finally {
-        searching.value = false;
+        if (mine === searchSeq) searching.value = false;
       }
     }
 
@@ -219,11 +228,13 @@ export default {
       if (wanted && focus.query) {
         query.value = focus.query;
         regex.value = false;
-        searchAll();
+        nextTick(searchAll);   // after watch(path), which drops a search begun before it
       }
     }
     watch(path, () => {
       follow.value = false;
+      searchSeq++;   // a search still running was for the file before
+      searching.value = false;
       results.value = null;
       lines.value = [];
       if (path.value) toEnd();

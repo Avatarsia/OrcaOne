@@ -75,6 +75,16 @@ def test_long_entries_are_cut_after_the_search(tmp_path, monkeypatch):
     assert read["entries"][0]["text"] == "Unhandled " and read["entries"][0]["more"] == 9
 
 
+def test_a_regex_looks_only_at_what_is_sent(tmp_path, monkeypatch):
+    """Words go through the whole entry; a regular expression only through its first TEXT_MAX
+    characters, as ".*x" on OrcaSlicer's profile list in one entry would take hours (review 26.09.2026)."""
+    monkeypatch.setattr(logs, "TEXT_MAX", 10)
+    write_log(tmp_path, "a.log.0", LOG, 1_000)
+    assert logs.read(tmp_path, "a.log.0", query="exception")["matched"] == 1
+    assert logs.read(tmp_path, "a.log.0", query="unhandled", regex=True)["matched"] == 1
+    assert logs.read(tmp_path, "a.log.0", query="exception", regex=True)["matched"] == 0
+
+
 def test_a_large_file_is_read_from_its_end(tmp_path, monkeypatch):
     monkeypatch.setattr(logs, "MAX_BYTES", 200)
     write_log(tmp_path, "a.log.0", LOG, 1_000)

@@ -92,8 +92,10 @@ def read(data_dir: Path, name: str, show: str = "all", query: str = "", limit: i
         counts[entry["level"]] = counts.get(entry["level"], 0) + 1
 
     levels, words = SHOW[show], query.lower().split()
+    # A regular expression only on what is sent: ".*timeout" on OrcaSlicer's profile list (2.7 MB in
+    # one entry) takes hours and keeps a thread of the server busy meanwhile.
     matched = [e for e in entries if (levels is None or e["level"] in levels)
-               and (pattern.search(e["text"]) if pattern else all(w in e["text"].lower() for w in words))]
+               and (pattern.search(e["text"][:TEXT_MAX]) if pattern else all(w in e["text"].lower() for w in words))]
     shown = [dict(e, text=e["text"][:TEXT_MAX], more=len(e["text"]) - TEXT_MAX) if len(e["text"]) > TEXT_MAX else e
              for e in matched[-limit:]]
     return {"name": name, "size": size, "cut": cut, "counts": counts, "total": len(entries),

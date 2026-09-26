@@ -32,9 +32,17 @@ MESSAGE_MAX = 2000
 _CODE = re.compile(r"(\d{4})-(\d{4})-(\d{4})-(\d{4})")
 _CODED = re.compile(r'\{"coded":\s*"(\d{4}(?:-\d{4}){3})"')
 _MSG = re.compile(r'"msg":\s*"(.*?)"\s*(?:,\s*"\w+":[^}]*)?\}\s*$')
-_STAMP = r"(?:(\d\d-\d\d \d\d:\d\d:\d\d)\.\d{3}:)?"   # the U1 writes the time before each line
+_STAMP = r"(?:(\d\d-\d\d \d\d:\d\d:\d\d\.\d{3}):)?"   # the U1 writes the time before each line
 _RAISED = re.compile(_STAMP + r"Raising exception: id:(\d+) index:(\d+) code:(\d+) oneshot:(\d+) level:(\d+)[^,]*, message: (.*)$")
 _SHUTDOWN = re.compile(_STAMP + r"Transition to shutdown state: (.*)$")
+# Why an MCU shut down, in a line of its own: "Transition to shutdown state" says only "MCU shutdown".
+# The U1 writes the reason before it (mcu.py _handle_shutdown), Klipper also after it (extras/error_mcu.py).
+_MCU_REASON = re.compile(_STAMP + r"((?:Previous )?MCU '[^']+' (?:is_)?shutdown: .*)$")
+_MCU_DOWN = "MCU shutdown"
+# Lines of one shutdown: with the U1's times within 2 s (its "Raising exception" follows milliseconds
+# later, maybe past a full second); without times within the lines Klipper dumps meanwhile.
+NEAR_SECONDS = 2.0
+NEAR_LINES = 400
 
 # Klipper's messages that confuse, each with a page of klipper3d.org; the words for them are
 # OrcaOne's own (texts/*.js, faults.klipper.<id>), nothing taken from Klipper's docs (GPL-3.0).
@@ -127,24 +135,60 @@ def _from_log(host: str) -> list[dict]:
     if not klippy:
         return []
     body = printer_logs.tail(host, klippy[0]["path"], TAIL)
+    path = klippy[0]["path"]
     out = []
-    for line in body.decode("utf-8", "replace").splitlines():
+    down = None     # (index in out, where) of the last shutdown, until its "Raising exception" joined it
+    reason = None   # (text, where) of the last line saying why an MCU shut down
+    for n, line in enumerate(body.decode("utf-8", "replace").splitlines()):
         raised = _RAISED.search(line)
         if raised:
             stamp, module, index, number, oneshot, level, message = raised.groups()
-            entry = _entry(message, _code(level, module, index, number), stamp=stamp, source="log", oneshot=oneshot == "1",
-                           log=klippy[0]["path"])
-            # The U1 writes a shutdown twice in the same second, without and then with its code: once.
-            if out and out[-1]["code"] is None and (out[-1]["message"], out[-1].get("stamp")) == (entry["message"], stamp):
-                out[-1] = entry
+            entry = _entry(message, _code(level, module, index, number), stamp=_day(stamp), source="log", oneshot=oneshot == "1", log=path)
+            # The U1 writes a shutdown twice, as "Transition to shutdown state" and then with its
+            # code: once, with the code. Its words as they were if the code's are only "MCU shutdown".
+            if down and _near(down[1], (n, stamp)):
+                if entry["message"] == _MCU_DOWN and out[down[0]]["message"] != _MCU_DOWN:
+                    entry = _reworded(entry, out[down[0]]["message"])
+                out[down[0]], down = entry, None
             else:
                 out.append(entry)
             continue
-        down = _SHUTDOWN.search(line)
-        if down:
-            code, message = split_coded(down[2])
-            out.append(_entry(message, code, stamp=down[1], source="log", log=klippy[0]["path"]))
+        found = _SHUTDOWN.search(line)
+        if found:
+            code, message = split_coded(found[2])
+            if message == _MCU_DOWN and reason and _near(reason[1], (n, found[1])):
+                message, reason = reason[0], None   # a reason for one shutdown only
+            out.append(_entry(message, code, stamp=_day(found[1]), source="log", log=path))
+            down = (len(out) - 1, (n, found[1]))
+            continue
+        found = _MCU_REASON.search(line)
+        if found:
+            if down and out[down[0]]["message"] == _MCU_DOWN and _near(down[1], (n, found[1])):
+                out[down[0]] = _reworded(out[down[0]], found[2])
+            else:
+                reason = (found[2], (n, found[1]))
     return out
+
+
+def _day(stamp: str | None) -> str | None:
+    """"09-26 07:12:51.285" -> "09-26 07:12:51", as the page shows it and searches the log for it."""
+    return stamp[:14] if stamp else None
+
+
+def _near(a: tuple, b: tuple) -> bool:
+    """Whether two lines (line number, the U1's time or None) belong to one shutdown."""
+    (line_a, stamp_a), (line_b, stamp_b) = a, b
+    if not stamp_a and not stamp_b:
+        return abs(line_a - line_b) <= NEAR_LINES
+    if not (stamp_a and stamp_b):
+        return False   # the U1 gives each of these lines its time
+    seconds = lambda s: int(s[6:8]) * 3600 + int(s[9:11]) * 60 + float(s[12:])
+    return stamp_a[:5] == stamp_b[:5] and abs(seconds(stamp_a) - seconds(stamp_b)) < NEAR_SECONDS
+
+
+def _reworded(entry: dict, message: str) -> dict:
+    """The entry with other words, sorted anew (classify), its code and place kept."""
+    return {**entry, **_entry(message, entry["code"])}
 
 
 def _from_console(host: str) -> list[dict]:

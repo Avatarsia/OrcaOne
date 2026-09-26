@@ -150,6 +150,40 @@ def test_now_before_and_snapmakers_words(moonraker, snorca):
                               "0002-0523-0001-0000": {"title": "Filament Anomaly"}}
 
 
+# One shutdown each, as the U1 (Snapmaker/u1-klipper) and Klipper write them: the "Transition" line,
+# maybe with its code, the "Raising exception" line milliseconds later (maybe in the next second),
+# and for an MCU the reason in a line of its own, before (U1) or after it (Klipper, without times).
+SHUTDOWNS = b"""09-26 08:00:00.100:Transition to shutdown state: {"coded": "0003-0523-0001-0003", "oneshot": 0, "msg":"Heater extruder1 not heating at expected rate"}
+See the 'verify_heater' section in docs/Config_Reference.md
+09-26 08:00:00.180:Raising exception: id:523 index:1 code:3 oneshot:0 level:3 is_persistent:0, message: Heater extruder1 not heating at expected rate
+09-26 09:00:00.100:Transition to shutdown state: MCU shutdown
+09-26 09:00:00.180:Raising exception: id:522 index:1 code:16 oneshot:0 level:3 is_persistent:0, message: MCU 'mcu' shutdown: Timer too close
+09-26 10:00:00.950:Transition to shutdown state: Shutdown due to webhooks request
+09-26 10:00:01.020:Raising exception: id:522 index:0 code:18 oneshot:0 level:3 is_persistent:0, message: Shutdown due to webhooks request
+09-26 11:00:00.050:MCU 'mcu' shutdown: ADC out of range
+clocksync state: mcu_freq=72000000
+09-26 11:00:00.100:Transition to shutdown state: MCU shutdown
+09-26 11:00:00.150:Raising exception: id:522 index:0 code:2 oneshot:0 level:3 is_persistent:0, message: MCU shutdown
+Transition to shutdown state: MCU shutdown
+Dumping serial stats: bytes_write=1 bytes_read=2
+MCU 'mcu' shutdown: Timer too close
+This often indicates the host computer is overloaded.
+"""
+
+
+def test_one_shutdown_is_one_entry_with_its_reason(monkeypatch):
+    monkeypatch.setattr(errors.printer_logs, "files", lambda host: {"files": [{"path": "klippy.log", "group": "klippy.log", "modified": 1}]})
+    monkeypatch.setattr(errors.printer_logs, "tail", lambda host, path, size: SHUTDOWNS)
+    got = [(e["stamp"], e["code"], e["kind"], e["message"], e.get("count", 1)) for e in errors._joined(errors._from_log("x"))]
+    assert got == [
+        ("09-26 08:00:00", "0003-0523-0001-0003", "heater_not_heating", "Heater extruder1 not heating at expected rate", 1),
+        ("09-26 09:00:00", "0003-0522-0001-0016", "timer_too_close", "MCU 'mcu' shutdown: Timer too close", 1),
+        ("09-26 10:00:01", "0003-0522-0000-0018", "emergency_stop", "Shutdown due to webhooks request", 1),
+        ("09-26 11:00:00", "0003-0522-0000-0002", "adc_out_of_range", "MCU 'mcu' shutdown: ADC out of range", 1),
+        (None, None, "timer_too_close", "MCU 'mcu' shutdown: Timer too close", 1),
+    ]
+
+
 def test_without_snapmaker_orca_or_codes(moonraker, monkeypatch):
     """A plain Klipper printer (no exception_manager) and no Snapmaker Orca here: no codes, no words."""
     host, state = moonraker
