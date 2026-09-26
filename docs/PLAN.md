@@ -35,7 +35,7 @@ Jeder Schritt endet mit lauffähigem Stand und grünen Tests. Commits mache ich 
 - Umbenennen: `ORCIX_SPEC.md` → `ORFIX_SPEC.md`, Name im Text ersetzt.
 - `requirements.txt`: fastapi, uvicorn, pytest, ggf. psutil (siehe Entscheidungen).
 - Startskripte `orcaone.sh` und `orcaone.cmd`: legen `.lenv` bzw. `.wenv` an, falls sie fehlt, installieren die Abhängigkeiten und starten OrcaOne.
-- `python -m orcaone` sucht einen freien Port, lauscht nur auf 127.0.0.1 und öffnet den Browser.
+- `python -m orcaone` sucht einen freien Port, lauscht auf allen Schnittstellen (seit 25.09.2026, mit `--local` nur auf 127.0.0.1) und öffnet den Browser.
 - `.claude/launch.json` zeigt dann auf OrcaOne statt auf den ionpy-Styleguide.
 
 **0.2 Instanzen erkennen** (`instances.py`)

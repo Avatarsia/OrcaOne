@@ -145,3 +145,16 @@ Analyse vom 25.09.2026 auf Frage des Nutzers. Beim Zuschauen ist der Druckerbere
 - **Moonraker mit Anmeldung** (API-Key): heute nicht unterstützt, ein solcher Drucker bleibt stumm.
 - **Suche im LAN** für jeden Klipper-Drucker, heute nur für den U1.
 - **Spoolman** (Idee 5).
+
+## 7. Live-Werte über Moonrakers WebSocket
+
+Frage des Nutzers (25.09.2026): Das Mitzeichnen in 3D und 2D ist träge; sollte OrcaOne statt REST-Abfragen Moonrakers WebSocket nutzen, etwa mit 0,3 s?
+
+**Was da ist (geprüft):**
+- Heute fragt jede Seite selbst per REST über OrcaOne: 3D und 2D Ansicht alle 3 s (`FOLLOW_EVERY` in `print-view.js`), Status und Druck steuern alle 2 s, die Leiste oben alle 5 s (`JOB_MS` in `app.js`). Über VPN dauert eine Abfrage 0,3 bis 1 s.
+- Klipper schickt abonnierte Werte (`printer.objects.subscribe` über Moonrakers WebSocket, wie Mainsail und Fluidd) höchstens alle 0,25 s und nur, wenn sich etwas geändert hat (Klipper, `klippy/webhooks.py`: `SUBSCRIPTION_REFRESH_TIME = .25`). Schneller geht es nicht.
+- Am U1 gemessen: 6 s Abo im Leerlauf, keine Meldung, weil sich nichts ändert. Den Takt beim Drucken erst an einem laufenden Druck messen.
+
+**Was ginge:** OrcaOne hält je Drucker eine WebSocket-Verbindung zu Moonraker, nur solange eine Seite zuschaut, und abonniert, was die Seiten brauchen (Position, `virtual_sdcard.file_position`, Temperaturen, Lüfter, Schicht, Objekte). Der Browser bekommt die Änderungen über einen WebSocket von OrcaOne, wie bei „SSH“ mit Prüfung von Host und Origin; nicht direkt zum Drucker, die Seiten sprechen nur mit OrcaOne. Leiste, Status, Druck steuern, 3D, 2D und Kamera lesen aus einem Strom statt aus eigenen Takten; ohne WebSocket wie heute. Die Düse in 3D und 2D wandert dann viermal pro Sekunde, dazwischen ließe sie sich glätten. Aufwand mittel, `websockets` ist schon eine Abhängigkeit.
+
+**Umgesetzt (25.09.2026, „leg los“ des Nutzers):** `orcaone/live.py` hält je beobachtetem Drucker eine Verbindung mit einem Abo für alle Seiten und schiebt die Werte, wie `monitor.shape` und `control.shape` sie formen, höchstens alle 0,25 s über `GET /api/live` an den Browser (`static/live.js`, ein WebSocket je Tab, zu, solange der Tab versteckt ist). Status, Druck steuern, 3D, 2D, Leiste oben, Kamera, Kalibrieren und die Druckerkarten fragen nicht mehr im Takt; die Konsole liest Moonrakers Verlauf, sobald Klipper antwortet. Gemessen am U1 im Leerlauf: 17 Nachrichten in 8 s (Temperaturen, Rechner), die erste 4,4 KB. Offen: der Takt an einem echten Druck.

@@ -46,7 +46,7 @@ Diese Regeln haben Vorrang vor allem anderen.
 5. Jede Änderung läuft in zwei Schritten: Plan mit Liste aller Dateioperationen und Diff der .conf, dann Bestätigung durch mich, dann Ausführung, dann erneuter Scan zur Kontrolle.
 6. Die .conf wird gelesen, gezielt an einzelnen Schlüsseln geändert und vollständig zurückgeschrieben. Alle anderen Schlüssel bleiben unverändert. Format wie vorgefunden: Einrückung 4 Leerzeichen (SnOrca, Orca bis 2.3.2) oder Tab (Orca ab 2.4.0), `sort_keys=True`, `ensure_ascii=False`, abschließendes `\n`, atomar schreiben (temporäre Datei plus `os.replace`, Dateirechte der alten Datei übernehmen). Unter Windows gehört eine Prüfsummenzeile ans Ende (siehe 4.3).
 7. JSON tolerant behandeln: unbekannte Schlüssel behalten, nicht gegen ein starres Schema validieren, unveränderte Dateien nie neu schreiben. Alles, was OrcaOne nach `user/` oder in die `.conf` schreibt, wird vorher neu geparst und auf die Typen geprüft, die der Slicer erwartet. Fehlerhafte Profile löscht der Slicer beim Start samt `.info` (FINDINGS 4.4).
-8. Der Server lauscht nur auf 127.0.0.1.
+8. Der Server lauscht nur auf 127.0.0.1. *(Überholt am 25.09.2026: auf allen Schnittstellen, siehe CLAUDE.md, harte Regel 8.)*
 
 ## 3. Stack und Konventionen
 

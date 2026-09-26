@@ -9,7 +9,7 @@ Linux ist geprüft (Ubuntu 26.04, Python 3.14, PyInstaller 6.22.3). Unter Window
 
 ## Was beim Start passiert
 
-- OrcaOne startet seinen Server auf `http://127.0.0.1:4711/`.
+- OrcaOne startet seinen Server auf allen Schnittstellen, auf dem Rechner unter `http://127.0.0.1:4711/`, und nennt die Adressen im LAN (Entscheidung des Nutzers vom 25.09.2026; `--local` bleibt auf dem Rechner).
   - Läuft OrcaOne schon, öffnet ein zweiter Start nur ein weiteres Fenster.
   - Hat ein anderes Programm den Port belegt, nimmt OrcaOne einen freien.
 - Sobald der Server bereit ist, öffnet OrcaOne die Seite in **deinem Standardbrowser, möglichst wie eine App**. Den Standardbrowser fragt es bei jedem Start beim System nach: unter Linux mit `xdg-settings`, unter Windows in den Standard-Apps, unter macOS über LaunchServices. Es gibt keinen festen Browser.
@@ -28,7 +28,7 @@ Das App-Fenster kommt bei Chrome, Edge, Brave und Vivaldi von selbst. Installier
 - **Safari** ab macOS 14: Ablage → „Zum Dock hinzufügen“.
 - **Firefox** ab Version 143 nur unter Windows: Das Symbol in der Adressleiste heftet den Tab an die Taskleiste. Unter Linux ist das abgeschaltet und geht mit Snap gar nicht, unter macOS gibt es das nicht.
 
-Die installierte App startet OrcaOne nicht mit, sie zeigt nur die Seite unter `http://127.0.0.1:4711/`. Starte OrcaOne deshalb über sein Symbol (Abschnitt 1). Mit einem anderen Port (`--port`) findet die App OrcaOne nicht.
+Die installierte App startet OrcaOne nicht mit, sie zeigt nur die Seite unter `http://127.0.0.1:4711/`. Vom Handy aus öffnest du die Adresse, die OrcaOne beim Start nennt, im Browser; als App installieren lässt sie sich dort nicht, Browser verlangen dafür HTTPS. Starte OrcaOne deshalb über sein Symbol (Abschnitt 1). Mit einem anderen Port (`--port`) findet die App OrcaOne nicht.
 
 ---
 
@@ -52,7 +52,7 @@ Unter Windows zeigt die Konsole beim Installieren jeden Schritt samt Download. E
 4. Rechtsklick auf die Verknüpfung → Eigenschaften → „Ausführen: **Minimiert**“. Dann liegt die Konsole nur unten in der Taskleiste. Unter „Anderes Symbol …“ → „Durchsuchen …“ die Datei `orcaone\static\assets\app-icon.ico` wählen, dann trägt die Verknüpfung das OrcaOne-Symbol.
 5. Doppelklick: Die Konsole startet minimiert, und das Browserfenster geht auf. Zum Beenden schließt du die Konsole in der Taskleiste.
 
-Beim ersten „Im LAN suchen“ fragt die Windows-Firewall, ob Python im Netz empfangen darf. Für private Netzwerke zulassen.
+Beim ersten Start fragt die Windows-Firewall, ob Python im Netz empfangen darf. Für private Netzwerke zulassen, sonst erreichen Handy und andere Rechner OrcaOne nicht (das gebaute `OrcaOne.exe` fragt eigens).
 
 ### Linux
 
