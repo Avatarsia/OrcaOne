@@ -82,15 +82,13 @@ export const api = {
   // The address of a printer model (page "Drucker"); every U1 with one has a camera
   // (orcaone/camera.py). The picture itself comes as image/jpeg.
   printers: () => request("GET", "/api/printers"),
-  // Read only, by model: what a printer with an address says of itself and what it is doing.
+  // Read only, by model: what a printer with an address says of itself. What it is doing comes live
+  // (live.js), no longer asked for here.
   printerInfo: (model) => request("GET", `/api/printers/info?model=${encodeURIComponent(model)}`),
-  printerState: (model) => request("GET", `/api/printers/status?model=${encodeURIComponent(model)}`),
   // Page "3D Ansicht": the print files of a printer and the address of one (read in pages/gcode-worker.js).
   printFiles: (model) => request("GET", `/api/printers/files?model=${encodeURIComponent(model)}`),
   printFileUrl: (model, path) => `/api/printers/file?model=${encodeURIComponent(model)}&path=${encodeURIComponent(path)}`,
-  // Page "Status" (orcaone/monitor.py): job, temperatures, motion, fans, sensors and the computer inside.
-  printerMonitor: (model) => request("GET", `/api/printers/monitor?model=${encodeURIComponent(model)}`),
-  printerControl: (model) => request("GET", `/api/printers/control?model=${encodeURIComponent(model)}`),
+  // Page "Höhenkarte" (orcaone/monitor.py, mesh), once; page "Druck steuern": its two commands.
   printerMesh: (model) => request("GET", `/api/printers/mesh?model=${encodeURIComponent(model)}`),
   excludeObject: (model, name) => request("POST", "/api/printers/exclude", { model, name }),
   pauseAt: (model, what) => request("POST", "/api/printers/pause-at", { model, ...what }),
@@ -120,8 +118,7 @@ export const api = {
   resumePrint: (model) => request("POST", "/api/printers/resume", { model }),
   printCancel: (model) => request("POST", "/api/printers/cancel", { model }),
   emergencyStop: (model) => request("POST", "/api/printers/emergency-stop", { model }),
-  // Page "Kalibrieren": the printer read live (spools, pressure advance), and the ticks.
-  printerStatus: (id) => request("GET", `/api/cameras/${encodeURIComponent(id)}/status`),
+  // Page "Kalibrieren": the ticks; the printer itself comes live (live.js).
   calibration: (id) => request("GET", `${instUrl(id)}/calibration`),
   markCalibration: (id, filament, step, done, temp) => request("POST", `${instUrl(id)}/calibration`, { filament, step, done, temp }),
   deleteBackup: (id, name) => request("DELETE", backupUrl(id, name)),

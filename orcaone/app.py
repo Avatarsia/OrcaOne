@@ -12,8 +12,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, logs, monitor, operations,
-               overview, printer_files, scanner, settings, snapshot, ssh)
+from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, live, logs, monitor,
+               operations, overview, printer_files, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -93,6 +93,16 @@ async def ssh_terminal(websocket: WebSocket, model: str = ""):
         await websocket.close(code=1008)
         return
     await ssh.session(websocket, model)
+
+
+@app.websocket("/api/live")
+async def live_values(websocket: WebSocket):
+    # Live values of the printers a page watches (orcaone/live.py); Host and Origin checked as for "SSH".
+    host = websocket.headers.get("host", "")
+    if _hostname(host) not in _LOCAL_HOSTS or websocket.headers.get("origin") != f"http://{host}":
+        await websocket.close(code=1008)
+        return
+    await live.serve(websocket)
 
 
 @app.exception_handler(camera.CameraError)

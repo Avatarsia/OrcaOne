@@ -29,13 +29,27 @@ def state(host: str) -> dict:
     as the slicer writes them; bed as on "Status": the bed mesh widened by its margin, else the area
     the axes reach."""
     names = set(_get(host, "/printer/objects/list").get("objects") or [])
+    query = "&".join(urllib.parse.quote(w, safe="=,") for w in objects(names))
+    return shape(_get(host, "/printer/objects/query?" + query).get("status") or {}, names)
+
+
+def _pausing(names) -> bool:
+    return all(f"gcode_macro {m}" in names for m in PAUSE_MACROS)
+
+
+def objects(names) -> list[str]:
+    """Klipper's objects the page needs, of those the printer has: asked for once (state), subscribed
+    to for live values (live.py)."""
     wanted = ["print_stats", "virtual_sdcard=progress", "exclude_object", "toolhead=axis_minimum,axis_maximum",
               "bed_mesh=mesh_min,mesh_max"]
-    pausing = all(f"gcode_macro {m}" in names for m in PAUSE_MACROS)
-    if pausing:
+    if _pausing(names):
         wanted.append("gcode_macro SET_PRINT_STATS_INFO=pause_next_layer,pause_at_layer")
-    query = "&".join(urllib.parse.quote(w, safe="=,") for w in wanted if w.split("=")[0] in names)
-    status = _get(host, "/printer/objects/query?" + query).get("status") or {}
+    return [w for w in wanted if w.split("=")[0] in names]
+
+
+def shape(status: dict, names) -> dict:
+    """state() from Klipper's objects as read, names being the printer's list of objects."""
+    pausing = _pausing(names)
     stats, excl = status.get("print_stats") or {}, status.get("exclude_object") or {}
     info = stats.get("info") if isinstance(stats.get("info"), dict) else {}
     gone, now = set(excl.get("excluded_objects") or []), excl.get("current_object")

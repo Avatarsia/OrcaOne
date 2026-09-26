@@ -6,10 +6,10 @@
 import { ui, localPrintFile, setLocalPrintFile } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { useLive } from "../live.js";
 
 const { ref, shallowRef, computed, watch, onMounted, onUnmounted } = Vue;
 const V = T.view3d;          // texts of the file choice, shared by both pages
-const FOLLOW_EVERY = 3000;   // ms between two looks at the printer
 
 // Line types in the colours of the slicers' preview (PrusaSlicer's defaults, which OrcaSlicer kept;
 // OrcaSlicer's own table lives in libvgcode, which slicer-src lacks: not checked one by one).
@@ -56,10 +56,13 @@ export function bedArea(d, m) {
 
 let cache = null;  // { key, data, source }
 
-// onShow(data): the page draws the file just read (or taken from the cache).
-export function usePrintFile(onShow) {
+// onShow(data): the page draws the file just read (or taken from the cache). whilePrinting: read the
+// file only while the printer prints it (page "Status": the path under the head, no file read for nothing).
+export function usePrintFile(onShow, { whilePrinting = false } = {}) {
   const host = ref(null);         // null while OrcaOne looks it up, "" without an address
-  const job = ref(null);          // what the printer is doing (monitor.read)
+  // What the printer is doing (monitor.read), live: at most four times a second while it moves (live.js).
+  const printer = useLive(() => ui.printer);
+  const job = computed(() => printer.value?.data?.monitor || null);
   const loading = ref(null);      // { loaded, total } while reading
   const error = ref("");
   const data = shallowRef(null);  // the worker's result
@@ -74,6 +77,7 @@ export function usePrintFile(onShow) {
   // Printed right now: the file shown is the printer's job.
   const printing = computed(() => !!current.value && job.value?.job.file === current.value
     && ["printing", "paused", "complete"].includes(job.value.job.state));
+  const wanted = computed(() => !whilePrinting || (printing.value && job.value.job.state !== "complete"));
   const printedCount = computed(() => {
     const d = data.value, pos = job.value?.job.file_position;
     if (!d || !printing.value) return d?.count || 0;
@@ -140,7 +144,8 @@ export function usePrintFile(onShow) {
       read({ url: api.printFileUrl(f.model, f.path) }, `${f.model}|${f.path}`);
     }
   }
-  watch(() => ui.printFile, open);
+  watch(() => ui.printFile, (f) => wanted.value && open(f));
+  watch(wanted, (w) => w && open(ui.printFile));
   const onDrop = (ev) => {
     dragging.value = false;
     const file = ev.dataTransfer.files[0];
@@ -160,36 +165,16 @@ export function usePrintFile(onShow) {
   }
 
   // ------------------------------------------------------------ the printer
-  let timer = 0, looking = false;
-  async function look() {
-    if (document.hidden || !host.value || looking) return;
-    looking = true;
-    try {
-      job.value = await api.printerMonitor(ui.printer);
-    } catch {
-      // Not reachable right now: the file stays, only the following pauses.
-    } finally {
-      looking = false;
-    }
-  }
+  // Its address only for the note without one; the values come live (job above).
   onMounted(async () => {
-    open(ui.printFile);
+    if (wanted.value) open(ui.printFile);
     try {
       host.value = (await api.printers()).printers[ui.printer]?.host || "";
     } catch {
       host.value = "";
     }
-    if (host.value) {
-      await look();
-      timer = setInterval(look, FOLLOW_EVERY);
-    }
   });
-  document.addEventListener("visibilitychange", look);
-  onUnmounted(() => {
-    clearInterval(timer);
-    document.removeEventListener("visibilitychange", look);
-    worker?.terminate();
-  });
+  onUnmounted(() => worker?.terminate());
 
   const percent = computed(() => (loading.value?.total ? Math.round(loading.value.loaded / loading.value.total * 100) : null));
   const fileName = computed(() => ui.printFile?.local || current.value);

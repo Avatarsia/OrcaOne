@@ -1,12 +1,14 @@
 // Page "Konsole": G-code straight to Klipper, through Moonraker, for any printer with Klipper and an
 // address (orcaone/console.py, the user's wish of 24.09.2026); unlike "SSH" it needs no SSH and no
-// Root Access. Moonraker keeps the last commands and answers; the page looks at them every second
-// while it is visible, so own commands come back through them and need no echo. Choosing a command
+// Root Access. Moonraker keeps the last commands and answers; the page reads them whenever Klipper
+// answers (a note over the live WebSocket, live.js), after an own command, and every ten seconds for
+// commands of other programs without an answer; so own commands come back through them and need no echo. Choosing a command
 // from the list empties the view, so only its answer shows; one typed in keeps what came before
 // (the user's wish of 24.09.2026).
 import { go, hashOf, ui, isU1Printer, LOCALE, activeName } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { watchPrinters, live as printerLive } from "../live.js";
 
 const { ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const C = T.console;
@@ -24,7 +26,7 @@ const GCODES = {
   ],
 };
 const U1_LIGHT = [["lightOn", "SET_LED LED=cavity_led WHITE=1"], ["lightOff", "SET_LED LED=cavity_led WHITE=0"]];
-const POLL = 1000;  // ms between two looks at Moonraker's store
+const FALLBACK = 10000;  // ms: commands of other programs that Klipper does not answer come at the latest then
 
 export default {
   name: "KonsolePage",
@@ -69,14 +71,18 @@ export default {
       clearInterval(poller);
       poller = null;
     }
+    watchPrinters(() => [model.value]);
+    watch(() => printerLive[model.value]?.gcode, read);
     watch(model, () => {
       stop();
       lines.value = [];
       since = 0;
       read();
-      poller = setInterval(read, POLL);
+      poller = setInterval(read, FALLBACK);
       nextTick(() => document.getElementById("gcode-line")?.focus());
     });
+    // Back in view: what came meanwhile, the notes missed while hidden.
+    document.addEventListener("visibilitychange", read);
     // Only this view forgets: what came before stays in Moonraker's store.
     function clearLines() {
       lines.value = [];
@@ -124,7 +130,10 @@ export default {
         loadError.value = errorText(err);
       }
     });
-    onUnmounted(stop);
+    onUnmounted(() => {
+      stop();
+      document.removeEventListener("visibilitychange", read);
+    });
 
     return {
       T, C, printers, loadError, model, host, activeName, lines, failed, line, out, gcodes, send, clearLines, historyKey, runCommand,

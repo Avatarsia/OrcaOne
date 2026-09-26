@@ -6,10 +6,11 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
-  printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, setLocalPrintFile, AREA_START, loadHosts, machines, slicersOf, isU1Printer,
+  printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, setLocalPrintFile, AREA_START, loadHosts, hosts, machines, slicersOf, isU1Printer,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
+import { live, watchPrinters } from "./live.js";
 import { changesOf } from "./ops.js";
 import PlanView, { DoneView, problemText } from "./plan.js";
 import UebersichtPage from "./pages/uebersicht.js";
@@ -46,7 +47,6 @@ const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmoun
 const SPLASH_MS = 1500;
 const SPLASH_HOLD_MS = 700;
 const PROGRESS_MS = 150;   // how often the boot screen asks what the scan does
-const JOB_MS = 5000;       // how often the top bar looks whether the printer started a print
 const STOP_ARMED_MS = 4000; // how long the emergency stop waits for its second click
 
 document.documentElement.lang = LANG;
@@ -516,12 +516,15 @@ const app = createApp({
     // ------------------------------------------------------------ the print file in the top bar
     // One print file for "2D Ansicht" and "3D Ansicht" (the user's wish of 24.09.2026): chosen here or
     // on "Dateien"; when the printer starts a print, from the slicer as from its display, its file.
-    // At the start the file it prints, else its newest. Looked at every JOB_MS while the page shows,
-    // read only (camera.status).
-    const fileHost = ref("");       // the address of the printer in the top bar, "" without one
+    // At the start the file it prints, else its newest. What the printer does comes live in the
+    // printer part (live.js), read only.
+    const fileHost = computed(() => hosts.value?.[ui.printer]?.host || "");  // its address, "" without one
     const printFiles = ref(null);   // its print files, newest first; null until read
     const jobFile = ref(undefined); // the file it printed at the last look; undefined before the first
-    const jobState = ref(null);     // Klipper's print_stats.state then (printing, paused, standby, …)
+    watchPrinters(() => (area.value === "printer" && fileHost.value ? [ui.printer] : []));
+    const liveJob = computed(() => live[ui.printer]?.data?.monitor?.job || null);
+    // Klipper's print_stats.state (printing, paused, standby, …); null while unknown or unreachable.
+    const jobState = computed(() => (area.value === "printer" && !live[ui.printer]?.error && liveJob.value?.state) || null);
     const fileOpen = ref(false);
     const fileBtn = ref(null);
     const fileMenu = ref(null);
@@ -536,43 +539,30 @@ const app = createApp({
       }
       return printFiles.value || [];
     }
+    // With the first values and when a print starts: its file becomes the print file, at the first
+    // look else the newest; the list anew then (for the pictures), the slicer may just have sent it.
     async function lookAtJob() {
-      const model = ui.printer;
-      if (document.hidden || !model || area.value !== "printer") return;
-      try {
-        if (!fileHost.value) fileHost.value = (await api.printers()).printers[model]?.host || "";
-        if (!fileHost.value || model !== ui.printer) return;
-        const job = await api.printerState(model);
-        if (model !== ui.printer) return;
-        jobState.value = job.state || null;
-        const printing = ["printing", "paused"].includes(job.state) ? job.file : null;
-        // The list at the first look (for the pictures) and when a print starts: the slicer may just have sent it.
-        const first = jobFile.value === undefined;
-        if (first || (printing && printing !== jobFile.value)) await readFiles();
-        if (model !== ui.printer) return;
-        if (printing && printing !== jobFile.value) ui.printFile = { model, path: printing };
-        else if (first && !ui.printFile && printFiles.value?.[0]) ui.printFile = { model, path: pathOf(printFiles.value[0]) };
-        jobFile.value = printing;
-      } catch {
-        // Not reachable right now: the file stays; what it does is unknown.
-        if (model === ui.printer) jobState.value = null;
-      }
+      const model = ui.printer, job = liveJob.value;
+      if (!job || area.value !== "printer") return;
+      const printing = ["printing", "paused"].includes(job.state) ? job.file : null;
+      const first = jobFile.value === undefined;
+      if (first || (printing && printing !== jobFile.value)) await readFiles();
+      if (model !== ui.printer) return;
+      if (printing && printing !== jobFile.value) ui.printFile = { model, path: printing };
+      else if (first && !ui.printFile && printFiles.value?.[0]) ui.printFile = { model, path: pathOf(printFiles.value[0]) };
+      jobFile.value = printing;
     }
+    watch(() => `${liveJob.value?.state}|${liveJob.value?.file}`, lookAtJob);
     // Another printer: its files; one of the other printer is not the file any more.
     watch(() => ui.printer, (model) => {
-      fileHost.value = "";
       printFiles.value = null;
       jobFile.value = undefined;
-      jobState.value = null;
       cancelAsk.value = false;
       disarmStop();
       printPanel.value = null;
       if (ui.printFile?.model && ui.printFile.model !== model) ui.printFile = null;
       lookAtJob();
     });
-    setInterval(lookAtJob, JOB_MS);
-    watch(area, lookAtJob);
-    document.addEventListener("visibilitychange", lookAtJob);
     function toggleFile() {
       fileOpen.value = !fileOpen.value;
       instOpen.value = printerOpen.value = false;
@@ -624,8 +614,6 @@ const app = createApp({
       return jobBusy.value ? T.printBar.busy : "";
     });
     const errorText = (err) => [T.files.errors[err.code] || T.errors[err.code] || T.errors.unknown, err.data?.detail].filter(Boolean).join(" ");
-    // At once and again when Klipper has taken the command in.
-    const lookSoon = () => { lookAtJob(); setTimeout(lookAtJob, 1500); };
     async function openPrint() {
       const model = ui.printer, path = ui.printFile.path;
       try {
@@ -648,7 +636,6 @@ const app = createApp({
       } catch (err) {
         flash(errorText(err));
       }
-      lookSoon();
     }
     async function cancelPrint() {
       cancelAsk.value = false;
@@ -677,7 +664,6 @@ const app = createApp({
       } catch (err) {
         flash(errorText(err));
       }
-      lookSoon();
     }
     // Both menus in the top bar: arrows move, Escape and Tab go back to the button.
     function menuKeys(ev, menu, close) {
@@ -890,7 +876,7 @@ const app = createApp({
         <!-- "Drucken" in the top bar: the panel of "Dateien" -->
         <print-panel v-if="printPanel" :key="printPanel.file.name" :camera="printPanel.camera" :model="ui.printer" :file="printPanel.file"
                      :picture="printPanel.file.picture ? api.printFileUrl(ui.printer, printPanel.file.picture) : ''"
-                     @close="printPanel = null" @started="lookSoon"/>
+                     @close="printPanel = null"/>
 
         <aside v-if="changesOpen" class="panel changes-panel" aria-labelledby="changes-title">
           <div class="panel-head">

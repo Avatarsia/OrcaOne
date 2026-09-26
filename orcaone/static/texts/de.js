@@ -979,7 +979,8 @@ const T = {
   // ---------------------------------------------------------------- page "Status"
   monitor: {
     title: "Status",
-    lead: "Was der Drucker gerade tut, alle zwei Sekunden neu gelesen, nur lesend. Geht bei jedem Klipper-Drucker mit IP-Adresse, der U1 zeigt mehr.",
+    lead: "Was der Drucker gerade tut, live, sobald sich etwas ändert, nur lesend. Geht bei jedem Klipper-Drucker mit IP-Adresse, der U1 zeigt mehr.",
+    pathNote: (k) => `Bahn der Schicht ${n(k)}: blass die ganze, kräftig das schon Gedruckte`,
     noHost: (name) => `${name} hat noch keine IP-Adresse. Trage sie auf der Seite „Drucker“ ein.`,
     toPrinters: "Zur Seite „Drucker“",
     noJob: "Kein Druck",

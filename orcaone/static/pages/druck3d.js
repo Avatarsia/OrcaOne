@@ -371,7 +371,8 @@ export default {
       u.badge.scale.setScalar(9);
       nozzle.add(u.badge);
     }
-    watch([layer, follow, printedCount, printing], update);
+    // The nozzle also moves when no line is done, on travels: its position too, as text so only a change counts.
+    watch([layer, follow, printedCount, printing, () => job.value?.motion.position?.join()], update);
     watch(layer, (L) => { if (data.value) ui.viewLayer = L; });
     watch(byKind, () => {
       if (!solid) return;

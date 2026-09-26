@@ -27,8 +27,11 @@ EXTRUDER = re.compile(r"extruder\d*")
 # X and Y, checked 25.09.2026).
 MONITORS = ("tmc2240",)
 # Always asked for, the objects of camera.status among them; what a printer lacks is missing in
-# the answer.
-FIXED = ["webhooks", "print_stats", "display_status", "gcode_move", "toolhead", "motion_report", "heaters",
+# the answer. Of toolhead, gcode_move and motion_report only the fields shown: subscribed whole
+# (live.py), toolhead's print times alone change four times a second at rest.
+FIXED = ["webhooks", "print_stats", "display_status", "gcode_move=speed_factor,extrude_factor",
+         "toolhead=extruder,homed_axes,position,axis_minimum,axis_maximum,max_velocity,max_accel",
+         "motion_report=live_position,live_velocity,live_extruder_velocity", "heaters",
          "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max", "virtual_sdcard=file_position"]
 # mm² of 1.75 mm filament, as on the U1: the flow from the speed of the extruder. Klipper keeps the
 # diameter in its configuration only, which is too big to read every two seconds.
@@ -43,15 +46,35 @@ def _kind(name: str) -> str:
     return name.split(" ", 1)[0]
 
 
+def _groups(listed: list) -> tuple[list, list, list, list, list]:
+    """Heads, temperatures, fans, filament sensors and drivers with a thermometer in Klipper's list."""
+    return ([o for o in listed if EXTRUDER.fullmatch(o)], [o for o in listed if _kind(o) in TEMPERATURES],
+            [o for o in listed if _kind(o) in FANS], [o for o in listed if _kind(o) in FILAMENT_SENSORS],
+            [o for o in listed if _kind(o) in MONITORS])
+
+
+def objects(listed: list) -> list[str]:
+    """What the page shows, as Klipper's objects "name" or "name=field,…", from Klipper's list: asked
+    for once here (read), subscribed to for live values (live.py)."""
+    extruders, temps, fans, sensors, monitors = _groups(listed)
+    return list(dict.fromkeys(FIXED + extruders + temps + fans + sensors + [f"{m}=temperature" for m in monitors]))
+
+
 def read(host: str) -> dict:
     """Raises CameraError if the printer does not answer; the computer inside is optional."""
     listed = _get(host, "/printer/objects/list").get("objects") or []
-    extruders = [o for o in listed if EXTRUDER.fullmatch(o)]
-    temps = [o for o in listed if _kind(o) in TEMPERATURES]
-    fans = [o for o in listed if _kind(o) in FANS]
-    sensors = [o for o in listed if _kind(o) in FILAMENT_SENSORS]
-    monitors = [o for o in listed if _kind(o) in MONITORS]
-    found = camera.query(host, list(dict.fromkeys(FIXED + extruders + temps + fans + sensors + [f"{m}=temperature" for m in monitors])))
+    found = camera.query(host, objects(listed))
+    try:
+        system = _get(host, "/machine/proc_stats")
+    except CameraError:
+        system = {}
+    return shape(host, listed, found, system)
+
+
+def shape(host: str, listed: list, found: dict, system: dict) -> dict:
+    """The page's values from Klipper's objects as read (found) and the computer inside (system,
+    /machine/proc_stats or its notifications)."""
+    extruders, temps, fans, sensors, monitors = _groups(listed)
 
     def part(name):
         return _part(found, name)
@@ -85,10 +108,6 @@ def read(host: str) -> dict:
     extrusion = _number(motion.get("live_extruder_velocity"))
     position = motion.get("live_position") or toolhead.get("position") or []
     webhooks = part("webhooks")
-    try:
-        system = _get(host, "/machine/proc_stats")
-    except CameraError:
-        system = {}
     memory = system.get("system_memory") if isinstance(system.get("system_memory"), dict) else {}
     network = system.get("network") if isinstance(system.get("network"), dict) else {}
     return {

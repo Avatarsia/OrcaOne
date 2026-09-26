@@ -2,16 +2,17 @@
 // "alles behandelt ja den aktuellen Druck-Workflow"), for any Klipper printer with an address: the
 // print with pause, resume and cancel as in the top bar, a pause at a layer, and the objects on the
 // bed from above, one left out on a click. All three show without a print too, greyed, with what
-// they do and need (the user: one wants to see what there is to control). Read every two seconds
-// while the page is visible (orcaone/control.py); a command goes to the printer only on a click,
-// cancelling and leaving an object out after a question, as they cannot be taken back.
+// they do and need (the user: one wants to see what there is to control). Live over Moonraker's
+// WebSocket while the page is visible (live.js, shaped by orcaone/control.py); a command goes to the
+// printer only on a click, cancelling and leaving an object out after a question, as they cannot be
+// taken back.
 import { go, hashOf, ui, activeName, flash, LOCALE } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { useLive } from "../live.js";
 
-const { ref, computed, onMounted, onUnmounted } = Vue;
+const { ref, computed, onMounted } = Vue;
 const C = T.control;
-const EVERY = 2000;  // ms between two looks at the printer
 const JOB_CLASS = { standby: "ok", printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" };
 
 export default {
@@ -20,57 +21,34 @@ export default {
 
   setup() {
     const host = ref(null);   // null while OrcaOne looks it up, "" without an address
-    const data = ref(null);   // control.state
-    const failed = ref("");
     const busy = ref(false);  // a command on its way
     const errorText = (err) => [C.errors[err.code] || T.files.errors[err.code] || T.errors[err.code] || T.errors.unknown,
       err.data?.detail].filter(Boolean).join(" ");
-    let timer = 0, reading = false;
-    async function read() {
-      if (document.hidden || !host.value || reading) return;
-      reading = true;
-      try {
-        data.value = await api.printerControl(ui.printer);
-        failed.value = "";
-      } catch (err) {
-        failed.value = errorText(err);
-      } finally {
-        reading = false;
-      }
-    }
-    // Gone before the address came (the page built anew): no timer then, it would run on unseen.
-    let gone = false;
+    // control.state, live; the last values stay while the printer does not answer.
+    const printer = useLive(() => ui.printer);
+    const data = computed(() => printer.value?.data?.control || null);
+    const lookup = ref("");   // the address could not be looked up
+    const failed = computed(() => lookup.value || (printer.value?.error ? errorText({ code: printer.value.error }) : ""));
+    // The address only for the note without one; the values come live.
     onMounted(async () => {
       try {
         host.value = (await api.printers()).printers[ui.printer]?.host || "";
       } catch (err) {
         host.value = null;
-        failed.value = errorText(err);
-        return;
+        lookup.value = errorText(err);
       }
-      if (gone) return;
-      read();
-      timer = setInterval(read, EVERY);
     });
-    document.addEventListener("visibilitychange", read);
-    onUnmounted(() => {
-      gone = true;
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", read);
-    });
-    // A command, then the printer's state at once: the answer if it carries it, else a look.
+    // A command; what it changes comes back with the next live values, within a quarter of a second.
     async function order(fn, done) {
       busy.value = true;
       try {
-        const answer = await fn();
-        if (answer?.objects) data.value = answer;
+        await fn();
         if (done) flash(done);
       } catch (err) {
         flash(errorText(err));
       } finally {
         busy.value = false;
       }
-      setTimeout(read, 800);
     }
 
     // ------------------------------------------------------------ the print

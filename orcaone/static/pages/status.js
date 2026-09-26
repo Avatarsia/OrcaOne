@@ -1,6 +1,6 @@
 // Page "Status" (the user's wish of 24.09.2026): what the printer of the top bar is doing right
-// now, for any Klipper printer with an address; read only, every two seconds while the page is
-// visible (orcaone/monitor.py, Moonraker's REST API). As pictures where they help (the user: not so
+// now, for any Klipper printer with an address; read only, live over Moonraker's WebSocket while the
+// page is visible, at most four times a second (live.js, orcaone/live.py, shaped by orcaone/monitor.py). As pictures where they help (the user: not so
 // "trocken"): the print as a ring, the heads on their stage, the temperatures as bars, the head on
 // a map of the bed, fans that turn with their speed, the computer inside as tiles. A U1 shows more:
 // per head nozzle, pressure advance, tool changes and filament sensor, the options of its display
@@ -8,12 +8,13 @@
 import { go, hashOf, ui, isU1Printer, LOCALE, activeName, fmtSize } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { useLive } from "../live.js";
+import { usePrintFile } from "./print-view.js";
 
-const { ref, computed, onMounted, onUnmounted } = Vue;
+const { ref, computed, watch, onMounted, onUnmounted } = Vue;
 const S = T.monitor;
 const U1 = T.u1;
 const K = T.camera.print;
-const EVERY = 2000;              // ms between two looks at the printer
 const RING = 2 * Math.PI * 52;   // length of the progress ring, radius 52
 const ARC = Math.PI * 50;        // length of the speed gauge, a half circle of radius 50
 const GRID = 50;                 // mm between two lines on the bed
@@ -28,44 +29,21 @@ export default {
 
   setup() {
     const host = ref(null);   // null while OrcaOne looks it up, "" without an address
-    const data = ref(null);   // monitor.read
-    const failed = ref("");
     const isU1 = isU1Printer(ui.printer);
-    const errorText = (err) => S.errors[err.code] || T.errors[err.code] || T.errors.unknown;
-    let timer = 0, reading = false;
-    // One look at a time: over a slow network one takes about half a second (the U1 over VPN).
-    async function read() {
-      if (document.hidden || !host.value || reading) return;
-      reading = true;
-      try {
-        data.value = await api.printerMonitor(ui.printer);
-        failed.value = "";
-      } catch (err) {
-        failed.value = errorText(err);
-      } finally {
-        reading = false;
-      }
-    }
-    // Gone before the address came (the page built anew): no timer then, it would run on unseen.
-    let gone = false;
+    const errorText = (code) => S.errors[code] || T.errors[code] || T.errors.unknown;
+    // monitor.read, live; the last values stay while the printer does not answer.
+    const printer = useLive(() => ui.printer);
+    const data = computed(() => printer.value?.data?.monitor || null);
+    const lookup = ref("");   // the address could not be looked up
+    const failed = computed(() => lookup.value || (printer.value?.error ? errorText(printer.value.error) : ""));
+    // The address only for the note without one; the values come live.
     onMounted(async () => {
       try {
         host.value = (await api.printers()).printers[ui.printer]?.host || "";
       } catch (err) {
         host.value = null;
-        failed.value = errorText(err);
-        return;
+        lookup.value = errorText(err.code);
       }
-      if (gone) return;
-      read();
-      timer = setInterval(read, EVERY);
-    });
-    // Back in view: at once, not only with the next tick.
-    document.addEventListener("visibilitychange", read);
-    onUnmounted(() => {
-      gone = true;
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", read);
     });
 
     // ------------------------------------------------------------ numbers and names
@@ -130,6 +108,54 @@ export default {
         homed: m.homed.includes("x") && m.homed.includes("y"), zHomed: m.homed.includes("z"),
       };
     });
+    // The path of the layer in work under the head (the user's wish of 25.09.2026: "schemenhaft die
+    // Druckbahn vom aktuellen Layer"): the print file as "2D Ansicht" reads it (print-view.js, only
+    // while the printer prints it), the whole layer faint, what of it is printed stronger. A canvas
+    // over the map in the printer's coordinates, drawn anew with every live value.
+    const file = usePrintFile(() => {}, { whilePrinting: true });
+    const pathCanvas = ref(null);
+    const pathLayer = computed(() => (file.data.value && file.printing.value && map.value?.homed ? file.printedLayer.value : 0));
+    function drawPath() {
+      const c = pathCanvas.value;
+      if (!c) return;
+      const dpr = window.devicePixelRatio || 1, cw = Math.round(c.clientWidth * dpr), ch = Math.round(c.clientHeight * dpr);
+      if (c.width !== cw || c.height !== ch) Object.assign(c, { width: cw, height: ch });
+      const g = c.getContext("2d"), d = file.data.value, m = data.value?.motion, L = pathLayer.value;
+      g.clearRect(0, 0, cw, ch);
+      if (!L || !d || !m || !cw || !ch) return;
+      const [x0, y0] = m.min, [x1, y1] = m.max, u = d.unit, pos = d.pos;
+      const kx = cw / (x1 - x0), ky = ch / (y1 - y0);
+      const a = L <= 1 ? 0 : d.layerStart[L - 1], b = L >= d.layerStart.length ? d.count : d.layerStart[L];
+      // The page's colours hold light-dark(…): resolved through the canvas itself.
+      const colour = (name) => {
+        c.style.color = `var(${name})`;
+        return getComputedStyle(c).color;
+      };
+      const stroke = (from, to, name, alpha, width) => {
+        g.beginPath();
+        let lx = NaN, ly = NaN;
+        for (let i = from; i < to; i++) {
+          const p = i * 5, sx = (pos[p] / u - x0) * kx, sy = (y1 - pos[p + 1] / u) * ky;
+          if (sx !== lx || sy !== ly) g.moveTo(sx, sy);
+          lx = (pos[p + 3] / u - x0) * kx;
+          ly = (y1 - pos[p + 4] / u) * ky;
+          g.lineTo(lx, ly);
+        }
+        Object.assign(g, { strokeStyle: colour(name), globalAlpha: alpha, lineWidth: width * dpr, lineJoin: "round" });
+        g.stroke();
+      };
+      stroke(a, b, "--muted", 0.5, 1);
+      stroke(a, Math.min(b, file.printedCount.value), "--accent-text", 0.9, 1.5);
+      g.globalAlpha = 1;
+    }
+    watch([pathLayer, file.printedCount, file.data, () => data.value?.motion.min?.join()], drawPath);
+    let resizer = null;
+    watch(pathCanvas, (c) => {
+      resizer?.disconnect();
+      resizer = c ? new ResizeObserver(drawPath) : null;
+      resizer?.observe(c);
+    });
+    onUnmounted(() => resizer?.disconnect());
     const speedShare = computed(() => {
       const m = data.value?.motion;
       return m?.max_velocity ? Math.min(1, Math.max(0, (m.speed || 0) / m.max_velocity)) : 0;
@@ -143,7 +169,7 @@ export default {
 
     return {
       T, S, U1, K, RING, host, data, failed, isU1, job, running, progress, jobClass, options, stage, headSensors, otherSensors,
-      barOf, markOf, map, speedShare, ARC, spin, memory, num, pct, deg, duration, label, netLabel, activeName, fmtSize, go, hashOf,
+      barOf, markOf, map, pathCanvas, pathLayer, speedShare, ARC, spin, memory, num, pct, deg, duration, label, netLabel, activeName, fmtSize, go, hashOf,
     };
   },
 
@@ -199,6 +225,7 @@ export default {
                   <div class="xy" :style="{ aspectRatio: map.ratio }" role="img"
                        :aria-label="map.homed ? S.headAt(num(data.motion.position[0], 1), num(data.motion.position[1], 1)) : S.notHomed">
                     <div class="xy-bed" :style="map.bed"><span v-if="!map.homed" class="xy-note">{{ S.notHomed }}</span></div>
+                    <canvas ref="pathCanvas" class="xy-path" aria-hidden="true"></canvas>
                     <template v-if="map.homed">
                       <span class="xy-vline" :style="{ left: map.hx + '%' }"></span>
                       <span class="xy-hline" :style="{ bottom: map.hy + '%' }"></span>
@@ -216,6 +243,7 @@ export default {
                   <span>0 mm</span>
                 </div>
               </div>
+              <p v-if="pathLayer" class="xy-path-note">{{ S.pathNote(pathLayer) }}</p>
               <div class="motion-gauges">
                 <div class="gauge">
                   <svg viewBox="0 0 120 66" aria-hidden="true">

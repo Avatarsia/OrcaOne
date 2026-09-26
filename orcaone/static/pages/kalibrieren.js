@@ -7,11 +7,11 @@
 import { INSTANCES, ui, flash, go, hashOf, onReset, LOCALE, nozzleLabel, U1_MODELS } from "../common.js";
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
+import { watchPrinters, live as printerLive } from "../live.js";
 
-const { ref, reactive, computed, watch, onMounted, onUnmounted } = Vue;
+const { ref, reactive, computed, watch, onMounted } = Vue;
 const C = T.calibration;
 const S = C.steps;
-const EVERY = 5000;  // ms between two reads of the printer
 const PRINTER_STEPS = ["connect", "spread", "machine"];
 const STEPS = [
   { id: "dry" }, { id: "temp" }, { id: "flow", required: true }, { id: "pa", required: true },
@@ -221,20 +221,19 @@ export default {
 
     // ------------------------------------------------------------ the U1, live and read only
     const cameras = ref(null);
-    const printer = ref(null);
-    const printerError = ref("");
     // The chosen U1, if it has an address (page "Drucker").
     const cam = computed(() => (cameras.value || []).find((c) => c.model === model.value?.model) || null);
-    let timer = null;
-    async function readPrinter() {
-      if (!cam.value || document.hidden) return;
-      try {
-        printer.value = await api.printerStatus(cam.value.id);
-        printerError.value = "";
-      } catch (err) {
-        printerError.value = err.code === "camera_unreachable" ? C.printer.unreachable : errorText(err.code);
-      }
-    }
+    // What it does and has loaded, live over Moonraker's WebSocket (live.js): camera.status as the
+    // monitor's job with the heads.
+    watchPrinters(() => (cam.value ? [cam.value.printer] : []));
+    const printer = computed(() => {
+      const m = cam.value && printerLive[cam.value.printer]?.data?.monitor;
+      return m ? { ...m.job, heads: m.heads } : null;
+    });
+    const printerError = computed(() => {
+      const code = cam.value && printerLive[cam.value.printer]?.error;
+      return !code ? "" : code === "camera_unreachable" ? C.printer.unreachable : errorText(code);
+    });
     const headName = (i) => T.u1.head(i + 1);
     const spoolText = (h) => h.spool
       ? [h.spool.type, h.spool.subtype, h.spool.maker || h.spool.vendor].filter((x) => x && x !== "NONE").join(" · ")
@@ -252,7 +251,6 @@ export default {
     // Spools with a tag and the filament's material: their drying and temperature data apply.
     const rfidHeads = computed(() => (printer.value?.heads || []).map((h, i) => ({ h, i }))
       .filter(({ h }) => h.spool?.rfid && (!material.value || matches(h))));
-    const onVisible = () => { if (!document.hidden) readPrinter(); };
 
     watch(name, () => {
       lastChosen[props.instId] = name.value;
@@ -273,13 +271,6 @@ export default {
       } catch {
         cameras.value = [];
       }
-      readPrinter();
-      timer = setInterval(readPrinter, EVERY);
-      document.addEventListener("visibilitychange", onVisible);
-    });
-    onUnmounted(() => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
     });
 
     return {

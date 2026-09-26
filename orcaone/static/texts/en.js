@@ -967,7 +967,8 @@ const T = {
   // ---------------------------------------------------------------- page "Status"
   monitor: {
     title: "Status",
-    lead: "What the printer is doing right now, read again every two seconds, read only. Works with any Klipper printer with an IP address, the U1 shows more.",
+    lead: "What the printer is doing right now, live as soon as something changes, read only. Works with any Klipper printer with an IP address, the U1 shows more.",
+    pathNote: (k) => `Path of layer ${n(k)}: faint all of it, strong what is printed`,
     noHost: (name) => `${name} has no IP address yet. Enter it on the page “Printers”.`,
     toPrinters: "To the page “Printers”",
     noJob: "No print",

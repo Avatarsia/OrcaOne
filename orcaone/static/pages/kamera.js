@@ -8,12 +8,12 @@
 import { flash, go, hashOf, loadState, ui, isU1Printer } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { watchPrinters, live as printerLive } from "../live.js";
 
 const { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const K = T.camera;
 const U1 = T.u1;
 const WAKE_EVERY = 10000;   // ms, as u1cam.py does
-const STATUS_EVERY = 5000;  // ms, as on the page "Kalibrieren"
 const EVERY = [1, 2, 3, 5, 10];
 const IDLE = 3000;          // ms without a mouse move before the bar of a big view hides
 
@@ -112,14 +112,9 @@ export default {
         Object.assign(s, { wakeOk: false, wakeDetail: err.data?.detail || errorText(err.code) });
       }
     }
-    async function readStatus(c) {
-      if (document.hidden) return;
-      try {
-        stateOf(c.id).print = await api.printerStatus(c.id);
-      } catch {
-        stateOf(c.id).print = null;  // the picture's state line says why
-      }
-    }
+    // How far the print is, live over Moonraker's WebSocket (live.js); null while unknown.
+    watchPrinters(() => (list.value || []).map((c) => c.printer));
+    const printOf = (c) => (c && printerLive[c.printer]?.data?.monitor?.job) || null;
     function start() {
       stop();
       for (const c of list.value || []) {
@@ -127,10 +122,8 @@ export default {
         // The last picture right away, however old; a fresh one once the camera is awake.
         fetchImage(c);
         wake(c).then(() => setTimeout(() => fetchImage(c), 1500));
-        readStatus(c);
         timers.push(setInterval(() => wake(c), WAKE_EVERY));
         timers.push(setInterval(() => fetchImage(c), s.every * 1000));
-        timers.push(setInterval(() => readStatus(c), STATUS_EVERY));
       }
       timers.push(setInterval(() => { now.value = Date.now(); }, 1000));
     }
@@ -143,9 +136,7 @@ export default {
     async function setLight(c, on) {
       lightBusy[c.id] = true;
       try {
-        await api.cameraLight(c.id, on);
-        const s = stateOf(c.id);
-        if (s.print) s.print = { ...s.print, light: on };
+        await api.cameraLight(c.id, on);   // the light's state comes back live
         setTimeout(() => fetchImage(c), 800);
       } catch (err) {
         flash(K.light.failed + (err.data?.detail ? ` (${err.data.detail})` : ""));
@@ -225,7 +216,7 @@ export default {
     };
     const onKey = (ev) => { if (ev.key === "Escape" && view.value === "window") back(); };
     const onVisible = () => {
-      if (!document.hidden) (list.value || []).forEach((c) => { fetchImage(c); readStatus(c); });
+      if (!document.hidden) (list.value || []).forEach(fetchImage);
     };
 
     // The page shows before the slicers are read; an address from a printer profile comes with
@@ -249,7 +240,7 @@ export default {
 
     return {
       T, K, U1, ui, isU1Printer, EVERY, list, loadError, stateOf, status, setEvery, view, big, overlay, idle, stir, showBig, back, go, hashOf,
-      running, percent, jobClass, printFacts, lightBusy, setLight,
+      running, percent, jobClass, printFacts, lightBusy, setLight, printOf,
     };
   },
 
@@ -274,10 +265,10 @@ export default {
           <div class="cam-frame">
             <img v-if="stateOf(c.id).url" :src="stateOf(c.id).url" :alt="K.alt(c.printer)" :title="K.views.window" @click="showBig(c, 'window')">
             <div v-else class="cam-empty"><ui-icon name="camera" :size="40"/><span>{{ K.waking }}</span></div>
-            <span v-if="stateOf(c.id).print?.light === false" class="cam-light"><ui-icon name="bulb" :size="16"/>{{ K.lightOff }}
+            <span v-if="printOf(c)?.light === false" class="cam-light"><ui-icon name="bulb" :size="16"/>{{ K.lightOff }}
               <button class="cam-light-btn" type="button" :disabled="lightBusy[c.id]" @click.stop="setLight(c, true)">{{ K.light.turnOn }}</button></span>
           </div>
-          <print-status v-if="stateOf(c.id).print?.state" :p="stateOf(c.id).print"/>
+          <print-status v-if="printOf(c)?.state" :p="printOf(c)"/>
           <div class="cam-foot">
             <label class="cam-every">{{ K.every }}
               <select class="input" :value="stateOf(c.id).every" @change="setEvery(c, Number($event.target.value))">
@@ -286,8 +277,8 @@ export default {
             </label>
             <span v-if="stateOf(c.id).wakeOk === false" class="cam-wake" :title="stateOf(c.id).wakeDetail">{{ K.wakeFailed }}</span>
             <span v-if="stateOf(c.id).errorDetail" class="cam-detail" :title="stateOf(c.id).errorDetail">{{ stateOf(c.id).errorDetail }}</span>
-            <button v-if="stateOf(c.id).print && stateOf(c.id).print.light != null" class="btn" type="button" :disabled="lightBusy[c.id]"
-                    @click="setLight(c, !stateOf(c.id).print.light)"><ui-icon name="bulb"/>{{ stateOf(c.id).print.light ? K.light.off : K.light.on }}</button>
+            <button v-if="printOf(c) && printOf(c).light != null" class="btn" type="button" :disabled="lightBusy[c.id]"
+                    @click="setLight(c, !printOf(c).light)"><ui-icon name="bulb"/>{{ printOf(c).light ? K.light.off : K.light.on }}</button>
             <span class="cam-views right">
               <button class="btn" type="button" @click="showBig(c, 'window')"><ui-icon name="window"/>{{ K.views.window }}</button>
               <button class="btn" type="button" @click="showBig(c, 'screen')"><ui-icon name="fullscreen"/>{{ K.views.screen }}</button>
@@ -300,13 +291,13 @@ export default {
            role="dialog" :aria-label="K.alt(big.printer)" @mousemove="stir" @click="stir">
         <img v-if="stateOf(big.id).url" :src="stateOf(big.id).url" :alt="K.alt(big.printer)">
         <div v-else class="cam-empty"><ui-icon name="camera" :size="56"/><span>{{ K.waking }}</span></div>
-        <span v-if="stateOf(big.id).print?.light === false" class="cam-light"><ui-icon name="bulb" :size="16"/>{{ K.lightOff }}
+        <span v-if="printOf(big)?.light === false" class="cam-light"><ui-icon name="bulb" :size="16"/>{{ K.lightOff }}
           <button class="cam-light-btn" type="button" :disabled="lightBusy[big.id]" @click.stop="setLight(big, true)">{{ K.light.turnOn }}</button></span>
-        <div v-if="stateOf(big.id).print?.state && stateOf(big.id).print.state !== 'standby'" class="cam-overlay-print">
-          <span :class="['cam-status', 'is-' + jobClass(stateOf(big.id).print)]"><span class="cam-dot"></span>{{ U1.states[stateOf(big.id).print.state] || stateOf(big.id).print.state }}</span>
-          <span>{{ printFacts(stateOf(big.id).print) }}</span>
+        <div v-if="printOf(big)?.state && printOf(big).state !== 'standby'" class="cam-overlay-print">
+          <span :class="['cam-status', 'is-' + jobClass(printOf(big))]"><span class="cam-dot"></span>{{ U1.states[printOf(big).state] || printOf(big).state }}</span>
+          <span>{{ printFacts(printOf(big)) }}</span>
         </div>
-        <div v-if="running(stateOf(big.id).print)" class="cam-overlay-progress"><span :style="{ width: percent(stateOf(big.id).print) + '%' }"></span></div>
+        <div v-if="running(printOf(big))" class="cam-overlay-progress"><span :style="{ width: percent(printOf(big)) + '%' }"></span></div>
         <div class="cam-overlay-bar">
           <strong>{{ big.printer }}</strong>
           <span :class="['cam-status', 'is-' + status(big).cls]"><span class="cam-dot"></span>{{ status(big).text }}</span>

@@ -16,10 +16,10 @@ import {
 import { T } from "../texts.js";
 import { api } from "../api.js";
 import { PrintStatus } from "./kamera.js";
+import { watchPrinters, live as printerLive } from "../live.js";
 
-const { ref, reactive, computed, nextTick, onMounted, onUnmounted } = Vue;
+const { ref, reactive, computed, nextTick, onMounted } = Vue;
 const P = T.printers, M = T.machines;
-const EVERY = 10000;  // ms between two looks at the printers while the page is visible
 
 export default {
   name: "DruckerPage",
@@ -106,12 +106,13 @@ export default {
     }
 
     // ------------------------------------------------------------ what the printer says (camera.info, status)
-    const machine = reactive({});  // printer's name -> { info, state, error, asking }
-    let timer = 0;
-    async function readState(model) {
-      try {
-        machine[model] = { ...machine[model], state: await api.printerState(model) };
-      } catch { /* the info says whether it answers */ }
+    // The firmware and the like once (camera.info); state, job and heads live over Moonraker's
+    // WebSocket (live.js), as camera.status gives them: the monitor's job with the heads.
+    const machine = reactive({});  // printer's name -> { info, error, asking }
+    watchPrinters(() => machines.value.map((m) => m.key));
+    function stateOf(key) {
+      const m = printerLive[key]?.data?.monitor;
+      return m ? { ...m.job, heads: m.heads } : null;
     }
     async function readMachine(model) {
       machine[model] = { ...machine[model], asking: true };
@@ -120,24 +121,14 @@ export default {
       } catch (err) {
         machine[model] = { ...machine[model], info: null, error: err.code || "unknown", asking: false };
       }
-      readState(model);
     }
-    const look = () => {
-      if (document.visibilityState === "visible") for (const m of machines.value) readState(m.key);
-    };
     onMounted(async () => {
       await loadHosts();
       for (const m of machines.value) readMachine(m.key);
-      timer = setInterval(look, EVERY);
       // From "Übersicht" ("Mit dem Drucker verbinden"): the form for that printer at once.
       const asked = ui.addressFor;
       ui.addressFor = null;
       if (others.value.some((o) => o.model === asked)) edit(asked);
-    });
-    document.addEventListener("visibilitychange", look);
-    onUnmounted(() => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", look);
     });
 
     const number = (v, digits = 0) => v.toLocaleString(LOCALE, { maximumFractionDigits: digits });
@@ -149,15 +140,17 @@ export default {
     }
     // Before the job: whether it answers at all and Klipper is ready.
     function problemOf(model) {
-      const m = machine[model] || { asking: true };
-      if (m.error) return { cls: "is-err", text: P.live.unreachable };
+      const m = machine[model] || { asking: true }, now = printerLive[model];
+      if (m.error || now?.error === "camera_unreachable") return { cls: "is-err", text: P.live.unreachable };
       if (m.asking && !m.info) return { cls: "is-wait", text: P.live.asking };
-      if (m.info?.state && m.info.state !== "ready") return { cls: "is-err", text: P.live.klipper(m.info.state) };
-      return m.state ? null : { cls: "is-wait", text: P.live.asking };
+      // Klipper's state live, else as the info found it.
+      const klipper = now?.data?.monitor.klipper.state || m.info?.state;
+      if (klipper && klipper !== "ready") return { cls: "is-err", text: P.live.klipper(klipper) };
+      return stateOf(model) ? null : { cls: "is-wait", text: P.live.asking };
     }
     // The heads with nozzle and spool: only where the printer knows its spools (the U1).
     function headsOf(model) {
-      const m = machine[model], heads = m?.state?.heads || [];
+      const m = machine[model], heads = stateOf(model)?.heads || [];
       if (!heads.some((h) => h.spool)) return [];
       return heads.map((h, i) => ({ ...h, nozzle: m.info?.nozzles?.[i] }));
     }
@@ -204,6 +197,7 @@ export default {
       T, P, M, hosts, machines, others, machine, isU1, isActive, choose, openFor, editing, draft, addressError, hostFrom, edit, save, slicersOf,
       models, adding, startAdd, add, modelLabel,
       searching, found, search, take, problemOf, rowsOf, headTitle, networkOf, nozzleText: (d) => nozzleLabel(String(d)), hashOf,
+      stateOf,
     };
   },
 
@@ -231,7 +225,7 @@ export default {
                 <span v-if="!slicersOf(m.model).length" class="tag">{{ M.noSlicer }}</span>
               </p>
               <p v-if="problemOf(m.key)" :class="['cam-status', 'card-state', problemOf(m.key).cls]"><span class="cam-dot"></span>{{ problemOf(m.key).text }}</p>
-              <print-status v-else :p="machine[m.key].state"/>
+              <print-status v-else :p="stateOf(m.key)"/>
               <form v-if="editing === m.key" class="card-host is-editing" @submit.prevent="save(m.key)">
                 <label class="sr-only" :for="'host-' + m.key">{{ P.address.label }}</label>
                 <input :id="'host-' + m.key" v-model="draft" class="input" type="text" autocomplete="off" :placeholder="P.address.hint"
