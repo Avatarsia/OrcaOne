@@ -1,6 +1,6 @@
 # Ideen
 
-Stand 25.09.2026. Ideen des Nutzers; was davon gebaut ist, steht bei der Idee. Was geprüft ist, steht mit Quelle dabei; am U1 nur lesend über Moonraker abgefragt.
+Stand 26.09.2026. Ideen des Nutzers; was davon gebaut ist, steht bei der Idee. Was geprüft ist, steht mit Quelle dabei; am U1 nur lesend über Moonraker abgefragt.
 
 ## 1. Druck in 3D
 
@@ -158,3 +158,53 @@ Frage des Nutzers (25.09.2026): Das Mitzeichnen in 3D und 2D ist träge; sollte 
 **Was ginge:** OrcaOne hält je Drucker eine WebSocket-Verbindung zu Moonraker, nur solange eine Seite zuschaut, und abonniert, was die Seiten brauchen (Position, `virtual_sdcard.file_position`, Temperaturen, Lüfter, Schicht, Objekte). Der Browser bekommt die Änderungen über einen WebSocket von OrcaOne, wie bei „SSH“ mit Prüfung von Host und Origin; nicht direkt zum Drucker, die Seiten sprechen nur mit OrcaOne. Leiste, Status, Druck steuern, 3D, 2D und Kamera lesen aus einem Strom statt aus eigenen Takten; ohne WebSocket wie heute. Die Düse in 3D und 2D wandert dann viermal pro Sekunde, dazwischen ließe sie sich glätten. Aufwand mittel, `websockets` ist schon eine Abhängigkeit.
 
 **Umgesetzt (25.09.2026, „leg los“ des Nutzers):** `orcaone/live.py` hält je beobachtetem Drucker eine Verbindung mit einem Abo für alle Seiten und schiebt die Werte, wie `monitor.shape` und `control.shape` sie formen, höchstens alle 0,25 s über `GET /api/live` an den Browser (`static/live.js`, ein WebSocket je Tab, zu, solange der Tab versteckt ist). Status, Druck steuern, 3D, 2D, Leiste oben, Kamera, Kalibrieren und die Druckerkarten fragen nicht mehr im Takt; die Konsole liest Moonrakers Verlauf, sobald Klipper antwortet. Gemessen am U1 im Leerlauf: 17 Nachrichten in 8 s (Temperaturen, Rechner), die erste 4,4 KB. Offen: der Takt an einem echten Druck.
+
+## 8. SSH-Schlüssel dauerhaft auf dem U1 (`/oem/.debug`)
+
+Frage des Nutzers (26.09.2026): Kriegen wir das mit `/oem/.debug` geklärt? Entscheidung: erst so lassen, später genauer prüfen.
+
+**Was feststeht (FINDINGS „Netzwerk des U1 und SSH-Schlüssel“):**
+- `/etc/init.d/S01aoverlayfs` leert bei jedem Start `/oem/overlay`, das beschreibbare Overlay über `/`, außer es gibt `/oem/.debug`. Ohne die Datei sind nach einem Neustart Schlüssel, geändertes Passwort und der Host-Schlüssel von Dropbear weg.
+- OrcaOne braucht die Datei nicht: Das Passwort ist nach jedem Start wieder `snapmaker`, damit meldet sich OrcaOne an, solange Root Access an ist. Der Schlüssel ist Bequemlichkeit, etwa fürs eigene Terminal.
+- Mit der Datei bleibt alles im Overlay, auch jeder Fehler; ein Neustart repariert dann nichts mehr. Jedes Firmware-Update löscht sie. Die „Data Persistence“ der Extended Firmware ist genau dieses `touch /oem/.debug`, mit Rettung per USB-Stick (`full-recover.txt`); die Originalfirmware hat keine.
+- OrcaOne legt die Datei nie an (CLAUDE.md).
+
+**Noch zu prüfen:**
+- Ob die Originalfirmware mit `/oem/.debug` noch mehr einschaltet; der Name klingt nach Debug-Modus. Nur lesend auf der Seite „SSH“: `grep -rInF /oem/.debug /etc /usr /opt 2>/dev/null | head -40`.
+- Wie man einen U1 zurückholt, dessen Overlay mit der Datei kaputt ist, ohne Extended Firmware: ob ein Firmware-Update per USB-Stick die Datei auch dann löscht, wenn der Drucker nicht mehr sauber startet.
+
+**Was dann ginge:** ein Schalter „Schlüssel dauerhaft“ im Reiter „SSH-Schlüssel“ der Seite „Netzwerk“, mit deutlicher Warnung, nur auf Klick (`touch` bzw. `rm /oem/.debug`, danach Neustart). Erst bauen, wenn die Prüfung zeigt, dass die Datei nichts anderes einschaltet, und der Nutzer es will.
+
+## 9. Firmware-Update des U1 aus OrcaOne
+
+Wunsch des Nutzers (26.09.2026): „Datei lokal auswählen, Update klicken, fertig“, am liebsten eine Firmware wählen, Original oder Extended Firmware von paxx, „install“ klicken. Recherchiert von einem Agenten, am Drucker noch nichts geprüft.
+
+**Was feststeht (mit Quellen):**
+- **Offiziell** zwei Wege ([Snapmaker-Wiki](https://wiki.snapmaker.com/en/snapmaker_u1/firmware_update_procedure)): am Display über WLAN (Settings → About → Firmware Version, nur mit Snapmaker-Cloud, nicht im LAN-Modus) oder „Local Update“ von einem FAT32-Stick. Die Dateien verlinken die [Release Notes](https://wiki.snapmaker.com/en/snapmaker_u1/firmware/release_notes), etwa `U1_2.0.0.205_20260914173503_upgrade.bin` (V2.0.0 vom 15.09.2026); der U1 des Nutzers hat 1.6.0. Keine Prüfsumme, keine Signatur veröffentlicht.
+- **Die Datei:** Magic „SNMK“, bis zu vier Teile (`update.img` für den SoC, Firmware der Mikrocontroller at32f403a und at32f415, `MCU_DESC`), geschützt nur durch Summen und MD5, keine kryptografische Signatur (Extended Firmware, `tools/upfile/upfile.c`, GPL-3.0, nicht übernehmen).
+- **Über Moonraker geht es nicht:** Snapmakers Moonraker hat keinen Endpunkt dafür, nur den `update_manager` für Git-, Zip- und apt-Pakete (Snapmaker/u1-moonraker). Snapmaker Orca kann beim U1 kein Firmware-Update (`MoonRaker.cpp` fragt nur die Version ab; der Update-Code in `DeviceManager.cpp` ist Bambus Weg).
+- **Über SSH als root schon:** Die Extended Firmware legt die Datei nach `/userdata/web_upgrade.bin` und ruft `/home/lava/bin/systemUpgrade.sh upgrade all <datei>` auf; fertig bei „upgrade soc finish, prepare to reboot“ (`overlays/firmware-extended/02-firmware-config/.../30_upgrade.yaml`). Das Skript gehört zur Originalfirmware. Der U1 hat zwei Systemslots A/B.
+- **Extended Firmware** installiert man wie die Originalfirmware per „Local Update“; zurück ebenso mit der offiziellen `.bin`. Rettung (`full-recover.txt`) nur in der Extended Firmware.
+- **Nach einem Update** laut Release Notes V2.0.0: Düsenkonfiguration aktualisieren, Kopfversatz kalibrieren, Bett neu vermessen. Ein Update löscht `/oem/.debug` (Idee 8).
+
+**Was ginge:** auf „Dateien“ oder einer eigenen Seite, nur vom Rechner selbst (harte Regel 8), mit Root Access: Datei wählen (Name `U1_*_upgrade.bin`, Größe prüfen), prüfen, dass kein Druck läuft und `/userdata` Platz hat, per SFTP kopieren, nach Rückfrage `systemUpgrade.sh upgrade all` starten, die Ausgabe zeigen, warten, bis Moonraker wieder antwortet, dann die Version aus `/machine/system_info` vergleichen. Original oder Extended Firmware zur Wahl hieße: die Datei von Snapmaker bzw. aus den Releases der Extended Firmware laden, rund 300 MB, oder nur verlinken.
+
+**Vorher am U1 nur lesend prüfen** (Seite „SSH“): `cat /home/lava/bin/systemUpgrade.sh` (Parameter, ob es einen Druck abfängt, welcher Slot, welche Ausgaben), `cat /proc/cmdline` (aktiver Slot), `df -h /userdata`, `ls -l $(which updateEngine)`.
+
+**Offen:** was ein Stromausfall mitten im Update anrichtet; ob ältere Versionen abgelehnt werden; ob Root Access das Update überlebt; ob ein Update während eines Drucks gesperrt ist.
+
+## 10. Fehler verstehen: eine Seite für Snapmakers Codes und Klippers Meldungen
+
+Wunsch des Nutzers (26.09.2026): eine Seite, die einen Fehler zeigt, was er bedeutet und wie man ihn behebt; Snapmakers Codes wie `0003-0522-0000-0018` sind „tricky“, Klippers Meldungen „manchmal verwirrend“. Recherchiert von einem Agenten (u1-klipper `10f2f69`, u1-moonraker `a308cfa`, Klipper `ce7002b`, SnOrca 2.4.0), am U1 noch nichts geprüft.
+
+**Die Codes des U1:** Stufe-Modul-Index-Code, je vier Dezimalstellen (`coded_exception.py`). Stufe 0001 Hinweis, 0002 Warnung mit Pause, 0003 Fehler mit Abbruch. Module 522 Bewegung/System, 523 Druckkopf, 524 Kamera, 525 Zuführung, 526 Heizbett, 527 Bauraum, 528 Referenzfahrt, 529 G-Code, 530 Kalibrieren, 531 Druckdatei, 532 Fehlererkennung, 533 Luftreiniger, 2052 System (`exception_manager.py`). Der Index ist meist Kopf oder Platine (0 host, 1 mcu, 2 bis 5 die Köpfe). Beispiel: `0003-0522-0000-0018` ist „Shutdown due to webhooks request“, also ein Notstopp über Moonraker, wie OrcaOnes Knopf ihn schickt; `-0019` ist M112 (`klippy.py:555-560`). Weitere: `-0006` Platine beim Start nicht erreichbar, `-0016` Timer too close, `-0002` jeder andere Shutdown; ADC out of range je nach Fühler `0003-0523-<Kopf>-0002` (Düse), `0003-0526-0000-0000` (Bett).
+
+**Wie der U1 sie meldet (über Moonraker):** Objekt `exception_manager` mit `{"exceptions": [{id, index, code, level, message}]}`; WebSocket-Meldungen `notify_exception_notification` und `notify_exception_status`; `server.exception.query` nur über den WebSocket; `print_stats.exception` beim Druck; beim Shutdown beginnt `webhooks.state_message` mit `{"coded": "0003-…", "oneshot": 0, "msg": …}`. Woher das Display seine Codes nimmt, ist offen.
+
+**Texte:** Snapmakers Wiki ([Fehlercodes](https://wiki.snapmaker.com/en/snapmaker_u1/troubleshooting/u1_error_codes), 393 Codes, nur Englisch und Chinesisch) und das Flutter-Gerätepanel von Snapmaker Orca im Datenordner (`web/flutter_web/assets/assets/i10n/en.json`, 442 Codes als `error_<16 Ziffern>_title`/`_desc`). Beide nicht immer treffend (`0003-0531-0000-0010`). Lizenz: Die Wiki ist „All Rights Reserved“, Snapmakers Nutzungsbedingungen verbieten Kopieren und Crawlen: nicht mitliefern, nur verlinken; höchstens zur Laufzeit die `en.json` des Nutzers lesen (Grauzone). Für Klipper eigene Kurztexte mit Link auf klipper3d.org schreiben, nichts wörtlich übernehmen (GPL-3.0).
+
+**Klippers Meldungen:** `webhooks.state`/`state_message`, `print_stats.state == "error"` mit `message`, `!!`-Zeilen der G-Code-Antworten, klippy.log. Häufige, mit eigener Erklärung: Timer too close (Rechner überlastet), ADC out of range (Fühler, Kabel, min/max_temp), Move out of range, Must home axis first, Heater not heating at expected rate (Heizung, Fühler, PID), Lost communication with MCU (USB, Kabel, Netzteil), Unable to connect, TMC reports error (ot, Kurzschluss, Unterspannung), Probe triggered prior to movement, Endstop still triggered, Notstopp (FIRMWARE_RESTART), Extrude below minimum temp.
+
+**Was ginge:** `exception_manager` mit abonnieren (`monitor.py`), die zwei Meldungen und `server.exception.query` auswerten, den `{"coded": …}`-Anfang von `state_message` erkennen; eine eigene Tabelle mit Mustern für Klippers Meldungen, Texte in `de.js` und `en.js`; zu Snapmaker-Codes Code, Modul, Stufe, die Meldung des Druckers, eigene Texte für die wichtigsten und der Link zur Wiki. Anzeigen im Streifen über den Seiten (schon da für Klipper abgeschaltet) mit Link auf eine Seite „Fehler“, die auch den Verlauf aus klippy.log („Raising exception“) zeigt.
+
+**Vorher am U1 nur lesend prüfen:** `exception_manager` in `printer.objects.list` und was es liefert; `print_stats.exception` im Leerlauf; Antwort von `server.exception.query`; ob `state_message` beim nächsten echten Shutdown mit `{"coded"` beginnt (oder in klippy.log „Transition to shutdown state“); Zeilen „Raising exception“ in klippy.log. Nichts auslösen: kein `RAISE_EXCEPTION`, `CLEAR_EXCEPTION`, `server.exception.raise`/`clear`, und den Notstopp nicht zum Testen.

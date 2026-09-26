@@ -106,7 +106,7 @@ Schreibweise: **SnOrca** = Snapmaker Orca 2.4.0, **Orca** = OrcaSlicer. Wo Orca-
 | `user_backup-v<Version>/` | Einmalige Kopie von `user/` je Programmversion, wird nie aktualisiert oder zurückgespielt. `PresetBundle::backup_user_folder` läuft bei jedem Start (`GUI_App.cpp`) und kopiert nur, wenn es den Ordner für die laufende Version noch nicht gibt; in SnOrca und Orca main gleich. OrcaOne importiert daraus (Seite „Import/Export“) | nein (Slicer-eigen) |
 | `user/Temp/` | Flüchtige Vollkopien aller sichtbaren Drucker, solange der Export-Dialog offen ist | nein |
 | `user/<ordner>/temp/` | Rest eines abgebrochenen Imports. SnOrca nutzt immer `user/default/temp` | nein |
-| `hms/`, `ota/`, `web/`, `log_upload_spool/` | SnOrca: Gerätemeldungen, Hot-Updates, Flutter-Gerätepanel, Telemetrie-Warteschlange | nein |
+| `hms/`, `ota/`, `web/`, `log_upload_spool/` | SnOrca: Meldungstexte für Bambu-Drucker (geerbt, von `e.bambulab.com`, nicht für den U1; `HMS.cpp`, `AppConfig::get_hms_host`, geprüft 26.09.2026), Hot-Updates, Flutter-Gerätepanel (darin die Texte der U1-Fehlercodes, IDEEN 10), Telemetrie-Warteschlange | nein |
 | `.snapmaker_orca_machine_id` (Orca: `.orcaslicer_machine_id`) | Zufällige UUID für Telemetrie und Update-Check | ja, nie übertragen, nie anzeigen |
 | `printers/`, `plugins/`, `orca_plugins/`, `models/`, `cameratools/`, `SVG/`, `vendor/` | je nach Version und Nutzung | nein |
 | `<Key>.conf.<pid>` | Temporäre Datei beim Speichern | Zeichen für laufenden Schreibvorgang |
