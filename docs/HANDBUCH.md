@@ -37,7 +37,7 @@ Beim Start öffnet OrcaOne die Seite im Standardbrowser, und zwar möglichst wie
 
 OrcaOne hat ein eigenes Symbol und ein Web-App-Manifest und lässt sich damit im Browser als App installieren.
 
-Beim Laden der Seite zeigt OrcaOne einen Startbildschirm mit Symbol, „by Dr. Klipper“ und der Lizenz, mindestens 3 Sekunden und so lange, bis die Installationen eingelesen sind. „by Dr. Klipper“ steht auch unten im Menü und führt zur Seite „Lizenz“: Kurzfassung, Fremddateien und der vollständige Lizenztext, jeder Abschnitt zum Aufklappen; auf Deutsch die Übersetzung und darunter das englische Original.
+Beim Laden der Seite zeigt OrcaOne einen Startbildschirm mit Symbol, „by Dr. Klipper“, der Version, der Lizenz und „Nutzung auf eigene Gefahr“, mindestens 3 Sekunden und so lange, bis die Installationen eingelesen sind. Nach dem ersten Start fragt ein Dialog einmal nach der Bestätigung „Nutzung auf eigene Gefahr“: OrcaOne schreibt in die Konfiguration der Slicer und schickt auf Klick Befehle an Drucker, der Autor übernimmt keine Haftung. Bis dahin ist der Rest gesperrt; die Bestätigung steht mit Datum in `data/settings.json`. „by Dr. Klipper“ steht auch unten im Menü und führt zur Seite „Lizenz“: Kurzfassung, Fremddateien und der vollständige Lizenztext, jeder Abschnitt zum Aufklappen; auf Deutsch die Übersetzung und darunter das englische Original.
 
 Per Symbol starten, als App installieren und OrcaOne selbst zu einem Programm bauen, das ohne Python läuft (Windows, Linux, macOS): [docs/STARTEN-UND-BAUEN.md](STARTEN-UND-BAUEN.md).
 
@@ -45,7 +45,7 @@ Per Symbol starten, als App installieren und OrcaOne selbst zu einem Programm ba
 
 Alles, was OrcaOne selbst ablegt, liegt im Ordner `data/` im OrcaOne-Ordner:
 
-- `settings.json`: alle Einstellungen, also von Hand hinzugefügte Datenordner, die IP-Adressen der Drucker samt Bildtakt der Kamera, die Bibliotheksfilamente, die OrcaOne in Snapmaker Orca freigeschaltet hat, die Sprache und die Häkchen der Seite „Kalibrieren“;
+- `settings.json`: alle Einstellungen, also von Hand hinzugefügte Datenordner, die IP-Adressen der Drucker samt Bildtakt der Kamera, die Bibliotheksfilamente, die OrcaOne in Snapmaker Orca freigeschaltet hat, die Sprache, die Häkchen der Seite „Kalibrieren“ und wann mit welcher Version „Nutzung auf eigene Gefahr“ bestätigt wurde (`risk_accepted`);
 - `backups/<id>/`: die Sicherungen, nur für den Nutzer lesbar;
 - `snapshots/<id>.json`: je Installation der Stand, mit dem die Seite „Änderungen“ vergleicht. Zugangsdaten stehen darin nur als Prüfsumme.
 

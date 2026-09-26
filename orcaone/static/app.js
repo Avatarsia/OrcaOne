@@ -427,6 +427,26 @@ const app = createApp({
       hideSplash(Math.max(SPLASH_MS - (performance.now() - splashFrom), SPLASH_HOLD_MS));
     });
     // The last six steps; the list only grows, so the position is the key.
+    // "Use at your own risk", once after the first start, until confirmed (the user's wish of
+    // 26.09.2026); the server keeps it in data/settings.json with the time and the version. Over
+    // everything, the rest inert meanwhile.
+    const riskOpen = ref(!SETTINGS.risk_accepted);
+    const riskShown = computed(() => riskOpen.value && !splash.shown);
+    const riskBusy = ref(false);
+    const riskBtn = ref(null);
+    watch(riskShown, (shown) => shown && nextTick(() => riskBtn.value?.focus()));
+    async function acceptRisk() {
+      riskBusy.value = true;
+      try {
+        SETTINGS.risk_accepted = (await api.acceptRisk()).risk_accepted;
+        riskOpen.value = false;
+      } catch (err) {
+        flash(T.errors[err.code] || T.errors.unknown);
+      } finally {
+        riskBusy.value = false;
+      }
+    }
+    const appVersion = SETTINGS.version;
     const splashSteps = computed(() => {
       const from = Math.max(0, splash.steps.length - 6);
       return splash.steps.slice(from).map((s, i) => ({ ...s, key: from + i }));
@@ -759,6 +779,7 @@ const app = createApp({
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
+      riskShown, riskBusy, riskBtn, acceptRisk, appVersion,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
       thumbOf, fileThumb, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, api,
       klipper, klipperDown,
@@ -766,7 +787,7 @@ const app = createApp({
   },
 
   template: `
-    <header class="topbar">
+    <header class="topbar" :inert="riskShown || null">
       <button ref="navBtn" class="bar-btn nav-toggle" type="button" aria-controls="main-nav" :aria-expanded="navShown ? 'true' : 'false'"
               :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
       <a class="brand" :href="hashOf(AREA_START[area], ui.instId)" @click="go($event, hashOf(AREA_START[area], ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
@@ -875,7 +896,7 @@ const app = createApp({
       </button>
     </header>
 
-    <div :class="['shell', { 'nav-collapsed': !narrow && navCollapsed, 'nav-open': narrow && navOpen }]">
+    <div :class="['shell', { 'nav-collapsed': !narrow && navCollapsed, 'nav-open': narrow && navOpen }]" :inert="riskShown || null">
       <nav id="main-nav" class="nav" :aria-label="T.nav.label">
         <!-- The two parts (the user's wish of 25.09.2026), once a printer has an address -->
         <div v-if="showSwitch" class="area-switch" role="group" :aria-label="T.nav.areas.label">
@@ -1009,6 +1030,7 @@ const app = createApp({
         <img class="splash-logo" src="assets/app-icon.svg" alt="" width="112" height="112">
         <p class="splash-name">{{ T.appName }}</p>
         <p class="splash-by">{{ T.by }}</p>
+        <p v-if="appVersion" class="splash-version">{{ T.splash.version(appVersion) }}</p>
         <span :class="['splash-bar', { 'is-known': splash.total }]" aria-hidden="true"><span class="splash-fill" :style="{ width: splashPct + '%' }"></span></span>
         <ul class="splash-steps" aria-hidden="true">
           <li v-for="s in splashSteps" :key="s.key" :class="{ 'is-running': !s.done, 'is-failed': s.failed }">
@@ -1020,7 +1042,16 @@ const app = createApp({
           <li v-if="!splash.steps.length" class="is-running"><span class="splash-spin"></span><span class="splash-step-text">{{ T.loading }}</span></li>
         </ul>
       </div>
-      <p class="splash-license">{{ T.splash.license }}<span class="splash-dot" aria-hidden="true"> · </span><strong>{{ T.splash.noncommercial }}</strong></p>
+      <p class="splash-license">{{ T.splash.license }}<span class="splash-dot" aria-hidden="true"> · </span><strong>{{ T.splash.noncommercial }}</strong>
+        <span class="splash-dot" aria-hidden="true"> · </span><strong>{{ T.splash.risk }}</strong></p>
+    </div>
+    <!-- Use at your own risk: once, confirmed, kept with its date (the user's wish of 26.09.2026) -->
+    <div v-if="riskShown" class="risk-backdrop">
+      <section class="risk-box" role="alertdialog" aria-modal="true" aria-labelledby="risk-h" aria-describedby="risk-text">
+        <h2 id="risk-h"><ui-icon name="warn" :size="22"/>{{ T.risk.title }}</h2>
+        <ul id="risk-text"><li v-for="t in T.risk.points" :key="t">{{ t }}</li></ul>
+        <button ref="riskBtn" class="btn btn-primary" type="button" :disabled="riskBusy" @click="acceptRisk">{{ T.risk.accept }}</button>
+      </section>
     </div>
   `,
 });

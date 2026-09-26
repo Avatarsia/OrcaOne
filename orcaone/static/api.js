@@ -70,6 +70,8 @@ export const api = {
   setChosenPrinter: (area, name) => request("POST", "/api/settings", { chosen_printer: { [area]: name } }),
   // Where the camera of "3D Ansicht" was left: the page opens with it again.
   setView3d: (view) => request("POST", "/api/settings", { view3d: view }),
+  // "Use at your own risk" confirmed: the server keeps it with the time and the version
+  acceptRisk: () => request("POST", "/api/settings", { accept_risk: true }),
   addManual: (path) => request("POST", "/api/instances/manual", { path }),
   removeManual: (path) => request("DELETE", `/api/instances/manual?path=${encodeURIComponent(path)}`),
   // Writing takes two steps (hard rule 5): the plan shows what would happen, only its id goes to

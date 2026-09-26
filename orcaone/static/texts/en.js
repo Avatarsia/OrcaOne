@@ -81,9 +81,22 @@ const T = {
       ssh_unreachable: "The printer allows no SSH. On the U1 switch on Root Access at the touchscreen, then the restart works from here.",
     },
   },
+  // Once after the first start, to confirm (app.js; the user's wish of 26.09.2026, kept in data/settings.json with its date)
+  risk: {
+    title: "Use at your own risk",
+    points: [
+      "OrcaOne writes into your slicers' configuration: the profiles in the folder user and the file Snapmaker_Orca.conf or OrcaSlicer.conf. It makes a backup before every change, but that is no guarantee.",
+      "On your click it sends commands to printers: start and cancel prints, emergency stop, restarts, deleting files.",
+      "The author accepts no liability for any damage to data, slicers, printers or prints, as far as the law allows. OrcaOne comes as is, without warranty (license, section “No Liability”).",
+      "OrcaOne is still being developed, mistakes are possible. An independent project, not affiliated with Snapmaker or OrcaSlicer.",
+    ],
+    accept: "I understand and use OrcaOne at my own risk",
+  },
   splash: {
     license: "License: PolyForm Noncommercial 1.0.0",
     noncommercial: "No commercial use",
+    risk: "Use at your own risk",
+    version: (v) => `Version ${v}`,
     steps: {
       processes: (s) => (!s.done ? "Checking for running slicers …"
         : s.running?.length ? `Running now: ${s.running.join(", ")}` : "No slicer running"),

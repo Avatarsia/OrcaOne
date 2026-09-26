@@ -7,6 +7,7 @@ import mimetypes
 import re
 import socket
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -231,13 +232,22 @@ def _view3d(value) -> dict | None:
             if isinstance(value, dict) and point(value.get("position")) and point(value.get("target")) else None)
 
 
+def _risk(value):
+    """The confirmation "use at your own risk" (the user's wish of 26.09.2026): when, and with which
+    version of OrcaOne; None while there is none."""
+    if isinstance(value, dict) and all(isinstance(value.get(k), str) and 0 < len(value[k]) <= 40 for k in ("at", "version")):
+        return {"at": value["at"], "version": value["version"]}
+    return None
+
+
 @app.get("/api/settings")
 def get_settings():
     stored = settings.load()
     language, theme, area = stored.get("language"), stored.get("theme"), stored.get("area")
     return {"language": language if language in LANGUAGES else None, "menu_collapsed": stored.get("menu_collapsed") is True,
             "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None,
-            "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d"))}
+            "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d")),
+            "version": __version__, "risk_accepted": _risk(stored.get("risk_accepted"))}
 
 
 @app.get("/api/progress")
@@ -252,10 +262,12 @@ def set_settings(payload: dict = Body(...)):
     "area" ("slicer", "printer": the part of OrcaOne used last, where the next start begins),
     "chosen_printer" ({"slicer": model} or {"printer": name}: the printer chosen last in that part, which
     the next start takes again; the user's wish of 25.09.2026), "view3d" (the camera of "3D Ansicht",
-    which it takes again instead of the standard view; the user's wish of 25.09.2026)."""
+    which it takes again instead of the standard view; the user's wish of 25.09.2026), "accept_risk"
+    (true: the user confirmed "use at your own risk", kept with the time and the version)."""
     changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area") if key in payload}
-    chosen, view = payload.get("chosen_printer"), payload.get("view3d")
-    if ((not changed and chosen is None and view is None) or ("language" in changed and changed["language"] not in LANGUAGES)
+    chosen, view, accept = payload.get("chosen_printer"), payload.get("view3d"), payload.get("accept_risk")
+    if ((not changed and chosen is None and view is None and accept is None) or ("language" in changed and changed["language"] not in LANGUAGES)
+            or ("accept_risk" in payload and accept is not True)
             or not isinstance(changed.get("menu_collapsed", False), bool)
             or ("theme" in changed and changed["theme"] not in THEMES)
             or ("area" in changed and changed["area"] not in AREAS)
@@ -269,6 +281,8 @@ def set_settings(payload: dict = Body(...)):
             data["chosen_printer"] = {**_chosen(data.get("chosen_printer")), **chosen}
         if view is not None:
             data["view3d"] = view
+        if accept:
+            data["risk_accepted"] = {"at": datetime.now().astimezone().isoformat(timespec="seconds"), "version": __version__}
     try:
         settings.change(edit)
     except OSError:

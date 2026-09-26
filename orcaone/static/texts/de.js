@@ -87,10 +87,23 @@ const T = {
       ssh_unreachable: "Der Drucker lässt kein SSH zu. Beim U1 am Touchscreen Root Access einschalten, dann geht der Neustart von hier.",
     },
   },
+  // Once after the first start, to confirm (app.js; the user's wish of 26.09.2026, kept in data/settings.json with its date)
+  risk: {
+    title: "Nutzung auf eigene Gefahr",
+    points: [
+      "OrcaOne schreibt in die Konfiguration deiner Slicer: die Profile im Ordner user und die Datei Snapmaker_Orca.conf bzw. OrcaSlicer.conf. Vor jeder Änderung legt es eine Sicherung an, eine Garantie ist das nicht.",
+      "Auf deinen Klick schickt es Befehle an Drucker: Druck starten und abbrechen, Notstopp, Neustart, Dateien löschen.",
+      "Der Autor übernimmt keine Haftung für Schäden an Daten, Slicern, Druckern oder Drucken, soweit das gesetzlich zulässig ist. OrcaOne kommt, wie es ist, ohne Gewähr (Lizenz, Abschnitt „No Liability“).",
+      "OrcaOne wird noch entwickelt, Fehler sind möglich. Ein unabhängiges Projekt, nicht verbunden mit Snapmaker oder OrcaSlicer.",
+    ],
+    accept: "Verstanden, ich nutze OrcaOne auf eigene Gefahr",
+  },
   // Boot screen on every page load (app.js)
   splash: {
     license: "Lizenz: PolyForm Noncommercial 1.0.0",
     noncommercial: "Keine kommerzielle Nutzung",
+    risk: "Nutzung auf eigene Gefahr",
+    version: (v) => `Version ${v}`,
     // What the scan does, step by step (overview.build_all, GET /api/progress): while it runs and
     // once it is done; size comes formatted.
     steps: {

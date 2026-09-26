@@ -8,13 +8,14 @@ import sys
 import urllib.parse
 import urllib.request
 from collections import namedtuple
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
 
 from conftest import call, copy_fixture
 from orcaone import app as app_module
-from orcaone import settings
+from orcaone import __version__, settings
 
 
 def test_lists_instances_and_adds_a_manual_path(server, fake_home):
@@ -124,18 +125,38 @@ def test_serves_every_module_the_ui_imports(server):
             "pages/slicer.js", "pages/zusammenhaenge.js", "pages/steuern.js", "pages/hoehenkarte.js"} <= seen
 
 
+NO_RISK = {"version": __version__, "risk_accepted": None}
+
+
+def test_use_at_your_own_risk_is_kept_with_its_date(server, data_dir):
+    """Confirmed once after the first start (the user's wish of 26.09.2026): kept in settings.json with
+    the time and the version of OrcaOne; only a plain true confirms."""
+    assert json.loads(call(f"{server}/api/settings")[1])["risk_accepted"] is None
+    for wrong in ({"accept_risk": False}, {"accept_risk": "yes"}, {"accept_risk": None}, {"accept_risk": 1}):
+        status, body = call(f"{server}/api/settings", "POST", wrong)
+        assert (status, json.loads(body)) == (400, {"error": "setting_invalid"}), wrong
+    status, body = call(f"{server}/api/settings", "POST", {"accept_risk": True})
+    kept = json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["risk_accepted"]
+    assert status == 200 and json.loads(body)["risk_accepted"] == kept and kept["version"] == __version__
+    at = datetime.fromisoformat(kept["at"])
+    assert at.tzinfo is not None and abs((at - datetime.now().astimezone()).total_seconds()) < 60
+    # Changed by hand to something odd: as if never confirmed, so the page asks again.
+    settings.change(lambda data: data.update(risk_accepted={"at": 5}))
+    assert json.loads(call(f"{server}/api/settings")[1])["risk_accepted"] is None
+
+
 def test_language_is_a_setting(server, data_dir):
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None, **NO_RISK}
     status, body = call(f"{server}/api/settings", "POST", {"language": "en"})
-    assert status == 200 and json.loads(body) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
+    assert status == 200 and json.loads(body) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None, **NO_RISK}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "en", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None, **NO_RISK}
     assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["language"] == "en"
     for wrong in ({"language": "fr"}, {"language": None}, {"language": 1}, {"menu_collapsed": "yes"}, {"colour": "red"}, {"area": "profile"}, {}):
         status, body = call(f"{server}/api/settings", "POST", wrong)
         assert status == 400 and json.loads(body) == {"error": "setting_invalid"}
     # Changed by hand to something unknown: the page takes the browser's language.
     settings.change(lambda data: data.update(language="xx"))
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": None, "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None, **NO_RISK}
 
 
 def test_the_design_is_a_setting(server, data_dir):
@@ -194,12 +215,12 @@ def test_the_3d_camera_is_a_setting(server, data_dir):
 def test_the_folded_menu_is_a_setting(server, data_dir):
     """The button in the top bar folds the menu away; the next start keeps it so (app.js)."""
     status, body = call(f"{server}/api/settings", "POST", {"menu_collapsed": True})
-    assert status == 200 and json.loads(body) == {"language": None, "menu_collapsed": True, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
+    assert status == 200 and json.loads(body) == {"language": None, "menu_collapsed": True, "theme": None, "area": None, "chosen_printer": {}, "view3d": None, **NO_RISK}
     assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["menu_collapsed"] is True
     call(f"{server}/api/settings", "POST", {"language": "de"})
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": True, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": True, "theme": None, "area": None, "chosen_printer": {}, "view3d": None, **NO_RISK}
     call(f"{server}/api/settings", "POST", {"menu_collapsed": False})
-    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None}
+    assert json.loads(call(f"{server}/api/settings")[1]) == {"language": "de", "menu_collapsed": False, "theme": None, "area": None, "chosen_printer": {}, "view3d": None, **NO_RISK}
 
 
 def test_no_draft_routes(server):

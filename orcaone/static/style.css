@@ -655,7 +655,16 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .splash-step-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .splash-spin { flex: none; width: 12px; height: 12px; margin: 0 1px; border: 2px solid var(--divider); border-top-color: var(--accent-line); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes splash-step { from { opacity: 0; transform: translateY(4px); } }
+.splash-version { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; animation: splash-in .7s .25s ease-out both; }
 .splash-license { font-size: 12px; color: var(--muted); }
+/* Use at your own risk: once after the first start, over everything until confirmed (app.js) */
+.risk-backdrop { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / .45); }
+.risk-box { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px 24px; border-radius: 10px;
+            background: var(--surface); color: var(--text); box-shadow: 0 20px 60px rgb(0 0 0 / .3); }
+.risk-box h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 20px; }
+.risk-box h2 .icon { color: var(--warn); }
+.risk-box ul { display: grid; gap: 8px; margin: 0 0 18px; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+.risk-box .btn { width: 100%; justify-content: center; }
 .splash-license strong { color: var(--label); font-weight: 600; }
 @keyframes splash-in { from { opacity: 0; transform: translateY(6px) scale(.97); } }
 @keyframes splash-bar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }

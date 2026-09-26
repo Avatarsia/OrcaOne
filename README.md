@@ -10,9 +10,9 @@
 A local web app to manage **OrcaSlicer** and **Snapmaker Orca** profiles, plus live status and control for the **Snapmaker U1** and other **Klipper** printers on your LAN.
 
 > [!WARNING]
-> OrcaOne writes directly into the slicers' data folders. It makes a backup before every change and only writes while the slicer is closed, but use it at your own risk. Version 0.9 is a beta and barely tested on Linux.
+> **Use at your own risk.** OrcaOne writes into your slicers' configuration (the profiles in `user/` and `Snapmaker_Orca.conf` or `OrcaSlicer.conf`) and, on your click, sends commands to printers. It makes a backup before every change and only writes while the slicer is closed, but that is no guarantee. The author accepts no liability for any damage to data, slicers, printers or prints, as far as the law allows; OrcaOne comes as is, without warranty ([license](LICENSE.md), “No Liability”). You confirm this once after the first start.
 >
-> An independent project, not affiliated with Snapmaker or OrcaSlicer.
+> Version 0.9 is a beta and barely tested on Linux. An independent project, not affiliated with Snapmaker or OrcaSlicer.
 
 ### Features
 
@@ -68,9 +68,9 @@ By Dr. Klipper (Dominik Schmidt).
 Eine lokale Web-App für die Profile von **OrcaSlicer** und **Snapmaker Orca**, dazu Status und Steuerung live für den **Snapmaker U1** und andere **Klipper-Drucker** im LAN.
 
 > [!WARNING]
-> OrcaOne schreibt direkt in die Datenordner der Slicer. Es legt vor jeder Änderung eine Sicherung an und schreibt nur bei geschlossenem Slicer, trotzdem gilt: Nutzung auf eigene Gefahr. Version 0.9 ist eine Beta, unter Linux kaum getestet.
+> **Nutzung auf eigene Gefahr.** OrcaOne schreibt in die Konfiguration deiner Slicer (die Profile in `user/` und `Snapmaker_Orca.conf` bzw. `OrcaSlicer.conf`) und schickt auf deinen Klick Befehle an Drucker. Es legt vor jeder Änderung eine Sicherung an und schreibt nur bei geschlossenem Slicer, eine Garantie ist das nicht. Der Autor übernimmt keine Haftung für Schäden an Daten, Slicern, Druckern oder Drucken, soweit das gesetzlich zulässig ist; OrcaOne kommt, wie es ist, ohne Gewähr ([Lizenz](LICENSE.md), „No Liability“). Das bestätigst du einmal nach dem ersten Start.
 >
-> Ein unabhängiges Projekt, nicht verbunden mit Snapmaker oder OrcaSlicer.
+> Version 0.9 ist eine Beta, unter Linux kaum getestet. Ein unabhängiges Projekt, nicht verbunden mit Snapmaker oder OrcaSlicer.
 
 ### Funktionen
 
