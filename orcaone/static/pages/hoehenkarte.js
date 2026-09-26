@@ -12,9 +12,14 @@
 import { go, hashOf, ui, activeName, LOCALE, darkQuery } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
+import { makeAxes, sizeAxes } from "./view-cube.js";
 
 const { ref, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 const H = T.mesh;
+// How much the height is raised in 3D: fitted to the picture, or a fixed step, so two measurements
+// compare, say before and after levelling (the user's wish). Kept while OrcaOne is open.
+const RAISE = ["auto", 100, 200, 500];
+const raise = ref("auto");
 
 export default {
   name: "HoehenkartePage",
@@ -121,7 +126,7 @@ export default {
     const no3d = ref(false);
     const raised = ref(0);
     let THREE = null, renderer = null, scene = null, camera = null, controls = null, surface = null, observer = null, themeWatch = null;
-    let shape = null, marker = null, scale = 1, pending = 0;  // the surface itself for the mouse, the marker on it
+    let shape = null, marker = null, axes = null, scale = 1, pending = 0;  // the surface itself for the mouse, the marker on it
     function cssColour(name) {
       const probe = document.body.appendChild(document.createElement("span"));
       probe.style.color = `var(${name})`;
@@ -185,8 +190,9 @@ export default {
       drop();
       const m = view.value === "smooth" && d.smooth ? d.smooth : d.probed, ny = m.length, nx = m[0].length, [x0, y0] = d.min, [x1, y1] = d.max;
       const w = x1 - x0, h = y1 - y0;
-      scale = round((0.12 * Math.max(w, h)) / f.reach);
-      raised.value = scale;
+      // Fitted: the biggest deviation an eighth of the bed, on a round factor.
+      raised.value = round((0.12 * Math.max(w, h)) / f.reach);
+      scale = raise.value === "auto" ? raised.value : raise.value;
       const low = cssColour("--mesh-low"), high = cssColour("--mesh-high"), zero = cssColour("--mesh-zero");
       const pos = [], col = [], idx = [];
       m.forEach((row, i) => row.forEach((v, j) => {
@@ -225,6 +231,10 @@ export default {
       surface.add(new THREE.Points(dots, new THREE.PointsMaterial({ color: cssColour("--text"), size: 5, sizeAttenuation: false })));
       const frame = new THREE.BufferGeometry().setFromPoints([[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => new THREE.Vector3(x, y, 0)));
       surface.add(new THREE.LineLoop(frame, new THREE.LineBasicMaterial({ color: cssColour("--muted") })));
+      // X, Y, Z at the front left corner as on "3D Ansicht", a little smaller (the user's wish).
+      axes = makeAxes(THREE, Math.max(w, h) / 15);
+      axes.position.set(x0, y0, 0);
+      surface.add(axes);
       // The marker: a ball on the point and a line down to the zero level.
       marker = new THREE.Group();
       marker.add(new THREE.Mesh(new THREE.SphereGeometry(Math.max(w, h) * 0.014, 16, 12), new THREE.MeshBasicMaterial({ color: cssColour("--accent") })));
@@ -264,8 +274,8 @@ export default {
     function drop() {
       if (!surface) return;
       scene.remove(surface);
-      surface.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
-      surface = shape = marker = null;
+      surface.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); });
+      surface = shape = marker = axes = null;
     }
     function resize() {
       if (!renderer || !box3d.value) return;
@@ -276,9 +286,14 @@ export default {
       camera.updateProjectionMatrix();
       render();
     }
-    const render = () => renderer && renderer.render(scene, camera);
+    // The axes 1.5 pixels wide with 12-pixel letters at any distance, a little finer than on "3D Ansicht".
+    const render = () => {
+      if (!renderer) return;
+      if (axes) sizeAxes(THREE, axes, camera, renderer.domElement.clientHeight, 0.75, 12);
+      renderer.render(scene, camera);
+    };
     // Started once the mesh and its box are there, built anew with every new mesh and view.
-    watch([facts, box3d, view], () => {
+    watch([facts, box3d, view, raise], () => {
       if (!facts.value) return;
       if (renderer) build();
       else nextTick(start3d);
@@ -293,7 +308,10 @@ export default {
       renderer?.dispose();
     });
 
-    return { T, H, host, data, failed, reading, view, read, facts, map, num, signed, box3d, no3d, raised, hover, hoverText, activeName, go, hashOf };
+    return {
+      T, H, RAISE, host, data, failed, reading, view, read, facts, map, num, signed, box3d, no3d, raise, raised, hover, hoverText,
+      activeName, go, hashOf,
+    };
   },
 
   template: `
@@ -339,7 +357,14 @@ export default {
               <div :class="['mesh-both', { 'no-3d': no3d }]">
                 <figure v-if="!no3d" class="mesh-3d">
                   <div ref="box3d" class="mesh-3d-box" role="img" :aria-label="H.alt(num(facts.range))"></div>
-                  <figcaption v-if="raised" class="mesh-side">{{ H.raised(raised) }}</figcaption>
+                  <figcaption v-if="raised" class="mesh-side mesh-raise">
+                    <span id="mesh-raise-label">{{ H.raiseLabel }}</span>
+                    <span class="chips" role="group" aria-labelledby="mesh-raise-label">
+                      <button v-for="k in RAISE" :key="k" type="button" class="chip" :aria-pressed="raise === k ? 'true' : 'false'"
+                              :title="k === 'auto' ? H.raiseAutoHint : null" @click="raise = k">{{ k === 'auto' ? H.raiseAuto(raised) : H.raiseTimes(k) }}</button>
+                    </span>
+                    <span class="mesh-raise-hint">{{ H.turnHint }}</span>
+                  </figcaption>
                 </figure>
                 <div class="mesh-2d">
                   <p v-if="no3d" class="note">{{ H.noWebgl }}</p>

@@ -1671,6 +1671,9 @@ span.cal-check { cursor: default; }
 .mesh-point { min-height: 20px; margin-top: 10px; color: var(--label); font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
 .mesh-map text { fill: var(--text); font-variant-numeric: tabular-nums; pointer-events: none; }
 .mesh-side { color: var(--muted); font-size: 12px; }
+/* How much the height is raised in 3D, under it; the hint on its own line */
+.mesh-raise { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 8px; }
+.mesh-raise-hint { flex-basis: 100%; text-align: center; }
 .mesh-legend { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 560px; margin: 10px auto 0; color: var(--label); font-size: 12px; font-variant-numeric: tabular-nums; }
 .mesh-scale { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--mesh-low), var(--mesh-zero), var(--mesh-high)); }
 

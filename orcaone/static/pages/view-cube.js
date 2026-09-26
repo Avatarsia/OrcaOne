@@ -22,6 +22,40 @@ export function axisLetter(THREE, letter, hex) {
   sprite.renderOrder = 10;
   return sprite;
 }
+
+// The axes at a corner of the bed, as in OrcaSlicer: a rod and a letter each, length long. Their
+// thickness and letters stay the same on the screen at any distance (sizeAxes, before every picture).
+export function makeAxes(THREE, length) {
+  const group = new THREE.Group();
+  group.userData = { rods: [], letters: [], length };
+  for (const [letter, dir, hex] of AXES) {
+    const d = new THREE.Vector3(...dir);
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, length, 8).translate(0, length / 2, 0),
+      new THREE.MeshBasicMaterial({ color: hex }));
+    rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+    const label = axisLetter(THREE, letter, hex);
+    label.userData.dir = d;
+    group.add(rod, label);
+    group.userData.rods.push(rod);
+    group.userData.letters.push(label);
+  }
+  return group;
+}
+// Rods of rod screen pixels in radius, letters letter pixels high, a little past the end and, for X
+// and Y, a little above the bed: right at it they looked stuck on (the user). height: the canvas in
+// CSS pixels; the parent of the axes stands at the origin.
+export function sizeAxes(THREE, axes, camera, height, rod = 1, letter = 16) {
+  const pixel = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.distanceTo(axes.position)
+    / Math.max(1, height);
+  const { rods, letters, length } = axes.userData;
+  for (const r of rods) r.scale.set(pixel * rod, 1, pixel * rod);
+  for (const l of letters) {
+    l.scale.setScalar(pixel * letter);
+    l.position.copy(l.userData.dir).multiplyScalar(length + pixel * (letter + 2));
+    if (!l.userData.dir.z) l.position.z = (pixel * letter * 7) / 16;
+  }
+  axes.position.z = pixel;  // on the bed, not in it
+}
 const BEVEL = 0.28;   // edges and corners take this much of every side (of 1)
 const SIZE = 120;     // CSS pixels
 const TURN_MS = 400;

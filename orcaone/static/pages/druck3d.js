@@ -10,7 +10,7 @@
 import { go, hashOf, ui, LOCALE, activeName, fmtSize, saveBlob } from "../common.js";
 import { T } from "../texts.js";
 import { usePrintFile, bedArea, STAGE_STATE, typeColour, toolColour, activeHead, isLight } from "./print-view.js";
-import { makeViewCube, AXES, axisLetter } from "./view-cube.js";
+import { makeViewCube, makeAxes, sizeAxes } from "./view-cube.js";
 
 const { ref, computed, watch, nextTick, onUnmounted } = Vue;
 const V = T.view3d;
@@ -108,19 +108,7 @@ export default {
         if (nozzle?.visible) nozzle.scale.setScalar(Math.max(1, camera.position.distanceTo(nozzle.position) / 250));
         // The axes stay two pixels wide and their letters 16 pixels high at any distance, as in
         // OrcaSlicer (the user: thicker was clumsy).
-        if (axes) {
-          const pixel = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.distanceTo(axes.position)
-            / Math.max(1, renderer.domElement.clientHeight);
-          const { rods, letters, length } = axes.userData;
-          for (const rod of rods) rod.scale.set(pixel, 1, pixel);
-          // Letters a little past the end, X and Y a little above the bed: right at it they looked stuck on (the user).
-          for (const letter of letters) {
-            letter.scale.setScalar(pixel * 16);
-            letter.position.copy(letter.userData.dir).multiplyScalar(length + pixel * 18);
-            if (!letter.userData.dir.z) letter.position.z = pixel * 7;
-          }
-          axes.position.z = pixel;  // on the bed, not in it
-        }
+        if (axes) sizeAxes(THREE, axes, camera, renderer.domElement.clientHeight);
         renderer.render(scene, camera);
         cube?.draw();
       });
@@ -211,28 +199,11 @@ export default {
         g.setAttribute("position", new THREE.Float32BufferAttribute(list, 3));
         bed.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: cssColour(name) })));
       }
-      axes = makeAxes(Math.min(x1 - x0, y1 - y0));
+      // The axes at the machine's origin, as in OrcaSlicer: X red, Y green, Z blue, a tenth of the
+      // bed long, each with its letter as on the cube (view-cube.js).
+      axes = makeAxes(THREE, Math.max(15, Math.min(x1 - x0, y1 - y0) / 10));
       bed.add(axes);
       scene.add(bed);
-    }
-    // The axes at the machine's origin, as in OrcaSlicer: X red, Y green, Z blue, a tenth of the bed
-    // long, each with its letter as on the cube. Thickness and letter size come with every picture (render).
-    function makeAxes(size) {
-      const group = new THREE.Group();
-      const length = Math.max(15, size / 10);
-      group.userData = { rods: [], letters: [], length };
-      for (const [letter, dir, hex] of AXES) {
-        const d = new THREE.Vector3(...dir);
-        const rod = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, length, 8).translate(0, length / 2, 0),
-          new THREE.MeshBasicMaterial({ color: hex }));
-        rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
-        const label = axisLetter(THREE, letter, hex);
-        label.userData.dir = d;
-        group.add(rod, label);
-        group.userData.rods.push(rod);
-        group.userData.letters.push(label);
-      }
-      return group;
     }
     function colourList() {
       const list = new Array(MAX_COLOURS).fill(0).map(() => new THREE.Color(typeColour("Other")));
