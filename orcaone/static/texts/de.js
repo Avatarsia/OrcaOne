@@ -233,7 +233,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Druck steuern", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Druck steuern", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -299,6 +299,8 @@ const T = {
   },
   // Error codes of the API (orcaone/app.py) and of api.js.
   errors: {
+    log_query_invalid: "Diese Suche geht nicht: leer, länger als 200 Zeichen oder kein gültiger regulärer Ausdruck.",
+    range_unsatisfiable: "Diese Stelle gibt es in der Datei nicht mehr.",
     path_not_found: "Diesen Ordner gibt es nicht. Prüfe den Pfad.",
     not_a_data_dir: "In diesem Ordner liegt weder Snapmaker_Orca.conf noch OrcaSlicer.conf. Wähle den Ordner, in dem die .conf liegt.",
     already_listed: "Diese Installation findet OrcaOne schon von selbst. Sie steht bereits in der Liste.",
@@ -1535,6 +1537,37 @@ const T = {
     },
   },
 
+  // ---------------------------------------------------------------- page "Logs" of the printer part (pages/druckerlogs.js)
+  printerLogs: {
+    title: "Logs",
+    lead: "Die Logs des Druckers, wie sie geschrieben stehen: Klipper, Moonraker, beim U1 auch Display und System. Farbig sind nur Starts (türkis), Abschaltungen und Fehler (rot).",
+    noHost: (name) => `${name} hat noch keine IP-Adresse. Trage sie auf der Seite „Drucker“ ein.`,
+    toPrinters: "Zur Seite „Drucker“",
+    noFiles: "Dieser Drucker hat keine Logs im Ordner „logs“.",
+    file: "Datei",
+    current: "aktuell",
+    toEnd: "Zum Ende",
+    lastStart: "Letzter Start",
+    noStart: "In dieser Datei steht kein Start von Klipper oder Moonraker.",
+    follow: "Mitlaufen",
+    download: "Herunterladen",
+    find: "Suchen …",
+    regex: "Regex",
+    regexHint: "Als regulärer Ausdruck suchen, etwa code:1[89]. Groß und klein egal.",
+    context: "Zeilen davor und danach",
+    searchAll: "Ganze Datei durchsuchen",
+    searching: "Durchsucht …",
+    marked: (n) => (n === 1 ? "1 Zeile im geladenen Teil" : `${n} Zeilen im geladenen Teil`),
+    hits: (n, complete) => (!complete ? `Die ersten ${n} Treffer, dann hat die Suche aufgehört` : n === 1 ? "1 Treffer" : `${n} Treffer`),
+    showInLog: "Im Log zeigen",
+    close: "Schließen",
+    older: "Ältere Zeilen laden",
+    newer: "Neuere Zeilen laden",
+    window: (a, b, size) => `Zeigt ${a} bis ${b} von ${size}`,
+    empty: "Keine Zeilen.",
+    kinds: { start: "Start", shutdown: "Abschaltung", error: "Fehler" },
+  },
+
   // ---------------------------------------------------------------- page "Konsole"
   console: {
     title: "Konsole",
@@ -1622,6 +1655,8 @@ const T = {
     showLabel: "Zeigen",
     show: { all: "Alles", problems: "Warnungen und Fehler", errors: "Nur Fehler" },
     search: "Im Log suchen",
+    regex: "Regex",
+    regexHint: "Als regulärer Ausdruck suchen, etwa filament.*json. Groß und klein egal.",
     entries: "Einträge",
     levels: { fatal: "Absturz", error: "Fehler", warning: "Warnung", info: "Info", debug: "Debug", trace: "Trace", "": "" },
     shown: (shown, matched) => shown < matched ? `Die letzten ${n(shown)} von ${n(matched)} Einträgen` : matched === 1 ? "1 Eintrag" : `${n(matched)} Einträge`,

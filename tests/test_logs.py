@@ -58,6 +58,12 @@ def test_search_and_the_last_entries(tmp_path):
     found = logs.read(tmp_path, "a.log.0", query="ram SYSTEM")
     assert [e["n"] for e in found["entries"]] == [2] and found["matched"] == 1
     assert logs.read(tmp_path, "a.log.0", "errors", "version")["matched"] == 1
+    # As a regular expression (the user's wish of 26.09.2026), case never matters; a broken one says so.
+    assert [e["n"] for e in logs.read(tmp_path, "a.log.0", query=r"get_version\b.*NOT", regex=True)["entries"]] == [6]
+    assert logs.read(tmp_path, "a.log.0", query="ram [MB]")["matched"] == 1          # plain: the brackets as they are
+    for wrong in ("(", "x" * 201):
+        with pytest.raises(logs.LogError, match="log_query_invalid"):
+            logs.read(tmp_path, "a.log.0", query=wrong, regex=True)
     last = logs.read(tmp_path, "a.log.0", limit=2)
     assert [e["level"] for e in last["entries"]] == ["warning", "fatal"] and last["matched"] == 5
 

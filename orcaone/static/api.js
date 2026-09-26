@@ -82,7 +82,8 @@ export const api = {
   profile: (id, kind, name) => request("GET", `${instUrl(id)}/profile?kind=${kind}&name=${encodeURIComponent(name)}`),
   // The slicer's own logs, filtered on the server (orcaone/logs.py).
   logs: (id) => request("GET", `${instUrl(id)}/logs`),
-  log: (id, name, show, q) => request("GET", `${instUrl(id)}/logs/${encodeURIComponent(name)}?show=${show}&q=${encodeURIComponent(q)}`),
+  log: (id, name, show, q, regex = false) =>
+    request("GET", `${instUrl(id)}/logs/${encodeURIComponent(name)}?show=${show}&q=${encodeURIComponent(q)}&regex=${regex}`),
   backups: (id) => request("GET", `${instUrl(id)}/backups`),
   backupNow: (id) => request("POST", `${instUrl(id)}/backups`),
   // The address of a printer model (page "Drucker"); every U1 with one has a camera
@@ -92,6 +93,13 @@ export const api = {
   // (live.js), no longer asked for here.
   printerInfo: (model) => request("GET", `/api/printers/info?model=${encodeURIComponent(model)}`),
   sshState: (model) => request("GET", `/api/printers/ssh-state?model=${encodeURIComponent(model)}`),
+  // The logs of a printer (page "Logs" of the printer part): list, a view, the last start, a search.
+  printerLogs: (model) => request("GET", `/api/printers/logs?model=${encodeURIComponent(model)}`),
+  printerLog: (model, path, where = {}) => request("GET", `/api/printers/log?${new URLSearchParams({ model, path, ...where })}`),
+  printerLogStart: (model, path) => request("GET", `/api/printers/log/start?${new URLSearchParams({ model, path })}`),
+  printerLogSearch: (model, path, q, regex, context) =>
+    request("GET", `/api/printers/log/search?${new URLSearchParams({ model, path, q, regex, context })}`),
+  printerLogDownload: (model, path) => `/api/printers/log/download?${new URLSearchParams({ model, path })}`,
   // Page "3D Ansicht": the print files of a printer and the address of one (read in pages/gcode-worker.js).
   printFiles: (model) => request("GET", `/api/printers/files?model=${encodeURIComponent(model)}`),
   printFileUrl: (model, path) => `/api/printers/file?model=${encodeURIComponent(model)}&path=${encodeURIComponent(path)}`,

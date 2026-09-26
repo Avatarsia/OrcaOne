@@ -222,7 +222,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Area", slicer: "Slicer", printer: "Printers",
       hint: { slicer: "The slicers' profiles: filaments, processes, printers", printer: "The printers themselves: status, files, views, camera, console" } },
-    pages: { uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Print control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
+    pages: { uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Print control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
     byHint: "Who made OrcaOne, and the license",
     news: "changes since last time",
     pending: "queued changes",
@@ -287,6 +287,8 @@ const T = {
   },
   // Error codes of the API (orcaone/app.py) and of api.js.
   errors: {
+    log_query_invalid: "This search does not work: empty, longer than 200 characters or not a valid regular expression.",
+    range_unsatisfiable: "This place is no longer in the file.",
     path_not_found: "This folder does not exist. Check the path.",
     not_a_data_dir: "This folder holds neither Snapmaker_Orca.conf nor OrcaSlicer.conf. Choose the folder that holds the .conf.",
     already_listed: "OrcaOne finds this installation by itself. It is already in the list.",
@@ -1521,6 +1523,37 @@ const T = {
     },
   },
 
+  // ---------------------------------------------------------------- page "Logs" of the printer part (pages/druckerlogs.js)
+  printerLogs: {
+    title: "Logs",
+    lead: "The printer's logs as they are written: Klipper, Moonraker, on the U1 also the display and the system. Only starts (teal), shutdowns and errors (red) are coloured.",
+    noHost: (name) => `${name} has no IP address yet. Enter it on the page “Printers”.`,
+    toPrinters: "To the page “Printers”",
+    noFiles: "This printer has no logs in its folder “logs”.",
+    file: "File",
+    current: "current",
+    toEnd: "To the end",
+    lastStart: "Last start",
+    noStart: "This file holds no start of Klipper or Moonraker.",
+    follow: "Follow",
+    download: "Download",
+    find: "Search …",
+    regex: "Regex",
+    regexHint: "Search as a regular expression, e.g. code:1[89]. Case does not matter.",
+    context: "Lines before and after",
+    searchAll: "Search the whole file",
+    searching: "Searching …",
+    marked: (n) => (n === 1 ? "1 line in the part loaded" : `${n} lines in the part loaded`),
+    hits: (n, complete) => (!complete ? `The first ${n} hits, then the search stopped` : n === 1 ? "1 hit" : `${n} hits`),
+    showInLog: "Show in the log",
+    close: "Close",
+    older: "Load older lines",
+    newer: "Load newer lines",
+    window: (a, b, size) => `Showing ${a} to ${b} of ${size}`,
+    empty: "No lines.",
+    kinds: { start: "Start", shutdown: "Shutdown", error: "Error" },
+  },
+
   // ---------------------------------------------------------------- page "Konsole"
   console: {
     title: "Console",
@@ -1608,6 +1641,8 @@ const T = {
     showLabel: "Show",
     show: { all: "All", problems: "Warnings and errors", errors: "Errors only" },
     search: "Search the log",
+    regex: "Regex",
+    regexHint: "Search as a regular expression, e.g. filament.*json. Case does not matter.",
     entries: "Entries",
     levels: { fatal: "Crash", error: "Error", warning: "Warning", info: "Info", debug: "Debug", trace: "Trace", "": "" },
     shown: (shown, matched) => shown < matched ? `The last ${n(shown)} of ${n(matched)} entries` : matched === 1 ? "1 entry" : `${n(matched)} entries`,

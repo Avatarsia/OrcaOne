@@ -21,6 +21,7 @@ export default {
     const name = ref("");
     const show = ref("all");
     const query = ref("");
+    const regex = ref(false);   // the search as a regular expression (the user's wish of 26.09.2026)
     const log = ref(null);
     const error = ref("");
     const listEl = ref(null);
@@ -47,7 +48,7 @@ export default {
       if (!name.value) return;
       const mine = ++seq;
       try {
-        const data = await api.log(props.instId, name.value, show.value, query.value.trim());
+        const data = await api.log(props.instId, name.value, show.value, query.value.trim(), regex.value);
         if (mine !== seq) return;
         log.value = data;
         error.value = "";
@@ -65,7 +66,7 @@ export default {
       if (name.value === before) await loadLog();
     }
 
-    watch([name, show], loadLog);
+    watch([name, show, regex], loadLog);
     watch(query, () => {
       clearTimeout(typing);
       typing = setTimeout(loadLog, 250);
@@ -80,7 +81,7 @@ export default {
     };
     const shownText = computed(() => log.value ? L.shown(log.value.entries.length, log.value.matched) : "");
 
-    return { T, L, SHOWS, inst, files, location, name, show, query, log, error, listEl, fileLabel, countOf, shownText, refresh };
+    return { T, L, SHOWS, inst, files, location, name, show, query, regex, log, error, listEl, fileLabel, countOf, shownText, refresh };
   },
 
   template: `
@@ -110,6 +111,7 @@ export default {
             <ui-icon name="search"/>
             <input v-model="query" class="input" type="search" :placeholder="L.search" :aria-label="L.search">
           </span>
+          <button class="chip" type="button" :aria-pressed="regex ? 'true' : 'false'" :title="L.regexHint" @click="regex = !regex">{{ L.regex }}</button>
         </div>
 
         <p v-if="error" class="alert" role="alert">{{ error }}</p>

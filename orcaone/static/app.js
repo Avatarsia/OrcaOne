@@ -35,6 +35,7 @@ import Druck3dPage from "./pages/druck3d.js";
 import Druck2dPage from "./pages/druck2d.js";
 import DateienPage from "./pages/dateien.js";
 import KonsolePage from "./pages/konsole.js";
+import DruckerLogsPage from "./pages/druckerlogs.js";
 import SshPage from "./pages/ssh.js";
 import NetzwerkPage from "./pages/netzwerk.js";
 import LogsPage from "./pages/logs.js";
@@ -94,6 +95,8 @@ const PAGES = [
   { id: "druck2d", area: "printer", icon: "toolpath", component: Druck2dPage, standalone: true, printer: true },
   { id: "kamera", area: "printer", icon: "camera", component: KameraPage, standalone: true, u1: true, printer: true },
   { id: "konsole", area: "printer", icon: "code", component: KonsolePage, standalone: true, printer: true },
+  // The printer's logs as written, with a search (the user's wish of 26.09.2026)
+  { id: "druckerlogs", area: "printer", icon: "log", component: DruckerLogsPage, standalone: true, printer: true },
   { id: "ssh", area: "printer", icon: "terminal", component: SshPage, standalone: true, printer: true },
   // How the printer is in the network, where it gets stuck (the user's wish of 25.09.2026): for any
   // Klipper printer what Moonraker tells, on the U1 over SSH also WLAN, router and internet.

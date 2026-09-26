@@ -1325,6 +1325,9 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .log-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-bottom: 12px; }
 .log-file { display: flex; flex: 1 1 280px; flex-direction: column; gap: 4px; }
 .log-file > span { color: var(--label); font-size: 13px; font-weight: 700; }
+/* A long file name must not widen the page on a phone */
+.log-file { min-width: 0; }
+.log-file .input { width: 100%; min-width: 0; }
 .log-bar .chips { flex: 0 1 auto; }
 .log-count { min-width: 18px; padding: 0 6px; border-radius: 9px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 400; text-align: center; }
 .log-list {
@@ -1347,6 +1350,28 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .lv-warning .log-level { color: var(--warn); }
 .lv-error, .lv-fatal { background: var(--error-bg); }
 .lv-error .log-level, .lv-fatal .log-level { color: var(--error); }
+/* Page "Logs" of the printer part (pages/druckerlogs.js): every line as written, only coloured */
+.plog-search { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+.plog-search input[type="search"] { flex: 1 1 260px; min-width: 0; }
+.plog-context { display: flex; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
+.plog-context .input { width: auto; }
+.plog-window { margin: 0 0 4px; color: var(--muted); font-size: 12px; }
+.plog-list { flex: 1; min-height: 240px; max-height: none; margin-top: 0; }
+.plog-line { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.plog-line.is-start { margin-top: 4px; border-top: 2px solid var(--accent-line); background: var(--focus-bg); color: var(--accent-text); font-weight: 600; }
+.plog-line.is-shutdown, .plog-line.is-error { background: var(--error-bg); color: var(--error); }
+.plog-line.is-focus { outline: 2px solid var(--accent-line); outline-offset: -2px; }
+.plog-list mark, .plog-results mark { border-radius: 2px; background: color-mix(in srgb, var(--warn) 40%, transparent); color: inherit; }
+.plog-more { display: block; margin: 6px 10px; font-family: var(--font); }
+.plog-results { max-height: 40vh; margin-bottom: 12px; padding: 8px 10px; overflow: auto; border: 1px solid var(--line-box); border-radius: 6px; background: var(--surface); }
+.plog-results-head { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 6px; font-size: 13px; }
+.plog-hit-group { margin: 6px 0; padding-left: 6px; border-left: 3px solid var(--divider); }
+.plog-hit-line { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; width: 100%; padding: 1px 6px; border: 0; background: none;
+                 color: inherit; font-family: var(--mono); font-size: 12px; text-align: left; cursor: pointer; }
+.plog-hit-line:hover { background: var(--hover, var(--focus-bg)); }
+.plog-hit-line.is-hit { background: var(--focus-bg); font-weight: 600; }
+.plog-hit-n { color: var(--muted); text-align: right; }
+.plog-hit-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Page "Kalibrieren": the U1 live on top, then the steps to tick off */
 .cal-page .log-file { max-width: 520px; }

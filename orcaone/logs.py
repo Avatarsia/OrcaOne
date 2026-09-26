@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 LIMIT = 2000               # entries sent to the page, the last ones
+QUERY_MAX = 200   # characters of a regular expression; Python's re has no time limit
 TEXT_MAX = 2000            # characters of one entry sent; OrcaSlicer logs whole profile lists (2.7 MB)
 MAX_BYTES = 20 * 1024 * 1024  # of a larger file only its end is read
 SHOW = {"all": None, "problems": {"fatal", "error", "warning"}, "errors": {"fatal", "error"}}
@@ -47,12 +48,21 @@ def files(data_dir: Path) -> list[dict]:
     return sorted(found, key=lambda f: f["modified"], reverse=True)
 
 
-def read(data_dir: Path, name: str, show: str = "all", query: str = "", limit: int = LIMIT) -> dict:
-    """The entries of one file, counted per level, then filtered by level and text; the last
+def read(data_dir: Path, name: str, show: str = "all", query: str = "", limit: int = LIMIT, regex: bool = False) -> dict:
+    """The entries of one file, counted per level, then filtered by level and text (all words, or
+    with regex a regular expression, the user's wish of 26.09.2026; case never matters); the last
     `limit` of them, a long text cut to TEXT_MAX with "more" = the characters left out. The name
     has to be one of files(), so nothing outside log/ can be read."""
     if show not in SHOW:
         raise LogError("log_filter_invalid")
+    pattern = None
+    if regex and query:
+        try:
+            pattern = re.compile(query, re.IGNORECASE) if len(query) <= QUERY_MAX else None
+        except re.error:
+            pattern = None
+        if pattern is None:
+            raise LogError("log_query_invalid")
     if name not in {f["name"] for f in files(data_dir)}:
         raise LogError("log_not_found")
     path = data_dir / "log" / name
@@ -83,7 +93,7 @@ def read(data_dir: Path, name: str, show: str = "all", query: str = "", limit: i
 
     levels, words = SHOW[show], query.lower().split()
     matched = [e for e in entries if (levels is None or e["level"] in levels)
-               and all(w in e["text"].lower() for w in words)]
+               and (pattern.search(e["text"]) if pattern else all(w in e["text"].lower() for w in words))]
     shown = [dict(e, text=e["text"][:TEXT_MAX], more=len(e["text"]) - TEXT_MAX) if len(e["text"]) > TEXT_MAX else e
              for e in matched[-limit:]]
     return {"name": name, "size": size, "cut": cut, "counts": counts, "total": len(entries),

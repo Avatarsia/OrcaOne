@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, live, logs, monitor,
-               network, operations, overview, printer_files, scanner, settings, snapshot, ssh)
+               network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -166,7 +166,7 @@ def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "printer_name_taken": 400, "search_failed": 500,
               "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
               "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400,
-              "wifi_printing": 409, "wifi_printing_unknown": 409, "ssh_login": 403, "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_login_invalid": 400, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
+              "wifi_printing": 409, "wifi_printing_unknown": 409, "ssh_login": 403, "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_login_invalid": 400, "log_query_invalid": 400, "range_unsatisfiable": 416, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
 
@@ -396,9 +396,9 @@ def list_logs(instance_id: str):
 
 
 @app.get("/api/instances/{instance_id}/logs/{name}")
-def read_log(instance_id: str, name: str, show: str = "all", q: str = ""):
+def read_log(instance_id: str, name: str, show: str = "all", q: str = "", regex: bool = False):
     instance, _ = operations.find_instance(instance_id)
-    return logs.read(instance.data_dir, name, show, q)
+    return logs.read(instance.data_dir, name, show, q, regex=regex)
 
 
 # ---------------------------------------------------------------- page "Änderungen" (orcaone/snapshot.py)
@@ -690,6 +690,36 @@ def printer_print_file(request: Request, model: str = "", path: str = ""):
     wanted = request.headers.get("range", "")
     wanted = wanted if re.fullmatch(r"bytes=\d+-\d*", wanted) else None
     return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, wanted), path)
+
+
+# ---------------------------------------------------------------- logs of any Klipper printer (orcaone/printer_logs.py)
+# By model, for the page "Logs" of the printer part: read only, as written (the user's wish of 26.09.2026).
+@app.get("/api/printers/logs")
+def printer_logs_list(model: str = ""):
+    return printer_logs.files(camera.host_of(model))
+
+
+@app.get("/api/printers/log")
+def printer_log(model: str = "", path: str = "", start: int | None = None, end: int | None = None):
+    # Its end, or older than end, or from start (a jump, newer lines, following it).
+    return printer_logs.read(camera.host_of(model), path, start, end)
+
+
+@app.get("/api/printers/log/start")
+def printer_log_start(model: str = "", path: str = ""):
+    # Where Klipper or Moonraker last started in it, None without a start.
+    return {"at": printer_logs.last_start(camera.host_of(model), path)}
+
+
+@app.get("/api/printers/log/search")
+def printer_log_search(model: str = "", path: str = "", q: str = "", regex: bool = False, context: int = 0):
+    return printer_logs.search(camera.host_of(model), path, q, regex, context)
+
+
+@app.get("/api/printers/log/download")
+def printer_log_download(model: str = "", path: str = ""):
+    # The file as it is, as a download, never as a page.
+    return _passed_on(printer_files.open_file(camera.host_of(model), "logs", path), path, download=True)
 
 
 @app.post("/api/printers/print")

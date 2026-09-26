@@ -127,6 +127,9 @@ def open_file(host: str, folder: str, path: str, byte_range: str | None = None):
     try:
         return _direct.open(urllib.request.Request(url, headers={"Range": byte_range} if byte_range else {}), timeout=TIMEOUT)
     except urllib.error.HTTPError as exc:
+        if exc.code == 416:
+            # Beyond the end: with the size Moonraker names ("bytes */9784307"), for a log followed.
+            raise CameraError("range_unsatisfiable", exc.headers.get("Content-Range") or "") from None
         raise CameraError("file_not_found" if exc.code == 404 else "camera_refused", f"HTTP {exc.code}") from None
     except OSError as exc:
         raise CameraError("camera_unreachable", str(exc)) from None
