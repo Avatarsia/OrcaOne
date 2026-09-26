@@ -210,7 +210,7 @@ def interfaces(host: str) -> list[dict]:
     """The printer's interfaces as Moonraker lists them (up, with an address): name, MAC, IPv4 and
     IPv6, and whether OrcaOne speaks to the printer over it."""
     network = (camera._get(host, "/machine/system_info").get("system_info") or {}).get("network")
-    target = ssh.hostname(host)
+    target = ssh.machine(host)
     try:
         target = socket.gethostbyname(target)
     except OSError:
@@ -250,7 +250,7 @@ def computer(host: str) -> dict:
     in its network (else a router or a VPN lies between, and "Im LAN suchen" cannot find it). A UDP
     socket connected to the printer sends nothing."""
     try:
-        target = socket.gethostbyname(ssh.hostname(host))
+        target = socket.gethostbyname(ssh.machine(host))
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.connect((target, 9))
             mine = sock.getsockname()[0]

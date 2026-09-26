@@ -22,10 +22,12 @@ terminal's bytes as binary messages, and JSON {"type": "password", "again"}, {"t
 import asyncio
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 import shlex
 import socket
+import time
 from pathlib import Path
 
 import paramiko
@@ -39,6 +41,8 @@ TIMEOUT = 10  # s, for the connection, the greeting and the login each
 # s, for the look whether SSH is on (probe): Windows says "refused" only after about 2 s, as it
 # tries twice more (measured 26.09.2026), so more than that.
 PROBE_TIMEOUT = 4
+MACHINE_TTL = 300   # s an address machine() looked up holds
+_machines: dict = {}   # host: (address, time.monotonic() of the look-up)
 USER = re.compile(r"^[a-z_][a-z0-9_.-]{0,31}$")
 TERM = "xterm-256color"
 # The root password of a U1 as shipped, for root and lava, public in the docs of the Extended
@@ -68,18 +72,50 @@ def hostname(host: str) -> str:
     return host.rsplit(":", 1)[0] if host.count(":") == 1 else host.strip("[]")
 
 
-def probe(host: str) -> str:
-    """Whether a printer lets SSH in, without a login (the user's wish of 26.09.2026: see on the page
-    "Drucker" that it must be switched on first): "on" when port 22 greets with SSH, "off" when it
-    refuses (the U1 with Root Access off, checked 23.09.2026), "unknown" when nothing answers."""
+def machine(host: str) -> str:
+    """The address of the printer's own computer, for SSH and the network checks: mostly the host
+    without its port. A host name may point at a reverse proxy in front of Moonraker that passes on
+    HTTPS only (the user's Voron, 26.09.2026); when the name does not greet with SSH, the first IPv4
+    address Moonraker reports for the printer that does is taken. Looked up once per MACHINE_TTL."""
+    name = hostname(host)
     try:
-        with socket.create_connection((hostname(host), PORT), timeout=PROBE_TIMEOUT) as conn:
+        ipaddress.ip_address(name)
+        return name   # an address already
+    except ValueError:
+        pass
+    known = _machines.get(host)
+    if known and time.monotonic() - known[1] < MACHINE_TTL:
+        return known[0]
+    found = name
+    if _greeting(name) != "on":
+        try:
+            network = (camera._get(host, "/machine/system_info").get("system_info") or {}).get("network")
+        except (CameraError, AttributeError):
+            network = None
+        addresses = [a.get("address") for i in (network.values() if isinstance(network, dict) else []) if isinstance(i, dict)
+                     for a in i.get("ip_addresses") or [] if isinstance(a, dict) and a.get("family") == "ipv4"]
+        found = next((a for a in addresses if isinstance(a, str) and not a.startswith("127.") and _greeting(a) == "on"), name)
+    _machines[host] = (found, time.monotonic())
+    return found
+
+
+def _greeting(address: str) -> str:
+    """"on" when port 22 greets with SSH, "off" when it refuses, "unknown" when nothing answers."""
+    try:
+        with socket.create_connection((address, PORT), timeout=PROBE_TIMEOUT) as conn:
             greeting = conn.recv(64)
     except ConnectionRefusedError:
         return "off"
     except OSError:
         return "unknown"
     return "on" if greeting.startswith(b"SSH-") else "unknown"
+
+
+def probe(host: str) -> str:
+    """Whether a printer lets SSH in, without a login (the user's wish of 26.09.2026: see on the page
+    "Drucker" that it must be switched on first): "on" when port 22 greets with SSH, "off" when it
+    refuses (the U1 with Root Access off, checked 23.09.2026), "unknown" when nothing answers."""
+    return _greeting(machine(host))
 
 
 def connect(host: str, user: str, password: str | None = None, key: Path | None = None) -> paramiko.SSHClient:
@@ -92,7 +128,7 @@ def connect(host: str, user: str, password: str | None = None, key: Path | None 
     # the password as shipped follow. One with a passphrase goes through the agent.
     chosen = _load(key) if password is None and key is not None and key.is_file() else None
     try:
-        client.connect(hostname(host), port=PORT, username=user, password=password, pkey=chosen, timeout=TIMEOUT,
+        client.connect(machine(host), port=PORT, username=user, password=password, pkey=chosen, timeout=TIMEOUT,
                        banner_timeout=TIMEOUT, auth_timeout=TIMEOUT, look_for_keys=password is None,
                        allow_agent=password is None)
     except paramiko.SSHException as exc:
@@ -273,7 +309,7 @@ def _works(host: str, user: str, path: Path) -> bool:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(_TakeKey())
     try:
-        client.connect(hostname(host), port=PORT, username=user, pkey=key, timeout=TIMEOUT,
+        client.connect(machine(host), port=PORT, username=user, pkey=key, timeout=TIMEOUT,
                        banner_timeout=TIMEOUT, auth_timeout=TIMEOUT, look_for_keys=False, allow_agent=False)
         return True
     except (OSError, paramiko.SSHException):
@@ -341,7 +377,7 @@ async def session(ws: WebSocket, model: str, keys: bool = True) -> None:
         transport.set_keepalive(30)
         # via: "key", "default" or "typed"; key: the chosen key, if tried: with "default" the printer
         # forgot it (the U1 at every start). keys: this computer's keys may be used (not from the LAN).
-        await ws.send_json({"type": "open", "host": hostname(printer), "user": user, "via": via, "keys": keys, "key": tried,
+        await ws.send_json({"type": "open", "host": machine(printer), "user": user, "via": via, "keys": keys, "key": tried,
                             "fingerprint": fingerprint(transport.get_remote_server_key())})
         channel = await asyncio.to_thread(client.invoke_shell, TERM, cols, rows)
 

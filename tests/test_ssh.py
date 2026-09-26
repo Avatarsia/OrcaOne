@@ -241,6 +241,27 @@ def test_hostname_and_size():
     assert ssh.hostname("10.30.40.174:7125") == "10.30.40.174"
     assert ssh.hostname("u1.local") == "u1.local" and ssh.hostname("[fe80::1]") == "fe80::1"
     assert ssh.hostname("https://voron.example.de") == "voron.example.de"
+
+
+def test_the_computer_behind_a_reverse_proxy(monkeypatch):
+    # The name points at a proxy that passes on HTTPS only: SSH goes to the address Moonraker reports.
+    greets = {"voron.example.de": "off", "10.30.0.10": "on"}
+    monkeypatch.setattr(ssh, "_greeting", lambda address: greets.get(address, "unknown"))
+    monkeypatch.setattr(camera, "_get", lambda host, path: {"system_info": {"network": {"end0": {"ip_addresses": [
+        {"family": "ipv6", "address": "fe80::1"}, {"family": "ipv4", "address": "127.0.0.1"},
+        {"family": "ipv4", "address": "10.30.0.10"}]}}}})
+    ssh._machines.clear()
+    assert ssh.machine("https://voron.example.de") == "10.30.0.10"
+    assert ssh.probe("https://voron.example.de") == "on"
+    # A name that greets with SSH itself stays, and so does an address.
+    greets["voron.example.de"] = "on"
+    ssh._machines.clear()
+    assert ssh.machine("https://voron.example.de") == "voron.example.de"
+    assert ssh.machine("10.30.40.174:7125") == "10.30.40.174"
+    # Nothing else answers: the name stays.
+    greets.clear()
+    ssh._machines.clear()
+    assert ssh.machine("voron.example.de") == "voron.example.de"
     assert ssh._size({"cols": 120, "rows": 40}) == (120, 40)
     assert ssh._size({"cols": True, "rows": 99999}) == (80, 24)
 
