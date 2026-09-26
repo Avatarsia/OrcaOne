@@ -165,7 +165,7 @@ def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "printer_name_taken": 400, "search_failed": 500,
               "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
               "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400,
-              "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_login_invalid": 400, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
+              "wifi_printing": 409, "wifi_printing_unknown": 409, "ssh_login": 403, "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_login_invalid": 400, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
     return _error(exc.code, status, **({"detail": exc.detail} if exc.detail else {}))
 
 
@@ -723,6 +723,19 @@ def printer_cancel(payload: dict = Body(...)):
 def printer_emergency_stop(payload: dict = Body(...)):
     # On the user's second click (the top bar).
     return printer_files.emergency_stop(camera.host_of(str(payload.get("model", ""))))
+
+
+@app.post("/api/printers/restart")
+def printer_restart(payload: dict = Body(...)):
+    # On the user's click: Klipper anew, with "firmware" also its boards (the way out of a shutdown).
+    return printer_files.restart(camera.host_of(str(payload.get("model", ""))), payload.get("firmware") is True)
+
+
+@app.post("/api/printers/reboot")
+def printer_reboot(request: Request, payload: dict = Body(...)):
+    # On the user's click, after a question: the whole printer anew; the U1 over SSH, with this
+    # computer's keys only for a page on it (hard rule 8).
+    return network.reboot(str(payload.get("model", "")), keys=not is_remote(request.client))
 
 
 @app.post("/api/cameras/{camera_id}/files/delete")

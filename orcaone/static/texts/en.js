@@ -49,12 +49,35 @@ const T = {
     stop: "Emergency stop: Klipper halts everything at once. Click twice to trigger it.",
     stopArmed: "Stop?",
     stopArmedHint: "Click again to trigger the emergency stop.",
-    stopped: "Emergency stop triggered. Klipper stays halted until FIRMWARE_RESTART, for example on the page “Console”.",
+    stopped: "Emergency stop triggered. Klipper stays halted until you click “Restart firmware” at the top.",
     // How far the print is, in the top bar on every page
     paused: "Paused",
     left: (time) => `${time} left`,
     done: (clock) => `done around ${clock}`,
     toStatus: "A click shows the page \"Status\"."
+  },
+  // Klipper anew: the strip above every page of the printer part (app.js) and "Druck steuern"
+  klipperBar: {
+    states: { shutdown: "Klipper is shut down.", error: "Klipper reports an error.", startup: "Klipper is starting …" },
+    // Each with what it does, behind its button (the user's wish of 26.09.2026)
+    actions: {
+      firmware: { label: "Restart firmware", sent: "The firmware restarts.",
+                  what: "Klipper with its boards (FIRMWARE_RESTART). The way out of an emergency stop and most errors, takes seconds." },
+      restart: { label: "Restart Klipper", sent: "Klipper restarts.",
+                 what: "Reads printer.cfg anew and restarts Klipper (RESTART), the boards keep running. For example after a change of the configuration." },
+      reboot: { label: "Restart printer", sent: "The printer restarts. This takes about a minute.",
+                what: "The whole printer, display and Moonraker too, like switching it off and on. When the display keeps its error; takes about a minute, on the U1 it needs Root Access." },
+    },
+    title: "Klipper",
+    printingAsk: "A restart ends the running print. Restart anyway?",
+    rebootAsk: "Restart the whole printer?",
+    rebootPrinting: "Not during a print.",
+    yes: "Yes, restart",
+    no: "Cancel",
+    // Why a restart did not go, before the general texts (a name of its own: tests find "errors" by name)
+    refusals: {
+      ssh_unreachable: "The printer allows no SSH. On the U1 switch on Root Access at the touchscreen, then the restart works from here.",
+    },
   },
   splash: {
     license: "License: PolyForm Noncommercial 1.0.0",
@@ -1019,7 +1042,6 @@ const T = {
     uptime: "Up for",
     perSecond: (size) => `${size}/s`,
     klipperStates: { ready: "Ready", startup: "Starting", shutdown: "Shut down", error: "Error" },
-    klipperNotReady: (state) => `Klipper: ${state}.`,
     nets: { wlan: "Wi-Fi", eth: "LAN", en: "LAN", can: "CAN bus" },
     names: {
       bed: "Bed", extruder: (i) => (i ? `Extruder ${i}` : "Extruder"), partFan: "Part cooling fan", hotendFan: "Hotend",

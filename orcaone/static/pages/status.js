@@ -184,8 +184,6 @@ export default {
       <template v-else>
         <p v-if="failed" class="alert" role="alert">{{ failed }}</p>
         <template v-if="data">
-          <p v-if="data.klipper.state && data.klipper.state !== 'ready'" class="banner">
-            {{ S.klipperNotReady(S.klipperStates[data.klipper.state] || data.klipper.state) }} {{ data.klipper.message }}</p>
 
           <!-- The print as a ring, the heads on their stage -->
           <section class="box mon-hero" aria-labelledby="mon-job">

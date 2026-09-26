@@ -37,7 +37,7 @@ import paramiko
 import psutil
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from . import camera, ssh
+from . import camera, printer_files, ssh
 from .camera import CameraError
 
 USER = "root"
@@ -350,6 +350,25 @@ def _run(client: paramiko.SSHClient, command: str) -> str:
         return text
     except (OSError, EOFError, paramiko.SSHException) as exc:
         raise CameraError("ssh_lost", str(exc) or type(exc).__name__) from None
+
+
+def reboot(printer: str, keys: bool = True) -> dict:
+    """The whole printer anew, on a click from the strip above the pages or "Druck steuern" (the
+    user's wish of 26.09.2026: after a restart of Klipper the U1's display kept its error). Not while
+    it prints. The U1 over SSH as on this page (its Moonraker would run systemctl, which it has not;
+    init scripts start its services), any other Klipper printer through Moonraker's machine.reboot."""
+    host, model = _printer(printer)
+    if _printing(host):
+        raise CameraError("wifi_printing")
+    if model in ssh.DEFAULT_PASSWORDS:
+        client, _, _ = _login(printer, host, model, keys)
+        try:
+            _run(client, REBOOT)
+        finally:
+            client.close()
+    else:
+        printer_files._order(host, "machine.reboot", {})
+    return {"rebooting": True}
 
 
 def _answers(host: str) -> bool:

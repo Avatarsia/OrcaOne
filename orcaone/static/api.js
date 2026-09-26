@@ -128,6 +128,10 @@ export const api = {
   resumePrint: (model) => request("POST", "/api/printers/resume", { model }),
   printCancel: (model) => request("POST", "/api/printers/cancel", { model }),
   emergencyStop: (model) => request("POST", "/api/printers/emergency-stop", { model }),
+  // firmware: FIRMWARE_RESTART (out of a shutdown), else RESTART
+  restartKlipper: (model, firmware) => request("POST", "/api/printers/restart", { model, firmware }),
+  // The whole printer anew: the U1 over SSH, others through Moonraker
+  rebootPrinter: (model) => request("POST", "/api/printers/reboot", { model }),
   // Page "Kalibrieren": the ticks; the printer itself comes live (live.js).
   calibration: (id) => request("GET", `${instUrl(id)}/calibration`),
   markCalibration: (id, filament, step, done, temp) => request("POST", `${instUrl(id)}/calibration`, { filament, step, done, temp }),

@@ -5,18 +5,21 @@
 // they do and need (the user: one wants to see what there is to control). Live over Moonraker's
 // WebSocket while the page is visible (live.js, shaped by orcaone/control.py); a command goes to the
 // printer only on a click, cancelling and leaving an object out after a question, as they cannot be
-// taken back.
+// taken back. At the end Klipper, its firmware or the printer anew (pages/klipper-actions.js).
 import { go, hashOf, ui, activeName, flash, LOCALE } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 import { useLive } from "../live.js";
+import { KlipperActions } from "./klipper-actions.js";
 
 const { ref, computed, onMounted } = Vue;
 const C = T.control;
+const K = T.klipperBar;
 const JOB_CLASS = { standby: "ok", printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" };
 
 export default {
   name: "SteuernPage",
+  components: { KlipperActions },
   props: { instId: { type: String, default: null } },  // the page does not depend on an installation
 
   setup() {
@@ -129,7 +132,7 @@ export default {
     return {
       T, C, host, data, failed, busy, running, paused, jobClass, pct, pauseResume, cancelAsk, cancel,
       layerWanted, layerMin, hasLayers, pauseText, setLayer, pauseNext, clearPause, layerShare, toStop, wantedIn,
-      plate, asking, ask, leaveOut, shortName, num, activeName, go, hashOf,
+      plate, asking, ask, leaveOut, shortName, num, activeName, go, hashOf, K, ui,
     };
   },
 
@@ -235,6 +238,11 @@ export default {
                 <button class="btn" type="button" @click="asking = null">{{ C.objects.no }}</button>
               </div>
             </template>
+          </section>
+          <!-- Klipper anew: after a change of its configuration, or out of a shutdown -->
+          <section class="box" aria-labelledby="ctl-klipper-h">
+            <div class="box-head"><h2 id="ctl-klipper-h">{{ K.title }}</h2></div>
+            <klipper-actions :printer="ui.printer" :running="running"/>
           </section>
         </template>
       </template>

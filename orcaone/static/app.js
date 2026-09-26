@@ -11,6 +11,7 @@ import {
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
 import { live, watchPrinters } from "./live.js";
+import { KlipperActions } from "./pages/klipper-actions.js";
 import { changesOf } from "./ops.js";
 import PlanView, { DoneView, problemText } from "./plan.js";
 import UebersichtPage from "./pages/uebersicht.js";
@@ -112,7 +113,7 @@ const CHANGE = {
 };
 
 const app = createApp({
-  components: { PlanView, DoneView, PrintPanel },
+  components: { PlanView, DoneView, PrintPanel, KlipperActions },
   setup() {
     const inst = computed(() => INSTANCES.find((i) => i.id === ui.instId) || null);
     const page = computed(() => PAGES.find((p) => p.id === route.value.page));
@@ -716,6 +717,12 @@ const app = createApp({
         flash(errorText(err));
       }
     }
+    // Klipper not ready: a strip above every page of the printer part, when shut down (after an
+    // emergency stop) or in error with the ways out (pages/klipper-actions.js; the user's wish of
+    // 26.09.2026: there was no restart at all), while it starts only that.
+    const klipper = computed(() => (area.value === "printer" && fileHost.value && !live[ui.printer]?.error
+      && live[ui.printer]?.data?.monitor?.klipper) || null);
+    const klipperDown = computed(() => ["shutdown", "error"].includes(klipper.value?.state));
     // Both menus in the top bar: arrows move, Escape and Tab go back to the button.
     function menuKeys(ev, menu, close) {
       if (ev.key === "Escape") {
@@ -754,6 +761,7 @@ const app = createApp({
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
       thumbOf, fileThumb, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, api,
+      klipper, klipperDown,
     };
   },
 
@@ -904,6 +912,13 @@ const app = createApp({
             {{ T.failed[f.code] ? T.failed[f.code](f) : f.code }}
             <button v-if="f.manual" class="link" type="button" :disabled="loadState.busy" @click="leave(() => removeFailed(f))">{{ T.slicer.remove }}</button>
           </p>
+        </div>
+        <!-- Klipper not ready: why, and after a shutdown the way out (the user's wish of 26.09.2026) -->
+        <div v-if="klipper && klipper.state && klipper.state !== 'ready'" :class="['page', 'klipper-strip', { 'is-down': klipperDown }]" role="status">
+          <!-- The reason only while down: starting anew, Klipper keeps the old one until it is ready -->
+          <span class="klipper-strip-text" :title="klipperDown ? klipper.message : null"><strong>{{ T.klipperBar.states[klipper.state] || klipper.state }}</strong>
+            <template v-if="klipperDown">{{ (klipper.message || '').split('\\n')[0] }}</template></span>
+          <klipper-actions v-if="klipperDown" :printer="ui.printer"/>
         </div>
         <component v-if="inst || page.standalone" :is="page.component" :key="pageKey" v-bind="pageProps"/>
         <div v-else class="page">

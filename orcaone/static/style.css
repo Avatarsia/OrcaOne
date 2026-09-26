@@ -287,6 +287,24 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .bar-title h1 { font-size: 20px; font-weight: 700; line-height: 1.2; }
 .bar-title span { color: var(--muted); font-size: 13px; }
 .banner { margin-bottom: 16px; padding: 10px 14px; border-left: 3px solid var(--warn); border-radius: 4px; background: var(--warn-bg); }
+/* Klipper not ready, above every page of the printer part (app.js); after a shutdown with the way out */
+.klipper-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 16px; padding: 10px 14px;
+                 border-left: 3px solid var(--warn); border-radius: 4px; background: var(--warn-bg); font-size: 14px; }
+.klipper-strip.is-down { border-left-color: var(--error); background: var(--error-bg); }
+.klipper-strip-text { flex: 1 1 260px; min-width: 0; }
+.klipper-strip.is-down strong { color: var(--error); }
+.klipper-strip-text strong { margin-right: 6px; }
+/* Each restart with what it does behind it (pages/klipper-actions.js), in the strip and on "Druck steuern" */
+.klipper-actions { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px 14px; margin: 0; padding: 0; list-style: none; }
+.klipper-strip .klipper-actions { flex-basis: 100%; }
+.klipper-actions li { display: contents; }
+.klipper-actions .btn { justify-content: center; }
+.klipper-action-what { color: var(--muted); font-size: 13px; }
+.klipper-actions .ctl-ask { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .klipper-actions { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .klipper-action-what { margin-bottom: 8px; }
+}
 
 .box { margin-bottom: 16px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line-box); border-radius: 8px; }
 .box-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 12px; }

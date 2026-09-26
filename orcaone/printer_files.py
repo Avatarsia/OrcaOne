@@ -13,7 +13,7 @@ U1 answered 404, 24.09.2026), so both go over the WebSocket.
 
 What it sends a printer, only when the user asks for it: delete a print file, delete a video,
 start a print; from the top bar and the page "Druck steuern" also on any Klipper printer start,
-pause, resume, cancel and emergency stop.
+pause, resume, cancel, emergency stop and a restart of Klipper or its firmware.
 """
 
 import json
@@ -244,6 +244,14 @@ def emergency_stop(host: str) -> dict:
     U1 does not take it over HTTP (see above); neither slicer has an emergency stop to copy."""
     _order(host, "printer.emergency_stop", {})
     return {"stopped": True}
+
+
+def restart(host: str, firmware: bool) -> dict:
+    """FIRMWARE_RESTART, Klipper with its boards anew: the way out of a shutdown, after an emergency
+    stop too (the user's wish of 26.09.2026: there was none); or RESTART, printer.cfg read anew.
+    Over the WebSocket like the emergency stop. Moonraker answers once Klipper went down."""
+    _order(host, "printer.firmware_restart" if firmware else "printer.restart", {}, ORDER_TIMEOUT)
+    return {"restarted": True}
 
 
 def _command(host: str, path: str, body: dict | None = None):

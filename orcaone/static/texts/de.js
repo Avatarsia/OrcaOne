@@ -55,12 +55,35 @@ const T = {
     stop: "Notstopp: Klipper hält sofort alles an. Zum Auslösen zweimal klicken.",
     stopArmed: "Notstopp?",
     stopArmedHint: "Noch einmal klicken löst den Notstopp aus.",
-    stopped: "Notstopp ausgelöst. Klipper steht, bis es mit FIRMWARE_RESTART neu startet, etwa auf der Seite „Konsole“.",
+    stopped: "Notstopp ausgelöst. Klipper steht, bis du oben „Firmware neu starten“ klickst.",
     // How far the print is, in the top bar on every page
     paused: "Pausiert",
     left: (time) => `noch ${time}`,
     done: (clock) => `fertig gegen ${clock} Uhr`,
     toStatus: "Ein Klick zeigt die Seite „Status“.",
+  },
+  // Klipper anew: the strip above every page of the printer part (app.js) and "Druck steuern"
+  klipperBar: {
+    states: { shutdown: "Klipper ist abgeschaltet.", error: "Klipper meldet einen Fehler.", startup: "Klipper startet …" },
+    // Each with what it does, behind its button (the user's wish of 26.09.2026)
+    actions: {
+      firmware: { label: "Firmware neu starten", sent: "Die Firmware startet neu.",
+                  what: "Klipper samt seinen Platinen (FIRMWARE_RESTART). Der Weg aus dem Notstopp und den meisten Fehlern, dauert Sekunden." },
+      restart: { label: "Klipper neu starten", sent: "Klipper startet neu.",
+                 what: "Liest printer.cfg neu und startet Klipper (RESTART), die Platinen laufen weiter. Etwa nach einer Änderung der Konfiguration." },
+      reboot: { label: "Drucker neu starten", sent: "Der Drucker startet neu. Das dauert etwa eine Minute.",
+                what: "Der ganze Drucker, auch Display und Moonraker, wie Aus- und Einschalten. Wenn das Display beim Fehler bleibt; dauert etwa eine Minute, beim U1 braucht es Root Access." },
+    },
+    title: "Klipper",
+    printingAsk: "Ein Neustart beendet den laufenden Druck. Trotzdem neu starten?",
+    rebootAsk: "Den ganzen Drucker neu starten?",
+    rebootPrinting: "Nicht während eines Drucks.",
+    yes: "Ja, neu starten",
+    no: "Abbrechen",
+    // Why a restart did not go, before the general texts (a name of its own: tests find "errors" by name)
+    refusals: {
+      ssh_unreachable: "Der Drucker lässt kein SSH zu. Beim U1 am Touchscreen Root Access einschalten, dann geht der Neustart von hier.",
+    },
   },
   // Boot screen on every page load (app.js)
   splash: {
@@ -1031,7 +1054,6 @@ const T = {
     uptime: "Läuft seit",
     perSecond: (size) => `${size}/s`,
     klipperStates: { ready: "Bereit", startup: "Startet", shutdown: "Abgeschaltet", error: "Fehler" },
-    klipperNotReady: (state) => `Klipper: ${state}.`,
     nets: { wlan: "WLAN", eth: "LAN", en: "LAN", can: "CAN-Bus" },
     names: {
       bed: "Bett", extruder: (i) => (i ? `Extruder ${i}` : "Extruder"), partFan: "Bauteillüfter", hotendFan: "Hotend",

@@ -118,6 +118,8 @@ def service(monkeypatch, moonraker):
             if seen.get("rpc_error"):
                 return {"error": {"code": 400, "message": seen["rpc_error"]}}
             return {"result": seen["start_answer"] if method.startswith("server.") else "ok"}
+        if method in ("printer.firmware_restart", "printer.restart"):
+            return {"result": "ok"}
         if method.startswith("printer.print."):
             if method == "printer.print.cancel" and "cancel" in seen["busy"]:
                 return {"error": {"code": 400, "message": "No print in progress"}}
@@ -290,3 +292,16 @@ def test_start_cancel_and_stop_from_the_top_bar(server, moonraker, service):
         assert json.loads(body)["error"] == "file_invalid", path
     assert call(f"{server}/api/printers/emergency-stop", "POST", {"model": "Unbekannt"})[0] == 404
     assert len(seen["started"]) == 1 and len(service) == 6
+
+
+def test_klipper_anew_after_the_emergency_stop(server, moonraker, service):
+    """The way out of a shutdown (the user's wish of 26.09.2026: after the emergency stop there was
+    no restart): FIRMWARE_RESTART or RESTART on a click, over the WebSocket, waiting as for pause."""
+    host, seen = moonraker
+    camera.set_host("Snapmaker U1", host)
+    for firmware, method in ((True, "printer.firmware_restart"), (False, "printer.restart"), ("yes", "printer.restart")):
+        service.clear()
+        status, body = call(f"{server}/api/printers/restart", "POST", {"model": "Snapmaker U1", "firmware": firmware})
+        assert (status, json.loads(body), service) == (200, {"restarted": True}, [(method, {})]), firmware
+        assert seen["timeouts"][method] == printer_files.ORDER_TIMEOUT
+    assert call(f"{server}/api/printers/restart", "POST", {"model": "Unbekannt", "firmware": True})[0] == 404

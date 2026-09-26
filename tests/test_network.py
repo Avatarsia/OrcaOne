@@ -17,6 +17,7 @@ from websockets.sync.client import connect
 from orcaone import app as app_module
 from orcaone import camera, network, ssh
 from orcaone.camera import CameraError
+from conftest import call
 
 # As a U1 said it on 25.09.2026, with another network name and access point.
 LINK = """Connected to 02:00:00:AA:BB:CC (on wlan0)
@@ -386,6 +387,29 @@ def test_start_anew_only_without_a_print(server, printer, monkeypatch):
         ws.send(json.dumps({"do": "reboot"}))
         assert _next(ws, "back")["action"] == "reboot"
         assert printer.commands.count(network.REBOOT) == 1
+
+
+def test_the_printer_anew_from_the_strip(server, printer, monkeypatch):
+    """The whole printer anew from the strip above the pages or "Druck steuern" (the user's wish of
+    26.09.2026: after a restart of Klipper the U1's display kept its error): the U1 over SSH as on
+    this page, never while it prints; any other Klipper printer through Moonraker."""
+    printing = [True]
+    monkeypatch.setattr(network, "_printing", lambda host: printing[0])
+    status, body = call(f"{server}/api/printers/reboot", "POST", {"model": "Snapmaker U1"}, headers={"Origin": server})
+    assert (status, json.loads(body)) == (409, {"error": "wifi_printing"})
+    assert network.REBOOT not in printer.commands
+    printing[0] = False
+    status, body = call(f"{server}/api/printers/reboot", "POST", {"model": "Snapmaker U1"}, headers={"Origin": server})
+    assert (status, json.loads(body)) == (200, {"rebooting": True})
+    assert printer.commands.count(network.REBOOT) == 1
+    # Another Klipper printer: Moonraker's own call, no SSH.
+    sent = []
+    monkeypatch.setattr(network.printer_files, "_order", lambda host, method, params, timeout=None: sent.append((host, method)) or {})
+    camera.set_host("Voron", "127.0.0.1:1")
+    status, body = call(f"{server}/api/printers/reboot", "POST", {"model": "Voron"}, headers={"Origin": server})
+    assert (status, json.loads(body), sent) == (200, {"rebooting": True}, [("127.0.0.1:1", "machine.reboot")])
+    assert printer.commands.count(network.REBOOT) == 1
+    assert call(f"{server}/api/printers/reboot", "POST", {"model": "Unbekannt"}, headers={"Origin": server})[0] == 404
 
 
 def test_power_saving_off_and_speed(server, printer, monkeypatch):
