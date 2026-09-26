@@ -34,9 +34,10 @@ OPTIONS = {"bed_level": "auto_bed_leveling", "flow_calibrate": "flow_calibrate",
            "shaper_calibrate": "shaper_calibrate", "time_lapse_camera": "time_lapse_camera"}
 HEADS = 4    # PHYSICAL_EXTRUDER_NUM in print_task_config.py
 TOOLS = 32   # LOGICAL_EXTRUDER_NUM: the T0 … T31 a print file may use
-# Seconds a print start may take: the U1 may read the file's metadata first. As long as Snapmaker
-# Orca waits for an answer (add_response_target in MoonRaker.hpp, 80 000 ms).
-START_TIMEOUT = 80
+# Seconds a command may take until the printer answers: a print start while the U1 reads the file's
+# metadata, a pause or a resume while its macro parks or heats. As long as Snapmaker Orca waits for
+# any answer (add_response_target in MoonRaker.hpp, 80 000 ms).
+ORDER_TIMEOUT = 80
 
 
 def folders(host: str) -> list[dict]:
@@ -201,7 +202,7 @@ def start_print(host: str, path, options, mapping) -> dict:
         chosen["map_table"] = json.dumps(mapping, separators=(",", ":"))
     # The call of Snapmaker Orca (sw_StartLocalPrint), which sends it over MQTT. The U1 checks the file
     # and that it is idle, then sends SDCARD_PRINT_FILE_WITH_PARAMETERS with each option in capitals.
-    result = _order(host, "server.files.start_local_print", {"path": path, "options": chosen}, START_TIMEOUT)
+    result = _order(host, "server.files.start_local_print", {"path": path, "options": chosen}, ORDER_TIMEOUT)
     if result.get("state") != "success":
         raise CameraError("print_refused", str(result.get("message") or result))
     return {"started": result.get("filename") or path}
@@ -219,20 +220,22 @@ def start_plain(host: str, path) -> dict:
     return {"started": path}
 
 
+# Cancel, pause and resume (the user's wish of 25.09.2026) as Snapmaker Orca sends them
+# (Moonraker_Mqtt::async_pause_print_job and the like): over the WebSocket, waiting up to
+# ORDER_TIMEOUT. Moonraker answers only when the macro is done, and the U1's PAUSE parks the head
+# first: over HTTP with TIMEOUT the printer paused, but OrcaOne reported a timeout (checked 25.09.2026).
 def cancel(host: str) -> dict:
-    _command(host, "/printer/print/cancel")
+    _order(host, "printer.print.cancel", {}, ORDER_TIMEOUT)
     return {"cancelled": True}
 
 
-# Pause and resume (the user's wish of 25.09.2026), over HTTP like cancel: the U1 takes these there
-# (docs/FINDINGS.md, "Druckstart"). Klipper runs its PAUSE and RESUME, the U1 its own macros.
 def pause(host: str) -> dict:
-    _command(host, "/printer/print/pause")
+    _order(host, "printer.print.pause", {}, ORDER_TIMEOUT)
     return {"paused": True}
 
 
 def resume(host: str) -> dict:
-    _command(host, "/printer/print/resume")
+    _order(host, "printer.print.resume", {}, ORDER_TIMEOUT)
     return {"resumed": True}
 
 

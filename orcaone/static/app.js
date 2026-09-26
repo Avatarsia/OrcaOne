@@ -6,7 +6,7 @@
 import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
-  printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, setLocalPrintFile, AREA_START, loadHosts, hosts, machines, slicersOf, isU1Printer,
+  printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, clockText, setLocalPrintFile, AREA_START, loadHosts, hosts, machines, slicersOf, isU1Printer,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
@@ -151,8 +151,14 @@ const app = createApp({
     const activeIdx = computed(() => (activeModel.value ? inst.value.models.indexOf(activeModel.value) : null));
     const isU1 = computed(() => isU1Printer(ui.printer));
     const remembered = { ...SETTINGS.chosen_printer };
+    let pending = null;   // the printer "Status" shows next, from the progress in the top bar (openStatus)
     watch([inst, printers, area, machines], () => {
       if (area.value === "printer") {
+        if (pending && machines.value.some((m) => m.key === pending)) {
+          ui.printer = pending;
+          pending = null;
+          return;
+        }
         if (!machines.value.length || machines.value.some((m) => m.key === ui.printer)) return;
         const start = inst.value && slicerModel(inst.value)?.model;
         ui.printer = (machines.value.find((m) => m.key === remembered.printer) || machines.value.find((m) => m.model === start)
@@ -534,7 +540,32 @@ const app = createApp({
     const fileHost = computed(() => hosts.value?.[ui.printer]?.host || "");  // its address, "" without one
     const printFiles = ref(null);   // its print files, newest first; null until read
     const jobFile = ref(undefined); // the file it printed at the last look; undefined before the first
-    watchPrinters(() => (area.value === "printer" && fileHost.value ? [ui.printer] : []));
+    // How far the print is, on every page and in both parts (the user's wish of 25.09.2026: progress
+    // and time left showed only on "Übersicht" and "Status"): the printer of the printer part; in the
+    // slicer part the one chosen there last, else one of the model chosen here.
+    const jobPrinter = computed(() => {
+      if (area.value === "printer") return fileHost.value ? ui.printer : "";
+      const m = machines.value.find((x) => x.key === remembered.printer) || machines.value.find((x) => x.model === ui.printer);
+      return m?.host ? m.key : "";
+    });
+    watchPrinters(() => (jobPrinter.value ? [jobPrinter.value] : []));
+    const running = computed(() => {
+      const now = live[jobPrinter.value], j = now?.data?.monitor?.job;
+      if (!j || now.error || !["printing", "paused"].includes(j.state)) return null;
+      const pct = Math.round(Math.min(1, Math.max(0, j.progress || 0)) * 100);
+      const minutes = j.left != null ? Math.max(1, Math.round(j.left / 60)) : null;
+      const left = minutes != null ? T.printBar.left(T.camera.print.duration(Math.floor(minutes / 60), minutes % 60)) : "";
+      const done = j.left != null ? T.printBar.done(clockText(new Date(Date.now() + j.left * 1000))) : "";
+      return {
+        pct, paused: j.state === "paused", text: j.state === "paused" ? T.printBar.paused : left,
+        title: [j.file, j.layers ? T.camera.print.layer(j.layer || 0, j.layers) : "", left, done, T.printBar.toStatus].filter(Boolean).join("\n"),
+      };
+    });
+    function openStatus(ev) {
+      // "Status" shows that printer, also when coming from the slicer part, where ui.printer is a model.
+      if (area.value !== "printer") pending = jobPrinter.value;
+      go(ev, hashOf("status", ui.instId));
+    }
     const liveJob = computed(() => live[ui.printer]?.data?.monitor?.job || null);
     // Klipper's print_stats.state (printing, paused, standby, …); null while unknown or unreachable.
     const jobState = computed(() => (area.value === "printer" && !live[ui.printer]?.error && liveJob.value?.state) || null);
@@ -641,24 +672,27 @@ const app = createApp({
         flash(errorText(err));
       }
     }
-    async function pauseResume() {
-      const paused = jobPaused.value;
+    // Pause, resume and cancel answer only when the printer's macro is done, parking or heating
+    // (printer_files.ORDER_TIMEOUT): said at once, and the buttons wait meanwhile, so a second click
+    // does not send the opposite.
+    const barBusy = ref(false);
+    async function barOrder(send, said) {
+      if (barBusy.value) return;
+      barBusy.value = true;
+      flash(said);
       try {
-        await (paused ? api.resumePrint(ui.printer) : api.pausePrint(ui.printer));
-        flash(paused ? T.printBar.resumed : T.printBar.pausing);
+        await send();
       } catch (err) {
         flash(errorText(err));
+      } finally {
+        barBusy.value = false;
       }
     }
-    async function cancelPrint() {
+    const pauseResume = () => barOrder(() => (jobPaused.value ? api.resumePrint(ui.printer) : api.pausePrint(ui.printer)),
+                                       jobPaused.value ? T.printBar.resumed : T.printBar.pausing);
+    function cancelPrint() {
       cancelAsk.value = false;
-      try {
-        await api.printCancel(ui.printer);
-        flash(T.printBar.cancelled);
-      } catch (err) {
-        flash(errorText(err));
-      }
-      lookSoon();
+      barOrder(() => api.printCancel(ui.printer), T.printBar.cancelled);
     }
     function disarmStop() {
       clearTimeout(stopTimer);
@@ -715,7 +749,7 @@ const app = createApp({
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
-      thumbOf, fileThumb, jobBusy, jobPaused, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, lookSoon, api,
+      thumbOf, fileThumb, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, api,
     };
   },
 
@@ -796,14 +830,18 @@ const app = createApp({
           <input ref="localInput" class="file-local-input" type="file" accept=".gcode,.gco,.g" tabindex="-1" aria-hidden="true" @change="pickLocal">
         </div>
       </div>
+      <!-- How far the print is, on every page (the user's wish); a click leads to "Status" -->
+      <a v-if="running" :class="['job-pill', { 'is-paused': running.paused }]" :href="hashOf('status', ui.instId)" :title="running.title"
+         @click="openStatus"><span class="job-ring" :style="{ '--pct': running.pct }" aria-hidden="true"></span>
+        <strong>{{ running.pct }} %</strong><span v-if="running.text" class="job-left">{{ running.text }}</span></a>
       <!-- Print that file, cancel, emergency stop (the user's wish); the tooltip says why one is off -->
       <div v-if="area === 'printer' && chosen && fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
         <button class="bar-btn" type="button" :disabled="!!startBlock" :title="startBlock || T.printBar.start(fileName)"
                 :aria-label="T.printBar.start(fileName)" @click="openPrint"><ui-icon name="play"/></button>
-        <button class="bar-btn" type="button" :disabled="!jobBusy" :title="!jobBusy ? T.printBar.cancelIdle : jobPaused ? T.printBar.resume : T.printBar.pause"
+        <button class="bar-btn" type="button" :disabled="!jobBusy || barBusy" :title="!jobBusy ? T.printBar.cancelIdle : jobPaused ? T.printBar.resume : T.printBar.pause"
                 :aria-label="jobPaused ? T.printBar.resume : T.printBar.pause" @click="pauseResume"><ui-icon :name="jobPaused ? 'resume' : 'pause'"/></button>
         <div class="inst cancel-pick" @keydown.esc.stop="cancelAsk = false; $refs.cancelBtn.focus()">
-          <button ref="cancelBtn" class="bar-btn" type="button" :disabled="!jobBusy" :title="jobBusy ? T.printBar.cancel : T.printBar.cancelIdle"
+          <button ref="cancelBtn" class="bar-btn" type="button" :disabled="!jobBusy || barBusy" :title="jobBusy ? T.printBar.cancel : T.printBar.cancelIdle"
                   :aria-label="T.printBar.cancel" aria-haspopup="dialog" :aria-expanded="cancelAsk ? 'true' : 'false'"
                   @click="cancelAsk = !cancelAsk; cancelAsk && $nextTick(() => $refs.cancelNo.focus())"><ui-icon name="stop"/></button>
           <div v-if="cancelAsk" class="inst-menu bar-ask" role="alertdialog" aria-labelledby="cancel-ask">

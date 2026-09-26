@@ -145,6 +145,18 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .file-local-input { display: none; }
 /* Print, cancel, emergency stop next to the print file (app.js); the emergency stop red, armed filled */
 .print-ctl { display: flex; gap: 6px; }
+/* How far the print is (app.js), on every page: a ring, the percent, the time left; paused in orange */
+.job-pill { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 8px; border: 1px solid rgba(255, 255, 255, .25);
+            border-radius: 16px; color: #fff; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.job-pill:hover { background: rgba(255, 255, 255, .12); }
+.job-ring { flex: none; width: 18px; height: 18px; border-radius: 50%;
+            background: conic-gradient(#fff calc(var(--pct) * 1%), rgba(255, 255, 255, .25) 0);
+            -webkit-mask: radial-gradient(circle, transparent 5px, #000 5.5px); mask: radial-gradient(circle, transparent 5px, #000 5.5px); }
+.job-left { color: rgba(255, 255, 255, .85); }
+.job-pill.is-paused { border-color: rgba(255, 180, 90, .8); }
+.job-pill.is-paused .job-ring { background: conic-gradient(#FFB45A calc(var(--pct) * 1%), rgba(255, 255, 255, .25) 0); }
+.job-pill.is-paused .job-left { color: #FFD08A; }
+@media (max-width: 700px) { .job-left { display: none; } }
 .print-ctl .bar-btn:disabled { opacity: .4; cursor: not-allowed; background: none; }
 .bar-btn.estop { border-color: rgba(255, 138, 128, .7); color: #FF8A80; }
 .bar-btn.estop:hover { background: rgba(225, 71, 71, .25); }

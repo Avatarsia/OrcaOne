@@ -56,6 +56,11 @@ const T = {
     stopArmed: "Notstopp?",
     stopArmedHint: "Noch einmal klicken löst den Notstopp aus.",
     stopped: "Notstopp ausgelöst. Klipper steht, bis es mit FIRMWARE_RESTART neu startet, etwa auf der Seite „Konsole“.",
+    // How far the print is, in the top bar on every page
+    paused: "Pausiert",
+    left: (time) => `noch ${time}`,
+    done: (clock) => `fertig gegen ${clock} Uhr`,
+    toStatus: "Ein Klick zeigt die Seite „Status“.",
   },
   // Boot screen on every page load (app.js)
   splash: {

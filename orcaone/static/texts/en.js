@@ -50,6 +50,11 @@ const T = {
     stopArmed: "Stop?",
     stopArmedHint: "Click again to trigger the emergency stop.",
     stopped: "Emergency stop triggered. Klipper stays halted until FIRMWARE_RESTART, for example on the page “Console”.",
+    // How far the print is, in the top bar on every page
+    paused: "Paused",
+    left: (time) => `${time} left`,
+    done: (clock) => `done around ${clock}`,
+    toStatus: "A click shows the page \"Status\"."
   },
   splash: {
     license: "License: PolyForm Noncommercial 1.0.0",
