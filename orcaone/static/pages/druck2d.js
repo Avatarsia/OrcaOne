@@ -20,6 +20,19 @@ const STEPS = 24;              // colours of the scale drawn
 const TRAIL = 30;              // lines printed last, with a halo: where the nozzle has just been
 const RETRACT = "#E5484D", PRIME = "#30A46C";
 const BELOW = "#6F86AD";       // the layer below: blue-grey, so it differs even from black or grey filament
+// A colour hardly apart from the plate (white filament on the light plate, black on the dark one) gets
+// an edge in the colour of the text, else its lines vanish (the user's wish of 27.09.2026). Below this
+// contrast ratio (WCAG's, https://www.w3.org/TR/WCAG21/#dfn-contrast-ratio) the edge is drawn.
+const FAINT = 1.5, EDGE_ALPHA = 0.55;
+function luminance(css) {
+  const rgb = css[0] === "#" ? [1, 3, 5].map((n) => parseInt(css.slice(n, n + 2), 16)) : (css.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+  const [r, g, b] = rgb.map((c) => (c /= 255) <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
 const RAMP = Array.from({ length: STEPS }, (_, s) => {
   const v = (s / (STEPS - 1)) * (SCALE.length - 1), i = Math.min(SCALE.length - 2, Math.floor(v)), k = v - i;
   const [a, b] = [SCALE[i], SCALE[i + 1]].map((c) => [1, 3, 5].map((n) => parseInt(c.slice(n, n + 2), 16)));
@@ -252,29 +265,43 @@ export default {
     }
     // Lines a … b in one path per colour and width, as they follow each other. At least 1.6 px wide,
     // so a printed area looks filled even from afar; thin: a fine trace of what is still to come.
+    // First, under them, the edges of the lines in a colour faint on the plate (FAINT).
     function paintLines(d, a, b, alpha, key, css, thin = false) {
       const pos = d.pos, wh = d.wh, k = view.scale / d.unit, tx = view.tx, ty = view.ty;
-      ctx.globalAlpha = alpha;
+      const faint = new Map();
+      const isFaint = (c) => {
+        if (!faint.has(c)) faint.set(c, contrast(css(c), colours.plate) < FAINT);
+        return faint.get(c);
+      };
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      let last = -1, lx = NaN, ly = NaN;
-      for (let i = a; i < b; i++) {
-        const c = key(i), next = c * 256 + wh[2 * i];
-        if (next !== last) {
-          if (last !== -1) ctx.stroke();
-          last = next;
-          ctx.beginPath();
-          lx = NaN;
-          ctx.strokeStyle = css(c);
-          ctx.lineWidth = thin ? 0.8 : Math.max(1.6, (wh[2 * i] / 100) * view.scale);
+      const pass = (edge) => {
+        let last = -1, lx = NaN, ly = NaN;
+        for (let i = a; i < b; i++) {
+          const c = key(i);
+          if (edge && !isFaint(c)) continue;
+          const next = c * 256 + wh[2 * i];
+          if (next !== last) {
+            if (last !== -1) ctx.stroke();
+            last = next;
+            ctx.beginPath();
+            lx = NaN;
+            const w = thin ? 0.8 : Math.max(1.6, (wh[2 * i] / 100) * view.scale);
+            ctx.strokeStyle = edge ? colours.text : css(c);
+            ctx.lineWidth = edge ? w + 2 : w;
+          }
+          const p = i * 5, x0 = tx + pos[p] * k, y0 = ty - pos[p + 1] * k;
+          if (x0 !== lx || y0 !== ly) ctx.moveTo(x0, y0);
+          lx = tx + pos[p + 3] * k;
+          ly = ty - pos[p + 4] * k;
+          ctx.lineTo(lx, ly);
         }
-        const p = i * 5, x0 = tx + pos[p] * k, y0 = ty - pos[p + 1] * k;
-        if (x0 !== lx || y0 !== ly) ctx.moveTo(x0, y0);
-        lx = tx + pos[p + 3] * k;
-        ly = ty - pos[p + 4] * k;
-        ctx.lineTo(lx, ly);
-      }
-      if (last !== -1) ctx.stroke();
+        if (last !== -1) ctx.stroke();
+      };
+      ctx.globalAlpha = alpha * EDGE_ALPHA;
+      pass(true);
+      ctx.globalAlpha = alpha;
+      pass(false);
       ctx.globalAlpha = 1;
     }
     // A halo in the accent colour under lines a … b, `more` px wider than they are.
