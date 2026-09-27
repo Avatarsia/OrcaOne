@@ -27,6 +27,7 @@ A local web app for your **OrcaSlicer** and **Snapmaker Orca** profiles and your
 
 **Printer**
 - Live status, print control (pause, cancel, pause at layer, exclude objects), restart Klipper
+- Charts over seven days, recorded by OrcaOne itself: temperatures with targets, heater power, speed, flow, fans, system; live or back in time
 - Errors explained: the U1's codes and Klipper's messages, what they mean and what helps
 - 3D and 2D view of the print file, following the running print
 - Bed mesh, G-code console, logs with search, SSH in the browser, network and Wi-Fi diagnostics
@@ -87,6 +88,7 @@ Eine lokale Web-App für deine Profile in **OrcaSlicer** und **Snapmaker Orca** 
 
 **Drucker**
 - Status live, Druck steuern (Pause, Abbruch, Pause bei Schicht, Objekte ausschließen), Klipper neu starten
+- Diagramme über sieben Tage, von OrcaOne selbst aufgezeichnet: Temperaturen mit Soll, Heizleistung, Tempo, Fluss, Lüfter, System; live oder zurück in der Zeit
 - Fehler erklärt: die Codes des U1 und Klippers Meldungen, was sie heißen und was hilft
 - 3D und 2D Ansicht der Druckdatei, folgt dem laufenden Druck
 - Höhenkarte, G-Code-Konsole, Logs mit Suche, SSH im Browser, Netzwerk und WLAN
