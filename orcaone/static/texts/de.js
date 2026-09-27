@@ -1156,6 +1156,7 @@ const T = {
     byFilament: "Filament",
     byType: "Linienart",
     follow: "Druck folgen",
+    followLocked: "Folgt dem Druck. Zum Selbstschieben „Druck folgen“ ausschalten.",
     noHost: (name) => `${name} hat keine IP-Adresse. Dateien vom Rechner lassen sich trotzdem ansehen.`,
     reading: "Lese die Datei …",
     dropHint: "G-Code hierher ziehen oder oben eine Datei wählen.",

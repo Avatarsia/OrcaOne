@@ -99,6 +99,9 @@ export function usePrintFile(onShow, { whilePrinting = false } = {}) {
     return Math.max(1, lo);
   };
   const printedLayer = computed(() => (data.value && printing.value ? layerOf(Math.max(0, printedCount.value - 1)) : 0));
+  // While the file shown prints and the page follows it, the layer and line sliders show the print and
+  // cannot be moved (the user's wish of 27.09.2026); "Druck folgen" off frees them.
+  const locked = computed(() => follow.value && printing.value && ["printing", "paused"].includes(job.value.job.state));
   const zOf = (k) => data.value?.layerZ[k - 1] ?? 0;
 
   // ------------------------------------------------------------ reading a file
@@ -181,7 +184,7 @@ export function usePrintFile(onShow, { whilePrinting = false } = {}) {
 
   return {
     host, job, loading, error, data, follow, dragging, layers, current, printing, printedCount,
-    printedLayer, layerOf, zOf, percent, fileName, onDrop, piece, errorText,
+    printedLayer, locked, layerOf, zOf, percent, fileName, onDrop, piece, errorText,
   };
 }
 

@@ -2232,6 +2232,8 @@ span.cal-check { cursor: default; }
 .v3d-layers { position: absolute; top: 10px; right: 12px; bottom: 134px; display: flex; flex-direction: column; align-items: center; gap: 6px;
               padding: 8px 4px; border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); font-size: 12px; }
 .v3d-slider { flex: 1; width: 24px; writing-mode: vertical-lr; direction: rtl; accent-color: var(--accent); cursor: pointer; }
+/* Following a print the sliders show it and stay put (print-view.js locked) */
+.v3d-slider:disabled, .v2d-step-slider:disabled { cursor: default; opacity: .75; }
 .v3d-layer-text { font-weight: 700; font-variant-numeric: tabular-nums; }
 .v3d-layer-text small { margin-left: 2px; color: var(--muted); font-weight: 400; }
 .v3d-layer-z { color: var(--muted); font-variant-numeric: tabular-nums; }

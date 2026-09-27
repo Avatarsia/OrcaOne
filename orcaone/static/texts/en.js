@@ -1144,6 +1144,7 @@ const T = {
     byFilament: "Filament",
     byType: "Line type",
     follow: "Follow the print",
+    followLocked: "Follows the print. Switch off “Follow the print” to move it yourself.",
     noHost: (name) => `${name} has no IP address. Files from this computer can still be viewed.`,
     reading: "Reading the file …",
     dropHint: "Drop G-code here or choose a file above.",

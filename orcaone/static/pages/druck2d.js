@@ -95,7 +95,7 @@ export default {
     const settingsOpen = ref(false);
     const canvas = ref(null), stage = ref(null);
     const file = usePrintFile(show);
-    const { data, layers, job, printing, printedCount, printedLayer, follow } = file;
+    const { data, layers, job, printing, printedCount, printedLayer, follow, locked } = file;
 
     const firstOf = (L) => (L <= 1 ? 0 : data.value.layerStart[L - 1]);
     const endOf = (L) => (L >= layers.value ? data.value.count : data.value.layerStart[L]);
@@ -443,12 +443,14 @@ export default {
       draw();
     }
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-    // The user takes over from following the print.
+    // The user takes over from following the print, but not while it prints (locked).
     function setLayer(L) {
+      if (locked.value) return;
       if (printing.value) follow.value = false;
       layer.value = clamp(L, 1, layers.value);
     }
     function setStep(k) {
+      if (locked.value) return;
       if (printing.value) follow.value = false;
       step.value = clamp(k, 0, lines.value);
     }
@@ -705,13 +707,15 @@ ${STAGE_STATE}
             </div>
             <div v-if="layers > 1" class="v3d-layers v2d-layers">
               <span class="v3d-layer-text">{{ layer }}<small>/ {{ layers }}</small></span>
-              <input :value="layer" class="v3d-slider" type="range" min="1" :max="layers" step="1" :aria-label="V.layer" @input="setLayer(+$event.target.value)">
+              <input :value="layer" class="v3d-slider" type="range" min="1" :max="layers" step="1" :aria-label="V.layer" :disabled="locked"
+                     :title="locked ? V3.followLocked : null" @input="setLayer(+$event.target.value)">
               <span class="v3d-layer-z">{{ num(layerInfo.z, 2) }} mm</span>
             </div>
             <div class="v2d-steps">
-              <button class="icon-btn" type="button" :title="V.back" :aria-label="V.back" @click="setStep(step - 1)"><ui-icon name="arrowLeft"/></button>
-              <input :value="step" class="v2d-step-slider" type="range" min="0" :max="lines" step="1" :aria-label="V.steps" @input="setStep(+$event.target.value)">
-              <button class="icon-btn" type="button" :title="V.forward" :aria-label="V.forward" @click="setStep(step + 1)"><ui-icon name="arrowRight"/></button>
+              <button class="icon-btn" type="button" :title="V.back" :aria-label="V.back" :disabled="locked" @click="setStep(step - 1)"><ui-icon name="arrowLeft"/></button>
+              <input :value="step" class="v2d-step-slider" type="range" min="0" :max="lines" step="1" :aria-label="V.steps" :disabled="locked"
+                     :title="locked ? V3.followLocked : null" @input="setStep(+$event.target.value)">
+              <button class="icon-btn" type="button" :title="V.forward" :aria-label="V.forward" :disabled="locked" @click="setStep(step + 1)"><ui-icon name="arrowRight"/></button>
               <span class="v2d-step-text">{{ V.stepOf(num(step), num(lines)) }}</span>
             </div>
             <div v-if="tip && hoverInfo" class="v2d-tip" :style="tipStyle">
