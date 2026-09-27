@@ -1675,16 +1675,83 @@ span.cal-check { cursor: default; }
 .cal-once .cal-body { padding-bottom: 10px; }
 
 /* Page "Dateien" (pages/dateien.js) */
-.files-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 16px 0 12px; }
-.files-ro-tag { margin-left: 2px; padding: 0 6px; border-radius: 8px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 400; }
 .files-disk { margin-left: auto; color: var(--muted); font-size: 13px; }
 .files-busy { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--warn); font-weight: 600; }
-.files-box { padding: 0; overflow: hidden; }
+/* Where on the page: one button with the folder tree, beside it what goes for this folder (the user's
+   wish of 27.09.2026: four chips, a path bar and folder rows were "verwirrend und angeklatscht") */
+.files-where { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 12px; }
+.files-where-pick { position: relative; min-width: 0; }
+.inst-btn.files-where-btn { max-width: min(560px, 100%); border-color: var(--line-input); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; }
+.inst-btn.files-where-btn:hover { background: var(--row-hover); }
+.inst-btn.files-where-btn[aria-expanded="true"] { border-color: var(--accent-line); }
+.files-where-btn > .icon:first-child { flex: none; color: var(--accent-text); }
+.files-where-long, .files-where-short { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-where-short { display: none; }
+.files-where-sep { margin: 0 6px; color: var(--muted); font-weight: 400; }
+.files-where-tools { display: inline-flex; align-items: center; gap: 6px; }
+.files-where-sepline { width: 1px; height: 20px; margin: 0 2px; background: var(--line-input); }
+.files-disk.is-full { color: var(--warn); font-weight: 600; }
+/* The folder tree (pages/folder-tree.js), floating under its button like the menus of the top bar */
+.files-tree-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; width: max(320px, 100%); max-width: min(480px, calc(100vw - 32px));
+                    max-height: min(60vh, 520px); overflow: auto; padding: 6px; border: 1px solid var(--line-box); border-radius: 6px;
+                    background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, .2); }
+.files-tree { margin: 0; padding: 0; list-style: none; }
+.files-tree-row { display: flex; align-items: center; gap: 2px; min-height: 32px; padding-left: calc(var(--depth) * 16px); border-radius: 4px; }
+.files-tree-row.is-shown, .files-tree-row.is-chosen { background: var(--selected); }
+.files-tree-row.is-shown .files-tree-name, .files-tree-row.is-chosen .files-tree-name { color: var(--accent-text); font-weight: 700; }
+.files-tree-row.is-off .files-tree-name { color: var(--disabled-text); cursor: default; }
+.files-tree-toggle { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px;
+                     background: none; color: var(--muted); }
+button.files-tree-toggle { cursor: pointer; }
+button.files-tree-toggle:hover { background: var(--row-hover); color: var(--text); }
+.files-tree-toggle .icon { transition: transform .15s; }
+.files-tree-toggle .icon.is-open { transform: rotate(90deg); }
+.files-tree-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 4px; border: 0; border-radius: 4px;
+                   background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.files-tree-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-tree-name > .icon { flex: none; color: var(--icon); }
+.files-tree-name:not(:disabled):hover { background: var(--row-hover); }
+.files-tree-note { flex: none; padding-right: 6px; color: var(--muted); font-size: 12px; }
+.files-tree-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; padding: 0 7px; border-radius: 8px;
+                  background: var(--surface-2); color: var(--muted); font-size: 11px; }
+.files-tree-tag.is-printing { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+/* The head of the list: how many, what goes for the ones picked, sorting; it stays under the bars while the list scrolls */
+.files-listhead { position: sticky; top: var(--head-h); z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 48px;
+                  padding: 8px 14px; border-bottom: 1px solid var(--divider); border-radius: 8px 8px 0 0; background: var(--surface); }
+.files-sort-pick { position: relative; margin-left: auto; }
+.files-sort-menu { min-width: 180px; }
+.files-move-pick { position: relative; }
+.files-tree-panel.is-move { width: 340px; }
+.files-move-go { position: sticky; bottom: -6px; display: flex; justify-content: flex-end; margin: 6px -6px -6px; padding: 8px;
+                 border-top: 1px solid var(--divider); background: var(--surface); }
+/* One level up and the folders: one quiet line each */
+.files-up { gap: 10px; color: var(--muted); }
+.files-up-btn { display: inline-flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text);
+                font: inherit; cursor: pointer; }
+.files-up-btn:hover .files-name { color: var(--accent-text); text-decoration: underline; }
+.files-up .files-meta { margin-left: auto; }
+.files-dir { min-height: 44px; }
+.files-dir-icon { flex: none; color: var(--accent); }
+.files-dir-meta { margin-left: auto; white-space: nowrap; }
+.files-newdir { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.files-newdir .input { flex: 0 1 260px; min-width: 0; }
+.files-empty { color: var(--muted); }
+@media (max-width: 600px) {
+  .files-where-long { display: none; }
+  .files-where-short { display: inline; }
+  .files-where-pick { flex: 1; }
+  .inst-btn.files-where-btn { width: 100%; }
+  .files-where-btn > .icon:last-child { margin-left: auto; }
+  .files-where-pick > .files-tree-panel { width: calc(100vw - 32px); max-width: none; max-height: 70vh; }
+  .files-tree-panel.is-move { position: fixed; top: auto; left: 16px; right: 16px; width: auto; max-width: none; max-height: 70vh; }
+  .files-tree-row { min-height: 44px; }
+  .files-hide-phone { display: none; }
+  .files-disk { flex-basis: 100%; margin-left: 0; }
+}
+.files-box { padding: 0; }
+.files-list > .files-row:last-child { border-radius: 0 0 8px 8px; }
 .files-box > .alert, .files-box > .note, .files-box > .empty { margin: 14px; }
-.files-ro { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--divider); color: var(--muted); font-size: 13px; }
-.files-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 14px; border-bottom: 1px solid var(--divider); background: var(--surface-2); }
-.files-all { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-.files-count { flex: 1; color: var(--muted); font-size: 13px; }
+.files-count { color: var(--muted); font-size: 13px; }
 .files-ask { color: var(--danger); }
 .files-list { margin: 0; padding: 0; list-style: none; }
 .files-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--divider); }
@@ -1706,28 +1773,15 @@ span.cal-check { cursor: default; }
 .files-tool { display: inline-flex; align-items: center; gap: 4px; }
 .files-dot { flex: none; width: 10px; height: 10px; border: 1px solid var(--line-input); border-radius: 50%; }
 .files-actions { flex: none; display: flex; gap: 6px; }
-/* The file explorer: where in "Druckdateien", sorting, folders, drag and drop, uploads, details */
-.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0 0 10px; color: var(--muted); }
-.files-crumb { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px dashed transparent; border-radius: 6px;
-               background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
-.files-crumb:hover { background: var(--surface-2); }
-.files-crumb[aria-current="page"] { color: inherit; }
-.files-crumb.is-drop { border-color: var(--accent-line); background: var(--focus-bg); }
-.files-tools-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 14px; border-bottom: 1px solid var(--divider); }
-.files-sort { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.files-sort-label { color: var(--muted); font-size: 13px; }
+/* The file explorer: sorting, drag and drop, uploads, details */
 .files-sort-dir { margin-left: 2px; transition: transform .15s; }
 .files-sort-dir.is-asc { transform: rotate(180deg); }
-.files-newdir { display: flex; flex-wrap: wrap; gap: 6px; }
-.files-newdir .input { width: 200px; }
-.files-move { width: auto; max-width: 220px; }
 .files-box.is-drop { outline: 2px dashed var(--accent-line); outline-offset: -2px; }
 .files-drop-hint { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--divider);
                    background: var(--focus-bg); color: var(--accent-text); font-weight: 700; }
 .files-row[draggable="true"] { cursor: grab; }
 .files-row.is-drop { background: var(--focus-bg); box-shadow: inset 0 0 0 2px var(--accent-line); }
 .files-row.is-shown { background: var(--selected); }
-.files-thumb.is-dir { color: var(--accent); }
 .files-set-badge.is-printing { background: var(--warn-bg); color: var(--warn); }
 .files-uploads { display: flex; flex-direction: column; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--divider); font-size: 13px; }
 .files-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }

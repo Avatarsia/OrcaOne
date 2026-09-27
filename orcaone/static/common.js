@@ -91,7 +91,9 @@ export function go(ev, hash) {
 export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, processFocus: null, calibrateFor: null,
                              printFile: null, viewLayer: null, addressFor: null,
                              // While the printer of the printer part prints: its file stays the print file (app.js).
-                             fileLocked: false });
+                             fileLocked: false,
+                             // Per printer the folder "Dateien" showed last, while OrcaOne is open: { folder, path }.
+                             filesAt: {} });
 let localFile = null;
 export function setLocalPrintFile(file) {
   if (ui.fileLocked) return flash(T.fileMenu.locked);
@@ -564,6 +566,9 @@ export const ICONS = {
   spool: '<ellipse cx="16.5" cy="12" rx="3" ry="7.5"/><path d="M16.5 4.5H8c-1.9 0-3.5 3.4-3.5 7.5s1.6 7.5 3.5 7.5h8.5"/><ellipse cx="16.5" cy="12" rx="1" ry="2.5"/>',
   printer: '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 8h17M10 8v3.5h4V8M12 11.5V13M7 17h10"/>',
   folder: '<path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
+  folderPlus: '<path d="M11 19H5.5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V12"/><path d="M17.5 14.5v6M14.5 17.5h6"/>',
+  folderMove: '<path d="M11 19H5.5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V12"/><path d="M14 17.5h6.5M17.5 14.5l3 3-3 3"/>',
+  levelUp: '<path d="M9.5 13.5 5 9l4.5-4.5"/><path d="M5 9h8.5a5.5 5.5 0 0 1 5.5 5.5v4"/>',
   folderOpen: '<path d="M3.5 17V7a2 2 0 0 1 2-2h4l2 2.5h6a2 2 0 0 1 2 2v1"/><path d="M3.5 17l2.3-6a1.5 1.5 0 0 1 1.4-1h12.6a1 1 0 0 1 .9 1.4L18.4 17.8a1.8 1.8 0 0 1-1.7 1.2H5.2a1.7 1.7 0 0 1-1.7-2z"/>',
   file: '<path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/>',
   log: '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4.5"/>',
