@@ -34,7 +34,8 @@ PLAIN = {**COMMON,
          "heater_fan hotend_fan": {"speed": 1.0, "rpm": 5400.0},
          "controller_fan electronics": {"speed": 0.5},
          "filament_switch_sensor runout": {"filament_detected": True, "enabled": True},
-         "configfile": {"settings": {}}, "mcu": {"mcu_version": "v0.12"}}
+         "configfile": {"settings": {}},
+         "mcu": {"mcu_version": "v0.12", "last_stats": {"mcu_task_avg": 0.00001, "mcu_task_stddev": 0.000008, "mcu_awake": 0.05}}}
 U1 = {**COMMON,
       "heaters": {"available_heaters": ["heater_bed", "extruder", "extruder1"],
                   "available_sensors": ["heater_bed", "temperature_sensor cavity", "extruder", "extruder1"]},
@@ -55,7 +56,8 @@ U1 = {**COMMON,
       # The drivers of X and Y measure their own temperature, but only while the motors are on.
       "tmc2240 stepper_x": {"temperature": 41.5, "run_current": 1.2}, "tmc2240 stepper_y": {"temperature": None, "run_current": 1.2},
       "tmc2209 stepper_z": {"run_current": 0.8}}
-SYSTEM = {"cpu_temp": 40.1, "system_cpu_usage": {"cpu": 3.8}, "system_uptime": 21980.0,
+SYSTEM = {"cpu_temp": 40.1, "system_cpu_usage": {"cpu": 3.8, "cpu10": 1.0, "cpu0": 2.0, "cpu1": 5.6}, "system_uptime": 21980.0,
+          "websocket_connections": 3, "moonraker_stats": [{"time": 5.0, "cpu_usage": 1.2, "memory": 30000, "mem_units": "kB"}],
           "system_memory": {"total": 984740, "available": 770828, "used": 213912},
           "network": {"lo": {"rx_bytes": 10, "bandwidth": 1.0}, "wlan0": {"rx_bytes": 964, "tx_bytes": 1508, "rx_errs": 1, "tx_errs": 2, "bandwidth": 379.4},
                       "wlan1": {"rx_bytes": 0, "bandwidth": 0.0}}}
@@ -100,8 +102,10 @@ def moonraker():
 def test_a_plain_klipper_printer(moonraker):
     host, _, asked = moonraker
     got = monitor.read(host)
-    # One query, with the objects found by their kind; nothing it did not need.
-    assert len(asked) == 1 and "configfile" not in asked[0] and "mcu" not in asked[0]
+    # One query, with the objects found by their kind; nothing it did not need: of a microcontroller
+    # only its last_stats (its load), not its constants.
+    assert len(asked) == 1 and "configfile" not in asked[0]
+    assert "mcu=last_stats" in monitor.objects(list(PLAIN)) and "mcu" not in monitor.objects(list(PLAIN))
     assert {"extruder", "heater_bed", "fan", "heater_fan hotend_fan", "filament_switch_sensor runout"} <= set(asked[0])
     assert got["klipper"] == {"state": "ready", "message": "Printer is ready", "code": None} and got["exceptions"] == []
     job = got["job"]
@@ -122,9 +126,12 @@ def test_a_plain_klipper_printer(moonraker):
     assert (motion["min"], motion["max"]) == ([0.0, 0.0, -6.0], [271.0, 335.0, 275.0])
     assert motion["mesh"] == [[3.0, 3.0], [267.0, 267.0]]
     assert motion["flow"] == pytest.approx(2.0 * math.pi * 0.875 ** 2)
+    # The microcontroller's load as graphstats reckons it: (0.01 ms + 3 × 0.008 ms) of 2.5 ms, awake 0.05 of 5 s.
+    assert got["mcus"] == [{"name": "mcu", "load": 1.4, "awake": 1.0}]
     system = got["system"]
     assert (system["cpu"], system["cpu_temp"], system["uptime"]) == (3.8, 40.1, 21980.0)
     assert system["memory"] == {"total": 984740, "used": 213912}
+    assert (system["cores"], system["websockets"], system["moonraker"]) == ([2.0, 5.6, 1.0], 3, {"cpu": 1.2, "memory": 30000})
     assert system["network"] == [{"name": "wlan0", "bandwidth": 379.4, "rx": 964, "tx": 1508, "errors": 3, "drops": None}]
 
 
@@ -151,8 +158,8 @@ def test_without_the_computer_inside(moonraker, monkeypatch):
     real = monitor._get
     monkeypatch.setattr(monitor, "_get", lambda h, path: real(h, "/nothing") if path == "/machine/proc_stats" else real(h, path))
     got = monitor.read(host)
-    assert got["system"] == {"cpu": None, "cpu_temp": None, "memory": {"total": None, "used": None}, "uptime": None, "time": None,
-                             "network": []}
+    assert got["system"] == {"cpu": None, "cpu_temp": None, "cores": [], "websockets": None, "moonraker": {"cpu": None, "memory": None},
+                             "memory": {"total": None, "used": None}, "uptime": None, "time": None, "network": []}
 
 
 def test_api(server, moonraker):

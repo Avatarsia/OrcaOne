@@ -103,6 +103,8 @@ U1_SYSTEM = {"system_info": {
     "product_info": {"device_name": "Dr. Klippers U1", "firmware_version": "1.6.0", "nozzle_diameter": [0.4, 0.4, 0.4, 0.4],
                      "machine_type": "Snapmaker U1", "serial_number": "GEHEIM"},
     "distribution": {"name": "Buildroot 2024.02"},
+    "cpu_info": {"cpu_count": 4, "bits": "64bit", "processor": "aarch64", "cpu_desc": "", "model": "", "serial_number": "CPU-GEHEIM"},
+    "python": {"version_string": "3.11.8 (main, Jan 1 2026)"},
     "network": {"lo": {"ip_addresses": [{"family": "ipv4", "address": "127.0.0.1"}]},
                 "wlan0": {"ip_addresses": [{"family": "ipv4", "address": "10.30.40.174"}]}}}}
 ANSWERS = {
@@ -113,6 +115,9 @@ ANSWERS = {
     "/server/files/list?root=camera": [{"path": "x.mp4", "size": 1000}, {"path": "x_cover.jpg", "size": 10}],
     "/server/history/totals": {"job_totals": {"total_jobs": 28.0, "total_print_time": 318806.1, "total_filament_used": 759323.5, "longest_print": 74923.7}},
     "/machine/proc_stats": {"system_uptime": 5078.2, "cpu_temp": 40.1, "system_memory": {"total": 984740, "used": 187516}},
+    "/printer/objects/list": {"objects": ["toolhead", "mcu", "mcu e0", "heater_bed"]},
+    "/printer/objects/query?mcu=mcu_version,mcu_constants&mcu%20e0=mcu_version,mcu_constants": {"status": {
+        "mcu": {"mcu_version": "v0.12.0-1", "mcu_constants": {"MCU": "stm32h750xx"}}, "mcu e0": {"mcu_version": "v0.12.0-2", "mcu_constants": {}}}},
 }
 
 
@@ -149,6 +154,8 @@ def test_info_of_a_klipper_printer(moonraker):
     assert got["disk"]["free"] == 24_200_000_000 and got["folders"] == {"gcodes": 500, "camera": 1010, "logs": None}
     assert got["videos"] == 1 and got["jobs"]["total_jobs"] == 28.0 and got["system"]["cpu_temp"] == 40.1
     assert "GEHEIM" not in json.dumps(got)
+    assert (got["cpu"], got["python"]) == ({"model": "aarch64", "cores": 4}, "3.11.8")
+    assert got["mcus"] == [{"name": "mcu", "chip": "stm32h750xx", "version": "v0.12.0-1"}, {"name": "mcu e0", "chip": None, "version": "v0.12.0-2"}]
     # Any other Klipper printer: no product_info, the rest as it is.
     answers["/machine/system_info"] = {"system_info": {"distribution": {"name": "Debian GNU/Linux 12"}}}
     plain = camera.info(host)

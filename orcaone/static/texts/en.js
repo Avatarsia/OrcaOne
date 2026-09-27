@@ -1071,7 +1071,7 @@ const T = {
   // ---------------------------------------------------------------- page "Status"
   monitor: {
     title: "Status",
-    lead: "What the printer is doing right now, live as soon as something changes, read only. Works with any Klipper printer with an IP address, the U1 shows more.",
+    panels: "The printer's values",
     pathNote: (k) => `Path of layer ${n(k)}: faint all of it, strong what is printed`,
     noHost: (name) => `${name} has no IP address yet. Enter it on the page “Printers”.`,
     toPrinters: "To the page “Printers”",
@@ -1119,6 +1119,18 @@ const T = {
       cavity: "Chamber", chamber: "Chamber", cavity_fan: "Chamber", driver: (axis) => `Driver ${axis}`,
     },
     driverIdle: "only while the motors are on",
+    software: "Software",
+    processor: "Hardware",
+    cores: (k) => `${n(k)} cores`,
+    os: "Operating system",
+    mcus: "Microcontrollers",
+    mainBoard: "Main board",
+    awake: (p) => `awake ${p} %`,
+    totals: "Prints in total",
+    clients: "Connections",
+    clientsHint: "Programs connected to Moonraker right now: OrcaOne, web interfaces, the display, the slicer",
+    moonrakerLoad: "Moonraker itself",
+    disk: "Storage",
     errors: {
       camera_unreachable: "Printer not reachable. Is it on and in the same network?",
       printer_not_found: "This printer has no IP address any more. Reload the page.",

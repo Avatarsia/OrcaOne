@@ -2045,8 +2045,36 @@ span.cal-check { cursor: default; }
 /* Motion large on the left, temperatures and fans beside it, the computer inside across below (the
    user: the boxes did not sort well, the position could be larger) */
 .mon-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
-.mon-side { display: grid; gap: 16px; }
-.mon-system { grid-column: 1 / -1; }
+/* The tabs of the right box: temperatures, fans, sensors, system (as on "Netzwerk") */
+.mon-tabs { display: flex; flex-wrap: wrap; gap: 2px 4px; margin: -4px 0 12px; border-bottom: 1px solid var(--line-box); }
+.mon-tab { display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; padding: 7px 10px 6px; border: 0; border-bottom: 3px solid transparent;
+           background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.mon-tab:hover { color: var(--text); }
+.mon-tab.is-current { border-bottom-color: var(--accent-line); color: var(--text); }
+.mon-tab.is-current .icon { color: var(--accent-text); }
+.mon-tab:focus-visible { outline-offset: -2px; }
+/* A page to watch (the user's wish of 27.09.2026): with room enough it fills the window and does not
+   scroll. The print on top; below the motion, its map as large as the room left allows (--r: width to
+   depth of the printer, the map --w wide), and the tabs, whose content alone may scroll. In a smaller
+   window the print and its heads took nearly all the height (below 900 px the map shrank to nothing, review
+   27.09.2026): then one page that scrolls, as before. */
+@media (min-width: 1200px) and (min-height: 900px) {
+  .status-page > h1 { margin-bottom: 12px; }
+  .status-page .mon-hero { flex: none; margin-bottom: 16px; padding: 14px 20px; }
+  .status-page .mon-grid { flex: 1; min-height: 0; align-items: stretch; }
+  .status-page .mon-motion, .status-page .mon-more { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .status-page .motion-map { flex: 1; min-height: 0; align-items: flex-start; container-type: size; }
+  .status-page .motion-map > * { --w: min(560px, calc((100cqh - 24px) * var(--r)), calc(100cqw - 56px - 76px)); }
+  .status-page .xy-frame { flex: none; width: calc(var(--w) + 56px); }
+  .status-page .zruler { height: calc(var(--w) / var(--r) + 24px); }
+  .status-page .motion-gauges, .status-page .mon-limits, .status-page .xy-path-note { flex: none; }
+  .status-page .motion-gauges { margin-top: 8px; }
+  .status-page .mon-panel { flex: 1; min-height: 0; overflow-y: auto; }
+}
+@media not all and (min-width: 1200px) and (min-height: 900px) {
+  .main:has(.status-page) { display: block; height: auto; padding-bottom: 96px; }
+  .page.status-page { display: block; }
+}
 .mon-grid .box { margin-bottom: 0; }
 .mon-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 16px; font-weight: 700; }
 .mon-title .icon { color: var(--accent-text); }
@@ -2068,6 +2096,17 @@ span.cal-check { cursor: default; }
 .thermo.is-heating .thermo-value { color: var(--heat-text); font-weight: 700; }
 .thermo-value small { color: var(--muted); font-weight: 400; }
 .thermo-note { grid-column: 2 / -1; color: var(--muted); font-size: 12px; }
+/* The heater's power under its temperature, a thin bar with the percent */
+.thermo-power { display: grid; grid-column: 2 / -1; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.thermo-power-bar { position: relative; height: 5px; overflow: hidden; border-radius: 3px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-box); }
+.thermo-power-bar > span { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--warn); transition: width .6s ease; }
+.thermo-power small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* A driver: the colour of the whole scale (0 to 120 °C) from green over yellow to red, shown up to its
+   temperature (--w), so a warm driver ends in orange and a hot one in red */
+.thermo.is-driver .thermo-fill { right: 0; background: linear-gradient(90deg, #4CAF50 0 40%, #F4C032 58%, #FF842D 67%, #E14747 76%);
+                                 clip-path: inset(0 calc(100% - var(--w, 0%)) 0 0 round 5px); transition: clip-path .6s ease; }
+.thermo.is-warm .thermo-value { color: var(--heat-text); font-weight: 700; }
+.thermo.is-hot .thermo-value { color: var(--error); }
 /* Motion: the bed from above, the front at the bottom, with the head on it; the height as a ruler,
    the speed as a gauge */
 .motion-map { display: flex; justify-content: center; align-items: stretch; gap: 6px; }
@@ -2111,6 +2150,31 @@ span.cal-check { cursor: default; }
 .mon-list dt { color: var(--label); }
 .mon-list dd { margin: 0; font-variant-numeric: tabular-nums; }
 /* Fans turn with their speed (inline animation-duration, pages/status.js) */
+/* Fans as the temperature rows (pages/status.js): the icon turning, the name, the speed as a bar */
+.thermo.fanrow { grid-template-columns: 22px 150px minmax(0, 1fr) auto; }
+.fanrow > .icon { color: var(--icon); }
+.fanrow.is-on > .icon { color: var(--accent-text); animation: spin 1s linear infinite; }
+.fanrow .thermo-fill { background: var(--accent); }
+.fanrow .thermo-note { grid-column: 3 / -1; }
+/* "System" as the temperatures: a wider name, the load and memory in the accent, each core as a little
+   column under the load, headings between the lists */
+.mon-sys .thermo { grid-template-columns: 130px minmax(0, 1fr) auto; }
+/* A row without a bar: its value takes the bar's room too */
+.thermo.is-text .thermo-value { grid-column: 2 / -1; white-space: normal; }
+.thermo-lines { display: grid; justify-items: end; }
+.thermo.is-system .thermo-fill { background: var(--accent); }
+.sys-cores { display: flex; align-items: flex-end; gap: 2px; height: 18px; margin-top: 2px; }
+.sys-cores > span { flex: 1; min-width: 3px; border-radius: 1px; background: var(--accent); transition: height .6s ease; }
+.mon-sub { margin: 16px 0 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+/* The parts of "System" that fold away: a quiet heading with its arrow */
+.mon-fold { margin-top: 10px; border-top: 1px solid var(--divider); }
+.mon-fold-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 0 6px; border: 0; background: none; color: var(--label);
+                 font: inherit; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer; }
+.mon-fold-head:hover { color: var(--text); }
+.mon-fold-head small { color: var(--muted); font-weight: 400; }
+.mon-fold .mon-list { margin-bottom: 4px; }
+
+.mon-sys .mon-list dd { overflow-wrap: anywhere; }
 .fans { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 10px; }
 .fan { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .fan .icon { flex: none; color: var(--icon); }

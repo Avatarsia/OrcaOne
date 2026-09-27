@@ -491,6 +491,8 @@ def info(host: str) -> dict:
     is None; without /machine/system_info the printer counts as unreachable."""
     system = _get(host, "/machine/system_info").get("system_info") or {}
     product = system.get("product_info") if isinstance(system.get("product_info"), dict) else {}
+    cpu = system.get("cpu_info") if isinstance(system.get("cpu_info"), dict) else {}
+    python = system.get("python") if isinstance(system.get("python"), dict) else {}
     network = system.get("network") if isinstance(system.get("network"), dict) else {}
 
     def optional(path, pick):
@@ -517,7 +519,25 @@ def info(host: str) -> dict:
         "jobs": optional("/server/history/totals", lambda r: r["job_totals"]),
         "system": optional("/machine/proc_stats", lambda r: {"uptime": r.get("system_uptime"), "cpu_temp": r.get("cpu_temp"),
                                                              "memory": r.get("system_memory")}),
+        # For the tab "System" on "Status" (the user's wish of 27.09.2026): what the computer inside is, and
+        # each microcontroller with its chip and firmware (the U1: its board and one per head). Never the
+        # serial number of cpu_info.
+        "cpu": {"model": next((str(cpu[k]) for k in ("cpu_desc", "model", "hardware_desc", "processor") if cpu.get(k)), None),
+                "cores": cpu.get("cpu_count") if isinstance(cpu.get("cpu_count"), int) else None} if cpu else None,
+        "python": str(python.get("version_string") or "").split(" ")[0] or None,
+        "mcus": optional("/printer/objects/list", lambda r: _mcus(host, r["objects"])),
     }
+
+
+def _mcus(host: str, objects: list) -> list[dict]:
+    """Every microcontroller in Klipper's list ("mcu", "mcu e0" …): {"name", "chip", "version"}."""
+    names = [o for o in objects if isinstance(o, str) and (o == "mcu" or o.startswith("mcu "))]
+    if not names:
+        return []
+    query = "&".join(f"{urllib.parse.quote(n)}=mcu_version,mcu_constants" for n in names)
+    found = _get(host, f"/printer/objects/query?{query}").get("status") or {}
+    return [{"name": n, "chip": ((found.get(n) or {}).get("mcu_constants") or {}).get("MCU"), "version": (found.get(n) or {}).get("mcu_version")}
+            for n in names]
 
 
 def image(host: str) -> tuple[bytes, float | None]:

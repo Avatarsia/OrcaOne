@@ -54,11 +54,17 @@ def _groups(listed: list) -> tuple[list, list, list, list, list]:
             [o for o in listed if _kind(o) in MONITORS])
 
 
+def _mcus(listed: list) -> list[str]:
+    """The microcontrollers Klipper talks to: "mcu", on the U1 also "mcu e0" … one per head."""
+    return [o for o in listed if o == "mcu" or o.startswith("mcu ")]
+
+
 def objects(listed: list) -> list[str]:
     """What the page shows, as Klipper's objects "name" or "name=field,…", from Klipper's list: asked
     for once here (read), subscribed to for live values (live.py)."""
     extruders, temps, fans, sensors, monitors = _groups(listed)
-    return list(dict.fromkeys(FIXED + extruders + temps + fans + sensors + [f"{m}=temperature" for m in monitors]))
+    return list(dict.fromkeys(FIXED + extruders + temps + fans + sensors + [f"{m}=temperature" for m in monitors]
+                              + [f"{m}=last_stats" for m in _mcus(listed)]))
 
 
 def read(host: str) -> dict:
@@ -115,6 +121,15 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
     moonraker = system.get("moonraker_stats")
     moonraker = moonraker[-1] if isinstance(moonraker, list) and moonraker else moonraker if isinstance(moonraker, dict) else {}
     network = system.get("network") if isinstance(system.get("network"), dict) else {}
+    # The load of each microcontroller as Klipper's scripts/graphstats.py reckons it (the formula only):
+    # one pass of its task loop on average plus three times its spread, against 2.5 ms; awake: of the
+    # 5 s it reports over, the share it worked (the user's wish of 27.09.2026).
+    mcus = []
+    for name in _mcus(listed):
+        s = part(name).get("last_stats") if isinstance(part(name).get("last_stats"), dict) else {}
+        avg, dev, awake = _number(s.get("mcu_task_avg")), _number(s.get("mcu_task_stddev")), _number(s.get("mcu_awake"))
+        mcus.append({"name": name, "load": round((avg + 3 * dev) / 0.0025 * 100, 1) if avg is not None and dev is not None else None,
+                     "awake": round(awake / 5 * 100, 1) if awake is not None else None})
     return {
         # The U1's shutdown message begins with {"coded": ...}: its code and words apart.
         "klipper": dict(zip(("code", "message"), errors.split_coded(webhooks.get("state_message"))), state=webhooks.get("state")),
@@ -139,7 +154,14 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
                    # reach further, on the U1 to the heads parked behind it (Y 335).
                    "mesh": [[_number(v) for v in mesh.get(k) or []] for k in ("mesh_min", "mesh_max")],
                    "max_velocity": _number(toolhead.get("max_velocity")), "max_accel": _number(toolhead.get("max_accel"))},
+        "mcus": mcus,
         "system": {"cpu": _number((system.get("system_cpu_usage") or {}).get("cpu")), "cpu_temp": _number(system.get("cpu_temp")),
+                   # Each core ("cpu0" …), the pages that watch Moonraker, and Moonraker's own share (tab "System" on "Status")
+                   "cores": [_number(v) for k, v in sorted((system.get("system_cpu_usage") or {}).items(),
+                                                           key=lambda kv: int(kv[0][3:]) if re.fullmatch(r"cpu\d+", kv[0]) else -1)
+                             if re.fullmatch(r"cpu\d+", k)],
+                   "websockets": _number(system.get("websocket_connections")),
+                   "moonraker": {"cpu": _number(moonraker.get("cpu_usage")), "memory": _number(moonraker.get("memory"))},
                    "memory": {"total": _number(memory.get("total")), "used": _number(memory.get("used"))},
                    "uptime": _number(system.get("system_uptime")), "time": _number(moonraker.get("time")),
                    # Only interfaces that carried something: the U1 lists an unused second WLAN.
