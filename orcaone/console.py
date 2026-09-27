@@ -11,6 +11,7 @@ import threading
 import urllib.parse
 import urllib.request
 
+from . import camera
 from .camera import CameraError, _direct, _get
 
 WAIT = 600    # s a command may run; Moonraker's own answer only closes the request
@@ -31,7 +32,7 @@ def send(host: str, script) -> dict:
     """One line of G-code, as Moonraker's own web page sends it."""
     if not isinstance(script, str) or not script.strip() or len(script) > LONGEST or "\n" in script or "\r" in script:
         raise CameraError("gcode_invalid")
-    url = f"http://{host}/printer/gcode/script?script={urllib.parse.quote(script.strip())}"
+    url = camera.moonraker_url(host, f"/printer/gcode/script?script={urllib.parse.quote(script.strip())}")
 
     def run():
         try:

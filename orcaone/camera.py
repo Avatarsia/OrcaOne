@@ -24,6 +24,7 @@ import json
 import os
 import re
 import socket
+import ssl
 import struct
 import time
 import urllib.error
@@ -115,9 +116,22 @@ def printers() -> dict:
 
 
 def normalize(raw: str) -> str | None:
-    """"http://10.30.40.174/" -> "10.30.40.174"; None if it is no host."""
-    host = raw.strip().removeprefix("http://").removeprefix("https://").strip("/")
-    return host if _HOST.fullmatch(host) else None
+    """"http://10.30.40.174/" -> "10.30.40.174"; None if it is no host. https stays in front: a
+    printer behind a reverse proxy that answers http with a redirect to https (the user's Voron)."""
+    raw = raw.strip()
+    secure = raw.startswith("https://")
+    host = raw.removeprefix("http://").removeprefix("https://").strip("/")
+    return ("https://" if secure else "") + host if _HOST.fullmatch(host) else None
+
+
+def moonraker_url(host: str, path: str = "") -> str:
+    """Moonraker's URL of a path on a printer: "10.30.40.174" -> "http://10.30.40.174/server/info"."""
+    return (host if host.startswith("https://") else "http://" + host) + path
+
+
+def ws_url(host: str) -> str:
+    """Moonraker's WebSocket: ws:// or, for a host with https, wss://."""
+    return "ws" + moonraker_url(host, "/websocket").removeprefix("http")
 
 
 def set_host(model, raw) -> dict:
@@ -355,7 +369,7 @@ _estimates: dict = {}
 def _estimate(host: str, file: str) -> float | None:
     """estimated_time from Moonraker's metadata of the file, which the slicer wrote into it."""
     if (host, file) not in _estimates:
-        url = f"http://{host}/server/files/metadata?filename={urllib.parse.quote(file)}"
+        url = moonraker_url(host, f"/server/files/metadata?filename={urllib.parse.quote(file)}")
         with _direct.open(url, timeout=TIMEOUT) as response:
             estimate = json.loads(response.read())["result"].get("estimated_time")
         _estimates[(host, file)] = estimate if isinstance(estimate, (int, float)) and estimate > 0 else None
@@ -392,7 +406,7 @@ def query(host: str, objects: list) -> dict:
     in the answer. Raises CameraError."""
     names = "&".join(urllib.parse.quote(o, safe="=,") for o in objects)
     try:
-        with _direct.open(f"http://{host}/printer/objects/query?{names}", timeout=TIMEOUT) as response:
+        with _direct.open(moonraker_url(host, f"/printer/objects/query?{names}"), timeout=TIMEOUT) as response:
             found = json.loads(response.read())["result"]["status"]
         if not isinstance(found, dict):
             raise ValueError("no status")
@@ -454,7 +468,7 @@ def set_light(host: str, on: bool) -> bool:
     """The light in the U1 on or off: its LED has a white channel only (printer.cfg, [led
     cavity_led] white_pin), so Klipper's SET_LED with WHITE, sent as Moonraker's web page sends G-code."""
     script = urllib.parse.quote(f"SET_LED LED=cavity_led WHITE={1 if on else 0}")
-    request = urllib.request.Request(f"http://{host}/printer/gcode/script?script={script}", data=b"", method="POST")
+    request = urllib.request.Request(moonraker_url(host, f"/printer/gcode/script?script={script}"), data=b"", method="POST")
     try:
         with _direct.open(request, timeout=TIMEOUT) as response:
             json.loads(response.read())["result"]
@@ -476,7 +490,7 @@ def _light(led: dict) -> bool | None:
 def _get(host: str, path: str):
     """The "result" of a GET to Moonraker."""
     try:
-        with _direct.open(f"http://{host}{path}", timeout=TIMEOUT) as response:
+        with _direct.open(moonraker_url(host, path), timeout=TIMEOUT) as response:
             return json.loads(response.read())["result"]
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise CameraError("camera_unreachable", str(exc)) from None
@@ -543,7 +557,7 @@ def _mcus(host: str, objects: list) -> list[dict]:
 def image(host: str) -> tuple[bytes, float | None]:
     """The picture the printer wrote last, and its age in seconds when sent: Date minus
     Last-Modified, both by the printer's clock, so the computer's clock does not matter."""
-    url = f"http://{host}/server/files/camera/monitor.jpg?t={time.time():.0f}"
+    url = moonraker_url(host, f"/server/files/camera/monitor.jpg?t={time.time():.0f}")
     for attempt in range(2):
         try:
             with _direct.open(url, timeout=TIMEOUT) as response:
@@ -578,14 +592,17 @@ def wake(host: str) -> dict:
 def _rpc(host: str, method: str, params: dict, timeout: float = TIMEOUT) -> dict:
     """One JSON-RPC call over Moonraker's WebSocket: handshake, one masked text frame, then frames
     until the answer with our id (Moonraker sends notifications in between)."""
-    name, _, port = host.partition(":")
+    secure = host.startswith("https://")
+    address = host.removeprefix("https://")
+    name, _, port = address.partition(":")
     key = base64.b64encode(os.urandom(16)).decode()
     request_id = int(time.time() * 1000) % 1_000_000
     payload = json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method,
                           "params": dict(params, req_id=request_id)}).encode()
-    with socket.create_connection((name, int(port or 80)), timeout=timeout) as sock:
-        sock.sendall((f"GET /websocket HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                      f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: http://{host}\r\n\r\n").encode())
+    with socket.create_connection((name, int(port or (443 if secure else 80))), timeout=timeout) as raw:
+        sock = ssl.create_default_context().wrap_socket(raw, server_hostname=name) if secure else raw
+        sock.sendall((f"GET /websocket HTTP/1.1\r\nHost: {address}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                      f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: {moonraker_url(host)}\r\n\r\n").encode())
         buf = b""
         while b"\r\n\r\n" not in buf:
             chunk = sock.recv(4096)
