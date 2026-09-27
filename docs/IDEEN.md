@@ -265,6 +265,8 @@ Dazu senkrechte Marken für Klipper-Start, Shutdown, Druckstart und -ende, Pause
 - eine Absturzakte wie bei logextract (letzte G-Code-Zeilen, Stats davor);
 - die Konfiguration je Start mit Unterschied zum vorigen Start.
 
+**Umgesetzt (27.09.2026):** MCU-Werte aufzeichnen (Last, wach, Wiederholungen, ungültige Bytes, beim U1 Empfangsfehler; ohne Datenverkehr und Taktabweichung, ohne Klippers eigene CPU) und Marken in „Diagramme“ (Klipper-Start, Abschaltung, Fehler beim Start, Fehlercode, Pause, Stillstand; ein Klick auf Start, Abschaltung, Fehler oder Code sucht die Zeilen dieser Art in „Logs“). Der Puffer nicht: `print_time` und `estimated_print_time` ändern sich viermal je Sekunde und kämen so an jede offene Seite; die Stillstände zeigen den Fall „Puffer leer“ direkt. Marken aus `klippy.log` für die Zeit vor der Aufzeichnung fehlen noch.
+
 **Reihenfolge laut Recherche:** MCU-Werte aufzeichnen, Marken in „Diagramme“, „Befund“ mit wenigen Prüfungen, Bericht je Druck, Absturzakte. Lieber nicht: Fehldruckerkennung per KI, Riemen- und Schwingungsanalyse, klipper_estimator nachbauen.
 
-**Offen:** am U1 nur lesend prüfen, ob `mcu e0` … `last_stats` so im Abo ankommen und wie oft.
+**Am U1 geprüft (27.09.2026, nur lesend):** `mcu` und `mcu e0` … `e3` liefern `last_stats` mit allen Feldern, dazu `err_len`, `err_dest`, `err_sync`, `err_crc`; `srtt` und `rttvar` stehen dort auf 0, taugen beim U1 also nicht. Die Haupt-MCU meldet `SERIAL_BAUD` 921600 (etwa 92 KB/s je Richtung), die Köpfe hängen an USB ohne bekannte Grenze, Verkehr darum in B/s. `toolhead` liefert `stalls`, `print_time` und `estimated_print_time`, `system_stats` liefert `sysload`, `cputime` und `memavail`. Die Last der MCUs zeigt „Status“ schon (Reiter „System“, Formel wie graphstats).

@@ -9,8 +9,9 @@ The format is plain CSV: a line "#t,<series>,…" opens a segment (a new one whe
 series changes, say after a Klipper restart, and at the top of every day's file), then rows "<unix
 seconds>,<value>,…", an empty field for a value missing at that moment. "#file,<unix seconds>,<name>"
 marks the print file from its start on, so a moment and its file_position lead to a line in "2D
-Ansicht" and "3D Ansicht"; a print over midnight marks it again in the new day's file, with its start. A day that is over is packed
-with gzip. Kept KEEP_DAYS days; the two last prints of each print file come later with the view "Druck".
+Ansicht" and "3D Ansicht"; a print over midnight marks it again in the new day's file, with its start.
+"#event,<unix seconds>,<kind>,<words>" marks what happened (_events: Klipper started or shut down, a code
+of the U1, a pause, a stall). A day that is over is packed with gzip. Kept KEEP_DAYS days; the two last prints of each print file come later with the view "Druck".
 While the printer prints or heats a row every STEP seconds, at rest every IDLE_STEP seconds (the user's
 decisions of 27.09.2026). Read only towards the printer: this only listens.
 """
@@ -36,7 +37,8 @@ GAP = 3 * IDLE_STEP  # s without a row that the charts show as a gap: the printe
 TAIL = 65536       # bytes at the end of a day's file enough to find its newest row
 
 # printer: {"t": time of its last row, "names": its series, "counters": {name: bytes}, "clock": Moonraker's
-# time of those counters, "rates": the traffic last computed, "file": the print file marked last}
+# time of those counters, "rates": the traffic last computed, "file": the print file marked last,
+# "mcus": {name: {"at", "counters", "rates"}} as _mcu_rates saw them, "seen": the state _events saw last}
 _last: dict[str, dict] = {}
 _tidied: dict[Path, date] = {}      # folder: the day it was tidied last
 
@@ -85,6 +87,10 @@ def values(monitor: dict) -> dict[str, float]:
     memory = system.get("memory") or {}
     if memory.get("total"):
         put("memory", (memory.get("used") or 0) / memory["total"], 100)
+    # Each microcontroller's load and time awake in % (monitor.shape, as Klipper's graphstats reckons them).
+    for m in monitor.get("mcus") or []:
+        put(f"mcu_load:{m.get('name')}", m.get("load"))
+        put(f"mcu_awake:{m.get('name')}", m.get("awake"))
     return out
 
 
@@ -101,15 +107,20 @@ def sample(printer: str, monitor: dict, now: float | None = None) -> dict | None
     """One row for the printer if one is due, written and returned as {"t", "v": {series: value}}, else None."""
     now = time.time() if now is None else now
     last = _last.setdefault(printer, {"t": None, "names": None, "counters": {}, "clock": None, "rates": {}, "file": None,
-                                      "started": None, "day": None})
-    if last["t"] is not None and now - last["t"] < (STEP if _busy(monitor) else IDLE_STEP) - 0.05:
+                                      "started": None, "day": None, "mcus": {}, "seen": None})
+    # Looked at every second; something that happened brings a row at once, also at rest. What was seen
+    # counts only once written: a mark that could not be written is found again next time (review 27.09.2026).
+    events, seen = _events(last["seen"], monitor)
+    if not events and last["t"] is not None and now - last["t"] < (STEP if _busy(monitor) else IDLE_STEP) - 0.05:
+        last["seen"] = seen
         return None
     row = values(monitor)
     row.update(_traffic(last, monitor.get("system") or {}))
+    row.update(_mcu_rates(last, monitor.get("mcus") or []))
     t = round(now)
     day = date.fromtimestamp(t)
     names = sorted(row)
-    lines = []
+    lines = [f"#event,{t},{kind},{words}" for kind, words in events]
     job = monitor.get("job") or {}
     file = job.get("file") if _printing(monitor) and isinstance(job.get("file"), str) else None
     # Each day's file readable on its own (review 27.09.2026): its header, and a print going on its mark
@@ -121,9 +132,82 @@ def sample(printer: str, monitor: dict, now: float | None = None) -> dict | None
         lines.append("#t," + ",".join(names))
     lines.append(f"{t}," + ",".join(_text(row[n]) for n in names))
     if not _write(printer, day, lines):
-        return None   # a full disk or a locked file: the next second tries again
-    last.update(t=now, names=names, file=file, started=started if file else None, day=day)
-    return {"t": t, "v": row}
+        return None   # a full disk or a locked file: the next second tries again, the marks too
+    last.update(t=now, names=names, file=file, started=started if file else None, day=day, seen=seen)
+    return {"t": t, "v": row, **({"events": [[t, kind, words] for kind, words in events]} if events else {})}
+
+
+def _events(seen: dict | None, monitor: dict) -> tuple[list[tuple[str, str]], dict]:
+    """What happened since the look before (seen), (kind, words) for the marks on "Diagramme" (the user's wish
+    of 27.09.2026), and what this look saw: Klipper ready again or the printer's computer started anew (start),
+    Klipper shut down (shutdown, with its reason) or stopped by an error such as one in printer.cfg (error), a
+    code of the U1 that came (code), a print paused (pause), the moves ran dry (stall, how often). Nothing at
+    the first look: that is only how OrcaOne found the printer. While Moonraker answers but cannot reach
+    Klipper (monitor "listed" false, say right after Moonraker restarted), live.py knows nothing of Klipper:
+    its state, codes and print are kept as seen before, else Klipper's return looked like a start and every
+    standing code like a new one (review 27.09.2026)."""
+    klipper, job, system = monitor.get("klipper") or {}, monitor.get("job") or {}, monitor.get("system") or {}
+    codes = {e["code"]: e.get("message") for e in monitor.get("exceptions") or [] if isinstance(e, dict) and e.get("code")}
+    now = {"klipper": klipper.get("state"), "codes": set(codes), "job": job.get("state"), "stalls": job.get("stalls"),
+           "uptime": system.get("uptime")}
+    reached = monitor.get("listed", True)
+    if seen is None:
+        return [], now
+    if not reached:
+        now.update({k: seen[k] for k in ("klipper", "codes", "job", "stalls")})
+    out = []
+    number = lambda v: isinstance(v, (int, float))
+    # The computer ran shorter than at the last look: it started anew, Klipper with it, maybe while unreachable.
+    rebooted = number(now["uptime"]) and number(seen["uptime"]) and now["uptime"] < seen["uptime"] - 30
+    if rebooted or (reached and now["klipper"] == "ready" and seen["klipper"] not in (None, "ready")):
+        out.append(("start", ""))
+    if reached:
+        for state in ("shutdown", "error"):
+            if now["klipper"] == state and seen["klipper"] != state:
+                out.append((state, _words(klipper.get("code"), klipper.get("message"))))
+        for code in sorted(set(codes) - seen["codes"]):
+            out.append(("code", _words(code, codes[code])))
+        if now["job"] == "paused" and seen["job"] == "printing":
+            out.append(("pause", ""))
+        if number(now["stalls"]) and number(seen["stalls"]) and now["stalls"] > seen["stalls"]:
+            out.append(("stall", str(int(now["stalls"] - seen["stalls"]))))
+    return out, now
+
+
+def _words(code, message) -> str:
+    """A mark's words on one line: the code, then the first line of the message."""
+    first = str(message or "").strip().splitlines()[0] if str(message or "").strip() else ""
+    return " ".join(str(x) for x in (code, first[:200]) if x)
+
+
+def _mcu_rates(last: dict, mcus: list) -> dict:
+    """Per microcontroller bytes sent again (mcu_retx) and bytes that arrived broken (mcu_invalid) per
+    second, on the U1 also its receive errors per second (mcu_err), from its counters over Klipper's time of
+    them ("at", live.py). Klipper renews them once a second and OrcaOne hears of it within a quarter second,
+    so the time between two is rounded to whole seconds: dividing by the raw times gave rates jumping by a
+    quarter. No new statistics since the last row: the rates of that row again; counters that went down
+    (Klipper restarted): no rate until the next row."""
+    rates = {}
+    for m in mcus:
+        name, at = m.get("name"), m.get("at")
+        if not isinstance(name, str) or not isinstance(at, (int, float)):
+            continue
+        counters = {key: m[field] for key, field in (("retx", "retransmit"), ("invalid", "invalid"), ("err", "errors"))
+                    if isinstance(m.get(field), (int, float))}
+        before = last["mcus"].get(name)
+        if before and at == before["at"]:
+            rates.update(before["rates"])
+            continue
+        mine = {}
+        if before and at > before["at"]:
+            seconds = max(1, round(at - before["at"]))
+            for key, value in counters.items():
+                old = before["counters"].get(key)
+                if old is not None and value >= old:
+                    mine[f"mcu_{key}:{name}".replace(",", " ")] = round((value - old) / seconds, 2)
+        last["mcus"][name] = {"at": at, "counters": counters, "rates": mine}
+        rates.update(mine)
+    return rates
 
 
 def _traffic(last: dict, system: dict) -> dict:
@@ -260,9 +344,11 @@ def _tidy(where: Path, today: date) -> None:
             continue   # a file in use: the next day tries again
 
 
-def _rows(path: Path, files: list | None = None, since: float = -math.inf, until: float = math.inf):
+def _rows(path: Path, files: list | None = None, since: float = -math.inf, until: float = math.inf,
+          events: list | None = None):
     """(time, {series: value}) of one day's file between since and until, packed or not; the print file
-    marks into files. A row outside is skipped before its values are read: a busy day has 86400."""
+    marks into files, the marks of what happened in that span into events. A row outside is skipped before
+    its values are read: a busy day has 86400."""
     opener = gzip.open if path.suffix == ".gz" else open
     names = []
     with opener(path, "rt", encoding="utf-8", errors="replace") as f:
@@ -272,6 +358,12 @@ def _rows(path: Path, files: list | None = None, since: float = -math.inf, until
                 stamp, _, name = line[6:].partition(",")
                 if files is not None and stamp.isdigit():
                     files.append((int(stamp), name))
+                continue
+            if line.startswith("#event,"):
+                stamp, _, rest = line[7:].partition(",")
+                kind, _, words = rest.partition(",")
+                if events is not None and stamp.isdigit() and since <= int(stamp) <= until:
+                    events.append((int(stamp), kind, words))
                 continue
             parts = line.split(",")
             if parts[0] == "#t":
@@ -286,8 +378,8 @@ def _rows(path: Path, files: list | None = None, since: float = -math.inf, until
 
 
 def read(printer: str, since: float, until: float | None = None, points: int = POINTS_MAX) -> dict:
-    """The rows between since and until as columns, {"t": [...], "series": {name: [...]}, "files": [[t, name]]},
-    None where a series had no value or the printer did not answer (a gap longer than GAP gets a row of
+    """The rows between since and until as columns, {"t": [...], "series": {name: [...]}, "files": [[t, name]],
+    "events": [[t, kind, words]]}, None where a series had no value or the printer did not answer (a gap longer than GAP gets a row of
     None, so a chart breaks its line there). A span longer than `points` seconds is thinned while reading,
     per time step to its least and most value (two rows per step, in the order they came), so a spike stays
     visible and seven days never sit in memory as rows."""
@@ -295,11 +387,11 @@ def read(printer: str, since: float, until: float | None = None, points: int = P
     until = now if until is None else min(until, now + 86400)
     since = max(since, until - SECONDS_MAX, now - SECONDS_MAX - 86400)   # older days are gone anyway
     if since > until:
-        return {"t": [], "series": {}, "files": []}
+        return {"t": [], "series": {}, "files": [], "events": []}
     points = max(10, min(points, POINTS_MAX))
     steps = points // 2
     width = (until - since) / steps if until - since > points * STEP else None
-    rows, buckets, files = [], {}, []
+    rows, buckets, files, events = [], {}, [], []
     where = folder(printer)
     day = date.fromtimestamp(since)
     while day <= date.fromtimestamp(until):
@@ -307,7 +399,7 @@ def read(printer: str, since: float, until: float | None = None, points: int = P
             if not path.exists():
                 continue
             try:
-                for t, v in _rows(path, files, since, until):
+                for t, v in _rows(path, files, since, until, events):
                     if width is None:
                         rows.append((t, v))
                         continue
@@ -341,4 +433,5 @@ def read(printer: str, since: float, until: float | None = None, points: int = P
         v_out.append(v)
     names = sorted({n for v in v_out for n in v})
     files = [list(f) for f in sorted(set(files)) if f[0] <= until]   # a print over midnight is marked in both days
-    return {"t": t_out, "series": {n: [v.get(n) for v in v_out] for n in names}, "files": files}
+    return {"t": t_out, "series": {n: [v.get(n) for v in v_out] for n in names}, "files": files,
+            "events": [list(e) for e in sorted(set(events))]}

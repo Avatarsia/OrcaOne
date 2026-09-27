@@ -20,7 +20,7 @@ COMMON = {
     "display_status": {"progress": 0.25, "message": None},
     "gcode_move": {"speed_factor": 1.1, "extrude_factor": 0.95},
     "toolhead": {"extruder": "extruder", "homed_axes": "xyz", "max_velocity": 300.0, "max_accel": 5000.0, "position": [1, 2, 3, 4],
-                 "axis_minimum": [0.0, 0.0, -6.0, 0.0], "axis_maximum": [271.0, 335.0, 275.0, 0.0]},
+                 "axis_minimum": [0.0, 0.0, -6.0, 0.0], "axis_maximum": [271.0, 335.0, 275.0, 0.0], "stalls": 2},
     "motion_report": {"live_velocity": 120.5, "live_extruder_velocity": 2.0, "live_position": [10.25, 20.5, 0.4, 100.0]},
     "heater_bed": {"temperature": 59.8, "target": 60.0, "power": 0.35},
     "bed_mesh": {"mesh_min": [3.0, 3.0], "mesh_max": [267.0, 267.0], "profile_name": "default", "probed_matrix": [[0.1]]},
@@ -35,7 +35,8 @@ PLAIN = {**COMMON,
          "controller_fan electronics": {"speed": 0.5},
          "filament_switch_sensor runout": {"filament_detected": True, "enabled": True},
          "configfile": {"settings": {}},
-         "mcu": {"mcu_version": "v0.12", "last_stats": {"mcu_task_avg": 0.00001, "mcu_task_stddev": 0.000008, "mcu_awake": 0.05}}}
+         "mcu": {"mcu_version": "v0.12", "last_stats": {"mcu_task_avg": 0.00001, "mcu_task_stddev": 0.000008, "mcu_awake": 0.05,
+                                                  "bytes_retransmit": 9, "bytes_invalid": 0}}}
 U1 = {**COMMON,
       "heaters": {"available_heaters": ["heater_bed", "extruder", "extruder1"],
                   "available_sensors": ["heater_bed", "temperature_sensor cavity", "extruder", "extruder1"]},
@@ -55,7 +56,10 @@ U1 = {**COMMON,
       "led cavity_led": {"color_data": [[0.0, 0.0, 0.0, 1.0]]},
       # The drivers of X and Y measure their own temperature, but only while the motors are on.
       "tmc2240 stepper_x": {"temperature": 41.5, "run_current": 1.2}, "tmc2240 stepper_y": {"temperature": None, "run_current": 1.2},
-      "tmc2209 stepper_z": {"run_current": 0.8}}
+      "tmc2209 stepper_z": {"run_current": 0.8},
+      # The board of head 1, with the U1's own receive errors (read from the user's U1 on 27.09.2026).
+      "mcu e0": {"last_stats": {"mcu_task_avg": 0.000007, "mcu_task_stddev": 0.000004, "mcu_awake": 0.003, "bytes_retransmit": 9,
+                                "bytes_invalid": 0, "err_len": 2, "err_dest": 1, "err_sync": 0, "err_crc": 0}}}
 SYSTEM = {"cpu_temp": 40.1, "system_cpu_usage": {"cpu": 3.8, "cpu10": 1.0, "cpu0": 2.0, "cpu1": 5.6}, "system_uptime": 21980.0,
           "websocket_connections": 3, "moonraker_stats": [{"time": 5.0, "cpu_usage": 1.2, "memory": 30000, "mem_units": "kB"}],
           "system_memory": {"total": 984740, "available": 770828, "used": 213912},
@@ -127,7 +131,8 @@ def test_a_plain_klipper_printer(moonraker):
     assert motion["mesh"] == [[3.0, 3.0], [267.0, 267.0]]
     assert motion["flow"] == pytest.approx(2.0 * math.pi * 0.875 ** 2)
     # The microcontroller's load as graphstats reckons it: (0.01 ms + 3 × 0.008 ms) of 2.5 ms, awake 0.05 of 5 s.
-    assert got["mcus"] == [{"name": "mcu", "load": 1.4, "awake": 1.0}]
+    # With the counters of trouble on its line, for the charts; no receive errors of its own (the U1 has them).
+    assert got["mcus"] == [{"name": "mcu", "load": 1.4, "awake": 1.0, "retransmit": 9, "invalid": 0, "errors": None, "at": None}]
     system = got["system"]
     assert (system["cpu"], system["cpu_temp"], system["uptime"]) == (3.8, 40.1, 21980.0)
     assert system["memory"] == {"total": 984740, "used": 213912}
@@ -144,6 +149,9 @@ def test_the_u1_shows_more(moonraker):
     assert (second["spool"], second["changes"], second["errors"]) == (None, 12, 1)
     assert got["job"]["options"] == {"bed_level": True, "flow_calibrate": False, "shaper_calibrate": False, "time_lapse_camera": True}
     assert got["job"]["light"] is True
+    # How often the moves ran dry; per board the sum of its receive errors.
+    assert got["job"]["stalls"] == 2
+    assert [(m["name"], m["retransmit"], m["errors"]) for m in got["mcus"]] == [("mcu e0", 9, 3)]
     assert [t["name"] for t in got["temperatures"]] == ["heater_bed", "temperature_sensor cavity", "extruder", "extruder1",
                                                         "tmc2240 stepper_x", "tmc2240 stepper_y"]
     assert [(t["temp"], t.get("driver")) for t in got["temperatures"][-2:]] == [(41.5, True), (None, True)]

@@ -246,6 +246,12 @@ export function partLabel(name, u1) {
   if (u1 && (m = /^e(\d+)_nozzle_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.hotendFan}`;
   return S.names[rest] || (rest || name).replace(/_/g, " ");
 }
+// A microcontroller as a person says it: the main board, on the U1 "mcu eN" the board of head N+1.
+export function mcuLabel(name, u1) {
+  if (name === "mcu") return T.monitor.mainBoard;
+  const m = /^mcu e(\d+)$/.exec(name);
+  return m && u1 ? T.u1.head(+m[1] + 1) : name.slice(4);
+}
 // Those printers for the top bar and the page "Drucker": { key, model, host, name, cover }; key is
 // the name ui.printer and the API go by.
 export const machines = computed(() => Object.entries(hosts.value || {}).map(([key, h]) => {

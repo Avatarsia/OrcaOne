@@ -6,7 +6,7 @@
 // the working head and the layer changes, the glowing "now", below an overview of the whole span to
 // drag a window in. Beside it the panel choosing what to see, remembered per printer
 // (data/settings.json "charts"). The printer comes from the tabs above (app.js). Read only.
-import { ui, partLabel, isU1Printer, darkQuery, LOCALE } from "../common.js";
+import { ui, partLabel, mcuLabel, isU1Printer, darkQuery, LOCALE, go, hashOf } from "../common.js";
 import { T, SETTINGS } from "../texts.js";
 import { api } from "../api.js";
 import { live, watchPrinters } from "../live.js";
@@ -20,18 +20,21 @@ const KEPT = 7 * 86400;   // what history.py keeps
 // Colours that stay apart on the dark and the light stage (the user: too close, heads 3 and 4 alike,
 // 27.09.2026): the heads fixed, 1 to 4, the rest per lane in this order, so no two lines of a lane share one.
 const HEAD_COLOURS = ["#F28E2B", "#3D8FE0", "#4CB050", "#C061D6"];
+const MAIN_BOARD = "#009688";   // the main board's lines (mcu_*:mcu), in OrcaOne's teal
 const PALETTE = ["#17BECF", "#E15759", "#D4A92A", "#FF8FA3", "#9C755F", "#8C8C8C", "#A3C93A", "#76B7B2"];
 // The lanes in this order, one per unit; network traffic comes in bytes per second.
-const UNITS = ["°C", "%", "mm³/s", "mm/s", "1/min", "mm", "layer", "KB/s"];
+const UNITS = ["°C", "%", "mm³/s", "mm/s", "1/min", "mm", "layer", "KB/s", "B/s", "1/s"];
 function unitOf(n) {
   if (/^(temp|target):|^cpu_temp$/.test(n)) return "°C";
-  if (/^(power|fan):|^(cpu|memory|progress|speed_factor|flow_factor)$/.test(n)) return "%";
+  if (/^(power|fan|mcu_load|mcu_awake):|^(cpu|memory|progress|speed_factor|flow_factor)$/.test(n)) return "%";
   if (n === "flow") return "mm³/s";
   if (n === "speed") return "mm/s";
   if (n.startsWith("rpm:")) return "1/min";
   if (n === "z") return "mm";
   if (n === "layer") return "layer";
   if (/^(rx|tx):/.test(n)) return "KB/s";
+  if (/^mcu_(retx|invalid):/.test(n)) return "B/s";
+  if (n.startsWith("mcu_err:")) return "1/s";
   return null;   // head, file_position: not drawn as lines
 }
 const factorOf = (n) => (/^(rx|tx):/.test(n) ? 1 / 1024 : 1);
@@ -44,6 +47,9 @@ const GROUPS = [
   { id: "fans", fits: (n) => n.startsWith("fan:") || n.startsWith("rpm:") },
   { id: "print", fits: (n) => ["progress", "layer", "speed_factor", "flow_factor"].includes(n) },
   { id: "computer", fits: (n) => ["cpu", "memory", "cpu_temp"].includes(n) || n.startsWith("temp:tmc") },
+  // The microcontrollers (history.py, as Klipper's graphstats reckons them): their work, and their line.
+  { id: "mcus", fits: (n) => /^mcu_(load|awake):/.test(n) },
+  { id: "link", fits: (n) => /^mcu_(retx|invalid|err):/.test(n) },
   { id: "network", fits: (n) => /^(rx|tx):/.test(n) },
 ];
 // The usual views in one list, "Alles aus" first for ticking by hand (the user's wishes of 27.09.2026).
@@ -58,13 +64,18 @@ const PRESETS = {
   progress: (n) => ["progress", "layer", "z"].includes(n),
   motion: (n) => ["speed", "flow", "speed_factor", "flow_factor"].includes(n),
   fans: (n) => /^(fan|rpm):/.test(n),
-  electronics: (n) => ["cpu", "memory", "cpu_temp"].includes(n) || n.startsWith("temp:tmc"),
+  electronics: (n) => ["cpu", "memory", "cpu_temp"].includes(n) || /^temp:tmc|^mcu_load:/.test(n),
+  mcus: (n) => /^mcu_(load|awake):/.test(n),
+  // Trouble on the line to the microcontrollers: flat at 0 while all is well.
+  link: (n) => /^mcu_(retx|invalid|err):/.test(n),
   network: (n) => /^(rx|tx):/.test(n),
 };
 // One view per head, when there are several (the user's wish of 27.09.2026): its temperature, heating and
-// fans. On the U1 [fan] is the part fan of head 1, fan_generic eN_fan and heater_fan eN_nozzle_fan are head N+1's.
+// fans. On the U1 [fan] is the part fan of head 1, fan_generic eN_fan and heater_fan eN_nozzle_fan are head N+1's,
+// "mcu eN" its board: the trouble on its line beside the band of tool changes shows a head's contacts.
 const headView = (k) => (n) => new RegExp(`^(temp|power):extruder${k || ""}$`).test(n)
-  || new RegExp(`^(fan|rpm):\\S+ e${k}_(fan|nozzle_fan)$`).test(n) || (k === 0 && /^(fan|rpm):fan$/.test(n));
+  || new RegExp(`^(fan|rpm):\\S+ e${k}_(fan|nozzle_fan)$`).test(n) || (k === 0 && /^(fan|rpm):fan$/.test(n))
+  || new RegExp(`^mcu_(retx|invalid|err):mcu e${k}$`).test(n);
 const fitsOf = (id) => (id.startsWith("head:") ? headView(+id.slice(5)) : PRESETS[id]);
 
 let loading = null;
@@ -110,8 +121,8 @@ export default {
     const overviewBox = ref(null);
     const tick = ref(0);              // counts redraws: panel and hover read the rows, which are not reactive
     // cols: the rows of the lanes, the span up to now or a window of the past (detail); wide: the overview's.
-    let uPlot = null, lanePlots = [], overview = null, cols = { t: [], series: {}, files: [] }, wide = cols, detail = false;
-    let asked = 0, builds = 0, builtKey = "", gone = false, saveTimer = 0, fetchTimer = 0, activeLane = -1, look = null, zooming = false;
+    let uPlot = null, lanePlots = [], overview = null, cols = { t: [], series: {}, files: [], events: [] }, wide = cols, detail = false;
+    let asked = 0, builds = 0, builtKey = "", gone = false, saveTimer = 0, fetchTimer = 0, pendingLog = 0, activeLane = -1, look = null, zooming = false;
     let seenFile;   // the print file of the last live row: undefined after a load, null while not printing
     let backSeconds = 0, overviewNames = [];   // what the overview spans back from its newest row, and its lines
     let observer = null, themeWatch = null;
@@ -123,6 +134,7 @@ export default {
       if (!n.includes(":")) return D.series[n] || n;
       const kind = n.slice(0, n.indexOf(":")), part = partOf(n);
       if (kind === "rx" || kind === "tx") return `${D.series[kind]} · ${part}`;
+      if (kind.startsWith("mcu_")) return `${mcuLabel(part, isU1.value)} · ${D.series[kind]}`;
       const text = partLabel(part, isU1.value);
       return ["rpm", "power", "target"].includes(kind) ? `${text} · ${D.series[kind]}` : text;
     }
@@ -132,19 +144,24 @@ export default {
       const m = /^(?:temp|target|power):extruder(\d*)$/.exec(n);
       return m ? +(m[1] || 0) : null;
     };
+    // A microcontroller's lines by its board: the main board teal, on the U1 the board of head N+1 in that head's
+    // colour; its two kinds in one lane apart by a dotted line (series below). With five boards, colours by
+    // place let two lines of a lane share one (review 27.09.2026).
+    function fixedColour(n) {
+      const k = headOf(n);
+      if (k != null) return HEAD_COLOURS[k % HEAD_COLOURS.length];
+      const m = /^mcu_\w+:mcu(?: e(\d+))?$/.exec(n);
+      return m ? (m[1] == null ? MAIN_BOARD : HEAD_COLOURS[+m[1] % HEAD_COLOURS.length]) : null;
+    }
     const laneColours = computed(() => {
       const out = {};
       for (const lane of lanes.value) {
         let next = 0;
-        for (const n of mainOf(lane)) if (headOf(n) == null) out[n] = PALETTE[next++ % PALETTE.length];
+        for (const n of mainOf(lane)) if (!fixedColour(n)) out[n] = PALETTE[next++ % PALETTE.length];
       }
       return out;
     });
-    function colour(n) {
-      const k = headOf(n);
-      if (k != null) return HEAD_COLOURS[k % HEAD_COLOURS.length];
-      return laneColours.value[n.startsWith("target:") ? `temp:${partOf(n)}` : n] || null;
-    }
+    const colour = (n) => fixedColour(n) || laneColours.value[n.startsWith("target:") ? `temp:${partOf(n)}` : n] || null;
 
     // ------------------------------------------------------------ the choice
     const catalogue = computed(() => GROUPS.map((g) => ({ id: g.id, items: names.value.filter((n) => g.fits(n)) }))
@@ -268,6 +285,9 @@ export default {
         for (const rows of new Set(detail ? [wide] : [wide, cols])) (rows.files ||= []).push([sample.t, file]);
       }
       seenFile = file;
+      if (sample.events?.length) {
+        for (const rows of new Set(detail ? [wide] : [wide, cols])) (rows.events ||= []).push(...sample.events);
+      }
       if (Object.keys(sample.v).some((k) => sample.v[k] != null && unitOf(k) && !names.value.includes(k))) {
         names.value = namesOf();
         if (!picked.value.length) restore();
@@ -284,7 +304,8 @@ export default {
       const probe = document.body.appendChild(document.createElement("span"));
       const v = (name) => { probe.style.color = `var(${name})`; return getComputedStyle(probe).color; };
       const rgb = (name) => (v(name).match(/[\d.]+/g) || [0, 150, 136]).slice(0, 3).join(", ");
-      const out = { axis: v("--muted"), grid: v("--divider"), accent: rgb("--accent-line"), warn: rgb("--warn"), surface: rgb("--surface") };
+      const out = { axis: v("--muted"), grid: v("--divider"), accent: rgb("--accent-line"), warn: rgb("--warn"), error: rgb("--error"),
+                    surface: rgb("--surface") };
       probe.remove();
       return out;
     }
@@ -306,7 +327,7 @@ export default {
     const timeTicks = (_, ticks, _axis, _space, incr) => ticks.map((t, i) =>
       (incr >= 6 * 3600 || (i > 0 && day(t) !== day(ticks[i - 1])) ? `${day(t)} ` : "") + clock(t, incr < 60));
     const number = (v, unit) => (v == null ? "–"
-      : `${v.toLocaleString(LOCALE, { maximumFractionDigits: Math.abs(v) < 10 ? 1 : 0 })}${unit === "layer" ? "" : ` ${unit}`}`);
+      : `${v.toLocaleString(LOCALE, { maximumFractionDigits: Math.abs(v) < 10 ? 1 : 0 })}${unit === "layer" ? "" : ` ${unit === "1/s" ? "/s" : unit}`}`);
     const x = (rows = cols) => rows.t.slice();   // a copy: add() changes the rows between two redraws
     // A target of 0 is a heater switched off: not drawn, else the axis runs down to 0 °C and the
     // temperatures of an idle printer lie flat at its top (the user, 27.09.2026).
@@ -383,6 +404,52 @@ export default {
       }
       ctx.restore();
     }
+    // ------------------------------------------------------------ marks of what happened (history.py _events)
+    // The user's wish of 27.09.2026: Klipper started or shut down, a code of the U1, a pause, a stall, as a
+    // dashed line through every lane, in the first lane with a flag; the mouse near one names it, a click
+    // searches klippy.log on "Logs" for lines of its kind (the log has no time the charts could match).
+    const EVENT_COLOUR = { start: "accent", shutdown: "error", error: "error", code: "error", pause: "warn", stall: "warn" };
+    // What "Logs" searches for a mark: Klipper's own lines of its kind; for an error at start (printer.cfg, a board
+    // that does not answer) the lines Klipper writes then, as a regex (review 27.09.2026).
+    const LOG_LINES = { start: ["Start printer at"], shutdown: ["Transition to shutdown state"], code: ["Raising exception"],
+                        error: ["Config error|MCU error|Protocol error|Internal error", true] };
+    const eventText = ([, kind, words]) => (kind === "stall" ? D.events.stall(words)
+      : `${D.events[kind] || kind}${words ? `: ${words}` : ""}`);
+    // The marks within a few pixels of the mouse (x in the plot, CSS pixels).
+    const eventsNear = (u, left) => (cols.events || []).filter(([t]) => Math.abs(u.valToPos(t, "x") - left) <= 6);
+    function drawEvents(u, events, flags) {
+      const ctx = u.ctx, dpr = devicePixelRatio, { left, top, width, height } = u.bbox;
+      ctx.save();
+      for (const [t, kind] of events || []) {
+        const px = Math.round(u.valToPos(t, "x", true));
+        if (px < left || px > left + width) continue;
+        const c = `rgb(${look[EVENT_COLOUR[kind]] || look.warn})`;
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.setLineDash(flags ? [4 * dpr, 3 * dpr] : []);
+        ctx.beginPath();
+        ctx.moveTo(px, top);
+        ctx.lineTo(px, top + height);
+        ctx.stroke();
+        if (flags === "first") {
+          ctx.fillStyle = c;
+          ctx.beginPath();
+          ctx.moveTo(px - 5 * dpr, top);
+          ctx.lineTo(px + 5 * dpr, top);
+          ctx.lineTo(px, top + 7 * dpr);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+    // With the mark's time "Logs" opens the part of Klipper's log written then (it rotates daily or by size).
+    function toLog([t, kind]) {
+      const [query, regex] = LOG_LINES[kind];
+      ui.logFocus = { printer: printer.value, path: null, at: t, query, regex: !!regex };
+      go(null, hashOf("druckerlogs", null));
+    }
+
     // At the end of each line while following: a glowing dot, the value now.
     function drawNow(u, lane) {
       if (!follow.value) return;
@@ -426,7 +493,7 @@ export default {
             sync: { key: "orcaone-charts" }, points: { size: 7 },
             // Dragging zooms all lanes at once, and they stop following (setSelect below).
             drag: { x: true, y: false, setScale: false },
-            bind: { dblclick: () => () => { showAll(); return null; } },
+            bind: { dblclick: () => () => { clearTimeout(pendingLog); showAll(); return null; } },
           },
           scales: {
             x: { time: true },
@@ -436,7 +503,7 @@ export default {
           series: [{}, ...lane.names.map((n) => {
             const target = n.startsWith("target:");
             return {
-              stroke: () => colour(n), width: target ? 1.2 : 1.8, dash: target ? [5, 4] : undefined,
+              stroke: () => colour(n), width: target ? 1.2 : 1.8, dash: target ? [5, 4] : /^mcu_(awake|invalid):/.test(n) ? [2, 3] : undefined,
               paths: target || /^(fan|power):|^layer$/.test(n) ? uPlot.paths.stepped({ align: 1 }) : undefined,
               points: { show: false },
             };
@@ -459,6 +526,7 @@ export default {
             }],
             draw: [(u2) => {
               if (li === 0) drawBand(u2);
+              drawEvents(u2, cols.events, li === 0 ? "first" : "dashed");
               drawNow(u2, lane);
             }],
             // The hover box belongs to the lane under the mouse; the others only follow its cursor.
@@ -467,7 +535,10 @@ export default {
               const idx = u2.cursor.idx;
               if (idx == null || u2.cursor.left < 0) { hover.value = null; return; }
               const r = u2.over.getBoundingClientRect(), box = lanesBox.value.getBoundingClientRect();
-              hover.value = { idx, left: r.left - box.left + u2.cursor.left, top: r.top - box.top + u2.cursor.top, width: box.width, height: box.height };
+              const events = eventsNear(u2, u2.cursor.left);
+              u2.over.style.cursor = events.some((e) => LOG_LINES[e[1]]) ? "pointer" : "";
+              hover.value = { idx, events, left: r.left - box.left + u2.cursor.left, top: r.top - box.top + u2.cursor.top,
+                              width: box.width, height: box.height };
             }],
             // The lanes share the mouse (cursor.sync): the others get the same mouseup and their own selection
             // right after this one, in the same event; only the first zooms (review 27.09.2026).
@@ -486,6 +557,17 @@ export default {
         lanePlots.push(u);
         // The lane under the mouse by its plot, not its place: lanes come and go (review 27.09.2026).
         u.over.addEventListener("pointerenter", () => { activeLane = li; });
+        // A click on a mark, not the end of a drag that zooms: to its lines in the log.
+        let downAt = null, moved = false;
+        u.over.addEventListener("pointerdown", (ev) => { downAt = ev.clientX; moved = false; });
+        u.over.addEventListener("pointermove", (ev) => { if (ev.buttons && downAt != null && Math.abs(ev.clientX - downAt) > 3) moved = true; });
+        u.over.addEventListener("click", (ev) => {
+          clearTimeout(pendingLog);
+          if (downAt == null || moved || ev.detail > 1) return;
+          const event = eventsNear(u, ev.clientX - u.over.getBoundingClientRect().left).find((e) => LOG_LINES[e[1]]);
+          // Half a second later: the first click of a double-click (back to all, review 27.09.2026) stays here.
+          if (event) pendingLog = setTimeout(() => toLog(event), 500);
+        });
       });
       if (overviewBox.value) {
         overviewNames = Object.keys(wide.series).filter((k) => /^temp:extruder\d*$/.test(k)).sort();
@@ -500,6 +582,8 @@ export default {
           },
           series: [{}, { scale: "act", width: 0, fill: `rgba(${look.accent}, 0.2)`, paths: uPlot.paths.stepped({ align: 1 }), points: { show: false } },
                    ...overviewNames.map((n) => ({ stroke: () => colour(n), width: 1, points: { show: false } }))],
+          // The marks as thin lines, to find a shutdown back in time.
+          hooks: { draw: [(o) => drawEvents(o, wide.events, null)] },
         }, overviewData(), overviewBox.value);
       }
       redraw();
@@ -634,6 +718,7 @@ export default {
       const head = multiHead.value ? headAt(h.idx) : null;
       return {
         title: `${day(t)} ${clock(t, true)}${printing && layer != null ? ` · ${D.layer(layer)}` : ""}`, file,
+        events: (h.events || []).map((e) => ({ text: eventText(e), colour: `rgb(${look[EVENT_COLOUR[e[1]]] || look.warn})`, log: !!LOG_LINES[e[1]] })),
         head: head ? { n: `temp:extruder${head > 1 ? head - 1 : ""}`, text: D.working(headName(head)) } : null,
         rows: lanes.value.flatMap((l) => mainOf(l).map((n) => ({
           n, text: label(n), value: number(valueAt(n, h.idx), l.unit),
@@ -673,7 +758,7 @@ export default {
       leaveLanes();
       follow.value = true;
       view.value = null;
-      cols = wide = { t: [], series: {}, files: [] };
+      cols = wide = { t: [], series: {}, files: [], events: [] };
       detail = false;
       names.value = [];
       load();
@@ -695,6 +780,7 @@ export default {
       drop();
       send();
       clearTimeout(fetchTimer);
+      clearTimeout(pendingLog);
       observer?.disconnect();
       themeWatch?.disconnect();
       darkQuery.removeEventListener("change", rebuild);
@@ -733,6 +819,8 @@ export default {
             <div v-if="hoverBox" class="charts-hover" :style="hoverBox.style" aria-hidden="true">
               <p class="charts-hover-title">{{ hoverBox.title }}</p>
               <p v-if="hoverBox.file" class="charts-hover-file">{{ hoverBox.file }}</p>
+              <p v-for="(e, i) in hoverBox.events" :key="'event' + i" class="charts-hover-event" :style="{ '--c': e.colour }">
+                {{ e.text }}<small v-if="e.log">{{ D.toLog }}</small></p>
               <p v-if="hoverBox.head" class="charts-hover-row"><span class="charts-swatch" :style="{ '--c': colour(hoverBox.head.n) }"></span>
                 <span>{{ hoverBox.head.text }}</span></p>
               <p v-for="r in hoverBox.rows" :key="r.n" class="charts-hover-row">

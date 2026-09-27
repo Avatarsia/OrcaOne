@@ -28,9 +28,10 @@ EXTRUDER = re.compile(r"extruder\d*")
 MONITORS = ("tmc2240",)
 # Always asked for, the objects of camera.status among them; what a printer lacks is missing in
 # the answer. Of toolhead, gcode_move and motion_report only the fields shown: subscribed whole
-# (live.py), toolhead's print times alone change four times a second at rest.
+# (live.py), toolhead's print times alone change four times a second at rest. Its stalls count how
+# often the moves ran dry (marks on "Diagramme", history.py).
 FIXED = ["webhooks", "print_stats", "display_status", "gcode_move=speed_factor,extrude_factor",
-         "toolhead=extruder,homed_axes,position,axis_minimum,axis_maximum,max_velocity,max_accel",
+         "toolhead=extruder,homed_axes,position,axis_minimum,axis_maximum,max_velocity,max_accel,stalls",
          "motion_report=live_position,live_velocity,live_extruder_velocity", "heaters",
          "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max", "virtual_sdcard=file_position",
          "exception_manager"]   # the U1's error codes that stay until acknowledged (orcaone/errors.py)
@@ -128,16 +129,27 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
     for name in _mcus(listed):
         s = part(name).get("last_stats") if isinstance(part(name).get("last_stats"), dict) else {}
         avg, dev, awake = _number(s.get("mcu_task_avg")), _number(s.get("mcu_task_stddev")), _number(s.get("mcu_awake"))
+        # The counters of trouble on its line since the connection, for the charts (history.py makes rates of
+        # them over "at", Klipper's time of these statistics, live.py): bytes sent again, bytes that arrived
+        # broken, and on the U1 its own receive errors (err_len, err_dest, err_sync, err_crc).
+        faults = [_number(v) for k, v in s.items() if k.startswith("err_")]
         mcus.append({"name": name, "load": round((avg + 3 * dev) / 0.0025 * 100, 1) if avg is not None and dev is not None else None,
-                     "awake": round(awake / 5 * 100, 1) if awake is not None else None})
+                     "awake": round(awake / 5 * 100, 1) if awake is not None else None,
+                     "retransmit": _number(s.get("bytes_retransmit")), "invalid": _number(s.get("bytes_invalid")),
+                     "errors": sum(faults) if faults and None not in faults else None, "at": _number(part(name).get("stats_at"))})
     return {
         # The U1's shutdown message begins with {"coded": ...}: its code and words apart.
         "klipper": dict(zip(("code", "message"), errors.split_coded(webhooks.get("state_message"))), state=webhooks.get("state")),
+        # Klipper's objects known: false while Moonraker answers but cannot reach Klipper (live.py puts a
+        # state of its own then), so the marks on "Diagramme" take nothing of it for Klipper's (history.py).
+        "listed": bool(listed),
         "exceptions": [{k: e[k] for k in ("code", "level", "message")} for e in
                        map(errors._exception, part("exception_manager").get("exceptions") or []) if e],
         "job": {**job, "filament": _number(stats.get("filament_used")), "message": stats.get("message") or None,
                 # Seconds since the print started, pauses included: the span "Dieser Druck" of "Diagramme".
                 "elapsed": _number(stats.get("total_duration")),
+                # How often the moves ran dry since Klipper started: the printer stood waiting for G-code.
+                "stalls": _number(toolhead.get("stalls")),
                 "speed_factor": _number(gcode.get("speed_factor")), "flow_factor": _number(gcode.get("extrude_factor")),
                 "options": options},
         "heads": heads,

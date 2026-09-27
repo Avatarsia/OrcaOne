@@ -7,7 +7,7 @@
 // for the print, its light. A page to watch (the user's wish of 27.09.2026: no scrolling, "System" was
 // out of sight): it fills the window, the print on top, the motion on the left, the rest in tabs on the
 // right; on a phone it stays one column. The values over time are on "Diagramme".
-import { go, hashOf, ui, isU1Printer, partLabel, LOCALE, activeName, fmtSize } from "../common.js";
+import { go, hashOf, ui, isU1Printer, partLabel, mcuLabel as mcuName, LOCALE, activeName, fmtSize } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 import { useLive } from "../live.js";
@@ -95,11 +95,7 @@ export default {
       }
     }, { immediate: true });
     // A microcontroller as a person says it: the main board, on the U1 the heads (mcu e0 …).
-    function mcuLabel(name) {
-      if (name === "mcu") return S.mainBoard;
-      const m = /^mcu e(\d+)$/.exec(name);
-      return m && isU1 ? U1.head(+m[1] + 1) : name.slice(4);
-    }
+    const mcuLabel = (name) => mcuName(name, isU1);
     // The microcontrollers: live their load (monitor.shape), once their chip and firmware (camera.info).
     const mcuRows = computed(() => {
       const now = data.value?.mcus || [], known = facts.value?.mcus || [];

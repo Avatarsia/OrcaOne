@@ -80,7 +80,7 @@ def test_read_back_thinned_packed_and_kept_seven_days(data_dir):
     thin = history.read("U1", at(yesterday), at(yesterday, second=599), points=20)
     assert len(thin["t"]) <= 20 and max(thin["series"]["temp:extruder"]) == 230 and min(thin["series"]["temp:extruder"]) == 200
     assert thin["t"] == sorted(thin["t"])
-    assert history.read("Unbekannt", at(yesterday), at(today)) == {"t": [], "series": {}, "files": []}
+    assert history.read("Unbekannt", at(yesterday), at(today)) == {"t": [], "series": {}, "files": [], "events": []}
 
 
 def test_the_gap_filled_from_moonraker(data_dir):
@@ -221,3 +221,73 @@ def test_recording_writes_and_tells_the_pages(data_dir, monkeypatch):
     note = json.loads(page.latest["U1\x00sample"])
     assert note["printer"] == "U1" and note["sample"]["v"]["temp:extruder"] == 219.6
     assert (history.folder("U1") / f"{date.today().isoformat()}.csv").exists()
+
+
+def test_the_microcontrollers_and_their_line(data_dir):
+    """Load and time awake per microcontroller as recorded; bytes sent again, bytes broken and the U1's
+    receive errors as rates over Klipper's time of its statistics, rounded to whole seconds."""
+    t0 = at(date.today())
+
+    def moment(when, retransmit, errors, invalid=0):
+        return {**IDLE, "mcus": [{"name": "mcu e0", "load": 1.2, "awake": 0.3, "retransmit": retransmit, "invalid": invalid,
+                                  "errors": errors, "at": when}]}
+    first = history.sample("U1", moment(100.0, 9, 3), t0)
+    assert (first["v"]["mcu_load:mcu e0"], first["v"]["mcu_awake:mcu e0"]) == (1.2, 0.3)
+    assert "mcu_retx:mcu e0" not in first["v"]   # a rate needs a second count
+    # Ten seconds on at rest; Klipper's time 10.2 s later counts as 10 (it renews them once a second).
+    second = history.sample("U1", moment(110.2, 29, 8, 5), t0 + 10)
+    assert (second["v"]["mcu_retx:mcu e0"], second["v"]["mcu_err:mcu e0"], second["v"]["mcu_invalid:mcu e0"]) == (2.0, 0.5, 0.5)
+    # No new statistics meanwhile: the rates of the row before.
+    assert history.sample("U1", moment(110.2, 29, 8, 5), t0 + 20)["v"]["mcu_retx:mcu e0"] == 2.0
+    # Klipper restarted, its counters began again: no rate this once.
+    assert "mcu_retx:mcu e0" not in history.sample("U1", moment(5.0, 1, 0), t0 + 30)["v"]
+
+
+def test_marks_of_what_happened(data_dir):
+    """Klipper's start and shutdown, a code of the U1, a pause and a stall as marks: each brings a row at
+    once, also at rest, and comes back when read; the first look marks nothing."""
+    t0 = at(date.today())
+
+    def moment(klipper="ready", message="Printer is ready", job="standby", stalls=0, codes=()):
+        return {**IDLE, "klipper": {"state": klipper, "message": message, "code": None},
+                "exceptions": [{"code": c, "level": 3, "message": "Filament runout\nat head 2"} for c in codes],
+                "job": {"state": job, "stalls": stalls}}
+    assert "events" not in history.sample("U1", moment(), t0)
+    shutdown = history.sample("U1", moment("shutdown", "MCU 'mcu' shutdown: Timer too close\nThis often means"), t0 + 1)
+    assert shutdown["events"] == [[t0 + 1, "shutdown", "MCU 'mcu' shutdown: Timer too close"]]
+    assert history.sample("U1", moment("startup", ""), t0 + 2) is None   # nothing happened, no row due at rest
+    assert history.sample("U1", moment(), t0 + 3)["events"] == [[t0 + 3, "start", ""]]
+    assert history.sample("U1", moment(codes=["0003-0522-0001-0008"]), t0 + 4)["events"] == [
+        [t0 + 4, "code", "0003-0522-0001-0008 Filament runout"]]
+    assert "events" not in history.sample("U1", moment(job="printing", codes=["0003-0522-0001-0008"]), t0 + 5)
+    paused = history.sample("U1", moment(job="paused", stalls=3, codes=["0003-0522-0001-0008"]), t0 + 6)
+    assert paused["events"] == [[t0 + 6, "pause", ""], [t0 + 6, "stall", "3"]]
+    got = history.read("U1", t0 - 1, t0 + 10)["events"]
+    assert [e[1] for e in got] == ["shutdown", "start", "code", "pause", "stall"]
+    assert got[0] == [t0 + 1, "shutdown", "MCU 'mcu' shutdown: Timer too close"]
+
+
+def test_marks_that_were_not_there_and_one_not_written(data_dir, monkeypatch):
+    """Moonraker restarted and could not reach Klipper for a moment: no start and no second code after it.
+    An error at start is a mark of its own; the computer started anew is a start although OrcaOne did not
+    see Klipper leave "ready"; a mark that could not be written comes with the next row (review 27.09.2026)."""
+    t0 = at(date.today())
+    code = [{"code": "0003-0522-0001-0008", "level": 3, "message": "Filament runout"}]
+
+    def moment(klipper="ready", exceptions=code, listed=True, uptime=5000, message=""):
+        return {**IDLE, "listed": listed, "klipper": {"state": klipper, "message": message, "code": None},
+                "exceptions": exceptions, "system": {**IDLE["system"], "uptime": uptime}}
+    history.sample("U1", moment(), t0)
+    # live.py's own state while Moonraker cannot reach Klipper: nothing of it counts.
+    assert history.sample("U1", moment("startup", [], listed=False, uptime=5001), t0 + 1) is None
+    assert history.sample("U1", moment(uptime=5002), t0 + 2) is None
+    failing = {"on": True}
+    real = history._write
+    monkeypatch.setattr(history, "_write", lambda *a: False if failing["on"] else real(*a))
+    assert history.sample("U1", moment("error", message="Config error: Option 'x' is not valid", uptime=5003), t0 + 3) is None
+    failing["on"] = False
+    assert history.sample("U1", moment("error", message="Config error: Option 'x' is not valid", uptime=5004), t0 + 4)["events"] == [
+        [t0 + 4, "error", "Config error: Option 'x' is not valid"]]
+    # The printer's computer started anew meanwhile: its uptime is shorter than before.
+    history.sample("U1", moment(uptime=5010), t0 + 10)
+    assert history.sample("U1", moment(uptime=40), t0 + 60)["events"] == [[t0 + 60, "start", ""]]

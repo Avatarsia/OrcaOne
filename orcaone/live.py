@@ -172,6 +172,8 @@ class _Hub:
                 try:
                     listed = (await call("printer.objects.list") or {}).get("objects") or []
                     wanted = subscription(monitor.objects(listed) + control.objects(set(listed)))
+                    # Without a time for the statistics in it: they may be up to a second older than the
+                    # answer, so the rates begin with the first note that renews them (review 27.09.2026).
                     found = (await call("printer.objects.subscribe", {"objects": wanted}) or {}).get("status") or {}
                 except CameraError as exc:
                     # Klipper not there (restarting, or before it answers): its state, and the next
@@ -196,6 +198,7 @@ class _Hub:
                         for name, fields in params[0].items():
                             if isinstance(fields, dict):
                                 self.found.setdefault(name, {}).update(fields)
+                        _stamp(self.found, params[0], params[1] if len(params) > 1 else None)
                         self.changed.set()
                     elif method == "notify_proc_stat_update" and isinstance(params[0], dict):
                         self.system.update(params[0])
@@ -268,6 +271,16 @@ class _Hub:
                 self._glanced({"state": job.get("state"), "klipper": klipper.get("state"),
                                "percent": int(min(1, max(0, progress)) * 100 + 0.5) if isinstance(progress, (int, float)) else None})
             await asyncio.sleep(PUSH_EVERY)
+
+
+def _stamp(found: dict, changed: dict, eventtime) -> None:
+    """Klipper's time with each microcontroller's statistics that came (its "stats_at"): Klipper renews them
+    once a second, and history.py divides their counters by this time, not by OrcaOne's clock."""
+    if not isinstance(eventtime, (int, float)):
+        return
+    for name, fields in changed.items():
+        if isinstance(fields, dict) and "last_stats" in fields and isinstance(found.get(name), dict):
+            found[name]["stats_at"] = eventtime
 
 
 _hubs: dict[str, _Hub] = {}

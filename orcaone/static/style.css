@@ -1553,6 +1553,9 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .charts-hover p { margin: 0; }
 .charts-hover-title { font-weight: 700; font-variant-numeric: tabular-nums; }
 .charts-hover-file { color: var(--muted); overflow-wrap: anywhere; }
+/* A mark near the mouse: in its colour, with the hint where a click leads */
+.charts-hover-event { margin: 2px 0 4px; padding-left: 8px; border-left: 3px solid var(--c); font-weight: 600; overflow-wrap: anywhere; }
+.charts-hover-event small { display: block; color: var(--muted); font-weight: 400; }
 .charts-hover-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .charts-hover-row b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .charts-hover-row small, .charts-item-name small { color: var(--muted); font-weight: 400; }

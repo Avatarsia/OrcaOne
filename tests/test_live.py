@@ -177,3 +177,12 @@ def test_live_refuses_other_pages(server):
     for origin in ("http://evil.example", server.replace("127.0.0.1", "localhost")):
         with pytest.raises(InvalidStatus):
             connect(server.replace("http://", "ws://") + "/api/live", origin=origin, open_timeout=5)
+
+
+def test_the_time_of_klippers_statistics():
+    """Each microcontroller's statistics keep Klipper's time they came with; history.py divides by it."""
+    found = {"mcu": {"last_stats": {"bytes_write": 1}}, "toolhead": {"position": [0]}}
+    live._stamp(found, {"mcu": {"last_stats": {"bytes_write": 2}}, "toolhead": {"position": [1]}}, 123.5)
+    assert found["mcu"]["stats_at"] == 123.5 and "stats_at" not in found["toolhead"]
+    live._stamp(found, {"mcu": {"last_stats": {}}}, None)   # a note without its time: the time kept
+    assert found["mcu"]["stats_at"] == 123.5
