@@ -564,18 +564,31 @@ export const ICONS = {
 };
 
 // ------------------------------------------------------------ components
+let spoolIds = 0;
 export function registerCommon(app) {
-  // Spool shape from assets/spool-color.svg (Orca's filament_green.svg); the band takes the filament colour.
+  // A spool from the side, OrcaOne's own drawing (the user's choice of 27.09.2026; nothing from the
+  // slicers' sources): the band takes the filament colour and looks round through a shade from light
+  // above to dark below. Each spool its own gradient id: an id shared by all resolves to the first,
+  // and that one may sit in a hidden part of the page. The flange's holes only where they show.
   app.component("spool-icon", {
     props: { colour: { type: String, default: "#009688" }, size: { type: Number, default: 24 } },
+    setup() {
+      return { shade: `spool-shade-${++spoolIds}` };
+    },
     template: `
       <svg class="spool" viewBox="0 0 30 40" :width="Math.round(size * 0.75)" :height="size" fill="none" aria-hidden="true">
-        <path d="M23.26 37.51C25.52 37.51 27.36 29.58 27.36 19.79C27.36 10 25.52 2.06 23.26 2.06C22.38 2.06 21.38 3.56 20.71 5.6H22.3C22.78 6.94 23.74 11.47 23.74 20.51C23.74 29.55 22.47 33.01 22.3 34H20.83C21.53 36.41 22.3 37.51 23.26 37.51Z" fill="#F2F2F2"/>
-        <path d="M20.71 5.6C21.38 3.56 22.38 2.06 23.26 2.06C25.52 2.06 27.36 10 27.36 19.79C27.36 29.58 25.52 37.51 23.26 37.51C22.3 37.51 21.41 36.08 20.71 33.67" stroke="#5C5C5C" stroke-width="2"/>
-        <path d="M22.33 5.6H8.93L9.23 6.79L10.14 12.4L10.44 24.51L9.84 30.42L8.93 33.97H22.33C23.14 30.72 23.73 25.71 23.73 20.08C23.73 14.1 23.23 8.81 22.33 5.6Z" :fill="colour"/>
-        <path d="M8.63 5.6H22.31C23.22 8.81 23.73 14.1 23.73 20.08C23.73 25.71 23.13 30.72 22.31 33.97H8.63" stroke="#5C5C5C"/>
-        <ellipse cx="6.51" cy="19.79" rx="3.93" ry="17.73" fill="#F2F2F2" stroke="#5C5C5C" stroke-width="2"/>
-        <ellipse cx="6.21" cy="20.08" rx="0.6" ry="2.66" fill="#5C5C5C"/>
+        <defs><linearGradient :id="shade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/>
+          <stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/>
+        </linearGradient></defs>
+        <ellipse cx="22.5" cy="20" rx="4.6" ry="17.2" fill="#E6E6E6" stroke="#5C5C5C" stroke-width="1.6"/>
+        <path d="M7.5 7H22.5A3.6 13 0 0 1 22.5 33H7.5Z" :fill="colour"/>
+        <path d="M7.5 7H22.5A3.6 13 0 0 1 22.5 33H7.5Z" :fill="'url(#' + shade + ')'"/>
+        <path d="M7.5 7H22.5A3.6 13 0 0 1 22.5 33H7.5" stroke="#5C5C5C" stroke-width="1.2"/>
+        <ellipse cx="7.5" cy="20" rx="4.6" ry="17.2" fill="#F4F4F4" stroke="#5C5C5C" stroke-width="1.6"/>
+        <template v-if="size >= 32"><ellipse cx="7.5" cy="11" rx="0.9" ry="2.6" fill="#D2D2D2"/><ellipse cx="7.5" cy="29" rx="0.9" ry="2.6" fill="#D2D2D2"/></template>
+        <ellipse cx="7.5" cy="20" rx="1.7" ry="5" stroke="#5C5C5C" stroke-width="1.2"/>
+        <ellipse cx="7.5" cy="20" rx="0.6" ry="2" fill="#5C5C5C"/>
       </svg>`,
   });
 
