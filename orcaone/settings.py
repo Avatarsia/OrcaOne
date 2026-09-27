@@ -15,6 +15,7 @@ orcaone.sh, or next to the program file of a build (the user's wish of 23.09.202
   "print_file": per printer of the printer part the print file chosen last, {name: path} (app.js);
   "charts": per printer the curves shown on the page "Diagramme", {name: [series]} (pages/diagramme.js);
   "record_idle": true to keep the printers' values at rest too, not only while printing or heating (history.py);
+  "files_sort" and "files_info": how the page "Dateien" sorts, and false while its info pane is hidden (pages/dateien.js);
   "view3d": the camera of the page "3D Ansicht", {"position", "target"} in mm (pages/druck3d.js);
   "calibration": the ticks of the page "Kalibrieren" (calibration.py).
 - backups/: the backups (backup.py). They hold credentials, so data/ is not in Git.

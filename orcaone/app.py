@@ -293,7 +293,7 @@ def get_settings():
             "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None,
             "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d")),
             "chosen_instance": _chosen_instance(stored.get("chosen_instance")), "print_file": _print_files(stored.get("print_file")),
-            "files_sort": _files_sort(stored.get("files_sort")),
+            "files_sort": _files_sort(stored.get("files_sort")), "files_info": stored.get("files_info") is not False,
             "charts": _charts(stored.get("charts")), "record_idle": stored.get("record_idle") is True,
             "version": __version__, "risk_accepted": _risk(stored.get("risk_accepted"))}
 
@@ -316,8 +316,9 @@ def set_settings(payload: dict = Body(...)):
     print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026);
     "charts" ({"<printer>": [series]}: the curves shown on "Diagramme"); "record_idle" (true: the printers'
     values are kept at rest too, not only while printing or heating; history.py); "files_sort"
-    ({"key", "desc"}): how the page "Dateien" sorts, kept for the next visit."""
-    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area", "record_idle") if key in payload}
+    ({"key", "desc"}): how the page "Dateien" sorts, and "files_info" (false: its info pane hidden),
+    both kept for the next visit."""
+    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area", "record_idle", "files_info") if key in payload}
     chosen, view, accept = payload.get("chosen_printer"), payload.get("view3d"), payload.get("accept_risk")
     instance, files, charts = payload.get("chosen_instance"), payload.get("print_file"), payload.get("charts")
     sort = payload.get("files_sort")
@@ -330,6 +331,7 @@ def set_settings(payload: dict = Body(...)):
             or ("accept_risk" in payload and accept is not True)
             or not isinstance(changed.get("menu_collapsed", False), bool)
             or not isinstance(changed.get("record_idle", False), bool)
+            or not isinstance(changed.get("files_info", False), bool)
             or ("theme" in changed and changed["theme"] not in THEMES)
             or ("area" in changed and changed["area"] not in AREAS)
             or (chosen is not None and (not isinstance(chosen, dict) or not chosen or _chosen(chosen) != chosen))

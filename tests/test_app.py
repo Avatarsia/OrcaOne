@@ -126,7 +126,7 @@ def test_serves_every_module_the_ui_imports(server):
 
 
 NO_RISK = {"version": __version__, "risk_accepted": None}
-NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}, "files_sort": None, "charts": {}, "record_idle": False}
+NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}, "files_sort": None, "files_info": True, "charts": {}, "record_idle": False}
 
 
 def test_use_at_your_own_risk_is_kept_with_its_date(server, data_dir):
@@ -227,6 +227,19 @@ def test_the_sorting_of_files_is_a_setting(server, data_dir):
         assert status == 400 and json.loads(body) == {"error": "setting_invalid"}, wrong
     settings.change(lambda data: data.update(files_sort={"key": "name"}))
     assert json.loads(call(f"{server}/api/settings")[1])["files_sort"] is None
+
+
+def test_the_info_pane_of_files_is_a_setting(server, data_dir):
+    """The info pane of "Dateien" shows until it is switched off (the user's wish of 27.09.2026)."""
+    assert json.loads(call(f"{server}/api/settings")[1])["files_info"] is True
+    status, body = call(f"{server}/api/settings", "POST", {"files_info": False})
+    assert status == 200 and json.loads(body)["files_info"] is False
+    assert json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["files_info"] is False
+    for wrong in ("no", 0, None, []):
+        status, body = call(f"{server}/api/settings", "POST", {"files_info": wrong})
+        assert status == 400 and json.loads(body) == {"error": "setting_invalid"}, wrong
+    call(f"{server}/api/settings", "POST", {"files_info": True})
+    assert json.loads(call(f"{server}/api/settings")[1])["files_info"] is True
 
 
 def test_the_3d_camera_is_a_setting(server, data_dir):

@@ -11,7 +11,7 @@ const D = T.files;
 export const OPTIONS = ["bed_level", "flow_calibrate", "shaper_calibrate", "time_lapse_camera"];
 export const BUSY = ["printing", "paused"];
 
-function duration(seconds) {
+export function duration(seconds) {
   const minutes = Math.max(1, Math.round(seconds / 60));
   return T.camera.print.duration(Math.floor(minutes / 60), minutes % 60);
 }
