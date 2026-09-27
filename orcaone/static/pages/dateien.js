@@ -8,7 +8,7 @@ import { T } from "../texts.js";
 import { api } from "../api.js";
 import PrintPanel, { BUSY, fileFacts } from "./print-panel.js";
 
-const { ref, reactive, computed, onMounted } = Vue;
+const { ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
 const D = T.files;
 const ICON = { gcodes: "file", camera: "camera", logs: "log", config: "gear" };
 
@@ -31,6 +31,11 @@ export default {
     const deleting = ref(false);
     const setup = ref(null);      // the state before a print (printer_files.print_setup): busy or not
     const printing = ref(null);   // the file in the print panel (print-panel.js)
+    // The time-lapse playing, in the page over everything like a camera on "Kamera". Not in a tab of
+    // its own: the API's answers are sandboxed (app.py), and there the browser refuses the video.
+    const watching = ref(null);
+    const player = ref(null);
+    let opener = null;
 
     const errorText = (err) => D.errors[err.code] || T.errors[err.code] || T.errors.unknown;
     const current = computed(() => folders.value.find((f) => f.name === folder.value) || null);
@@ -53,6 +58,18 @@ export default {
     function openView(f, page) {
       if (setFile(f)) go(null, hashOf(page, props.instId));
     }
+    function play(f, ev) {
+      opener = ev.currentTarget;
+      watching.value = f;
+      nextTick(() => player.value?.focus());
+    }
+    function stopWatching() {
+      watching.value = null;
+      opener?.focus();
+    }
+    const onKey = (ev) => { if (ev.key === "Escape" && watching.value) stopWatching(); };
+    onMounted(() => document.addEventListener("keydown", onKey));
+    onUnmounted(() => document.removeEventListener("keydown", onKey));
     const fileUrl = (path, download = false) => api.printerFileUrl(chosen.value, folder.value, path, download);
     const busy = computed(() => BUSY.includes(setup.value?.state));
     const allPicked = computed(() => !!files.value?.length && picked.size === files.value.length);
@@ -149,7 +166,7 @@ export default {
       T, D, ICON, printers, loadError, chosen, folder, folders, files, disk, listError, picked, asking, deleting, setup,
       printing, current, videos, keyOf, pathOf, fileUrl, busy, allPicked, facts, openFolder, choose, readSetup,
       toggle, pickAll, remove, openPrint, closePrint, openView, fmtSize, go, hashOf, ui, isU1Printer,
-      viewable, setFile, isSet,
+      viewable, setFile, isSet, watching, player, play, stopWatching,
     };
   },
 
@@ -219,7 +236,8 @@ export default {
                     <a class="btn" :href="hashOf('druck3d', instId)" :title="D.view3d" @click.prevent="openView(f, 'druck3d')"><ui-icon name="cube"/>3D</a>
                     <a class="btn" :href="hashOf('druck2d', instId)" :title="D.view2d" @click.prevent="openView(f, 'druck2d')"><ui-icon name="toolpath"/>2D</a>
                   </template>
-                  <a v-if="folder !== 'gcodes'" class="btn" :href="fileUrl(pathOf(f))" target="_blank" rel="noopener">{{ videos ? D.play : D.open }}</a>
+                  <button v-if="videos" class="btn" type="button" @click="play(f, $event)">{{ D.play }}</button>
+                  <a v-else-if="folder !== 'gcodes'" class="btn" :href="fileUrl(pathOf(f))" target="_blank" rel="noopener">{{ D.open }}</a>
                   <a class="btn btn-icon" :href="fileUrl(pathOf(f), true)" :title="D.download" :aria-label="D.download"><ui-icon name="download"/></a>
                 </span>
               </li>
@@ -230,6 +248,16 @@ export default {
 
       <print-panel v-if="printing" :camera="chosen" :model="ui.printer" :file="printing"
                    :picture="printing.picture ? fileUrl(printing.picture) : ''" @close="closePrint" @started="readSetup"/>
+
+      <div v-if="watching" class="cam-overlay" role="dialog" :aria-label="watching.name">
+        <video ref="player" :src="fileUrl(pathOf(watching))" controls autoplay></video>
+        <div class="cam-overlay-bar">
+          <strong>{{ watching.name }}</strong>
+          <small class="cam-overlay-hint">{{ T.camera.back }}</small>
+          <button class="cam-overlay-btn" type="button" :title="T.camera.views.normal" :aria-label="T.camera.views.normal"
+                  @click="stopWatching"><ui-icon name="close"/></button>
+        </div>
+      </div>
     </div>
   `,
 };

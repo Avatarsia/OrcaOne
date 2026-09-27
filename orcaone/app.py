@@ -723,9 +723,17 @@ def printer_folder(camera_id: str, folder: str = "gcodes"):
 
 
 @app.get("/api/cameras/{camera_id}/file")
-def printer_file(camera_id: str, folder: str = "", path: str = "", download: bool = False):
+def printer_file(request: Request, camera_id: str, folder: str = "", path: str = "", download: bool = False):
     # Pictures, videos and files pass through OrcaOne: the browser never talks to the printer itself.
-    return _passed_on(printer_files.open_file(camera.find(camera_id)["host"], folder, path), path, download)
+    return _passed_on(printer_files.open_file(camera.find(camera_id)["host"], folder, path, _range(request)), path, download)
+
+
+def _range(request: Request) -> str | None:
+    """The piece the browser asks for, if it is one plain range ("bytes=100-199", "bytes=100-"). A
+    video player needs it: the U1's time-lapses keep their index at the end (moov after mdat, checked
+    27.09.2026), without ranges the browser would first load the whole video."""
+    wanted = request.headers.get("range", "")
+    return wanted if re.fullmatch(r"bytes=\d+-\d*", wanted) else None
 
 
 def _passed_on(response, path: str, download: bool = False):
@@ -738,7 +746,7 @@ def _passed_on(response, path: str, download: bool = False):
         # What the printer names HTML, SVG or script comes as bytes, never as a page of OrcaOne.
         kind = "application/octet-stream"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"} if download else {}
-    for name in ("Content-Length", "Content-Range"):
+    for name in ("Content-Length", "Content-Range", "Accept-Ranges"):
         if response.headers.get(name):
             headers[name] = response.headers[name]
 
@@ -761,9 +769,7 @@ def printer_print_files(model: str = ""):
 
 @app.get("/api/printers/file")
 def printer_print_file(request: Request, model: str = "", path: str = ""):
-    wanted = request.headers.get("range", "")
-    wanted = wanted if re.fullmatch(r"bytes=\d+-\d*", wanted) else None
-    return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, wanted), path)
+    return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, _range(request)), path)
 
 
 # ---------------------------------------------------------------- errors of any Klipper printer (orcaone/errors.py)
