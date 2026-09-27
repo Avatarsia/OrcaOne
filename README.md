@@ -51,6 +51,7 @@ Desktop icon, app window and a build without Python: [docs/STARTEN-UND-BAUEN.md]
 - Changes are shown as a plan first and written only while the slicer is closed.
 - Anyone on your LAN can use OrcaOne without a login. SSH keys, printer addresses and deleting backups work only on the computer itself.
 - Commands reach a printer only when you click.
+- The only way OrcaOne goes online: printer pictures that no installed slicer has, fetched once from the slicers' repositories on GitHub.
 
 ### Documentation
 
@@ -110,6 +111,7 @@ Symbol, App-Fenster und ein Build ohne Python: [docs/STARTEN-UND-BAUEN.md](docs/
 - Änderungen erst als Plan, geschrieben nur bei geschlossenem Slicer.
 - Im LAN kann jeder OrcaOne ohne Anmeldung bedienen. SSH-Schlüssel, Druckeradressen und das Löschen von Sicherungen gehen nur am Rechner selbst.
 - Befehle gehen nur auf Klick an einen Drucker.
+- Ins Internet geht OrcaOne nur für Druckerbilder, die kein installierter Slicer hat, einmal aus den Repositorys der Slicer auf GitHub.
 
 ### Dokumentation
 

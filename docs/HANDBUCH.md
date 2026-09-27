@@ -47,7 +47,8 @@ Alles, was OrcaOne selbst ablegt, liegt im Ordner `data/` im OrcaOne-Ordner:
 
 - `settings.json`: alle Einstellungen, also von Hand hinzugefügte Datenordner, die IP-Adressen der Drucker samt Bildtakt der Kamera, die Bibliotheksfilamente, die OrcaOne in Snapmaker Orca freigeschaltet hat, die Sprache, die Häkchen der Seite „Kalibrieren“ und wann mit welcher Version „Nutzung auf eigene Gefahr“ bestätigt wurde (`risk_accepted`);
 - `backups/<id>/`: die Sicherungen, nur für den Nutzer lesbar;
-- `snapshots/<id>.json`: je Installation der Stand, mit dem die Seite „Änderungen“ vergleicht. Zugangsdaten stehen darin nur als Prüfsumme.
+- `snapshots/<id>.json`: je Installation der Stand, mit dem die Seite „Änderungen“ vergleicht. Zugangsdaten stehen darin nur als Prüfsumme;
+- `covers/<Slicer>/<Hersteller>/<Modell>_cover.png`: Druckerbilder, die OrcaOne von GitHub geladen hat, weil kein installierter Slicer sie hatte. Löschen schadet nicht, OrcaOne lädt sie bei Bedarf neu.
 
 `data/` steht nicht im Git, denn die Sicherungen enthalten Zugangsdaten. Wer OrcaOne verschiebt, nimmt den Ordner mit. Daten älterer Versionen aus `~/.local/share/orcaone` bzw. `%LOCALAPPDATA%\orcaone` holt OrcaOne beim Start einmal hierher.
 
@@ -168,6 +169,7 @@ Die Tests laufen nur gegen die Fixtures in `tests/fixtures/` und gegen temporär
 | `orcaone/transfer.py` | Profile in eine andere Installation übertragen: Werte ans Ziel anpassen nach `orcaone/options.json` (erzeugt aus dem Quellcode der Slicer mit `tools/make_options.py`) |
 | `orcaone/backup.py` | ZIP-Sicherungen ohne `log/`, `cache/` usw., Liste, Löschen und was ein Wiederherstellen zurückschreibt |
 | `orcaone/overview.py` | baut `GET /api/data`: je Installation Drucker (mit dem, was der Slicer je Düse zuletzt eingestellt hat, und wann er das gespeichert hat), Filamente, Hinweise und die Seiten „Installationen“, „Übersicht“ (Drucker), „Sicherungen“. Texte kommen als Codes |
+| `orcaone/covers.py` | Druckerbilder: aus dem Programmordner des installierten Slicers, sonst von GitHub nach `data/covers/`, sonst eigene Zeichnungen; `GET /api/covers/<key>` liefert nur, was ein Scan genannt hat. Ohne Internet 10 Minuten Pause statt Warten je Bild |
 | `orcaone/scanner.py` | liest `system/`, eigene Profile und den Ordnerbaum (nur lesend) |
 | `orcaone/resolver.py` | Vererbung, Sichtbarkeit, Kompatibilität, Bibliotheks-Ausschluss |
 | `orcaone/opc.py` | Leser für das `.opc`-Format der OrcaSlicer-Nightly |
@@ -219,7 +221,7 @@ Die Entwürfe D, E und E2 liegen nur noch in der Git-Geschichte, zuletzt in Comm
 - **Vom Backend nicht nachgeprüft:** Den Druckernamen nach „@“ bei eigenen Wurzel-Filamenten setzt OrcaOne für jede OrcaSlicer-Version ein, geprüft ist das nur im Code von Orca main. Versionen wie „2.5.0-dev“ gelten als gültig, ohne Abgleich mit `semver.c`.
 - **„Status“ bei einem normalen Klipper-Drucker** ist nur mit einem nachgebauten Moonraker getestet, am echten Gerät nur mit dem U1. Den Durchfluss rechnet die Seite mit 1,75 mm Filament.
 - **3D Ansicht:** Gezeichnet ist sie bisher nur in Firefox ohne Grafikkarte gesehen (Software-Rendering), das Browserfenster der App hat in dieser VM kein WebGL. Einem echten Druck sind 3D und 2D Ansicht noch nicht gefolgt, der Druckfall ist mit eingesetzten Werten angesehen. Fahrwege zeigt nur die 2D Ansicht.
-- **Druckerbilder:** Die Bilder für den U1 und den allgemeinen Klipper-Drucker und der Umriss für alle anderen stammen noch aus den Quellen von OrcaSlicer (AGPL-3.0) und sollen durch eigene ersetzt werden (24.09.).
+- **Druckerbilder:** Die Fotos der Drucker liest OrcaOne zur Laufzeit aus dem Programmordner des Slicers, so wie der Slicer selbst (`resources/profiles/<Hersteller>/<Modell>_cover.png`); mitgeliefert wird davon nichts. Gesucht wird beim laufenden Slicer neben seinem Programm, unter Windows im Programmordner und dort, wo der Installer ihn einträgt, unter Linux in Flatpak und unter `/usr/share`. Eine AppImage gibt ihre Bilder nur her, solange sie läuft. Findet OrcaOne dort keins, lädt es beim ersten Anzeigen dieselbe Datei aus dem Repository des Slicers auf GitHub (Snapmaker Orca bzw. OrcaSlicer, `raw.githubusercontent.com`) und behält sie in `data/covers/`; das ist der einzige Weg, auf dem OrcaOne ins Internet geht. Ohne Internet und ohne Bild zeigt es eigene Zeichnungen für den U1, einen Klipper-Drucker und einen Umriss. Unter Linux noch nicht am echten Rechner geprüft.
 - **2D Ansicht:** Die Zeit je Schicht kommt aus `M73 R` des Slicers, also auf die Minute genau; ohne `M73` fehlt sie. Volumenstrom aus Breite, Höhe und Geschwindigkeit, ohne `;WIDTH:` mit 0,45 mm gerechnet. Der Lüfter ist der Bauteillüfter (`M106` ohne `P` oder mit `P0`).
 
 ## Lizenz

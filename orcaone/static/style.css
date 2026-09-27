@@ -282,7 +282,6 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .card-sub { margin-top: -4px; color: var(--muted); font-size: 12px; }
 .card-meta { display: flex; align-items: center; gap: 6px; color: var(--label); font-size: 13px; }
 .spool { flex: none; }
-.credits { margin-top: 36px; color: var(--muted); font-size: 12px; }
 
 /* Filamente: printer view */
 .printer-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }

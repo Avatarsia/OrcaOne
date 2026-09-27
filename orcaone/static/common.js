@@ -233,7 +233,7 @@ export const isU1Printer = (key) => U1_MODELS.includes(modelOf(key));
 // the name ui.printer and the API go by.
 export const machines = computed(() => Object.entries(hosts.value || {}).map(([key, h]) => {
   const model = h.model || key, m = anyModel(model);
-  return { key, model, host: h.host, name: key !== model ? plainName(key) : m ? modelName(m) : model, cover: m?.cover || "assets/printer-placeholder.png" };
+  return { key, model, host: h.host, name: key !== model ? plainName(key) : m ? modelName(m) : model, cover: m?.cover || "assets/printer-placeholder.svg" };
 }));
 
 // Heading of a profile in the lists of the pages "Details" and "Übertragen", as in the tree on

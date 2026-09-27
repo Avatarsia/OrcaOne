@@ -108,7 +108,7 @@ Stand 26.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
   - Strg+C in der Konsole von OrcaOne: kein Traceback mehr, sondern „OrcaOne beendet.“ (`__main__.py`, Test). Ob cmd.exe danach bei `orcaone.cmd` noch „Batchvorgang abbrechen (J/N)?“ fragt, ist ungeprüft; die Frage käme von cmd selbst.
   - Konsole: Nur ein Befehl aus der Liste leert die Anzeige, ein eingetippter nicht mehr (Wunsch des Nutzers). Am Drucker noch nicht ausprobiert, Befehle schickt nur der Nutzer.
   - Englisch: „3D View“ und „2D View“ mit großem V (Wunsch des Nutzers).
-  - **Druckerbilder:** Die drei PNG (U1, Generic Klipper, Platzhalter) stammen aus den Quellen von OrcaSlicer (AGPL-3.0), das Klipper-Bild ist das Klipper-Logo. Der Nutzer will sie ersetzen, am liebsten durch echte Fotos mit passender Lizenz; bis dahin nennt `LICENSE.md` sie als Ausnahme.
+  - **Druckerbilder (27.09.):** nichts mehr aus Orca im Projekt. Die Fotos kommen zur Laufzeit aus dem Programmordner des Slicers, sonst von GitHub nach `data/covers/` (`covers.py`, vom Nutzer freigegeben), sonst eigene Zeichnungen; die Spule ist eine eigene Zeichnung. Unter Linux (Flatpak, AppImage, `/usr/share`) nur aus den Quellen und Manifesten abgeleitet, noch nicht am echten Rechner geprüft.
 - **Davor (24.09.), erster Start auf dem Windows-Rechner** (`D:\Projekte\OrcaOne`):
   - `orcaone.cmd` scheiterte: `py -3` nahm die Variante „free-threaded“ 3.13t, dort baut `cffi` für paramiko nicht. Das Skript probiert jetzt jede Version aus `py -0` und nimmt die erste normale ab 3.11, sonst `python`.
   - Die Umgebung heißt unter Windows `.wenv` (Wunsch des Nutzers), `.lenv` bleibt Linux.

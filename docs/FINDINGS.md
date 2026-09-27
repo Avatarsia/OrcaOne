@@ -655,6 +655,14 @@ Windows 10 Pro, Python 3.13.3 und 3.12 von python.org, dazu die Variante „free
 - **NTFS listet Ordner alphabetisch.** Zwei Sicherungen derselben Sekunde mit verschiedenem Anlass bekamen dieselbe laufende Nummer und standen dann falsch herum. Die Nummer zählt jetzt über alle Anlässe.
 - asyncio meldet in der Konsole `ConnectionResetError [WinError 10054]`, wenn der Browser eine Verbindung abbricht, etwa beim Neuladen. Harmlos.
 
+## Druckerbilder der Slicer (geprüft 27.09.2026)
+
+- Beide Slicer laden das Bild eines Modells zur Laufzeit aus `<resources>/profiles/<Hersteller>/<Modell>_cover.png` (Orca `Plater.cpp` `update_printer_thumbnail`, `WebGuideDialog.cpp` `BuildProfileJson`, dort ersatzweise `web/image/printer/`). `<Hersteller>` ist der Stamm der Vendor-JSON (das `package` der `.conf`), `<Modell>` genau der Modellname, Leerzeichen und Klammern unverändert. In Snapmaker Orca 2.4.0 weichen drei Dateien in der Groß- und Kleinschreibung ab (`ginger G1_cover.png` für „Ginger G1“ u. a.); unter Linux findet der Slicer sie nicht, OrcaOne sucht ersatzweise ohne Beachtung der Schreibung.
+- In den Datenordner kopiert keiner der Slicer ein Bild: `install_vendor_bundles_from_resources` bzw. `PresetUpdater` filtern `.png`, `.svg`, `.stl`, `.3mf` heraus.
+- `<resources>` (Orca `OrcaSlicer.cpp`, SnOrca `Snapmaker_Orca.cpp`, aus `program_location()`): Windows neben der exe, AppImage und `/opt` bei `<exe>/../../resources`, Flatpak und mit `SLIC3R_FHS` gebaute Pakete fest `<prefix>/share/<APP_KEY>` (Flatpak: `/app` = `/var/lib/flatpak/app/<id>/current/active/files` bzw. unter `~/.local/share/flatpak/app/`). Eine AppImage ist nur eingehängt, solange sie läuft.
+- Am Rechner des Nutzers: `C:\Program Files\Snapmaker_Orca\resources\profiles` mit 328 Bildern in 56 Herstellerordnern; der Installer trägt sich unter `HKLM\SOFTWARE\WOW6432Node\...\Uninstall\Snapmaker_Orca` ein, ohne `InstallLocation`, der Ordner ist der der `Uninstall.exe`. OrcaSlicer liegt nur entpackt auf dem Desktop (266 Bilder, ohne U1) und ist nur über den laufenden Prozess zu finden.
+- GitHub liefert dieselben Dateien ohne Anmeldung: `https://raw.githubusercontent.com/OrcaSlicer/OrcaSlicer/main/resources/profiles/<Hersteller>/<Modell>_cover.png`, für Snapmaker Orca `Snapmaker/OrcaSlicer` (Standardzweig `main`); `image/png`, 0,2 bis 0,4 s, sonst 404 mit `text/plain`. Das U1-Bild ist dort ein anderes (OrcaSlicer 39.838 B, Snapmaker Orca 348.177 B).
+
 ## Offen: nur am laufenden Slicer prüfbar
 
 Auf dem Entwicklungsrechner laufen diese Tests direkt im echten Datenverzeichnis, weil die Slicer dort nur Testinstallationen sind (23.09.2026). Vor jeder Änderung legt OrcaOne eine Sicherung an.

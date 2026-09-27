@@ -348,7 +348,6 @@ export default {
         </ul>
       </section>
 
-      <p class="credits">{{ P.credits }}</p>
     </div>
   `,
 };

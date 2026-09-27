@@ -12,11 +12,11 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 from fastapi import Body, FastAPI, Request, WebSocket
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, live, logs, monitor,
+from . import (__version__, backup, calibration, camera, console, control, covers, guard, importer, instances, live, logs, monitor,
                errors, network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
@@ -32,6 +32,7 @@ _INSTANCE_ID = re.compile(r"[0-9a-f]{12}")
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/javascript", ".mjs")
 mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("image/svg+xml", ".svg")
 
 
 class Utf8Response(JSONResponse):
@@ -109,8 +110,8 @@ async def check_request(request: Request, call_next):
     response.headers["Content-Security-Policy"] = ("sandbox; frame-ancestors 'none'" if request.url.path.startswith("/api/")
                                                    else "frame-ancestors 'none'")
     # Revalidate every file: browsers otherwise keep old ES modules after an
-    # update of OrcaOne and mix them with new ones.
-    response.headers["Cache-Control"] = "no-cache"
+    # update of OrcaOne and mix them with new ones. An answer may say otherwise (printer pictures).
+    response.headers.setdefault("Cache-Control", "no-cache")
     return response
 
 
@@ -649,6 +650,18 @@ def camera_light(camera_id: str, payload: dict = Body(...)):
 def camera_status(camera_id: str):
     # Read only: spools, pressure advance and print state for the page "Kalibrieren".
     return camera.status(camera.find(camera_id)["host"])
+
+
+@app.get("/api/covers/{key}")
+def printer_cover(key: str):
+    # A printer's picture, only one a scan named (covers.py): from the slicer's program folder or
+    # data/covers/, else fetched from GitHub now. Kept an hour: the U1's is 350 KB, and the page
+    # shows it on every page of the printer part. Without one OrcaOne's own drawing.
+    path = covers.file_of(key)
+    if path is not None:
+        return FileResponse(path, media_type="image/png", headers={"Cache-Control": "max-age=3600"})
+    fallback = covers.fallback_of(key)
+    return RedirectResponse("/" + fallback, status_code=302) if fallback else _error("cover_unknown", 404)
 
 
 @app.get("/api/cameras/{camera_id}/image")

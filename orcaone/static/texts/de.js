@@ -2105,7 +2105,6 @@ const T = {
       },
     },
     safeRestore: { before: "Vorher legt OrcaOne eine Sicherung an. Unter ", after: " stellst du alles wieder her." },
-    credits: "Druckerbilder und Symbole aus OrcaSlicer",
     plan: {
       title: "Was passiert",
       switchedOff: "wird im Slicer abgeschaltet",

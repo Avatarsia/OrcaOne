@@ -23,10 +23,8 @@ diese Kurzfassung dient nur der Orientierung:
   Vue, three.js und xterm.js (MIT) sowie die Schriften Inter und
   JetBrains Mono (SIL Open Font License 1.1). Ihre Lizenztexte liegen
   jeweils daneben, die Übersicht steht in `orcaone/static/vendor/README.md`.
-  Ebenso die Bilder `printer-snapmaker-u1.png`,
-  `printer-generic-klipper.png` und `printer-placeholder.png` in
-  `orcaone/static/assets/`: Sie stammen aus den Quellen von OrcaSlicer
-  (GNU AGPL-3.0) und werden durch eigene ersetzt.
+  Die Fotos der Drucker liest OrcaOne zur Laufzeit aus dem installierten
+  Slicer; mitgeliefert werden nur eigene Zeichnungen.
 
 ## English
 
@@ -46,11 +44,9 @@ this summary is for orientation only:
 - Not covered by these terms are the files in `orcaone/static/vendor/`:
   Vue, three.js and xterm.js (MIT) and the fonts Inter and JetBrains
   Mono (SIL Open Font License 1.1). Their license texts sit next to
-  them; the overview is in `orcaone/static/vendor/README.md`. The same
-  goes for the pictures `printer-snapmaker-u1.png`,
-  `printer-generic-klipper.png` and `printer-placeholder.png` in
-  `orcaone/static/assets/`: they come from the OrcaSlicer sources
-  (GNU AGPL-3.0) and are being replaced by own ones.
+  them; the overview is in `orcaone/static/vendor/README.md`. Printer
+  photos are read at run time from the installed slicer; OrcaOne ships
+  only its own drawings.
 
 ---
 

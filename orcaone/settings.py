@@ -17,6 +17,8 @@ orcaone.sh, or next to the program file of a build (the user's wish of 23.09.202
   "calibration": the ticks of the page "Kalibrieren" (calibration.py).
 - backups/: the backups (backup.py). They hold credentials, so data/ is not in Git.
 - snapshots/: per installation the state the page "Änderungen" compares with (snapshot.py).
+- covers/<slicer>/<vendor>/<model>_cover.png: printer pictures fetched from the slicer's repository
+  on GitHub where no installed slicer has them (covers.py).
 """
 
 import json

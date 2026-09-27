@@ -2091,7 +2091,6 @@ const T = {
       },
     },
     safeRestore: { before: "OrcaOne makes a backup first. Under ", after: " you can restore everything." },
-    credits: "Printer images and icons from OrcaSlicer",
     plan: {
       title: "What happens",
       switchedOff: "gets switched off in the slicer",

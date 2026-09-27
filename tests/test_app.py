@@ -51,9 +51,9 @@ def test_data_is_read_live(server, fake_home):
     assert status == 200 and [i["kind"] for i in data["instances"]] == ["snorca"]
     inst = data["instances"][0]
     assert set(inst) >= {"models", "filaments", "warnings", "stats", "slicer_page", "printers_page", "backups_page"}
-    assert inst["models"][0]["cover"] == "assets/printer-snapmaker-u1.png"
+    assert inst["models"][0]["cover"] == "assets/printer-snapmaker-u1.svg"
     status, body = call(f"{server}/{inst['models'][0]['cover']}")
-    assert status == 200 and body[:4] == b"\x89PNG"
+    assert status == 200 and body.startswith(b"<svg")
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="file names are bytes on Linux only")
@@ -84,7 +84,7 @@ def test_serves_the_ui(server):
     status, body = call(f"{server}/")
     assert status == 200 and b'<div id="app">' in body and b'src="app.js"' in body
     for path in ("style.css", "vendor/vue.global.prod.js", "vendor/inter/InterVariable.woff2",
-                 "vendor/jetbrains-mono/JetBrainsMono-Regular.woff2", "assets/printer-placeholder.png"):
+                 "vendor/jetbrains-mono/JetBrainsMono-Regular.woff2", "assets/printer-placeholder.svg"):
         assert call(f"{server}/{path}")[0] == 200, path
 
 
