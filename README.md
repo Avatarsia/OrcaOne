@@ -58,7 +58,7 @@ German, in `docs/`: the [Handbuch](docs/HANDBUCH.md) (every page, own data, stru
 
 ### Issues
 
-Bugs and ideas: [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues).
+Bugs and ideas: [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues). Pull requests are welcome, with the license grant in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### License
 
@@ -117,7 +117,7 @@ In `docs/`: das [Handbuch](docs/HANDBUCH.md) (jede Seite, eigene Daten, Aufbau, 
 
 ### Fehler und Ideen
 
-Über [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues).
+Über [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues). Pull Requests sind willkommen, mit der Rechteeinräumung aus [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Lizenz
 
