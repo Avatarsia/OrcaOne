@@ -27,6 +27,7 @@ A local web app for your **OrcaSlicer** and **Snapmaker Orca** profiles and your
 
 **Printer**
 - Live status, print control (pause, cancel, pause at layer, exclude objects), restart Klipper
+- Charts over seven days, recorded by OrcaOne itself: temperatures with targets, heater power, speed, flow, fans, microcontrollers and their line, system, marks for Klipper starts, shutdowns and errors; live or back in time
 - Errors explained: the U1's codes and Klipper's messages, what they mean and what helps
 - 3D and 2D view of the print file, following the running print
 - File explorer: upload by drag and drop, folders, sort by size or date, delete in bulk, details
@@ -52,6 +53,7 @@ Desktop icon, app window and a build without Python: [docs/STARTEN-UND-BAUEN.md]
 - Changes are shown as a plan first and written only while the slicer is closed.
 - Anyone on your LAN can use OrcaOne without a login. SSH keys, printer addresses and deleting backups work only on the computer itself.
 - Commands reach a printer only when you click.
+- The only way OrcaOne goes online: printer pictures that no installed slicer has, fetched once from the slicers' repositories on GitHub.
 
 ### Documentation
 
@@ -59,7 +61,7 @@ German, in `docs/`: the [Handbuch](docs/HANDBUCH.md) (every page, own data, stru
 
 ### Issues
 
-Bugs and ideas: [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues).
+Bugs and ideas: [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues). Pull requests are welcome, with the license grant in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### License
 
@@ -87,6 +89,7 @@ Eine lokale Web-App für deine Profile in **OrcaSlicer** und **Snapmaker Orca** 
 
 **Drucker**
 - Status live, Druck steuern (Pause, Abbruch, Pause bei Schicht, Objekte ausschließen), Klipper neu starten
+- Diagramme über sieben Tage, von OrcaOne selbst aufgezeichnet: Temperaturen mit Soll, Heizleistung, Tempo, Fluss, Lüfter, Mikrocontroller und ihre Leitung, System, Marken für Klipper-Starts, Abschaltungen und Fehler; live oder zurück in der Zeit
 - Fehler erklärt: die Codes des U1 und Klippers Meldungen, was sie heißen und was hilft
 - 3D und 2D Ansicht der Druckdatei, folgt dem laufenden Druck
 - Datei-Explorer: Hochladen per Drag & Drop, Ordner, nach Größe oder Datum sortieren, im Bulk löschen, Details
@@ -112,6 +115,7 @@ Symbol, App-Fenster und ein Build ohne Python: [docs/STARTEN-UND-BAUEN.md](docs/
 - Änderungen erst als Plan, geschrieben nur bei geschlossenem Slicer.
 - Im LAN kann jeder OrcaOne ohne Anmeldung bedienen. SSH-Schlüssel, Druckeradressen und das Löschen von Sicherungen gehen nur am Rechner selbst.
 - Befehle gehen nur auf Klick an einen Drucker.
+- Ins Internet geht OrcaOne nur für Druckerbilder, die kein installierter Slicer hat, einmal aus den Repositorys der Slicer auf GitHub.
 
 ### Dokumentation
 
@@ -119,7 +123,7 @@ In `docs/`: das [Handbuch](docs/HANDBUCH.md) (jede Seite, eigene Daten, Aufbau, 
 
 ### Fehler und Ideen
 
-Über [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues).
+Über [GitHub Issues](https://github.com/DrKlipper/OrcaOne/issues). Pull Requests sind willkommen, mit der Rechteeinräumung aus [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Lizenz
 

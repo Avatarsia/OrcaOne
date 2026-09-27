@@ -7,10 +7,11 @@ import {
   INSTANCES, FAILED, BACKUPS, NEWS, PRINTER_PAGES, route, ui, loadState, load, go, hashOf, syncRoute, leave, flash, statusText, generatedText,
   liveChanges, resetChanges, addDataDir, removeDataDir, writeBlock, refreshBackups, registerCommon, darkQuery, isDark,
   printerModels, slicerModel, modelName, modelShown, fmtSize, whenText, clockText, setLocalPrintFile, AREA_START, hosts, machines, slicersOf, isU1Printer,
+  slicerLogo,
 } from "./common.js";
 import { T, LANG, LANGUAGES, SETTINGS } from "./texts.js";
 import { api } from "./api.js";
-import { live, watchPrinters } from "./live.js";
+import { live, watchPrinters, glancePrinters } from "./live.js";
 import { KlipperActions } from "./pages/klipper-actions.js";
 import { changesOf } from "./ops.js";
 import PlanView, { DoneView, problemText } from "./plan.js";
@@ -37,6 +38,7 @@ import DateienPage from "./pages/dateien.js";
 import KonsolePage from "./pages/konsole.js";
 import DruckerLogsPage from "./pages/druckerlogs.js";
 import FehlerPage from "./pages/fehler.js";
+import DiagrammePage from "./pages/diagramme.js";
 import SshPage from "./pages/ssh.js";
 import NetzwerkPage from "./pages/netzwerk.js";
 import LogsPage from "./pages/logs.js";
@@ -89,6 +91,8 @@ const PAGES = [
   // First what one needs while printing, then files, then care and diagnosis (the user's wish of
   // 26.09.2026: "Im Normalfall will ich über diese Seite Kontrolle"; the network before SSH).
   { id: "status", area: "printer", icon: "pulse", component: StatusPage, standalone: true, printer: true },
+  // The values of "Status" over time, recorded by OrcaOne (the user's wishes of 27.09.2026)
+  { id: "diagramme", area: "printer", icon: "chart", component: DiagrammePage, standalone: true, printer: true },
   // Everything about the running print (the user's wish of 25.09.2026), one word as the others (26.09.2026)
   { id: "steuern", area: "printer", icon: "sliders", component: SteuernPage, standalone: true, printer: true },
   { id: "druck3d", area: "printer", icon: "cube", component: Druck3dPage, standalone: true, printer: true },
@@ -163,6 +167,9 @@ const app = createApp({
     const isU1 = computed(() => isU1Printer(ui.printer));
     const remembered = { ...SETTINGS.chosen_printer };
     let pending = null;   // the printer "Status" shows next, from the progress in the top bar (openStatus)
+    // At the start the printer chosen last does not answer, another does: that one for now (autoPicked),
+    // not kept as chosen; only in the first half minute and until the user picks one (below, tabs).
+    let autoPick = true, autoPicked = null, startPick = null;
     watch([inst, printers, area, machines], () => {
       if (area.value === "printer") {
         if (pending && machines.value.some((m) => m.key === pending)) {
@@ -172,7 +179,7 @@ const app = createApp({
         }
         if (!machines.value.length || machines.value.some((m) => m.key === ui.printer)) return;
         const start = inst.value && slicerModel(inst.value)?.model;
-        ui.printer = (machines.value.find((m) => m.key === remembered.printer) || machines.value.find((m) => m.model === start)
+        ui.printer = startPick = (machines.value.find((m) => m.key === remembered.printer) || machines.value.find((m) => m.model === start)
           || machines.value[0]).key;
       } else if (inst.value && !activeModel.value) {
         ui.printer = (printers.value.find((m) => m.model === remembered.slicer) || slicerModel(inst.value))?.model || null;
@@ -180,17 +187,140 @@ const app = createApp({
     }, { immediate: true });
     // Every choice is remembered for its part, from the top bar as from a card, once it is one of that part.
     watch(() => [area.value, ui.printer], ([a, p]) => {
+      if (autoPicked && p !== autoPicked) autoPicked = null;   // chosen otherwise since: that one counts again
       const valid = a === "printer" ? machines.value.some((m) => m.key === p) : !!activeModel.value;
-      if (!p || !valid || remembered[a] === p) return;
+      if (!p || !valid || remembered[a] === p || p === autoPicked) return;
       remembered[a] = p;
       api.setChosenPrinter(a, p).catch(() => {});   // only what the next start begins with
     });
-    // What the choice in the top bar lists: the printers of the installation, or those with an address.
-    const choices = computed(() => (area.value === "printer"
-      ? machines.value.map((m) => ({ model: m.key, name: m.name, cover: m.cover,
-                                     sub: [m.host, slicersOf(m.model).map((s) => s.slicer).join(", ")].filter(Boolean).join(" · ") }))
-      : printers.value.map((m) => ({ model: m.model, name: modelName(m), cover: m.cover, sub: modelName(m) !== m.model ? m.model : "" }))));
+    // The list in the bar below the tabs in the slicer part: the printer profiles of the installation.
+    const choices = computed(() => printers.value.map((m) => ({ model: m.model, name: modelName(m), cover: m.cover,
+                                                                  sub: modelName(m) !== m.model ? m.model : "" })));
     const chosen = computed(() => choices.value.find((c) => c.model === ui.printer) || null);
+    // The printer of the printer part: one with an address.
+    const machine = computed(() => machines.value.find((m) => m.key === ui.printer) || null);
+
+    // ------------------------------------------------------------ the tabs in the top bar
+    // First what OrcaOne works with, then its tools (the bar below the tabs), then the page (the user's
+    // wishes of 27.09.2026: the tabs between the print file and the charts were the wrong order; the
+    // slicer part the same, with its installations). In the printer part only printers that answer (the
+    // user: a tab for one that does not only leads to empty pages): only their glance comes (live.py),
+    // not all their values; one that stops answering keeps its tab a minute, faded, so a WLAN drop does
+    // not move the tabs. The chosen one always has its tab; the rest, and what does not fit, behind "+N".
+    glancePrinters(() => (area.value === "printer" ? machines.value.map((m) => m.key) : []));
+    function stateOf(key) {
+      const g = live[key]?.glance;
+      if (!g) return { text: T.printerTabs.unknown, kind: "idle" };
+      if (g.error) return { text: T.printerTabs.away, kind: "away" };
+      if (["shutdown", "error"].includes(g.klipper)) return { text: T.printerTabs.fault, kind: "err" };
+      if (g.klipper && g.klipper !== "ready") return { text: T.printerTabs.starting, kind: "warn" };   // as the strip above the page
+      if (g.state === "printing") return { text: T.printerTabs.printing(g.percent || 0), kind: "ok" };
+      if (g.state === "paused") return { text: T.printerTabs.paused, kind: "warn" };
+      return { text: T.printerTabs.ready, kind: "idle" };
+    }
+    const GRACE_MS = 60000;
+    const answering = (key) => !!live[key]?.glance && !live[key].glance.error;
+    const lostAt = reactive({});   // printer: when it stopped answering
+    const now = ref(Date.now());
+    setInterval(() => { now.value = Date.now(); }, 10000);
+    watch(() => machines.value.map((m) => [m.key, answering(m.key)]), (list, before) => {
+      const was = new Map(before || []);
+      for (const [key, on] of list) if (!on && was.get(key)) lostAt[key] = Date.now();
+    });
+    const tabNow = computed(() => (area.value === "printer" ? ui.printer : ui.instId));
+    // { key, name, img or logo, state, title, answers: gets a tab, faded: does not answer }
+    const tabItems = computed(() => (area.value === "printer"
+      ? machines.value.map((m) => ({
+        key: m.key, name: m.name, img: m.cover, host: m.host, state: stateOf(m.key),
+        answers: answering(m.key) || now.value - (lostAt[m.key] ?? -Infinity) < GRACE_MS, faded: !!live[m.key]?.glance?.error,
+        title: [m.host, slicersOf(m.model).map((x) => x.slicer).join(", ")].filter(Boolean).join(" · "),
+      }))
+      : INSTANCES.map((i) => ({
+        key: i.id, name: i.slicer, logo: slicerLogo(i.slicer), orca: i.kind === "orca", inst: i, title: i.path, answers: true,
+        state: i.running ? { text: `${i.version} · ${statusText(i, true)}`, kind: "warn" } : { text: i.version, kind: "none" },
+      }))));
+    // Which tabs fit in the measured row (at least 150 px each, on a phone the others as 44 px pictures),
+    // the chosen one always, as the last if need be; the rest behind "+N".
+    const tabBox = ref(null);
+    const tabRoom = ref(0);
+    const phoneQuery = window.matchMedia("(max-width: 600px)");
+    const phone = ref(phoneQuery.matches);
+    phoneQuery.addEventListener("change", (e) => { phone.value = e.matches; });
+    const tabObserver = new ResizeObserver(([e]) => { tabRoom.value = e.contentRect.width; });
+    watch(tabBox, (el, old) => {
+      if (old) tabObserver.unobserve(old);
+      if (el) tabObserver.observe(el);
+    });
+    const tabRows = computed(() => {
+      const on = tabNow.value;
+      const candidates = tabItems.value.filter((t) => t.key === on || t.answers);
+      const away = tabItems.value.filter((t) => t.key !== on && !t.answers);
+      const first = 152, each = phone.value ? 46 : 152, plus = 64;
+      let n = candidates.length;
+      while (n > 1 && first + (n - 1) * each + (n < candidates.length || away.length ? plus : 0) > tabRoom.value) n--;
+      let shown = candidates.slice(0, n);
+      const own = candidates.find((t) => t.key === on);
+      if (own && !shown.includes(own)) shown = [...shown.slice(0, n - 1), own];
+      return { shown, more: candidates.filter((t) => !shown.includes(t)), away };
+    });
+    function pickTab(t) {
+      moreOpen.value = false;
+      if (area.value === "slicer") pickInst(t.inst);
+      else {
+        autoPick = false;
+        autoPicked = null;
+        ui.printer = t.key;
+      }
+      // The focus to the tab chosen: from the arrows the next one, from "+N" not lost with its menu.
+      nextTick(() => tabBox.value?.querySelector(".top-tab.is-on")?.focus());
+    }
+    // The printer chosen last does not answer at the start, another does: the one printing, else the first.
+    setTimeout(() => { autoPick = false; }, 30000);
+    watch(() => [area.value, ui.printer, ...machines.value.map((m) => live[m.key]?.glance)], () => {
+      // Only the printer the start chose, until it answers or the user chooses (review 27.09.2026).
+      if (!autoPick || area.value !== "printer" || ui.printer !== startPick) return;
+      if (answering(ui.printer)) return (autoPick = false);
+      if (!live[ui.printer]?.glance?.error) return;
+      const ok = machines.value.filter((m) => answering(m.key));
+      const other = ok.find((m) => live[m.key].glance.state === "printing") || ok[0];
+      if (!other) return;
+      autoPick = false;
+      autoPicked = other.key;
+      ui.printer = other.key;
+    });
+    // "+N": what does not fit, the printers that do not answer (with the way to "Netzwerk"), all printers.
+    const moreOpen = ref(false);
+    const moreBtn = ref(null);
+    const moreMenu = ref(null);
+    function toggleMore() {
+      moreOpen.value = !moreOpen.value;
+      printerOpen.value = fileOpen.value = false;
+      if (moreOpen.value) nextTick(() => moreMenu.value?.querySelector(".inst-item")?.focus());
+    }
+    function closeMore() {
+      moreOpen.value = false;
+      moreBtn.value?.focus();
+    }
+    // The most urgent state behind "+N" as a dot on it: a fault before a pause before a print.
+    const moreDot = computed(() => ["err", "warn", "ok"].find((k) => tabRows.value.more.some((t) => t.state.kind === k)) || "");
+    function toNetwork(t) {
+      pickTab(t);
+      go(null, hashOf("netzwerk", ui.instId));
+    }
+    // The printer of the printer part does not answer: said above the page, with the way to "Netzwerk".
+    const away = computed(() => (area.value === "printer" && machine.value && live[ui.printer]?.error ? machine.value : null));
+    // Arrows, Home and End move between the tabs; with Alt and the like they stay the browser's (Back).
+    function tabKey(ev) {
+      if (!ev.target.classList?.contains("top-tab")) return;   // not from "+N" and its menu
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(ev.key) || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      ev.preventDefault();
+      const list = [...ev.currentTarget.querySelectorAll(".top-tab")];
+      const i = list.indexOf(document.activeElement);
+      const at = { ArrowRight: i + 1, ArrowLeft: i - 1 + list.length, Home: 0, End: list.length - 1 }[ev.key];
+      const next = list[at % list.length];
+      next?.focus();
+      next?.click();
+    }
     // "Filamente" and "Prozesse" carry the printer in the address (#/filamente/<inst>/<idx>): an
     // address without one gets it, one with another (the back button) chooses that one.
     watch([route, activeIdx], ([r]) => {
@@ -515,11 +645,7 @@ const app = createApp({
       flash(code ? T.errors[code] || T.errors.unknown : T.slicer.removed);
     }
 
-    // ------------------------------------------------------------ installation picker
-    const instOpen = ref(false);
-    const instBtn = ref(null);
-    const instMenu = ref(null);
-
+    // ------------------------------------------------------------ the installation
     window.addEventListener("hashchange", () => syncRoute());
     // The address carries the installation; one without it gets the chosen one added.
     watch(route, (r) => {
@@ -528,28 +654,21 @@ const app = createApp({
     }, { immediate: true });
     // After a page switch the focus moves to the page title; the drawer closes.
     watch(route, () => {
-      instOpen.value = false;
+      moreOpen.value = false;
       printerOpen.value = false;
       fileOpen.value = false;
       cancelAsk.value = false;
+      restartOpen.value = false;
       printPanel.value = null;
       navOpen.value = false;
       window.scrollTo(0, 0);
-      nextTick(() => document.getElementById("page-title")?.focus());
+      // The title, unless the user moves through the tabs with the keys.
+      nextTick(() => { if (!document.activeElement?.closest(".top-tabs")) document.getElementById("page-title")?.focus(); });
     });
 
-    function toggleInst() {
-      instOpen.value = !instOpen.value;
-      printerOpen.value = fileOpen.value = false;
-      if (instOpen.value) nextTick(() => instMenu.value?.querySelector('[aria-checked="true"]')?.focus());
-    }
-    function closeInst() {
-      instOpen.value = false;
-      instBtn.value?.focus();
-    }
-    // The printer stays if the other installation has the model (watcher above), the page too.
+    // A tab of the slicer part: the printer stays if the other installation has the model (watcher
+    // above), the page too.
     function pickInst(i) {
-      closeInst();
       if (i.id !== ui.instId) go(null, hashOf(route.value.page, i.id));
     }
     const printerOpen = ref(false);
@@ -557,7 +676,7 @@ const app = createApp({
     const printerMenu = ref(null);
     function togglePrinter() {
       printerOpen.value = !printerOpen.value;
-      instOpen.value = fileOpen.value = false;
+      moreOpen.value = fileOpen.value = false;
       if (printerOpen.value) nextTick(() => printerMenu.value?.querySelector('[aria-checked="true"]')?.focus());
     }
     function closePrinter() {
@@ -606,6 +725,10 @@ const app = createApp({
     const liveJob = computed(() => live[ui.printer]?.data?.monitor?.job || null);
     // Klipper's print_stats.state (printing, paused, standby, …); null while unknown or unreachable.
     const jobState = computed(() => (area.value === "printer" && !live[ui.printer]?.error && liveJob.value?.state) || null);
+    // While it prints, its file is the print file and no other can be chosen (the user's wish of
+    // 27.09.2026: another file makes no sense then); for "Dateien" and a file dropped on 3D or 2D too.
+    const fileLocked = computed(() => ["printing", "paused"].includes(jobState.value) && !!liveJob.value?.file);
+    watch(fileLocked, (on) => { ui.fileLocked = on; }, { immediate: true });
     const fileOpen = ref(false);
     const fileBtn = ref(null);
     const fileMenu = ref(null);
@@ -632,7 +755,7 @@ const app = createApp({
       if (first || (printing && printing !== jobFile.value)) await readFiles();
       if (model !== ui.printer) return;
       const kept = first && printFiles.value?.find((f) => pathOf(f) === SETTINGS.print_file?.[model]);
-      if (printing && printing !== jobFile.value && !kept) ui.printFile = { model, path: printing };
+      if (printing && (ui.printFile?.model !== model || ui.printFile.path !== printing)) ui.printFile = { model, path: printing };
       else if (first && !ui.printFile && (kept || printFiles.value?.[0])) ui.printFile = { model, path: pathOf(kept || printFiles.value[0]) };
       jobFile.value = printing;
     }
@@ -654,6 +777,7 @@ const app = createApp({
       printFiles.value = null;
       jobFile.value = undefined;
       cancelAsk.value = false;
+      restartOpen.value = false;   // else its next click would restart the other printer
       disarmStop();
       printPanel.value = null;
       if (ui.printFile?.model && ui.printFile.model !== model) ui.printFile = null;
@@ -661,7 +785,7 @@ const app = createApp({
     });
     function toggleFile() {
       fileOpen.value = !fileOpen.value;
-      instOpen.value = printerOpen.value = false;
+      moreOpen.value = printerOpen.value = false;
       if (!fileOpen.value) return;
       if (fileHost.value) readFiles();
       nextTick(() => (fileMenu.value?.querySelector('[aria-checked="true"]') || fileMenu.value?.querySelector(".inst-item"))?.focus());
@@ -783,18 +907,18 @@ const app = createApp({
         close();
       } else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
         ev.preventDefault();
-        const items = [...menu.querySelectorAll(".inst-item")];
+        const items = [...menu.querySelectorAll(".inst-item, .more-away .icon-btn")];
         const n = items.indexOf(document.activeElement), down = ev.key === "ArrowDown";
         const next = n < 0 ? (down ? 0 : items.length - 1) : (n + (down ? 1 : items.length - 1)) % items.length;
         items[next].focus();
       }
     }
-    const instKey = (ev) => instOpen.value && menuKeys(ev, instMenu.value, closeInst);
+    const moreKey = (ev) => moreOpen.value && menuKeys(ev, moreMenu.value, closeMore);
     const printerKey = (ev) => printerOpen.value && menuKeys(ev, printerMenu.value, closePrinter);
     const fileKey = (ev) => fileOpen.value && menuKeys(ev, fileMenu.value, closeFile);
     document.addEventListener("pointerdown", (ev) => {
       const at = (sel) => ev.target instanceof Element && ev.target.closest(sel);
-      if (instOpen.value && !at(".inst-pick")) instOpen.value = false;
+      if (moreOpen.value && !at(".more-pick")) moreOpen.value = false;
       if (printerOpen.value && !at(".printer-pick")) printerOpen.value = false;
       if (fileOpen.value && !at(".file-pick")) fileOpen.value = false;
       if (cancelAsk.value && !at(".cancel-pick")) cancelAsk.value = false;
@@ -804,136 +928,72 @@ const app = createApp({
 
     return {
       INSTANCES, FAILED, PAGES, CHANGE, T, route, ui, loadState, inst, page, pageKey, pageProps, navHash, badges, go, hashOf, leave,
-      area, showSwitch, toArea, choices, chosen, AREA_START,
-      statusText, generatedText, instOpen, instBtn, instMenu, toggleInst, pickInst, instKey, reread, load, loadError,
+      area, showSwitch, toArea, choices, chosen, machine, AREA_START,
+      statusText, generatedText, reread, load, loadError,
       printers, activeModel, modelName, printerOpen, printerBtn, printerMenu, togglePrinter, pickPrinter, printerKey, menuPages,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       riskShown, riskBusy, riskBtn, acceptRisk, appVersion,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
-      thumbOf, fileThumb, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, restartOpen, api,
-      klipper, klipperDown, hosts,
+      thumbOf, fileThumb, fileLocked, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, restartOpen, api,
+      klipper, klipperDown, hosts, tabBox, tabRows, tabNow, pickTab, tabKey, moreOpen, moreBtn, moreMenu, toggleMore, moreKey, moreDot,
+      toNetwork, away,
     };
   },
 
   template: `
     <header class="topbar" :inert="riskShown || null">
-      <button ref="navBtn" class="bar-btn nav-toggle" type="button" aria-controls="main-nav" :aria-expanded="navShown ? 'true' : 'false'"
-              :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
-      <a class="brand" :href="hashOf(AREA_START[area], ui.instId)" @click="go($event, hashOf(AREA_START[area], ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
-      <span class="spacer"></span>
-      <!-- The installation in the slicer part only; the printer part does not depend on one -->
-      <div v-if="area === 'slicer' && INSTANCES.length > 1" class="inst inst-pick" @keydown="instKey">
-        <button ref="instBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="instOpen ? 'true' : 'false'"
-                :title="inst.slicer + ' ' + inst.version + ' · ' + statusText(inst)" @click="toggleInst">
-          <!-- On a phone the short name, so the printer next to it keeps its name -->
-          <span class="inst-name"><span class="name-long">{{ inst.slicer }}</span><span class="name-short">{{ inst.snorca ? 'SnOrca' : 'Orca' }}</span></span>
-          <run-status :inst="inst" short/>
-          <ui-icon name="chevronDown"/>
-        </button>
-        <div v-if="instOpen" ref="instMenu" class="inst-menu" role="menu" :aria-label="T.instMenu">
-          <div class="inst-menu-label" aria-hidden="true">{{ T.instMenu }}</div>
-          <!-- The data folder as a tooltip only (the user's wish) -->
-          <button v-for="i in INSTANCES" :key="i.id" class="inst-item" type="button" role="menuitemradio" :title="i.path"
-                  :aria-checked="i.id === inst.id ? 'true' : 'false'" @click="pickInst(i)">
-            <ui-icon name="check" class="check"/>
-            <span class="inst-item-text">
-              <span>{{ i.slicer }} <span class="version">{{ i.version }}</span></span>
-              <run-status :inst="i"/>
-            </span>
-          </button>
-        </div>
+      <!-- As wide as the menu, so the tabs start where the page does -->
+      <div :class="['topbar-home', { 'is-wide': !narrow && !navCollapsed }]">
+        <button ref="navBtn" class="bar-btn nav-toggle" type="button" aria-controls="main-nav" :aria-expanded="navShown ? 'true' : 'false'"
+                :aria-label="T.nav.toggle" :title="T.nav.toggle" @click="toggleNav"><ui-icon name="menu" :size="22"/></button>
+        <a class="brand" :href="hashOf(AREA_START[area], ui.instId)" @click="go($event, hashOf(AREA_START[area], ui.instId))"><spool-icon colour="#009688" :size="26"/><span class="brand-name">{{ T.appName }}</span></a>
       </div>
-      <span v-else-if="area === 'slicer' && inst" class="inst-single">{{ inst.slicer }}</span>
-      <!-- The printer: a profile of the installation, or in the printer part one with an address -->
-      <div v-if="choices.length" class="inst printer-pick" @keydown="printerKey">
-        <button ref="printerBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="printerOpen ? 'true' : 'false'"
-                :title="area === 'printer' ? T.machineMenu : T.printerMenu" @click="togglePrinter">
-          <img v-if="chosen" class="printer-pick-img" :src="chosen.cover" alt="" width="24" height="24">
-          <span class="inst-name">{{ chosen ? chosen.name : area === 'printer' ? T.machineMenu : T.printerMenu }}</span>
-          <ui-icon name="chevronDown"/>
+      <!-- What OrcaOne works with, above its tools and the page (the user's wish of 27.09.2026): the printers
+           that answer, or the installations. Buttons, not ARIA tabs: they choose for every page. -->
+      <nav ref="tabBox" class="top-tabs" :aria-label="area === 'printer' ? T.printerTabs.label : T.slicerTabs.label" @keydown="tabKey">
+        <button v-for="t in tabRows.shown" :key="t.key" type="button" :class="['top-tab', 'is-' + t.state.kind, { 'is-on': t.key === tabNow, 'is-faded': t.faded }]"
+                :aria-current="t.key === tabNow ? 'true' : null" :tabindex="t.key === tabNow ? 0 : -1" :title="t.title" @click="pickTab(t)">
+          <img v-if="t.img" class="top-tab-img" :src="t.img" alt="" width="24" height="24">
+          <span v-else :class="['top-tab-logo', { 'is-orca': t.orca }]" aria-hidden="true">{{ t.logo }}</span>
+          <span class="top-tab-text"><span class="top-tab-name">{{ t.name }}</span>
+            <span class="top-tab-state"><span class="top-tab-dot"></span>{{ t.state.text }}</span></span>
+          <!-- On a phone the other tabs are their picture: the state as a mark on it, the words in its name -->
+          <span class="top-tab-mark" aria-hidden="true"></span>
         </button>
-        <div v-if="printerOpen" ref="printerMenu" class="inst-menu" role="menu" :aria-label="area === 'printer' ? T.machineMenu : T.printerMenu">
-          <div class="inst-menu-label" aria-hidden="true">{{ area === 'printer' ? T.machineMenu : T.printerMenu }}</div>
-          <button v-for="m in choices" :key="m.model" class="inst-item" type="button" role="menuitemradio"
-                  :aria-checked="m.model === ui.printer ? 'true' : 'false'" @click="pickPrinter(m)">
-            <ui-icon name="check" class="check"/>
-            <img class="printer-pick-img" :src="m.cover" alt="" width="28" height="28">
-            <span class="inst-item-text">
-              <span>{{ m.name }}</span>
-              <span v-if="m.sub" class="inst-item-path">{{ m.sub }}</span>
-            </span>
-          </button>
+        <div v-if="tabRows.more.length || tabRows.away.length" class="inst more-pick" @keydown="moreKey">
+          <button ref="moreBtn" :class="['top-more', moreDot && 'is-' + moreDot]" type="button" aria-haspopup="menu" :aria-expanded="moreOpen ? 'true' : 'false'"
+                  :title="T.printerTabs.more(tabRows.more.length + tabRows.away.length)" @click="toggleMore">
+            +{{ tabRows.more.length + tabRows.away.length }}<ui-icon name="chevronDown" :size="14"/></button>
+          <div v-if="moreOpen" ref="moreMenu" class="inst-menu more-menu" role="menu" :aria-label="T.printerTabs.more(tabRows.more.length + tabRows.away.length)">
+            <template v-if="tabRows.more.length">
+              <div class="inst-menu-label" aria-hidden="true">{{ T.printerTabs.moreTitle }}</div>
+              <button v-for="t in tabRows.more" :key="t.key" class="inst-item" type="button" role="menuitem" :title="t.title" @click="pickTab(t)">
+                <img v-if="t.img" class="printer-pick-img" :src="t.img" alt="" width="28" height="28">
+                <span v-else :class="['top-tab-logo', { 'is-orca': t.orca }]" aria-hidden="true">{{ t.logo }}</span>
+                <span class="inst-item-text"><span>{{ t.name }}</span><span :class="['more-state', 'is-' + t.state.kind]">{{ t.state.text }}</span></span>
+              </button>
+            </template>
+            <template v-if="tabRows.away.length">
+              <div class="inst-menu-label" aria-hidden="true">{{ T.printerTabs.awayTitle }}</div>
+              <div v-for="t in tabRows.away" :key="t.key" class="more-away">
+                <button class="inst-item" type="button" role="menuitem" :title="t.title" @click="pickTab(t)">
+                  <img class="printer-pick-img" :src="t.img" alt="" width="28" height="28">
+                  <span class="inst-item-text"><span>{{ t.name }}</span><span class="inst-item-path">{{ t.host }}</span></span>
+                </button>
+                <button class="icon-btn" type="button" :title="T.printerTabs.toNetwork" :aria-label="T.printerTabs.toNetwork" @click="toNetwork(t)"><ui-icon name="lan"/></button>
+              </div>
+            </template>
+            <a v-if="area === 'printer'" class="inst-item more-all" role="menuitem" :href="hashOf('drucker', ui.instId)"
+               @click="moreOpen = false; go($event, hashOf('drucker', ui.instId))"><ui-icon name="printer"/>{{ T.printerTabs.all }}</a>
+          </div>
         </div>
-      </div>
-      <!-- The print file for "2D Ansicht" and "3D Ansicht", next to the printer (the user's wish) -->
-      <div v-if="area === 'printer' && chosen" class="inst file-pick" @keydown="fileKey">
-        <button ref="fileBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="fileOpen ? 'true' : 'false'"
-                :title="ui.printFile ? T.fileMenu.title(fileName) : T.fileMenu.label" @click="toggleFile">
-          <img v-if="fileThumb" class="file-thumb" :src="fileThumb" alt="" width="24" height="24">
-          <ui-icon v-else :name="ui.printFile?.local ? 'folderOpen' : 'file'"/>
-          <span class="inst-name file-name">{{ fileName || T.fileMenu.none }}</span>
-          <ui-icon name="chevronDown"/>
-        </button>
-        <div v-if="fileOpen" ref="fileMenu" class="inst-menu file-menu" role="menu" :aria-label="T.fileMenu.label">
-          <div class="inst-menu-label" aria-hidden="true">{{ T.fileMenu.label }}</div>
-          <p v-if="!fileHost" class="file-menu-note">{{ T.fileMenu.noHost }}</p>
-          <p v-else-if="printFiles === null" class="file-menu-note">{{ T.fileMenu.reading }}</p>
-          <p v-else-if="!printFiles.length" class="file-menu-note">{{ T.fileMenu.empty }}</p>
-          <button v-for="f in printFiles || []" :key="pathOf(f)" class="inst-item" type="button" role="menuitemradio"
-                  :aria-checked="fileIsSet(f) ? 'true' : 'false'" @click="pickFile(f)">
-            <ui-icon name="check" class="check"/>
-            <img v-if="f.thumb" class="file-thumb" :src="thumbOf(f)" alt="" width="40" height="40" loading="lazy">
-            <span v-else class="file-thumb is-empty"><ui-icon name="file"/></span>
-            <span class="inst-item-text"><span>{{ f.name }}</span><span class="file-facts">{{ fileFacts(f) }}</span></span>
-          </button>
-          <button class="inst-item file-local" type="button" role="menuitem" @click="$refs.localInput.click()">
-            <ui-icon name="folderOpen"/><span class="inst-item-text">{{ ui.printFile?.local ? T.fileMenu.localNow(ui.printFile.local) : T.fileMenu.local }}</span>
-          </button>
-          <input ref="localInput" class="file-local-input" type="file" accept=".gcode,.gco,.g" tabindex="-1" aria-hidden="true" @change="pickLocal">
-        </div>
-      </div>
-      <!-- How far the print is, on every page (the user's wish); a click leads to "Status" -->
-      <a v-if="running" :class="['job-pill', { 'is-paused': running.paused }]" :href="hashOf('status', ui.instId)" :title="running.title"
+      </nav>
+      <!-- How far a print is, on every page of the slicer part (the user's wish of 25.09.2026); the printer part shows it below -->
+      <a v-if="running && area === 'slicer'" :class="['job-pill', { 'is-paused': running.paused }]" :href="hashOf('status', ui.instId)" :title="running.title"
          @click="openStatus"><span class="job-ring" :style="{ '--pct': running.pct }" aria-hidden="true"></span>
         <strong>{{ running.pct }} %</strong><span v-if="running.text" class="job-left">{{ running.text }}</span></a>
-      <!-- Print that file, cancel, emergency stop, restarts (the user's wish); the tooltip says why one is off -->
-      <div v-if="area === 'printer' && chosen && fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
-        <button class="bar-btn" type="button" :disabled="!!startBlock" :title="startBlock || T.printBar.start(fileName)"
-                :aria-label="T.printBar.start(fileName)" @click="openPrint"><ui-icon name="play"/></button>
-        <button class="bar-btn" type="button" :disabled="!jobBusy || barBusy" :title="!jobBusy ? T.printBar.cancelIdle : jobPaused ? T.printBar.resume : T.printBar.pause"
-                :aria-label="jobPaused ? T.printBar.resume : T.printBar.pause" @click="pauseResume"><ui-icon :name="jobPaused ? 'resume' : 'pause'"/></button>
-        <div class="inst cancel-pick" @keydown.esc.stop="cancelAsk = false; $refs.cancelBtn.focus()">
-          <button ref="cancelBtn" class="bar-btn" type="button" :disabled="!jobBusy || barBusy" :title="jobBusy ? T.printBar.cancel : T.printBar.cancelIdle"
-                  :aria-label="T.printBar.cancel" aria-haspopup="dialog" :aria-expanded="cancelAsk ? 'true' : 'false'"
-                  @click="cancelAsk = !cancelAsk; cancelAsk && $nextTick(() => $refs.cancelNo.focus())"><ui-icon name="stop"/></button>
-          <div v-if="cancelAsk" class="inst-menu bar-ask" role="alertdialog" aria-labelledby="cancel-ask">
-            <p id="cancel-ask" class="bar-ask-q">{{ T.printBar.cancelAsk }}</p>
-            <div class="bar-ask-actions">
-              <button class="btn btn-danger-solid" type="button" @click="cancelPrint">{{ T.printBar.cancelYes }}</button>
-              <button ref="cancelNo" class="btn" type="button" @click="cancelAsk = false">{{ T.printBar.cancelNo }}</button>
-            </div>
-          </div>
-        </div>
-        <button :class="['bar-btn', 'estop', { 'is-armed': stopArmed }]" type="button" :title="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop"
-                :aria-label="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop" @click="emergencyStop">
-          <ui-icon name="estop"/><span v-if="stopArmed">{{ T.printBar.stopArmed }}</span></button>
-        <div class="inst restart-pick" @keydown.esc.stop="restartOpen = false; $refs.restartBtn.focus()">
-          <button ref="restartBtn" class="bar-btn" type="button" :title="T.klipperBar.menu" :aria-label="T.klipperBar.menu"
-                  aria-haspopup="dialog" :aria-expanded="restartOpen ? 'true' : 'false'"
-                  @click="restartOpen = !restartOpen; restartOpen && $nextTick(() => $refs.restartMenu.querySelector('button').focus())"><ui-icon name="power"/></button>
-          <div v-if="restartOpen" ref="restartMenu" class="inst-menu bar-restart" role="dialog" :aria-label="T.klipperBar.menu">
-            <p class="inst-menu-label">{{ T.klipperBar.menu }}</p>
-            <klipper-actions :printer="ui.printer" :running="jobBusy" @sent="restartOpen = false"/>
-          </div>
-        </div>
-      </div>
-      <!-- The icon alone (the user); what it does and the time of the data in the tooltip -->
-      <button v-if="area === 'slicer' && loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
-              :title="T.reload + ' · ' + T.dataFrom(generatedText)" @click="leave(reread)">
-        <ui-icon name="refresh"/>
-      </button>
     </header>
 
     <div :class="['shell', { 'nav-collapsed': !narrow && navCollapsed, 'nav-open': narrow && navOpen }]" :inert="riskShown || null">
@@ -968,6 +1028,115 @@ const app = createApp({
       </nav>
       <div v-if="narrow && navOpen" class="nav-backdrop" @click="navOpen = false"></div>
       <main class="main">
+        <!-- The tools of the tab above (the user's wish of 27.09.2026): in the printer part its print file, the
+             print and, always at the right edge, restarts and the emergency stop; in the slicer part its printer
+             profile and "Neu einlesen". Stays at the top while the page scrolls. -->
+        <div class="tab-tools">
+          <template v-if="area === 'printer' && machine">
+            <!-- The print file for "2D Ansicht" and "3D Ansicht" (the user's wish) -->
+            <div class="inst file-pick" @keydown="fileKey">
+              <button ref="fileBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="fileOpen ? 'true' : 'false'" :disabled="fileLocked"
+                      :title="fileLocked ? T.fileMenu.title(fileName) + ' · ' + T.fileMenu.locked : ui.printFile ? T.fileMenu.title(fileName) : T.fileMenu.label" @click="toggleFile">
+                <img v-if="fileThumb" class="file-thumb" :src="fileThumb" alt="" width="24" height="24">
+                <ui-icon v-else :name="ui.printFile?.local ? 'folderOpen' : 'file'"/>
+                <span class="inst-name file-name">{{ fileName || T.fileMenu.none }}</span>
+                <ui-icon name="chevronDown"/>
+              </button>
+              <div v-if="fileOpen" ref="fileMenu" class="inst-menu file-menu" role="menu" :aria-label="T.fileMenu.label">
+                <div class="inst-menu-label" aria-hidden="true">{{ T.fileMenu.label }}</div>
+                <p v-if="!fileHost" class="file-menu-note">{{ T.fileMenu.noHost }}</p>
+                <p v-else-if="printFiles === null" class="file-menu-note">{{ T.fileMenu.reading }}</p>
+                <p v-else-if="!printFiles.length" class="file-menu-note">{{ T.fileMenu.empty }}</p>
+                <button v-for="f in printFiles || []" :key="pathOf(f)" class="inst-item" type="button" role="menuitemradio"
+                        :aria-checked="fileIsSet(f) ? 'true' : 'false'" @click="pickFile(f)">
+                  <ui-icon name="check" class="check"/>
+                  <img v-if="f.thumb" class="file-thumb" :src="thumbOf(f)" alt="" width="40" height="40" loading="lazy">
+                  <span v-else class="file-thumb is-empty"><ui-icon name="file"/></span>
+                  <span class="inst-item-text"><span>{{ f.name }}</span><span class="file-facts">{{ fileFacts(f) }}</span></span>
+                </button>
+                <button class="inst-item file-local" type="button" role="menuitem" @click="$refs.localInput.click()">
+                  <ui-icon name="folderOpen"/><span class="inst-item-text">{{ ui.printFile?.local ? T.fileMenu.localNow(ui.printFile.local) : T.fileMenu.local }}</span>
+                </button>
+                <input ref="localInput" class="file-local-input" type="file" accept=".gcode,.gco,.g" tabindex="-1" aria-hidden="true" @change="pickLocal">
+              </div>
+            </div>
+            <!-- Print that file, pause, cancel, restarts, emergency stop (the user's wish); the tooltip says why one is off -->
+            <div v-if="fileHost" class="print-ctl" role="group" :aria-label="T.printBar.label">
+              <button class="bar-btn" type="button" :disabled="!!startBlock" :title="startBlock || T.printBar.start(fileName)"
+                      :aria-label="T.printBar.start(fileName)" @click="openPrint"><ui-icon name="play"/></button>
+              <span class="tab-tools-sep" aria-hidden="true"></span>
+              <!-- How far the print is; a click leads to "Status" -->
+              <a v-if="running" :class="['job-now', { 'is-paused': running.paused }]" :href="hashOf('status', ui.instId)" :title="running.title"
+                 @click="openStatus"><span class="job-ring" :style="{ '--pct': running.pct }" aria-hidden="true"></span>
+                <strong>{{ running.pct }} %</strong><span v-if="running.text" class="job-left">{{ running.text }}</span></a>
+              <button class="bar-btn" type="button" :disabled="!jobBusy || barBusy" :title="!jobBusy ? T.printBar.cancelIdle : jobPaused ? T.printBar.resume : T.printBar.pause"
+                      :aria-label="jobPaused ? T.printBar.resume : T.printBar.pause" @click="pauseResume"><ui-icon :name="jobPaused ? 'resume' : 'pause'"/></button>
+              <div class="inst cancel-pick" @keydown.esc.stop="cancelAsk = false; $refs.cancelBtn.focus()">
+                <button ref="cancelBtn" class="bar-btn" type="button" :disabled="!jobBusy || barBusy" :title="jobBusy ? T.printBar.cancel : T.printBar.cancelIdle"
+                        :aria-label="T.printBar.cancel" aria-haspopup="dialog" :aria-expanded="cancelAsk ? 'true' : 'false'"
+                        @click="cancelAsk = !cancelAsk; cancelAsk && $nextTick(() => $refs.cancelNo.focus())"><ui-icon name="stop"/></button>
+                <div v-if="cancelAsk" class="inst-menu bar-ask" role="alertdialog" aria-labelledby="cancel-ask">
+                  <p id="cancel-ask" class="bar-ask-q">{{ T.printBar.cancelAsk }}</p>
+                  <div class="bar-ask-actions">
+                    <button class="btn btn-danger-solid" type="button" @click="cancelPrint">{{ T.printBar.cancelYes }}</button>
+                    <button ref="cancelNo" class="btn" type="button" @click="cancelAsk = false">{{ T.printBar.cancelNo }}</button>
+                  </div>
+                </div>
+              </div>
+              <span class="spacer"></span>
+              <div class="inst restart-pick" @keydown.esc.stop="restartOpen = false; $refs.restartBtn.focus()">
+                <button ref="restartBtn" class="bar-btn" type="button" :title="T.klipperBar.menu" :aria-label="T.klipperBar.menu"
+                        aria-haspopup="dialog" :aria-expanded="restartOpen ? 'true' : 'false'"
+                        @click="restartOpen = !restartOpen; restartOpen && $nextTick(() => $refs.restartMenu.querySelector('button').focus())"><ui-icon name="power"/></button>
+                <div v-if="restartOpen" ref="restartMenu" class="inst-menu bar-restart" role="dialog" :aria-label="T.klipperBar.menu">
+                  <p class="inst-menu-label">{{ T.klipperBar.menu }}</p>
+                  <klipper-actions :printer="ui.printer" :running="jobBusy" @sent="restartOpen = false"/>
+                </div>
+              </div>
+              <!-- Always in the same place and the same size: armed, it says so in a bubble below -->
+              <span class="estop-wrap">
+                <button :class="['bar-btn', 'estop', { 'is-armed': stopArmed }]" type="button" :title="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop"
+                        :aria-label="stopArmed ? T.printBar.stopArmedHint : T.printBar.stop" @click="emergencyStop"><ui-icon name="estop"/></button>
+                <span v-if="stopArmed" class="estop-tip" role="alert">{{ T.printBar.stopArmedHint }}</span>
+              </span>
+            </div>
+          </template>
+          <template v-else-if="area === 'slicer' && inst">
+            <!-- The printer profile OrcaOne works with, of the installation of the tab -->
+            <div v-if="choices.length" class="inst printer-pick" @keydown="printerKey">
+              <button ref="printerBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="printerOpen ? 'true' : 'false'"
+                      :title="T.printerMenu" @click="togglePrinter">
+                <img v-if="chosen" class="printer-pick-img" :src="chosen.cover" alt="" width="24" height="24">
+                <span class="inst-name">{{ chosen ? chosen.name : T.printerMenu }}</span>
+                <ui-icon name="chevronDown"/>
+              </button>
+              <div v-if="printerOpen" ref="printerMenu" class="inst-menu" role="menu" :aria-label="T.printerMenu">
+                <div class="inst-menu-label" aria-hidden="true">{{ T.printerMenu }}</div>
+                <button v-for="m in choices" :key="m.model" class="inst-item" type="button" role="menuitemradio"
+                        :aria-checked="m.model === ui.printer ? 'true' : 'false'" @click="pickPrinter(m)">
+                  <ui-icon name="check" class="check"/>
+                  <img class="printer-pick-img" :src="m.cover" alt="" width="28" height="28">
+                  <span class="inst-item-text">
+                    <span>{{ m.name }}</span>
+                    <span v-if="m.sub" class="inst-item-path">{{ m.sub }}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+            <span class="spacer"></span>
+            <!-- The icon alone (the user); what it does and the time of the data in the tooltip -->
+            <button v-if="loadState.status === 'ready'" class="bar-btn" type="button" :aria-label="T.reload" :disabled="loadState.busy"
+                    :title="T.reload + ' · ' + T.dataFrom(generatedText)" @click="leave(reread)">
+              <ui-icon name="refresh"/>
+            </button>
+          </template>
+        </div>
+        <!-- The printer of the printer part does not answer: why its pages stay empty, and where to look -->
+        <div v-if="away" class="page klipper-strip is-away" role="status">
+          <span class="klipper-strip-text"><strong>{{ T.printerTabs.noAnswer(away.name) }}</strong>
+            <span class="mono">{{ away.host }}</span>
+            <a class="link" :href="hashOf('netzwerk', ui.instId)" @click="go($event, hashOf('netzwerk', ui.instId))">{{ T.printerTabs.toNetwork }}</a></span>
+        </div>
         <div v-if="FAILED.length" class="page failed-list" role="alert">
           <p v-for="f in FAILED" :key="f.id" class="alert">
             {{ T.failed[f.code] ? T.failed[f.code](f) : f.code }}

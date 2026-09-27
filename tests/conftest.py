@@ -10,7 +10,7 @@ import paramiko
 import pytest
 import uvicorn
 
-from orcaone import camera, guard, instances, settings
+from orcaone import camera, covers, guard, history, instances, live, settings
 from orcaone.__main__ import free_port
 from orcaone.app import app
 
@@ -37,6 +37,19 @@ def data_dir(tmp_path, monkeypatch):
     # What the last scan found in the slicers' printer profiles (overview.build_all).
     monkeypatch.setattr(camera, "_slicer_hosts", {})
     monkeypatch.setattr(camera, "_estimates", {})
+    # No slicer's real program folder: a test that wants printer pictures brings its own (covers.py).
+    monkeypatch.setattr(covers, "candidates", lambda slicer, processes: [])
+    monkeypatch.setattr(covers, "_files", {})
+    # Nor the internet: a test that fetches pictures brings its own stand-in for GitHub.
+    monkeypatch.setattr(covers, "SOURCES", {})
+    monkeypatch.setattr(covers, "_missing", set())
+    monkeypatch.setattr(covers, "_locks", {})
+    monkeypatch.setattr(covers, "_offline_until", 0.0)
+    # No recording of every printer in the background: a test of it runs live.recording itself.
+    monkeypatch.setattr(live, "RECORD", False)
+    monkeypatch.setattr(live, "_kept", set())
+    monkeypatch.setattr(history, "_last", {})
+    monkeypatch.setattr(history, "_tidied", {})
     return folder
 
 

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 120 120" fill="none">
+  <!-- OrcaOne's own outline for any printer without a picture (covers.py) -->
+  <rect x="22" y="16" width="76" height="80" rx="4" stroke="#A8A8A8" stroke-width="2.5" stroke-dasharray="6 5"/>
+  <rect x="22" y="38" width="76" height="3" fill="#BDBDBD"/>
+  <rect x="53" y="33" width="14" height="12" rx="2" fill="#BDBDBD"/>
+  <rect x="32" y="76" width="56" height="4" rx="1.5" fill="#BDBDBD"/>
+  <rect x="18" y="96" width="84" height="8" rx="2" fill="#E6E6E6"/>
+</svg>

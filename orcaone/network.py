@@ -210,7 +210,7 @@ def interfaces(host: str) -> list[dict]:
     """The printer's interfaces as Moonraker lists them (up, with an address): name, MAC, IPv4 and
     IPv6, and whether OrcaOne speaks to the printer over it."""
     network = (camera._get(host, "/machine/system_info").get("system_info") or {}).get("network")
-    target = ssh.hostname(host)
+    target = ssh.machine(host)
     try:
         target = socket.gethostbyname(target)
     except OSError:
@@ -250,7 +250,7 @@ def computer(host: str) -> dict:
     in its network (else a router or a VPN lies between, and "Im LAN suchen" cannot find it). A UDP
     socket connected to the printer sends nothing."""
     try:
-        target = socket.gethostbyname(ssh.hostname(host))
+        target = socket.gethostbyname(ssh.machine(host))
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.connect((target, 9))
             mine = sock.getsockname()[0]
@@ -271,7 +271,7 @@ def answer_time(host: str) -> dict:
     for _ in range(5):
         start = time.monotonic()
         try:
-            with camera._direct.open(f"http://{host}/server/info", timeout=5) as response:
+            with camera._direct.open(camera.moonraker_url(host, "/server/info"), timeout=5) as response:
                 response.read()
                 date = response.headers.get("Date")
         except OSError as exc:
@@ -298,7 +298,7 @@ def measure(host: str) -> dict:
     if not files:
         raise CameraError("wifi_no_file")
     biggest = max(files, key=lambda f: f["size"])
-    request = urllib.request.Request(f"http://{host}/server/files/gcodes/{urllib.parse.quote(biggest['path'])}",
+    request = urllib.request.Request(camera.moonraker_url(host, f"/server/files/gcodes/{urllib.parse.quote(biggest['path'])}"),
                                      headers={"Range": f"bytes=0-{LIMIT - 1}"})
     got, start = 0, time.monotonic()
     try:
@@ -374,7 +374,7 @@ def reboot(printer: str, keys: bool = True) -> dict:
 def _answers(host: str) -> bool:
     """Whether Moonraker answers, within 2 s."""
     try:
-        with camera._direct.open(f"http://{host}/server/info", timeout=2) as response:
+        with camera._direct.open(camera.moonraker_url(host, "/server/info"), timeout=2) as response:
             response.read()
         return True
     except (OSError, ValueError):

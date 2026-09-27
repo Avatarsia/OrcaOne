@@ -28,9 +28,10 @@ EXTRUDER = re.compile(r"extruder\d*")
 MONITORS = ("tmc2240",)
 # Always asked for, the objects of camera.status among them; what a printer lacks is missing in
 # the answer. Of toolhead, gcode_move and motion_report only the fields shown: subscribed whole
-# (live.py), toolhead's print times alone change four times a second at rest.
+# (live.py), toolhead's print times alone change four times a second at rest. Its stalls count how
+# often the moves ran dry (marks on "Diagramme", history.py).
 FIXED = ["webhooks", "print_stats", "display_status", "gcode_move=speed_factor,extrude_factor",
-         "toolhead=extruder,homed_axes,position,axis_minimum,axis_maximum,max_velocity,max_accel",
+         "toolhead=extruder,homed_axes,position,axis_minimum,axis_maximum,max_velocity,max_accel,stalls",
          "motion_report=live_position,live_velocity,live_extruder_velocity", "heaters",
          "print_task_config", "filament_detect", "led cavity_led", "bed_mesh=mesh_min,mesh_max", "virtual_sdcard=file_position",
          "exception_manager"]   # the U1's error codes that stay until acknowledged (orcaone/errors.py)
@@ -54,11 +55,17 @@ def _groups(listed: list) -> tuple[list, list, list, list, list]:
             [o for o in listed if _kind(o) in MONITORS])
 
 
+def _mcus(listed: list) -> list[str]:
+    """The microcontrollers Klipper talks to: "mcu", on the U1 also "mcu e0" … one per head."""
+    return [o for o in listed if o == "mcu" or o.startswith("mcu ")]
+
+
 def objects(listed: list) -> list[str]:
     """What the page shows, as Klipper's objects "name" or "name=field,…", from Klipper's list: asked
     for once here (read), subscribed to for live values (live.py)."""
     extruders, temps, fans, sensors, monitors = _groups(listed)
-    return list(dict.fromkeys(FIXED + extruders + temps + fans + sensors + [f"{m}=temperature" for m in monitors]))
+    return list(dict.fromkeys(FIXED + extruders + temps + fans + sensors + [f"{m}=temperature" for m in monitors]
+                              + [f"{m}=last_stats" for m in _mcus(listed)]))
 
 
 def read(host: str) -> dict:
@@ -110,13 +117,39 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
     position = motion.get("live_position") or toolhead.get("position") or []
     webhooks = part("webhooks")
     memory = system.get("system_memory") if isinstance(system.get("system_memory"), dict) else {}
+    # Moonraker's own time of its counters: a list of the last 30 from machine.proc_stats, one from
+    # notify_proc_stat_update. The charts divide the traffic by it (history._traffic).
+    moonraker = system.get("moonraker_stats")
+    moonraker = moonraker[-1] if isinstance(moonraker, list) and moonraker else moonraker if isinstance(moonraker, dict) else {}
     network = system.get("network") if isinstance(system.get("network"), dict) else {}
+    # The load of each microcontroller as Klipper's scripts/graphstats.py reckons it (the formula only):
+    # one pass of its task loop on average plus three times its spread, against 2.5 ms; awake: of the
+    # 5 s it reports over, the share it worked (the user's wish of 27.09.2026).
+    mcus = []
+    for name in _mcus(listed):
+        s = part(name).get("last_stats") if isinstance(part(name).get("last_stats"), dict) else {}
+        avg, dev, awake = _number(s.get("mcu_task_avg")), _number(s.get("mcu_task_stddev")), _number(s.get("mcu_awake"))
+        # The counters of trouble on its line since the connection, for the charts (history.py makes rates of
+        # them over "at", Klipper's time of these statistics, live.py): bytes sent again, bytes that arrived
+        # broken, and on the U1 its own receive errors (err_len, err_dest, err_sync, err_crc).
+        faults = [_number(v) for k, v in s.items() if k.startswith("err_")]
+        mcus.append({"name": name, "load": round((avg + 3 * dev) / 0.0025 * 100, 1) if avg is not None and dev is not None else None,
+                     "awake": round(awake / 5 * 100, 1) if awake is not None else None,
+                     "retransmit": _number(s.get("bytes_retransmit")), "invalid": _number(s.get("bytes_invalid")),
+                     "errors": sum(faults) if faults and None not in faults else None, "at": _number(part(name).get("stats_at"))})
     return {
         # The U1's shutdown message begins with {"coded": ...}: its code and words apart.
         "klipper": dict(zip(("code", "message"), errors.split_coded(webhooks.get("state_message"))), state=webhooks.get("state")),
+        # Klipper's objects known: false while Moonraker answers but cannot reach Klipper (live.py puts a
+        # state of its own then), so the marks on "Diagramme" take nothing of it for Klipper's (history.py).
+        "listed": bool(listed),
         "exceptions": [{k: e[k] for k in ("code", "level", "message")} for e in
                        map(errors._exception, part("exception_manager").get("exceptions") or []) if e],
         "job": {**job, "filament": _number(stats.get("filament_used")), "message": stats.get("message") or None,
+                # Seconds since the print started, pauses included: the span "Dieser Druck" of "Diagramme".
+                "elapsed": _number(stats.get("total_duration")),
+                # How often the moves ran dry since Klipper started: the printer stood waiting for G-code.
+                "stalls": _number(toolhead.get("stalls")),
                 "speed_factor": _number(gcode.get("speed_factor")), "flow_factor": _number(gcode.get("extrude_factor")),
                 "options": options},
         "heads": heads,
@@ -133,9 +166,16 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
                    # reach further, on the U1 to the heads parked behind it (Y 335).
                    "mesh": [[_number(v) for v in mesh.get(k) or []] for k in ("mesh_min", "mesh_max")],
                    "max_velocity": _number(toolhead.get("max_velocity")), "max_accel": _number(toolhead.get("max_accel"))},
+        "mcus": mcus,
         "system": {"cpu": _number((system.get("system_cpu_usage") or {}).get("cpu")), "cpu_temp": _number(system.get("cpu_temp")),
+                   # Each core ("cpu0" …), the pages that watch Moonraker, and Moonraker's own share (tab "System" on "Status")
+                   "cores": [_number(v) for k, v in sorted((system.get("system_cpu_usage") or {}).items(),
+                                                           key=lambda kv: int(kv[0][3:]) if re.fullmatch(r"cpu\d+", kv[0]) else -1)
+                             if re.fullmatch(r"cpu\d+", k)],
+                   "websockets": _number(system.get("websocket_connections")),
+                   "moonraker": {"cpu": _number(moonraker.get("cpu_usage")), "memory": _number(moonraker.get("memory"))},
                    "memory": {"total": _number(memory.get("total")), "used": _number(memory.get("used"))},
-                   "uptime": _number(system.get("system_uptime")),
+                   "uptime": _number(system.get("system_uptime")), "time": _number(moonraker.get("time")),
                    # Only interfaces that carried something: the U1 lists an unused second WLAN.
                    # rx and tx count up; the page "Netzwerk" draws the traffic from them.
                    "network": [{"name": name, "bandwidth": _number(i.get("bandwidth")), "rx": _number(i.get("rx_bytes")),

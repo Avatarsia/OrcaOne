@@ -37,6 +37,7 @@ class SlicerProcess:
     pid: int
     slicer: str
     data_dir: Path | None
+    exe: str | None = None   # the program file, where its printer pictures lie (covers.py)
 
 
 def lock_holder(data_dir: Path) -> int | None:
@@ -182,7 +183,7 @@ def find_processes() -> list[SlicerProcess]:
                 cwd = proc.cwd()
             except (psutil.Error, OSError):
                 cwd = None
-            process = SlicerProcess(info["pid"], slicer, process_data_dir(info["cmdline"] or [], cwd))
+            process = SlicerProcess(info["pid"], slicer, process_data_dir(info["cmdline"] or [], cwd), exe or None)
             slicers.append(process)
             if process.data_dir:
                 # The AppImage runtime sets $APPIMAGE for the slicer inside it.

@@ -51,6 +51,11 @@ export default {
     let uploading = false;
     let reading = 0;              // the latest readFolder: an older answer arriving later is dropped
     const leaving = new AbortController();   // stops a running upload when the page goes
+    // The time-lapse playing, in the page over everything like a camera on "Kamera". Not in a tab of
+    // its own: the API's answers are sandboxed (app.py), and there the browser refuses the video.
+    const watching = ref(null);
+    const player = ref(null);
+    let opener = null;
 
     const live = useLive(() => ui.printer);
     const job = computed(() => live.value?.data?.monitor?.job || null);
@@ -74,12 +79,31 @@ export default {
     // A print file becomes the one "2D Ansicht" and "3D Ansicht" show, the one in the top bar (the
     // user's wish of 24.09.2026): a click on its name, or on "3D" and "2D", which also go there.
     const viewable = (f) => folder.value === "gcodes" && /\.gcode$/i.test(pathOf(f));
-    const setFile = (f) => { ui.printFile = { model: ui.printer, path: pathOf(f) }; };
+    // Not while the printer prints another one (app.js fileLocked): its file stays.
+    function setFile(f) {
+      if (ui.fileLocked && ui.printFile?.path !== pathOf(f)) {
+        flash(T.fileMenu.locked);
+        return false;
+      }
+      ui.printFile = { model: ui.printer, path: pathOf(f) };
+      return true;
+    }
     const isSet = (f) => viewable(f) && ui.printFile?.model === ui.printer && ui.printFile.path === pathOf(f);
     function openView(f, page) {
-      setFile(f);
-      go(null, hashOf(page, props.instId));
+      if (setFile(f)) go(null, hashOf(page, props.instId));
     }
+    function play(f, ev) {
+      opener = ev.currentTarget;
+      watching.value = f;
+      nextTick(() => player.value?.focus());
+    }
+    function stopWatching() {
+      watching.value = null;
+      opener?.focus();
+    }
+    const onKey = (ev) => { if (ev.key === "Escape" && watching.value) stopWatching(); };
+    onMounted(() => document.addEventListener("keydown", onKey));
+    onUnmounted(() => document.removeEventListener("keydown", onKey));
     const fileUrl = (p, download = false) => api.printerFileUrl(model.value, folder.value, p, download);
 
     // Folders first, by name; then the files as chosen, those without the value at the end.
@@ -378,6 +402,7 @@ export default {
       countText, pickedFiles, pickedDirs, openFolder, openDir, toggle, pickAll, remove, removeAsked, makeDir, move, moveTargets,
       pickedPaths, answer, clearUploads, uploadsOpen, percent, fileInput, chosenFiles, dragStart, dragEnd, dragOver, dragLeave,
       drop, dropNowhere, HERE, printReady, zoomed, hoverStart, hoverEnd, openPrint, closePrint, openDetails, facts, detailRows, fmtSize, whenText, go, hashOf, ui,
+      watching, player, play, stopWatching,
     };
   },
 
@@ -516,7 +541,8 @@ export default {
                     <a class="btn" :href="hashOf('druck3d', instId)" :title="D.view3d" @click.prevent="openView(f, 'druck3d')"><ui-icon name="cube"/>3D</a>
                     <a class="btn" :href="hashOf('druck2d', instId)" :title="D.view2d" @click.prevent="openView(f, 'druck2d')"><ui-icon name="toolpath"/>2D</a>
                   </template>
-                  <a v-if="folder !== 'gcodes'" class="btn" :href="fileUrl(pathOf(f))" target="_blank" rel="noopener">{{ videos ? D.play : D.open }}</a>
+                  <button v-if="videos" class="btn" type="button" @click="play(f, $event)">{{ D.play }}</button>
+                  <a v-else-if="folder !== 'gcodes'" class="btn" :href="fileUrl(pathOf(f))" target="_blank" rel="noopener">{{ D.open }}</a>
                   <button class="btn btn-icon" type="button" :title="D.showDetails" :aria-label="D.showDetails" @click="openDetails(f)"><ui-icon name="info"/></button>
                   <a class="btn btn-icon" :href="fileUrl(pathOf(f), true)" :title="D.download" :aria-label="D.download"><ui-icon name="download"/></a>
                 </span>
@@ -574,6 +600,16 @@ export default {
           </div>
         </div>
       </aside>
+
+      <div v-if="watching" class="cam-overlay" role="dialog" :aria-label="watching.name">
+        <video ref="player" :src="fileUrl(pathOf(watching))" controls autoplay></video>
+        <div class="cam-overlay-bar">
+          <strong>{{ watching.name }}</strong>
+          <small class="cam-overlay-hint">{{ T.camera.back }}</small>
+          <button class="cam-overlay-btn" type="button" :title="T.camera.views.normal" :aria-label="T.camera.views.normal"
+                  @click="stopWatching"><ui-icon name="close"/></button>
+        </div>
+      </div>
     </div>
   `,
 };

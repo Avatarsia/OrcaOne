@@ -102,6 +102,8 @@ Die Seite „Status“ gibt es seit dem 24.09.2026, bewusst ohne Diagramme: die 
 
 **Offen:** zeichnen mit schlichtem SVG oder mit einer Bibliothek (neue Abhängigkeit, braucht das Okay des Nutzers).
 
+**Anders gelöst (27.09.2026):** als eigene Seite „Diagramme“ mit uPlot, siehe Idee 11.
+
 ## 4. Genauere Restzeit und „fertig um“
 
 Frage des Nutzers (24.09.2026): Kann man vom Drucker die ETA auslesen?
@@ -218,3 +220,53 @@ Wunsch des Nutzers (26.09.2026): eine Seite, die einen Fehler zeigt, was er bede
 **Was ginge:** `exception_manager` mit abonnieren (`monitor.py`), die zwei Meldungen und `server.exception.query` auswerten, den `{"coded": …}`-Anfang von `state_message` erkennen; eine eigene Tabelle mit Mustern für Klippers Meldungen, Texte in `de.js` und `en.js`; zu Snapmaker-Codes Code, Modul, Stufe, die Meldung des Druckers, eigene Texte für die wichtigsten und der Link zur Wiki. Anzeigen im Streifen über den Seiten (schon da für Klipper abgeschaltet) mit Link auf eine Seite „Fehler“, die auch den Verlauf aus klippy.log („Raising exception“) zeigt.
 
 **Vorher am U1 nur lesend prüfen:** `exception_manager` in `printer.objects.list` und was es liefert; `print_stats.exception` im Leerlauf; Antwort von `server.exception.query`; ob `state_message` beim nächsten echten Shutdown mit `{"coded"` beginnt (oder in klippy.log „Transition to shutdown state“); Zeilen „Raising exception“ in klippy.log. Nichts auslösen: kein `RAISE_EXCEPTION`, `CLEAR_EXCEPTION`, `server.exception.raise`/`clear`, und den Notstopp nicht zum Testen.
+
+## 11. Diagramme: eine Seite für Verläufe (angefragt 27.09.2026)
+
+Der Nutzer: die Kurven in Mainsail und Fluidd wirken unausgereift, und es fehlen Kennzahlen, weil nur Temperaturen gezeigt werden. Eine eigene Seite nur für Verläufe, als Bibliothek uPlot. Entschieden (27.09.2026): OrcaOne schreibt die Historie selbst mit, in `data/history/` (vom Nutzer bestätigt), die Seite zeigt live und nachträglich (etwa einen abgeschlossenen Druck), und mehrere Drucker. Weiter entschieden (27.09.2026): uPlot als Bibliothek; aufgezeichnet werden alle Drucker mit IP-Adresse; `klippy.log` (die „Stats“-Zeilen, beim U1 alle 2 s mit 0,1 °C) füllt nur Lücken und wird dafür in `data/history/` übernommen, nie dauernd mitgelesen. Aufbewahrung: alles 7 Tage in Sekundenwerten; je Druckteil die letzten zwei Drucke ohne Zeitgrenze, wobei ein Druckteil genau ein Dateiname ist (neue Datei, neues Teil, nichts abgeschnitten); Kennzahlen je Druck immer; eine Obergrenze für den Platz. Reihenfolge: zuerst „Live“ mit Aufzeichnung, dann die Ansicht „Druck“, dann Vergleich und Kennzahlen. **„Live“ umgesetzt (27.09.2026):** Seite „Diagramme“ mit Aufzeichnung aller Drucker, `file_position` wird schon mitgeschrieben für den späteren Sprung zwischen Kurve und 2D/3D Ansicht (Idee des Nutzers). **Cockpit (27.09.2026):** die erste Fassung war dem Nutzer zu fad und zu lang; jetzt Spuren je Einheit ohne Scrollen, Übersicht zum Zurückziehen, Auswahl je Drucker in einer Seitenleiste. Offen: Ansicht „Druck“, Vergleich, Kennzahlen, `klippy.log` für Lücken, Sprung zu 2D/3D, WLAN-Qualität als Kurve (Wunsch des Nutzers; über SSH, beim U1 mit Root Access), Obergrenze für den Platz.
+
+## 12. Druckerbereich: Reiter für mehrere Drucker (Wunsch eines Nutzers, 27.09.2026)
+
+„im Drucker-Layout mehrere Tabs für mehrere aktive Drucker wären cool zum Wechseln“. Heute wählt man den Drucker oben in einer Liste. Reiter für die Drucker mit IP-Adresse, die gerade antworten, würden das Umschalten verkürzen. Passt zu Idee 11 (mehrere Drucker). **Umgesetzt (27.09.2026):** erst als Reiter über der Seite; dem Nutzer war die Reihenfolge falsch (Reiter zwischen Datei und Seite), darum jetzt oben in der Kopfzeile, in beiden Bereichen (Installationen als Reiter), nur Drucker, die antworten, die Werkzeuge des Reiters in einer Leiste darunter. Offen: die Installationskarten auf „Übersicht“ und die hervorgehobene Karte auf „Drucker“ wählen dasselbe wie die Reiter, verschlanken.
+
+## 13. Eigene Druckerprofile je Düse zusammenführen (Wunsch eines Nutzers, 27.09.2026)
+
+„Wäre es cool, wenn man irgendwie die Profile mergen kann bzw. Profile einstellen kann? … meine Vorons haben durchgängig zwar Profile für andere Düsengrößen, aber immer nur eine Düse hinterlegt.“ Gemeint sind eigene Druckerprofile wie „Voron 2.4 0.4 Düse“ und „Voron 2.4 0.5 Düse“: je Düse ein eigener Drucker statt eines Druckers mit mehreren Düsen. Offen: wie OrcaSlicer und Snapmaker Orca Düsen zu einem Drucker gruppieren (bei Systemprofilen über `machine_model` und seine Varianten; bei eigenen Profilen?), ob OrcaOne sie nur gemeinsam anzeigen oder im Slicer wirklich zusammenführen soll, und was dabei mit Filamenten und Prozessen passiert, die an einer Düse hängen. Erst prüfen, dann entscheiden.
+
+## 14. Klipper-Werte und klippy.log auswerten (Recherche vom 27.09.2026)
+
+Der Nutzer wollte wissen, was bestehende Analysewerkzeuge können: FracktalWorks KlipperLogAnalyzer, Klippers `scripts/graphstats.py` und `logextract.py`, dazu Sineos' Log Visualizer und Advanced Log Inspector, Klippy Detective, Klippylyzer, Shake&Tune, klipper_estimator, Obico.
+
+**Lizenz:** Code übernehmen geht nicht. graphstats, logextract, Sineos, Shake&Tune, Obico, Mainsail und Fluidd stehen unter GPL-3.0 oder AGPL-3.0, der KlipperLogAnalyzer hat gar keine Lizenz. Formeln, Schwellen und Bedienideen sind frei, also nur eigener Code und eigene Texte.
+
+**Den klippy.log des U1 liest keines davon:** Der U1 schreibt `MM-DD HH:MM:SS.mmm:` (ohne Jahr) vor jede Meldung, die Werkzeuge erwarten die Zeile mit `Stats` am Anfang. Klipper selbst schreibt keine Uhrzeit; die Wanduhr ergibt sich aus `Start printer at … (<Unix-Zeit> <monoton>)`. Der U1 wechselt die Datei nach 10 MiB und hebt 15 alte auf.
+
+**Wichtigster Fund (aus dem Quelltext, am U1 noch nicht geprüft):** Die Werte der Stats-Zeilen gibt es live über Moonraker, jede Sekunde:
+- `mcu`, `mcu e0` … `mcu e3` → `last_stats` (`mcu_awake`, `mcu_task_avg`, `mcu_task_stddev`, `bytes_write`, `bytes_retransmit`, `bytes_invalid`, `srtt`, `rttvar`, `rto`, `freq`, `adj`);
+- `toolhead` → `print_time`, `estimated_print_time`, `stalls`;
+- `system_stats` → `sysload`, `cputime`, `memavail`.
+
+`history.py` könnte sie also direkt mitschreiben; `klippy.log` bräuchte man nur für die Zeit vor der Aufzeichnung und für Ereignisse (Starts, Shutdowns, Konfiguration, Versionen).
+
+**Für „Diagramme“:** neue Spuren je MCU, als Formeln nachgebaut wie bei graphstats:
+- MCU-Last = 100·(avg+3σ)/0,0025;
+- wach = 100·awake/5;
+- Wiederholungen und `bytes_invalid` als Rate;
+- `srtt` in ms, Taktabweichung;
+- Puffer = print_time − estimated_print_time (unter 1 s beim Druck heißt knapp);
+- Stalls, Rechnerlast je Kern, freier Speicher.
+
+Dazu senkrechte Marken für Klipper-Start, Shutdown, Druckstart und -ende, Pause und Fehlercodes; ein Klick führt ins Log. Beim U1 die Wiederholungen je Kopf neben dem Band der Kopfwechsel, eine Häufung beim Wechsel spricht für die Kontakte dieses Kopfes.
+
+**Eigene Seite „Befund“ (nur lesend):**
+- Zeitleiste der Klipper-Läufe mit Shutdowns und Drucken;
+- eine Befundliste mit Stufe als Text und Farbe und „Was heißt das / Was hilft“: Timer too close, Lost communication mit den Wiederholungen davor, Puffer knapp, MCU-Last über 80 bzw. 95 %, Speicher knapp, Heizung erreicht das Soll nicht, Versionen von Host und MCU verschieden;
+- ein Bericht je Druck;
+- eine Absturzakte wie bei logextract (letzte G-Code-Zeilen, Stats davor);
+- die Konfiguration je Start mit Unterschied zum vorigen Start.
+
+**Umgesetzt (27.09.2026):** MCU-Werte aufzeichnen (Last, wach, Wiederholungen, ungültige Bytes, beim U1 Empfangsfehler; ohne Datenverkehr und Taktabweichung, ohne Klippers eigene CPU) und Marken in „Diagramme“ (Klipper-Start, Abschaltung, Fehler beim Start, Fehlercode, Pause, Stillstand; ein Klick auf Start, Abschaltung, Fehler oder Code sucht die Zeilen dieser Art in „Logs“). Der Puffer nicht: `print_time` und `estimated_print_time` ändern sich viermal je Sekunde und kämen so an jede offene Seite; die Stillstände zeigen den Fall „Puffer leer“ direkt. Marken aus `klippy.log` für die Zeit vor der Aufzeichnung fehlen noch.
+
+**Reihenfolge laut Recherche:** MCU-Werte aufzeichnen, Marken in „Diagramme“, „Befund“ mit wenigen Prüfungen, Bericht je Druck, Absturzakte. Lieber nicht: Fehldruckerkennung per KI, Riemen- und Schwingungsanalyse, klipper_estimator nachbauen.
+
+**Am U1 geprüft (27.09.2026, nur lesend):** `mcu` und `mcu e0` … `e3` liefern `last_stats` mit allen Feldern, dazu `err_len`, `err_dest`, `err_sync`, `err_crc`; `srtt` und `rttvar` stehen dort auf 0, taugen beim U1 also nicht. Die Haupt-MCU meldet `SERIAL_BAUD` 921600 (etwa 92 KB/s je Richtung), die Köpfe hängen an USB ohne bekannte Grenze, Verkehr darum in B/s. `toolhead` liefert `stalls`, `print_time` und `estimated_print_time`, `system_stats` liefert `sysload`, `cputime` und `memavail`. Die Last der MCUs zeigt „Status“ schon (Reiter „System“, Formel wie graphstats).

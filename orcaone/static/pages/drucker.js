@@ -273,7 +273,7 @@ export default {
                   <button class="link" type="button" @click="checkSsh(m.key, true)">{{ P.ssh.again }}</button></template></dd></div>
           </dl>
           <p class="live-links">
-            <a class="link" :href="'http://' + m.host + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
+            <a class="link" :href="(m.host.startsWith('https://') ? '' : 'http://') + m.host + '/'" target="_blank" rel="noopener">{{ P.live.web }}</a>
             <a class="link" :href="hashOf('status', null)" @click.prevent="openFor(m.key, 'status')">{{ T.nav.pages.status }}</a>
             <a class="link" :href="hashOf('dateien', null)" @click.prevent="openFor(m.key, 'dateien')">{{ T.nav.pages.dateien }}</a>
             <a class="link" :href="hashOf('druck3d', null)" @click.prevent="openFor(m.key, 'druck3d')">{{ T.nav.pages.druck3d }}</a>
@@ -348,7 +348,6 @@ export default {
         </ul>
       </section>
 
-      <p class="credits">{{ P.credits }}</p>
     </div>
   `,
 };

@@ -27,6 +27,7 @@ PRINT_FILE = {"filename": "Puzzel_PLA_1h28m.gcode", "size": 2989333, "modified":
                              {"width": 48, "height": 48, "relative_path": ".thumbs/Puzzel_PLA_1h28m-48x48.png"},
                              {"width": 96, "height": 96, "relative_path": ".thumbs/Puzzel_PLA_1h28m-96x96.png"}]}
 GCODE = b";LAYER_CHANGE\n;Z:0.2\nG1 X10 Y10 E1\n"
+VIDEO_FILE = (b"\x00\x00\x00 ftypisom", "video/mp4")
 TASK_CONFIG = {"filament_type": ["PLA", "PLA", "PETG", "PLA"], "filament_sub_type": ["Matte", "SnapSpeed", "Basic", "Basic"],
                "filament_vendor": ["Snapmaker"] * 4, "filament_exist": [True, True, True, False],
                "filament_color_rgba": ["FFFFFFFF", "080A0DFF", "E72F1DFF", "F78E0EFF"],
@@ -71,16 +72,16 @@ def moonraker():
                 "/printer/objects/query?print_task_config&print_stats": {
                     "status": {"print_task_config": TASK_CONFIG, "print_stats": {"state": "standby"}}},
             }
-            if self.path.startswith("/server/files/camera/"):
-                return self._send(200, body=b"\x00\x00\x00 ftypisom", kind="video/mp4")
-            if self.path == "/server/files/gcodes/Puzzel_PLA_1h28m.gcode":
+            files = {"/server/files/gcodes/Puzzel_PLA_1h28m.gcode": (GCODE, "application/octet-stream")}
+            data, kind = VIDEO_FILE if self.path.startswith("/server/files/camera/") else files.get(self.path, (None, None))
+            if data is not None:
                 # A piece on request, as Moonraker sends it (Tornado's StaticFileHandler).
                 wanted = re.fullmatch(r"bytes=(\d+)-(\d*)", self.headers.get("Range") or "")
                 if wanted:
-                    first, last = int(wanted[1]), int(wanted[2] or len(GCODE) - 1)
-                    return self._send(206, body=GCODE[first:last + 1], kind="application/octet-stream",
-                                      headers=[("Content-Range", f"bytes {first}-{last}/{len(GCODE)}")])
-                return self._send(200, body=GCODE, kind="application/octet-stream")
+                    first, last = int(wanted[1]), int(wanted[2] or len(data) - 1)
+                    return self._send(206, body=data[first:last + 1], kind=kind,
+                                      headers=[("Content-Range", f"bytes {first}-{last}/{len(data)}"), ("Accept-Ranges", "bytes")])
+                return self._send(200, body=data, kind=kind, headers=[("Accept-Ranges", "bytes")])
             if self.path in answers:
                 return self._send(200, {"result": answers[self.path]})
             self._send(404, {"error": {"code": 404, "message": "Not Found"}})
@@ -361,6 +362,13 @@ def test_api(server, moonraker, service):
     # A video through OrcaOne, and as a download under its own name.
     with urllib.request.urlopen(f"{base}/file?{model}&folder=camera&path=hex-key_20260916140019.mp4") as response:
         assert response.headers["Content-Type"] == "video/mp4" and response.read().endswith(b"ftypisom")
+        assert response.headers["Accept-Ranges"] == "bytes"
+    # The player asks for pieces: the U1's time-lapses keep their index at the end (moov after mdat).
+    piece = urllib.request.Request(f"{base}/file?{model}&folder=camera&path=hex-key_20260916140019.mp4", headers={"Range": "bytes=4-"})
+    with urllib.request.urlopen(piece) as response:
+        size = len(VIDEO_FILE[0])
+        assert (response.status, response.headers["Content-Range"]) == (206, f"bytes 4-{size - 1}/{size}")
+        assert response.read() == b"ftypisom"
     with urllib.request.urlopen(f"{base}/file?{model}&folder=camera&path=hex-key_20260916140019.mp4&download=true") as response:
         assert response.headers["Content-Disposition"] == "attachment; filename*=UTF-8''hex-key_20260916140019.mp4"
     assert json.loads(call(f"{base}/file?{model}&folder=gcodes&path=../x")[1]) == {"error": "file_invalid"}

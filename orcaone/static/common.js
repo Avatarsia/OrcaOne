@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "fehler", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "druckerlogs", "ssh", "netzwerk", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
+export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "diagramme", "fehler", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "druckerlogs", "ssh", "netzwerk", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -89,9 +89,12 @@ export function go(ev, hash) {
 // viewLayer: the layer both stand at, one slider for both (the user: "out of sync" through the menu);
 // null for a new file, then both start at the top, as the slicer's preview does.
 export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, processFocus: null, calibrateFor: null,
-                             printFile: null, viewLayer: null, addressFor: null });
+                             printFile: null, viewLayer: null, addressFor: null,
+                             // While the printer of the printer part prints: its file stays the print file (app.js).
+                             fileLocked: false });
 let localFile = null;
 export function setLocalPrintFile(file) {
+  if (ui.fileLocked) return flash(T.fileMenu.locked);
   localFile = file;
   ui.printFile = { local: file.name, size: file.size, stamp: file.lastModified };
 }
@@ -229,11 +232,31 @@ export async function loadHosts() {
 // has a camera, files, its light. In the slicer part ui.printer is a model already.
 export const modelOf = (key) => hosts.value?.[key]?.model || key;
 export const isU1Printer = (key) => U1_MODELS.includes(modelOf(key));
+// Klipper's names as a person says them (pages "Status" and "Diagramme"); on the U1 its heads and their
+// fans by number (printer.cfg: [fan] and e1_fan … e3_fan cool the part, e0_nozzle_fan … the hotends).
+export function partLabel(name, u1) {
+  const S = T.monitor, U1 = T.u1;
+  const rest = name.includes(" ") ? name.slice(name.indexOf(" ") + 1) : "";
+  let m;
+  if (name === "heater_bed") return S.names.bed;
+  if ((m = /^tmc\w+ stepper_(\w+)$/.exec(name))) return S.names.driver(m[1].toUpperCase());
+  if ((m = /^extruder(\d*)$/.exec(name))) return u1 ? U1.head(+(m[1] || 0) + 1) : S.names.extruder(m[1]);
+  if (name === "fan") return u1 ? `${U1.head(1)} · ${S.names.partFan}` : S.names.partFan;
+  if (u1 && (m = /^e(\d+)_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.partFan}`;
+  if (u1 && (m = /^e(\d+)_nozzle_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.hotendFan}`;
+  return S.names[rest] || (rest || name).replace(/_/g, " ");
+}
+// A microcontroller as a person says it: the main board, on the U1 "mcu eN" the board of head N+1.
+export function mcuLabel(name, u1) {
+  if (name === "mcu") return T.monitor.mainBoard;
+  const m = /^mcu e(\d+)$/.exec(name);
+  return m && u1 ? T.u1.head(+m[1] + 1) : name.slice(4);
+}
 // Those printers for the top bar and the page "Drucker": { key, model, host, name, cover }; key is
 // the name ui.printer and the API go by.
 export const machines = computed(() => Object.entries(hosts.value || {}).map(([key, h]) => {
   const model = h.model || key, m = anyModel(model);
-  return { key, model, host: h.host, name: key !== model ? plainName(key) : m ? modelName(m) : model, cover: m?.cover || "assets/printer-placeholder.png" };
+  return { key, model, host: h.host, name: key !== model ? plainName(key) : m ? modelName(m) : model, cover: m?.cover || "assets/printer-placeholder.svg" };
 }));
 
 // Heading of a profile in the lists of the pages "Details" and "Übertragen", as in the tree on
@@ -555,6 +578,7 @@ export const ICONS = {
   key: '<circle cx="8" cy="15.5" r="4"/><path d="m11 12.5 8.5-8.5M16 7.5l2.5 2.5M13.5 10l2 2"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3.5V6M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>',
   power: '<path d="M12 3.5v8"/><path d="M7 6.5a7.5 7.5 0 1 0 10 0"/>',
+  chart: '<path d="M3.5 3.5v17h17"/><path d="m7 15 4-5 3.5 3L20 6.5"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M4.5 12a7.5 7.5 0 0 1 13-5.1"/><path d="M17.5 3.5v3.4h-3.4M6.5 20.5v-3.4h3.4"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
   warn: '<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.2"/>',
@@ -564,18 +588,31 @@ export const ICONS = {
 };
 
 // ------------------------------------------------------------ components
+let spoolIds = 0;
 export function registerCommon(app) {
-  // Spool shape from assets/spool-color.svg (Orca's filament_green.svg); the band takes the filament colour.
+  // A spool from the side, OrcaOne's own drawing (the user's choice of 27.09.2026; nothing from the
+  // slicers' sources): the band takes the filament colour and looks round through a shade from light
+  // above to dark below. Each spool its own gradient id: an id shared by all resolves to the first,
+  // and that one may sit in a hidden part of the page. The flange's holes only where they show.
   app.component("spool-icon", {
     props: { colour: { type: String, default: "#009688" }, size: { type: Number, default: 24 } },
+    setup() {
+      return { shade: `spool-shade-${++spoolIds}` };
+    },
     template: `
       <svg class="spool" viewBox="0 0 30 40" :width="Math.round(size * 0.75)" :height="size" fill="none" aria-hidden="true">
-        <path d="M23.26 37.51C25.52 37.51 27.36 29.58 27.36 19.79C27.36 10 25.52 2.06 23.26 2.06C22.38 2.06 21.38 3.56 20.71 5.6H22.3C22.78 6.94 23.74 11.47 23.74 20.51C23.74 29.55 22.47 33.01 22.3 34H20.83C21.53 36.41 22.3 37.51 23.26 37.51Z" fill="#F2F2F2"/>
-        <path d="M20.71 5.6C21.38 3.56 22.38 2.06 23.26 2.06C25.52 2.06 27.36 10 27.36 19.79C27.36 29.58 25.52 37.51 23.26 37.51C22.3 37.51 21.41 36.08 20.71 33.67" stroke="#5C5C5C" stroke-width="2"/>
-        <path d="M22.33 5.6H8.93L9.23 6.79L10.14 12.4L10.44 24.51L9.84 30.42L8.93 33.97H22.33C23.14 30.72 23.73 25.71 23.73 20.08C23.73 14.1 23.23 8.81 22.33 5.6Z" :fill="colour"/>
-        <path d="M8.63 5.6H22.31C23.22 8.81 23.73 14.1 23.73 20.08C23.73 25.71 23.13 30.72 22.31 33.97H8.63" stroke="#5C5C5C"/>
-        <ellipse cx="6.51" cy="19.79" rx="3.93" ry="17.73" fill="#F2F2F2" stroke="#5C5C5C" stroke-width="2"/>
-        <ellipse cx="6.21" cy="20.08" rx="0.6" ry="2.66" fill="#5C5C5C"/>
+        <defs><linearGradient :id="shade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/>
+          <stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/>
+        </linearGradient></defs>
+        <ellipse cx="22.5" cy="20" rx="4.6" ry="17.2" fill="#E6E6E6" stroke="#5C5C5C" stroke-width="1.6"/>
+        <path d="M7.5 7H22.5A3.6 13 0 0 1 22.5 33H7.5Z" :fill="colour"/>
+        <path d="M7.5 7H22.5A3.6 13 0 0 1 22.5 33H7.5Z" :fill="'url(#' + shade + ')'"/>
+        <path d="M7.5 7H22.5A3.6 13 0 0 1 22.5 33H7.5" stroke="#5C5C5C" stroke-width="1.2"/>
+        <ellipse cx="7.5" cy="20" rx="4.6" ry="17.2" fill="#F4F4F4" stroke="#5C5C5C" stroke-width="1.6"/>
+        <template v-if="size >= 32"><ellipse cx="7.5" cy="11" rx="0.9" ry="2.6" fill="#D2D2D2"/><ellipse cx="7.5" cy="29" rx="0.9" ry="2.6" fill="#D2D2D2"/></template>
+        <ellipse cx="7.5" cy="20" rx="1.7" ry="5" stroke="#5C5C5C" stroke-width="1.2"/>
+        <ellipse cx="7.5" cy="20" rx="0.6" ry="2" fill="#5C5C5C"/>
       </svg>`,
   });
 

@@ -495,28 +495,45 @@ def in_backup(rel: PurePosixPath) -> bool:
     return not (parts[0] == "user" and len(parts) >= 3 and parts[2] == "temp")
 
 
+# The last measurement per data directory with the files it saw (path, size, mtime): zipping takes
+# seconds, listing the files a tenth of that, so GET /api/data zips again only when a file changed.
+_measured: dict[str, tuple[tuple, tuple[int, int, int]]] = {}
+
+
 def backup_measure(data_dir: Path) -> tuple[int, int, int]:
     """(bytes, ZIP bytes, files) of what a backup would hold today. Zipped in memory only."""
+    found = []
+    for root, dirs, names in os.walk(data_dir):
+        rel_root = PurePosixPath(Path(root).relative_to(data_dir).as_posix())
+        dirs[:] = [d for d in dirs if in_backup(rel_root / d)]
+        for name in names:
+            file, rel = Path(root) / name, rel_root / name
+            if file.is_symlink() or not in_backup(rel):
+                continue
+            try:
+                st = file.stat()
+            except OSError:
+                continue
+            # A name that is not valid UTF-8 (Linux, from a Latin-1 ZIP) cannot go into a ZIP
+            # as it is; for measuring, a replacement character does.
+            found.append((file, os.fsencode(rel.as_posix()).decode("utf-8", "replace"), st.st_size, st.st_mtime_ns))
+    stamp = tuple((arcname, size, mtime) for _, arcname, size, mtime in found)
+    known = _measured.get(str(data_dir))
+    if known and known[0] == stamp:
+        return known[1]
     raw = files = 0
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, names in os.walk(data_dir):
-            rel_root = PurePosixPath(Path(root).relative_to(data_dir).as_posix())
-            dirs[:] = [d for d in dirs if in_backup(rel_root / d)]
-            for name in names:
-                file, rel = Path(root) / name, rel_root / name
-                if file.is_symlink() or not in_backup(rel):
-                    continue
-                # A name that is not valid UTF-8 (Linux, from a Latin-1 ZIP) cannot go into a ZIP
-                # as it is; for measuring, a replacement character does.
-                arcname = os.fsencode(rel.as_posix()).decode("utf-8", "replace")
-                try:
-                    zf.write(file, arcname)
-                    raw += file.stat().st_size
-                except OSError:
-                    continue
-                files += 1
-    return raw, len(buffer.getvalue()), files
+        for file, arcname, _, _ in found:
+            try:
+                zf.write(file, arcname)
+                raw += file.stat().st_size
+            except OSError:
+                continue
+            files += 1
+    result = (raw, len(buffer.getvalue()), files)
+    _measured[str(data_dir)] = (stamp, result)
+    return result
 
 
 def _children(folder: Path) -> list[Path]:

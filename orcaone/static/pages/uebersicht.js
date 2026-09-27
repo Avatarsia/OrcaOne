@@ -44,9 +44,11 @@ export default {
     const own = computed(() => ownOf(inst.value));
     onMounted(() => { if (!hosts.value) loadHosts(); });
 
-    // ------------------------------------------------------------ the installations
-    const slicers = computed(() => INSTANCES.map((i) => ({ i, logo: slicerLogo(i.slicer), printers: printerModels(i).length, own: ownOf(i).length })));
-    const pick = (i) => { if (i.id !== inst.value.id) go(null, hashOf("uebersicht", i.id)); };
+    // ------------------------------------------------------------ the installation
+    // The one of the tab in short; choosing is the tabs' (the user's wish of 27.09.2026: the cards of all
+    // installations here were the old choice).
+    const logo = computed(() => slicerLogo(inst.value.slicer));
+    const facts = computed(() => O.slicerFacts(inst.value.version, printerModels(inst.value).length, own.value.length));
 
     // ------------------------------------------------------------ the printers of this slicer
     const short = (name) => plainName(name || "").replace(/ @.*$/, "");
@@ -309,7 +311,7 @@ export default {
 
     const to = (page, idx = null) => hashOf(page, inst.value.id, idx);
     return {
-      T, O, P, KIND_ICON, INSTANCES, inst, state, readOnly, isU1, own, slicers, pick, cards, choose, pickNozzle, toMachine, locked, defaultCard,
+      T, O, P, KIND_ICON, INSTANCES, inst, state, readOnly, isU1, own, logo, facts, cards, choose, pickNozzle, toMachine, locked, defaultCard,
       open, isOpen, shown, details, lists, toggleList, openAt, menuFor, short, allHeads, HEADS,
       dead, clean, panel, along, pcard, plan, panelTitle, openRemove, toggleAlong, remove, closePanel,
       backups, newestBackup, news, SPOOLS, NO_COLOUR, to, go, hashOf, plainName, whenText, profileSub,
@@ -323,20 +325,15 @@ export default {
           <h1 id="page-title" tabindex="-1">{{ O.title }}</h1>
         </div>
 
-        <!-- Which slicer is chosen, and whether it runs (the user's wish): a click chooses another -->
-        <section class="home-slicers" :aria-label="T.nav.pages.slicer">
-          <button v-for="s in slicers" :key="s.i.id" :class="['home-slicer', { 'is-current': s.i.id === inst.id }]" type="button"
-                  :aria-pressed="s.i.id === inst.id ? 'true' : 'false'" :title="s.i.path" @click="pick(s.i)">
-            <span :class="['slicer-logo', 'slicer-logo--' + s.i.kind]" aria-hidden="true">{{ s.logo }}</span>
-            <span class="home-slicer-text">
-              <strong>{{ s.i.slicer }}</strong>
-              <small>{{ O.slicerFacts(s.i.version, s.printers, s.own) }}</small>
-            </span>
-            <span class="home-slicer-state">
-              <run-status :inst="s.i"/>
-              <span v-if="s.i.id === inst.id" class="tag tag-active"><ui-icon name="check" :size="14"/>{{ O.chosen }}</span>
-            </span>
-          </button>
+        <!-- The installation of the tab above in short: what it holds, its data folder, whether it runs -->
+        <section class="home-slicer" :aria-label="inst.slicer">
+          <span :class="['slicer-logo', 'slicer-logo--' + inst.kind]" aria-hidden="true">{{ logo }}</span>
+          <span class="home-slicer-text">
+            <strong>{{ inst.slicer }}</strong>
+            <small>{{ facts }}</small>
+            <small class="mono home-slicer-path">{{ inst.path }}</small>
+          </span>
+          <run-status :inst="inst"/>
         </section>
         <p v-if="readOnly" class="banner">{{ T.busy(inst) }} {{ T.closeToChange }}</p>
 
@@ -494,7 +491,6 @@ export default {
           </section>
         </div>
 
-        <p class="credits">{{ P.credits }}</p>
       </div>
     </div>
 

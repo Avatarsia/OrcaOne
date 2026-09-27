@@ -87,11 +87,11 @@ def test_snorca_own_printer(snorca):
     page = snorca["printers_page"]
     [mine] = page["own"]
     assert (mine["visible"], mine["based_on_found"], mine["package"], mine["origin"], mine["cover"]) == (
-        True, True, "Snapmaker", "own", "assets/printer-snapmaker-u1.png")
+        True, True, "Snapmaker", "own", "assets/printer-snapmaker-u1.svg")
     [card] = page["system"]
     assert card["own_printers"] == ["Mein U1"] and card["drops_package"] is False
     assert page["default_printer"] == {"name": U1_04, "exists": True, "own": False, "model": "Snapmaker U1",
-                                       "variant": "0.4", "cover": "assets/printer-snapmaker-u1.png"}
+                                       "variant": "0.4", "cover": "assets/printer-snapmaker-u1.svg"}
 
 
 def test_snorca_dead_orca_presets_entry(snorca):

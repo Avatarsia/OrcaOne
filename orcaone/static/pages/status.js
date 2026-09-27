@@ -4,14 +4,16 @@
 // "trocken"): the print as a ring, the heads on their stage, the temperatures as bars, the head on
 // a map of the bed, fans that turn with their speed, the computer inside as tiles. A U1 shows more:
 // per head nozzle, pressure advance, tool changes and filament sensor, the options of its display
-// for the print, its light. No charts over time yet, a topic of its own (the user).
-import { go, hashOf, ui, isU1Printer, LOCALE, activeName, fmtSize } from "../common.js";
+// for the print, its light. A page to watch (the user's wish of 27.09.2026: no scrolling, "System" was
+// out of sight): it fills the window, the print on top, the motion on the left, the rest in tabs on the
+// right; on a phone it stays one column. The values over time are on "Diagramme".
+import { go, hashOf, ui, isU1Printer, partLabel, mcuLabel as mcuName, LOCALE, activeName, fmtSize } from "../common.js";
 import { T } from "../texts.js";
 import { api } from "../api.js";
 import { useLive } from "../live.js";
 import { usePrintFile } from "./print-view.js";
 
-const { ref, computed, watch, onMounted, onUnmounted } = Vue;
+const { ref, reactive, computed, watch, onMounted, onUnmounted } = Vue;
 const S = T.monitor;
 const U1 = T.u1;
 const K = T.camera.print;
@@ -22,6 +24,8 @@ const GRID = 50;                 // mm between two lines on the bed
 // 120 °C), sensors as warm as a room gets.
 const scaleOf = (name) => (/^extruder\d*$/.test(name) ? 300 : name === "heater_bed" || /^tmc/.test(name) ? 120 : 80);
 const JOB_CLASS = { standby: "ok", printing: "ok", complete: "ok", paused: "warn", cancelled: "warn", error: "err" };
+let lastPanel = "temps";   // the tab on the right, kept while OrcaOne is open
+const folds = { software: false, mcus: true };   // the parts of "System" open, kept as well
 
 export default {
   name: "StatusPage",
@@ -55,19 +59,8 @@ export default {
       if (minutes < 48 * 60) return K.duration(Math.floor(minutes / 60), minutes % 60);
       return T.printers.live.days(Math.floor(minutes / 1440));
     }
-    // Klipper's names as a person says them; on the U1 its heads and their fans by number
-    // (printer.cfg: [fan] and e1_fan … e3_fan cool the part, e0_nozzle_fan … the hotends).
-    function label(name) {
-      const rest = name.includes(" ") ? name.slice(name.indexOf(" ") + 1) : "";
-      let m;
-      if (name === "heater_bed") return S.names.bed;
-      if ((m = /^tmc\w+ stepper_(\w+)$/.exec(name))) return S.names.driver(m[1].toUpperCase());
-      if ((m = /^extruder(\d*)$/.exec(name))) return isU1 ? U1.head(+(m[1] || 0) + 1) : S.names.extruder(m[1]);
-      if (name === "fan") return isU1 ? `${U1.head(1)} · ${S.names.partFan}` : S.names.partFan;
-      if (isU1 && (m = /^e(\d+)_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.partFan}`;
-      if (isU1 && (m = /^e(\d+)_nozzle_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.hotendFan}`;
-      return S.names[rest] || (rest || name).replace(/_/g, " ");
-    }
+    // Klipper's names as a person says them (common.js, also for "Diagramme").
+    const label = (name) => partLabel(name, isU1);
     const netLabel = (name) => S.nets[Object.keys(S.nets).find((k) => name.startsWith(k))] || name;
 
     // ------------------------------------------------------------ the print and the heads
@@ -82,6 +75,53 @@ export default {
     const headSensors = computed(() => (data.value?.heads || []).map((h, i) =>
       (data.value.filament.find((f) => f.name.endsWith(` e${i}_filament`)) || null)));
     const otherSensors = computed(() => (data.value?.filament || []).filter((f) => !(isU1 && / e\d+_filament$/.test(f.name))));
+    // The tabs on the right: temperatures, fans, sensors that belong to no head, the computer inside.
+    const panel = ref(lastPanel);
+    const panels = computed(() => [
+      { id: "temps", icon: "temp", label: S.temperatures }, { id: "fans", icon: "fan", label: S.fans },
+      ...(otherSensors.value.length ? [{ id: "sensors", icon: "spool", label: S.sensors }] : []),
+      { id: "system", icon: "window", label: S.system },
+    ]);
+    watch(panel, (p) => { lastPanel = p; });
+    // What the computer inside is and its software, read once when "System" opens (camera.info, as the
+    // cards on "Drucker"); the loads come live. {} when the printer did not say.
+    const facts = ref(null);
+    watch(panel, async (p) => {
+      if (p !== "system" || facts.value) return;
+      try {
+        facts.value = await api.printerInfo(ui.printer);
+      } catch {
+        facts.value = {};
+      }
+    }, { immediate: true });
+    // A microcontroller as a person says it: the main board, on the U1 the heads (mcu e0 …).
+    const mcuLabel = (name) => mcuName(name, isU1);
+    // The microcontrollers: live their load (monitor.shape), once their chip and firmware (camera.info).
+    const mcuRows = computed(() => {
+      const now = data.value?.mcus || [], known = facts.value?.mcus || [];
+      return [...new Set([...now, ...known].map((m) => m.name))]
+        .map((name) => ({ ...known.find((m) => m.name === name), ...now.find((m) => m.name === name), name }));
+    });
+    // "Software" and "Mikrocontroller" fold away (the user's wish of 27.09.2026).
+    const open = reactive({ ...folds });
+    function fold(key) {
+      open[key] = folds[key] = !open[key];
+    }
+    const L = T.printers.live;
+    const totals = computed(() => {
+      const j = facts.value?.jobs;
+      return j ? [L.prints(j.total_jobs || 0), L.printed(num((j.total_print_time || 0) / 3600, 1)), L.filament(num((j.total_filament_used || 0) / 1000))] : null;
+    });
+    watch(panels, (list) => { if (!list.some((p) => p.id === panel.value)) panel.value = "temps"; }, { immediate: true });
+    // Arrows, Home and End move between the tabs, as a tab list does.
+    function panelKey(ev) {
+      const list = panels.value, i = list.findIndex((p) => p.id === panel.value);
+      const at = { ArrowRight: i + 1, ArrowLeft: i - 1 + list.length, Home: 0, End: list.length - 1 }[ev.key];
+      if (at == null || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      ev.preventDefault();
+      panel.value = list[at % list.length].id;
+      Vue.nextTick(() => document.getElementById(`mon-tab-${panel.value}`)?.focus());
+    }
 
     // ------------------------------------------------------------ bars, map, fans, tiles
     const barOf = (t) => `${Math.min(100, Math.max(0, (t.temp || 0) / scaleOf(t.name) * 100))}%`;
@@ -101,7 +141,7 @@ export default {
       const bw = meshed ? Math.min(x1, hi[0] + lo[0] - x0) - x0 : w, bh = meshed ? Math.min(y1, hi[1] + lo[1] - y0) - y0 : h;
       const share = (v, from, span) => Math.min(100, Math.max(0, (v - from) / span * 100));
       return {
-        ratio: `${w} / ${h}`,
+        ratio: `${w} / ${h}`, r: w / h,
         bed: { left: 0, bottom: 0, width: `${bw / w * 100}%`, height: `${bh / h * 100}%`,
                backgroundSize: `${GRID / bw * 100}% ${GRID / bh * 100}%` },
         hx: share(x, x0, w), hy: share(y, y0, h), zp: share(z, z0, z1 - z0), top: z1,
@@ -168,15 +208,15 @@ export default {
     });
 
     return {
-      T, S, U1, K, RING, host, data, failed, isU1, job, running, progress, jobClass, options, stage, headSensors, otherSensors,
+      T, S, U1, K, RING, host, data, failed, isU1, job, running, progress, jobClass, options, stage, headSensors, otherSensors, panel, panels, panelKey,
+      facts, mcuLabel, totals, mcuRows, open, fold,
       barOf, markOf, map, pathCanvas, pathLayer, speedShare, ARC, spin, memory, num, pct, deg, duration, label, netLabel, activeName, fmtSize, go, hashOf,
     };
   },
 
   template: `
-    <div class="page">
+    <div class="page fill-page status-page">
       <h1 id="page-title" tabindex="-1">{{ S.title }}</h1>
-      <p class="note">{{ S.lead }}</p>
 
       <p v-if="host === ''" class="empty">{{ S.noHost(activeName()) }}
         <a class="link" :href="hashOf('drucker', instId)" @click="go($event, hashOf('drucker', instId))">{{ S.toPrinters }}</a></p>
@@ -218,7 +258,7 @@ export default {
           <div class="mon-grid">
             <section class="box mon-motion" aria-labelledby="mon-motion">
               <h2 id="mon-motion" class="mon-title"><ui-icon name="arrowRight"/>{{ S.motion }}</h2>
-              <div v-if="map" class="motion-map">
+              <div v-if="map" class="motion-map" :style="{ '--r': map.r }">
                 <div class="xy-frame">
                   <div class="xy" :style="{ aspectRatio: map.ratio }" role="img"
                        :aria-label="map.homed ? S.headAt(num(data.motion.position[0], 1), num(data.motion.position[1], 1)) : S.notHomed">
@@ -255,58 +295,116 @@ export default {
               <p class="mon-quiet mon-limits">{{ S.limits }}: {{ num(data.motion.max_velocity) }} mm/s · {{ num(data.motion.max_accel) }} mm/s²</p>
             </section>
 
-            <!-- Beside it what gets warm and what turns -->
-            <div class="mon-side">
+            <!-- Beside it the rest as tabs: what gets warm, what turns, the sensors, the computer inside -->
+            <section class="box mon-more">
+              <div class="mon-tabs" role="tablist" :aria-label="S.panels" @keydown="panelKey">
+                <button v-for="p in panels" :id="'mon-tab-' + p.id" :key="p.id" :class="['mon-tab', { 'is-current': panel === p.id }]" type="button"
+                        role="tab" :aria-selected="panel === p.id ? 'true' : 'false'" aria-controls="mon-panel" :tabindex="panel === p.id ? 0 : -1"
+                        @click="panel = p.id"><ui-icon :name="p.icon" :size="16"/>{{ p.label }}</button>
+              </div>
+              <div id="mon-panel" class="mon-panel" role="tabpanel" :aria-labelledby="'mon-tab-' + panel">
               <!-- Temperatures as bars: the fill up to now, a mark at the target -->
-              <section class="box" aria-labelledby="mon-temps">
-                <h2 id="mon-temps" class="mon-title"><ui-icon name="temp"/>{{ S.temperatures }}</h2>
-                <div v-for="t in data.temperatures" :key="t.name" :class="['thermo', { 'is-heating': t.target > 0 }]">
+              <template v-if="panel === 'temps'">
+                <!-- A driver from green to red over its scale (the user: 90 °C for long is not good), warm from 70 °C, hot from 90 °C -->
+                <div v-for="t in data.temperatures" :key="t.name"
+                     :class="['thermo', { 'is-heating': t.target > 0, 'is-driver': t.driver, 'is-warm': t.driver && t.temp >= 70, 'is-hot': t.driver && t.temp >= 90 }]">
                   <span class="thermo-name">{{ label(t.name) }}</span>
-                  <span class="thermo-bar"><span class="thermo-fill" :style="{ width: barOf(t) }"></span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="t.driver ? { '--w': barOf(t) } : { width: barOf(t) }"></span>
                     <span v-if="t.target" class="thermo-target" :style="{ left: markOf(t) }"></span></span>
                   <span class="thermo-value">{{ deg(t.temp) }}<small v-if="t.target"> → {{ deg(t.target) }}</small></span>
-                  <small v-if="t.power" class="thermo-note">{{ S.heaterPower(pct(t.power)) }}</small>
+                  <!-- A heater's power as a bar of its own, always there: a line that came and went made the rows jump (the user) -->
+                  <span v-if="t.power != null" class="thermo-power">
+                    <span class="thermo-power-bar"><span :style="{ width: Math.min(100, Math.max(0, t.power * 100)) + '%' }"></span></span>
+                    <small>{{ S.heaterPower(pct(t.power)) }}</small></span>
                   <small v-else-if="t.min != null" class="thermo-note">{{ S.measured(deg(t.min), deg(t.max)) }}</small>
                   <small v-else-if="t.driver && t.temp == null" class="thermo-note">{{ S.driverIdle }}</small>
                 </div>
-              </section>
-
-              <!-- The bed from above with the head on it, the height as a ruler, the speed as a gauge -->
+              </template>
               <!-- Fans turn with their speed -->
-              <section class="box" aria-labelledby="mon-fans">
-                <h2 id="mon-fans" class="mon-title"><ui-icon name="fan"/>{{ S.fans }}</h2>
+              <template v-else-if="panel === 'fans'">
                 <p v-if="!data.fans.length" class="note">{{ S.none }}</p>
-                <div v-else class="fans">
-                  <div v-for="f in data.fans" :key="f.name" :class="['fan', { 'is-on': f.speed > 0 }]" :title="f.name">
-                    <ui-icon name="fan" :size="26" :style="spin(f)"/>
-                    <span class="fan-text"><span>{{ label(f.name) }}</span>
-                      <strong>{{ pct(f.speed) }}<small v-if="f.rpm"> · {{ num(f.rpm) }} {{ S.rpm }}</small></strong></span>
-                  </div>
+                <!-- As the temperatures (the user's wish of 27.09.2026): the speed as a bar, the fan turning with it, the rpm below -->
+                <div v-for="f in data.fans" :key="f.name" :class="['thermo', 'fanrow', { 'is-on': f.speed > 0 }]" :title="f.name">
+                  <ui-icon name="fan" :size="20" :style="spin(f)"/>
+                  <span class="thermo-name">{{ label(f.name) }}</span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="{ width: Math.min(100, Math.max(0, (f.speed || 0) * 100)) + '%' }"></span></span>
+                  <span class="thermo-value">{{ pct(f.speed) }}</span>
+                  <small v-if="f.rpm != null" class="thermo-note">{{ num(f.rpm) }} {{ S.rpm }}</small>
                 </div>
-              </section>
+              </template>
               <!-- Filament sensors that belong to no head -->
-              <section v-if="otherSensors.length" class="box" aria-labelledby="mon-sensors">
-                <h2 id="mon-sensors" class="mon-title"><ui-icon name="spool"/>{{ S.sensors }}</h2>
+              <template v-else-if="panel === 'sensors'">
                 <dl class="mon-list">
                   <div v-for="f in otherSensors" :key="f.name"><dt :title="f.name">{{ label(f.name) }}</dt>
                     <dd :class="f.detected ? 'st-on' : 'is-warn'">{{ f.enabled === false ? S.disabled : f.detected ? S.filamentIn : S.filamentOut }}</dd></div>
                 </dl>
-              </section>
-            </div>
-
-            <!-- The computer inside, as tiles -->
-            <section class="box mon-system" aria-labelledby="mon-system">
-              <h2 id="mon-system" class="mon-title"><ui-icon name="window"/>{{ S.system }}</h2>
-              <div class="sys-tiles">
-                <div class="sys-tile"><small>{{ S.klipper }}</small><strong :class="data.klipper.state === 'ready' ? 'st-on' : 'is-warn'">{{ S.klipperStates[data.klipper.state] || data.klipper.state || '–' }}</strong></div>
-                <div v-if="data.system.cpu != null" class="sys-tile"><small>{{ S.cpu }}</small><strong>{{ num(data.system.cpu) }} %</strong>
-                  <span class="sys-bar"><span :style="{ width: Math.min(100, data.system.cpu) + '%' }"></span></span></div>
-                <div v-if="data.system.cpu_temp != null" class="sys-tile"><small>{{ S.cpuTemp }}</small><strong>{{ deg(data.system.cpu_temp) }}</strong></div>
-                <div v-if="memory" class="sys-tile"><small>{{ S.memory }}</small><strong class="sys-small">{{ memory.text }}</strong>
-                  <span class="sys-bar"><span :style="{ width: memory.pct * 100 + '%' }"></span></span></div>
-                <div v-for="n in data.system.network" :key="n.name" class="sys-tile" :title="n.name"><small>{{ netLabel(n.name) }}</small>
-                  <strong>{{ n.bandwidth != null ? S.perSecond(fmtSize(n.bandwidth)) : '–' }}</strong></div>
-                <div v-if="data.system.uptime != null" class="sys-tile"><small>{{ S.uptime }}</small><strong>{{ duration(data.system.uptime) }}</strong></div>
+              </template>
+              <!-- The computer inside, as tiles -->
+              <div v-else class="mon-sys">
+                <div class="thermo is-text"><span class="thermo-name">{{ S.klipper }}</span>
+                  <span :class="['thermo-value', data.klipper.state === 'ready' ? 'st-on' : 'is-warn']">{{ S.klipperStates[data.klipper.state] || data.klipper.state || '–' }}</span></div>
+                <!-- The load, and below it each core as a little column -->
+                <div v-if="data.system.cpu != null" class="thermo is-system">
+                  <span class="thermo-name">{{ S.cpu }}</span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="{ width: Math.min(100, data.system.cpu) + '%' }"></span></span>
+                  <span class="thermo-value">{{ num(data.system.cpu) }} %</span>
+                  <span v-if="data.system.cores.length > 1" class="thermo-note sys-cores" :title="data.system.cores.map((c) => num(c) + ' %').join(' · ')">
+                    <span v-for="(c, i) in data.system.cores" :key="i" :style="{ height: Math.max(8, Math.min(100, c || 0)) + '%' }"></span></span>
+                </div>
+                <!-- The temperature from green to red as the drivers: warm from 70 °C, hot from 85 °C -->
+                <div v-if="data.system.cpu_temp != null"
+                     :class="['thermo', 'is-driver', { 'is-warm': data.system.cpu_temp >= 70, 'is-hot': data.system.cpu_temp >= 85 }]">
+                  <span class="thermo-name">{{ S.cpuTemp }}</span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="{ '--w': Math.min(100, data.system.cpu_temp / 120 * 100) + '%' }"></span></span>
+                  <span class="thermo-value">{{ deg(data.system.cpu_temp) }}</span>
+                </div>
+                <div v-if="memory" class="thermo is-system"><span class="thermo-name">{{ S.memory }}</span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="{ width: memory.pct * 100 + '%' }"></span></span>
+                  <span class="thermo-value">{{ memory.text }}</span></div>
+                <div v-if="facts?.disk" class="thermo is-system"><span class="thermo-name">{{ S.disk }}</span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="{ width: (facts.disk.used / facts.disk.total * 100) + '%' }"></span></span>
+                  <span class="thermo-value">{{ fmtSize(facts.disk.used) }} / {{ fmtSize(facts.disk.total) }}</span></div>
+                <div v-for="n in data.system.network" :key="n.name" class="thermo is-text" :title="n.name"><span class="thermo-name">{{ netLabel(n.name) }}</span>
+                  <span class="thermo-value">{{ n.bandwidth != null ? S.perSecond(fmtSize(n.bandwidth)) : '–' }}</span></div>
+                <div v-if="data.system.uptime != null" class="thermo is-text"><span class="thermo-name">{{ S.uptime }}</span>
+                  <span class="thermo-value">{{ duration(data.system.uptime) }}</span></div>
+                <!-- Right below: the prints in total, who watches Moonraker, what Moonraker itself takes -->
+                <div v-if="totals" class="thermo is-text"><span class="thermo-name">{{ S.totals }}</span>
+                  <span class="thermo-value thermo-lines"><span v-for="t in totals" :key="t">{{ t }}</span></span></div>
+                <div v-if="data.system.websockets != null" class="thermo is-text" :title="S.clientsHint"><span class="thermo-name">{{ S.clients }}</span>
+                  <span class="thermo-value">{{ num(data.system.websockets) }}</span></div>
+                <div v-if="data.system.moonraker.cpu != null" class="thermo is-system"><span class="thermo-name">{{ S.moonrakerLoad }}</span>
+                  <span class="thermo-bar"><span class="thermo-fill" :style="{ width: Math.min(100, data.system.moonraker.cpu) + '%' }"></span></span>
+                  <span class="thermo-value">{{ num(data.system.moonraker.cpu, 1) }} %<small v-if="data.system.moonraker.memory != null"> · {{ fmtSize(data.system.moonraker.memory * 1024) }}</small></span></div>
+                <!-- Each microcontroller's load (graphstats' reckoning), its firmware and chip below; the U1: board and heads -->
+                <section v-if="mcuRows.length" class="mon-fold">
+                  <button type="button" class="mon-fold-head" :aria-expanded="open.mcus ? 'true' : 'false'" @click="fold('mcus')">
+                    <ui-icon name="chevron" :size="14" class="chev"/>{{ S.mcus }}<small>{{ mcuRows.length }}</small></button>
+                  <template v-if="open.mcus">
+                    <!-- Firmware and chip only in the tooltip (the user: too much for nothing on the page) -->
+                    <div v-for="m in mcuRows" :key="m.name" :class="['thermo', 'is-system', { 'is-hot': m.load >= 90 }]"
+                         :title="[m.name, m.version, m.chip, m.awake != null ? S.awake(num(m.awake, 1)) : ''].filter(Boolean).join(' · ')">
+                      <span class="thermo-name">{{ mcuLabel(m.name) }}</span>
+                      <span class="thermo-bar"><span class="thermo-fill" :style="{ width: Math.min(100, m.load || 0) + '%' }"></span></span>
+                      <span class="thermo-value">{{ m.load != null ? num(m.load, 1) + ' %' : '–' }}</span>
+                    </div>
+                  </template>
+                </section>
+                <p v-if="!facts" class="note">{{ T.printers.live.asking }}</p>
+                <section v-else class="mon-fold">
+                  <button type="button" class="mon-fold-head" :aria-expanded="open.software ? 'true' : 'false'" @click="fold('software')">
+                    <ui-icon name="chevron" :size="14" class="chev"/>{{ S.software }}</button>
+                  <dl v-if="open.software" class="mon-list">
+                    <div v-if="facts.cpu?.model || facts.cpu?.cores"><dt>{{ S.processor }}</dt>
+                      <dd>{{ [facts.cpu.model, facts.cpu.cores ? S.cores(facts.cpu.cores) : ''].filter(Boolean).join(' · ') }}</dd></div>
+                    <div v-if="facts.os"><dt>{{ S.os }}</dt><dd>{{ facts.os }}</dd></div>
+                    <div v-if="facts.firmware"><dt>{{ T.printers.live.firmware }}</dt><dd>{{ facts.firmware }}</dd></div>
+                    <div v-if="facts.klipper"><dt>Klipper</dt><dd class="mono">{{ facts.klipper }}</dd></div>
+                    <div v-if="facts.moonraker"><dt>Moonraker</dt><dd class="mono">{{ facts.moonraker }}</dd></div>
+                    <div v-if="facts.python"><dt>Python</dt><dd>{{ facts.python }}</dd></div>
+                  </dl>
+                </section>
+              </div>
               </div>
             </section>
           </div>

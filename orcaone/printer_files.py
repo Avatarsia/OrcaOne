@@ -162,7 +162,7 @@ def _check_path(folder: str, path) -> str:
 def open_file(host: str, folder: str, path: str, byte_range: str | None = None):
     """Moonraker's answer with one file, for OrcaOne to pass on to the browser; the caller closes it.
     With byte_range ("bytes=100-199") only that piece: Moonraker answers 206 (checked on the U1)."""
-    url = f"http://{host}/server/files/{folder}/{urllib.parse.quote(_check_path(folder, path))}"
+    url = camera.moonraker_url(host, f"/server/files/{folder}/{urllib.parse.quote(_check_path(folder, path))}")
     try:
         return _direct.open(urllib.request.Request(url, headers={"Range": byte_range} if byte_range else {}), timeout=TIMEOUT)
     except urllib.error.HTTPError as exc:
@@ -227,7 +227,7 @@ def _names_in(host: str, folder: str) -> set:
 
 def _send(host: str, method: str, path: str, body: dict | None = None):
     """A change of files over Moonraker's HTTP API; its refusal as file_refused, with its words."""
-    request = urllib.request.Request(f"http://{host}{path}", method=method, data=None if body is None else json.dumps(body).encode(),
+    request = urllib.request.Request(camera.moonraker_url(host, path), method=method, data=None if body is None else json.dumps(body).encode(),
                                      headers={} if body is None else {"Content-Type": "application/json"})
     try:
         with _direct.open(request, timeout=TIMEOUT) as response:
@@ -259,7 +259,7 @@ def delete(host: str, folder: str, names, dirs=None) -> dict:
                     raise CameraError("file_in_use")
                 _send(host, "DELETE", "/server/files/directory?path=" + urllib.parse.quote("gcodes/" + path) + "&force=true")
             elif folder == "gcodes":
-                url = f"http://{host}/server/files/gcodes/{urllib.parse.quote(_writable(name))}"
+                url = camera.moonraker_url(host, f"/server/files/gcodes/{urllib.parse.quote(_writable(name))}")
                 with _direct.open(urllib.request.Request(url, method="DELETE"), timeout=TIMEOUT) as response:
                     json.loads(response.read())["result"]
             else:
@@ -343,7 +343,7 @@ def upload(host: str, folder, name, size, chunks, replace: bool = False) -> dict
         if sent != size:
             raise ValueError(f"{sent} of {size} bytes")
         yield tail
-    request = urllib.request.Request(f"http://{host}/server/files/upload", data=body(), method="POST",
+    request = urllib.request.Request(camera.moonraker_url(host, "/server/files/upload"), data=body(), method="POST",
                                      headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
                                               "Content-Length": str(len(head) + size + len(tail))})
     try:
@@ -448,7 +448,7 @@ def restart(host: str, firmware: bool) -> dict:
 
 
 def _command(host: str, path: str, body: dict | None = None):
-    request = urllib.request.Request(f"http://{host}{path}", data=json.dumps(body or {}).encode(), method="POST",
+    request = urllib.request.Request(camera.moonraker_url(host, path), data=json.dumps(body or {}).encode(), method="POST",
                                      headers={"Content-Type": "application/json"})
     try:
         with _direct.open(request, timeout=TIMEOUT) as response:

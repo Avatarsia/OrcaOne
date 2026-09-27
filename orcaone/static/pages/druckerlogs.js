@@ -219,15 +219,19 @@ export default {
         return;
       }
       // Klipper's current log first: the newest file of a log named klippy, else the first one.
-      const klippy = files.value.filter((f) => f.group.includes("klippy")).sort((a, b) => (b.modified || 0) - (a.modified || 0))[0];
-      // From "Fehler" ("Im Log zeigen"): that file, searched for the time of the error.
+      const klippyFiles = files.value.filter((f) => f.group.includes("klippy"));
+      const klippy = [...klippyFiles].sort((a, b) => (b.modified || 0) - (a.modified || 0))[0];
+      // From "Fehler" ("Im Log zeigen"): that file, searched for the time of the error; from a mark on
+      // "Diagramme" (no path, its time): the part of Klipper's log written then, the first one changed after
+      // it (the log rotates daily or by size), searched for lines of the mark's kind.
       const focus = ui.logFocus;
       ui.logFocus = null;
-      const wanted = focus && focus.printer === model.value && files.value.find((f) => f.path === focus.path);
+      const then = focus?.at ? klippyFiles.filter((f) => (f.modified || 0) >= focus.at).sort((a, b) => a.modified - b.modified)[0] : null;
+      const wanted = focus && focus.printer === model.value && (focus.path ? files.value.find((f) => f.path === focus.path) : then || klippy);
       path.value = (wanted || klippy || files.value[0])?.path || "";
       if (wanted && focus.query) {
         query.value = focus.query;
-        regex.value = false;
+        regex.value = !!focus.regex;
         nextTick(searchAll);   // after watch(path), which drops a search begun before it
       }
     }

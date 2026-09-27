@@ -96,7 +96,7 @@ export default {
     const stage = ref(null);        // all of it, for full screen
     const full = ref(false);
     const file = usePrintFile(show);
-    const { job, error, data, layers, printing, printedCount, follow } = file;
+    const { job, error, data, layers, printing, printedCount, printedLayer, follow, locked } = file;
 
     // ------------------------------------------------------------ the drawing (three.js)
     let THREE = null, renderer = null, scene = null, camera = null, controls = null, observer = null, themeWatch = null;
@@ -259,9 +259,10 @@ export default {
     function update() {
       if (!solid || !data.value) return;  // a new file on its way
       const d = data.value;
-      const shown = layer.value >= layers.value ? d.count : d.layerStart[layer.value];
-      solid.geometry.instanceCount = shown;
       const split = follow.value && printing.value;
+      // Following, the whole file: printed solid, the rest as a hull (one geometry for all three).
+      const shown = split || layer.value >= layers.value ? d.count : d.layerStart[layer.value];
+      solid.geometry.instanceCount = shown;
       for (const mesh of [solid, shell, see]) {
         mesh.material.uniforms.printed.value = split ? printedCount.value : d.count;
         mesh.material.uniforms.split.value = split ? 1 : 0;
@@ -347,6 +348,19 @@ export default {
     // The nozzle also moves when no line is done, on travels: its position too, as text so only a change counts.
     watch([layer, follow, printedCount, printing, () => job.value?.motion.position?.join()], update);
     watch(layer, (L) => { if (data.value) ui.viewLayer = L; });
+    // The slider shows the layer printed while following (the user's wish of 27.09.2026), the view stays
+    // whole; following ends, the view stops at that layer. Moved by hand after the print, following ends.
+    const sliderLayer = computed(() => (follow.value && printing.value && printedLayer.value ? printedLayer.value : layer.value));
+    // Synchronous, so a first move of the slider after the print is not undone, and with the layer as it
+    // was: a cancelled print has none any more when the watcher runs (review 27.09.2026).
+    watch(() => (follow.value && printing.value ? printedLayer.value : 0), (now, before) => {
+      if (!now && before) layer.value = before;
+    }, { flush: "sync" });
+    function setLayer(L) {
+      if (locked.value) return;
+      if (printing.value) follow.value = false;
+      layer.value = L;
+    }
     watch(byKind, () => {
       if (!solid) return;
       for (const mesh of [solid, shell, see]) mesh.material.uniforms.colours.value = colourList();
@@ -486,7 +500,7 @@ export default {
     });
 
     return {
-      ...file, T, V, V3: V, byKind, layer, box, cubeBox, stage, full, legend, num, fmtSize, activeName, view, fit, spin, saveImage,
+      ...file, T, V, V3: V, byKind, layer, sliderLayer, setLayer, box, cubeBox, stage, full, legend, num, fmtSize, activeName, view, fit, spin, saveImage,
       toggleFullscreen, to2d, hashOf,
     };
   },
@@ -519,9 +533,10 @@ ${STAGE_STATE}
             <span v-if="printing">{{ V.printedAt(printedLayer, layers) }}</span>
           </div>
           <div v-if="layers > 1" class="v3d-layers">
-            <span class="v3d-layer-text">{{ layer }}<small>/ {{ layers }}</small></span>
-            <input v-model.number="layer" class="v3d-slider" type="range" min="1" :max="layers" step="1" :aria-label="V.layer">
-            <span class="v3d-layer-z">{{ num(zOf(layer), 2) }} mm</span>
+            <span class="v3d-layer-text">{{ sliderLayer }}<small>/ {{ layers }}</small></span>
+            <input :value="sliderLayer" class="v3d-slider" type="range" min="1" :max="layers" step="1" :aria-label="V.layer" :disabled="locked"
+                   :title="locked ? V.followLocked : null" @input="setLayer(+$event.target.value)">
+            <span class="v3d-layer-z">{{ num(zOf(sliderLayer), 2) }} mm</span>
           </div>
           <!-- Legend on the left; the buttons for the view next to the cube (the user's wish) -->
           <div class="v3d-bottom">

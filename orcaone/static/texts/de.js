@@ -32,6 +32,7 @@ const T = {
     printing: "Druckt gerade",
     local: "Datei vom Rechner …",
     localNow: (name) => `Vom Rechner: ${name}`,
+    locked: "Der Drucker druckt: eine andere Datei erst nach dem Druck.",
   },
   // Next to it (app.js): print that file, cancel the print, emergency stop. Each only on a click.
   printBar: {
@@ -135,7 +136,7 @@ const T = {
     contact: "Kontakt für eine kommerzielle Lizenz:",
     thirdTitle: "Dateien von Dritten",
     thirdLead: "Diese Teile stehen nicht unter der Lizenz von OrcaOne, sondern unter ihrer eigenen.",
-    uses: { vue: "Oberfläche", three: "3D Ansicht", xterm: "SSH", inter: "Schrift", mono: "Schrift für G-Code und Werte" },
+    uses: { vue: "Oberfläche", three: "3D Ansicht", xterm: "SSH", uplot: "Diagramme", inter: "Schrift", mono: "Schrift für G-Code und Werte" },
     termsTitle: "Lizenztext",
     termsLead: "Deutsche Übersetzung, nicht verbindlich. Rechtlich maßgeblich ist das englische Original darunter.",
     originalTitle: "Englischer Originaltext, rechtlich maßgeblich",
@@ -234,7 +235,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Steuerung", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { diagramme: "Diagramme", fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Steuerung", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -248,9 +249,7 @@ const T = {
     toLight: "Helles Design einschalten",
     languageBlocked: "Erst die vorgemerkten Änderungen übernehmen oder verwerfen.",
   },
-  instMenu: "Installation",
   printerMenu: "Drucker in OrcaOne",
-  machineMenu: "Drucker im Netz",
   status: {
     closed: "Geschlossen",
     running: "Läuft – nur ansehen",
@@ -301,6 +300,7 @@ const T = {
   },
   // Error codes of the API (orcaone/app.py) and of api.js.
   errors: {
+    history_invalid: "Diese Zeitspanne gibt es nicht.",
     log_query_invalid: "Diese Suche geht nicht: leer, länger als 200 Zeichen oder kein gültiger regulärer Ausdruck.",
     range_unsatisfiable: "Diese Stelle gibt es in der Datei nicht mehr.",
     path_not_found: "Diesen Ordner gibt es nicht. Prüfe den Pfad.",
@@ -487,7 +487,6 @@ const T = {
   // ---------------------------------------------------------------- page "Übersicht"
   home: {
     title: "Übersicht",
-    chosen: "Gewählt",
     slicerFacts: (version, printers, own) => `Version ${version} · ${printers === 1 ? "1 Drucker" : `${n(printers)} Drucker`} · ${own === 1 ? "1 eigenes Filament" : `${n(own)} eigene Filamente`}`,
     printersIn: (slicer) => `Drucker in ${slicer}`,
     printerCount: (k) => (k === 1 ? "1 Drucker" : `${n(k)} Drucker`),
@@ -980,6 +979,69 @@ const T = {
     missing: "Dieser Drucker vermisst sein Bett nicht: In Klipper fehlt [bed_mesh].",
   },
 
+  // The printer tabs above every page of the printer part (app.js)
+  printerTabs: {
+    label: "Drucker",
+    printing: (pct) => `druckt · ${pct} %`,
+    paused: "pausiert",
+    ready: "bereit",
+    fault: "Klipper im Fehler",
+    starting: "Klipper startet",
+    away: "nicht erreichbar",
+    unknown: "wird abgefragt",
+    more: (n) => `${n} weitere`,
+    moreTitle: "Weitere",
+    awayTitle: "Nicht erreichbar",
+    all: "Alle Drucker",
+    toNetwork: "Netzwerk prüfen",
+    noAnswer: (name) => `${name} antwortet nicht.`,
+  },
+  // The installations as tabs in the top bar of the slicer part (app.js)
+  slicerTabs: {
+    label: "Installationen",
+  },
+
+  // ---------------------------------------------------------------- page "Diagramme" (pages/diagramme.js)
+  charts: {
+    title: "Diagramme",
+    stage: "Verlauf",
+    span: "Zeitspanne",
+    spans: { 900: "15 min", 3600: "1 h", 21600: "6 h", 86400: "24 h", 604800: "7 Tage", print: "Dieser Druck" },
+    follow: "Mitlaufen",
+    followHint: "Mitlaufen: Die Kurven folgen den neuesten Werten. Aufziehen zoomt und hält sie an.",
+    zoomHint: "Aufziehen vergrößert, Doppelklick zeigt wieder alles",
+    overviewHint: "Die vierfache Zeitspanne bis jetzt: die Köpfe als Linien, grün hinterlegt, wo gedruckt wurde. Ziehen verschiebt den Ausschnitt oder zieht einen neuen auf, ein Klick läuft wieder mit.",
+    loading: "Lese die Aufzeichnung …",
+    noPrinters: "Noch kein Drucker hat eine IP-Adresse. Trag sie auf der Seite „Drucker“ ein.",
+    nothingYet: "Für diesen Drucker gibt es in der Zeitspanne noch keine Werte. Sie kommen, sobald er antwortet.",
+    nothingPicked: "Nichts gewählt. Unter „Was zeigen“ eine Schnellwahl nehmen oder ankreuzen, was du sehen willst.",
+    choose: "Was zeigen",
+    chooseHint: "Was zeigen: Kurven wählen",
+    closePanel: "Auswahl schließen",
+    presetsLabel: "Schnellwahl",
+    presets: { none: "Alles aus", print: "Drucken", temps: "Temperaturen", heads: "Köpfe", chamber: "Bett und Bauraum",
+               progress: "Fortschritt", motion: "Geschwindigkeit und Fluss", fans: "Lüfter", electronics: "Elektronik", mcus: "Mikrocontroller", link: "Verbindung", network: "Netz" },
+    presetOwn: "Eigene Auswahl",
+    withTarget: " mit Soll",
+    layer: (k) => `Schicht ${n(k)}`,
+    working: (head) => `${head} druckt`,
+    units: { layer: "Schicht", "1/s": "pro s" },
+    groups: { heads: "Köpfe", heat: "Bett, Bauraum und Sensoren", power: "Heizleistung", motion: "Bewegung", fans: "Lüfter",
+              print: "Druck", computer: "Rechner und Treiber", mcus: "Mikrocontroller",
+              link: "Verbindung zu den Mikrocontrollern", network: "Netz" },
+    series: { cpu: "CPU", memory: "Arbeitsspeicher", cpu_temp: "CPU-Temperatur", speed: "Geschwindigkeit", flow: "Volumenstrom",
+              z: "Z-Höhe", progress: "Fortschritt", layer: "Schicht", speed_factor: "Geschwindigkeitsfaktor", flow_factor: "Flussfaktor",
+              target: "Soll", power: "Heizleistung", rpm: "Drehzahl", rx: "empfangen", tx: "gesendet",
+              mcu_load: "Last", mcu_awake: "wach", mcu_retx: "Wiederholungen", mcu_invalid: "ungültige Bytes", mcu_err: "Empfangsfehler" },
+    // Marks of what happened (history.py _events); stall: how often, as text.
+    events: { start: "Klipper gestartet", shutdown: "Klipper abgeschaltet", error: "Klipper mit Fehler gestoppt", code: "Fehlercode",
+              pause: "Druck pausiert",
+              stall: (k) => `Druck stand ${k === "1" ? "einmal" : `${k}-mal`} still: der G-Code kam nicht schnell genug` },
+    toLog: "Klick: diese Art Zeilen im Log",
+    recordIdle: "Auch in Ruhe aufzeichnen",
+    recordIdleHint: "Sonst hält OrcaOne nur fest, was beim Drucken und Heizen passiert. In Ruhe zeigt die Seite die Werte nur, solange sie offen ist. Marken immer. Gilt für alle Drucker.",
+  },
+
   // ---------------------------------------------------------------- page "Steuerung"
   control: {
     title: "Steuerung",
@@ -1031,7 +1093,7 @@ const T = {
   // ---------------------------------------------------------------- page "Status"
   monitor: {
     title: "Status",
-    lead: "Was der Drucker gerade tut, live, sobald sich etwas ändert, nur lesend. Geht bei jedem Klipper-Drucker mit IP-Adresse, der U1 zeigt mehr.",
+    panels: "Werte des Druckers",
     pathNote: (k) => `Bahn der Schicht ${n(k)}: blass die ganze, kräftig das schon Gedruckte`,
     noHost: (name) => `${name} hat noch keine IP-Adresse. Trage sie auf der Seite „Drucker“ ein.`,
     toPrinters: "Zur Seite „Drucker“",
@@ -1079,6 +1141,18 @@ const T = {
       cavity: "Bauraum", chamber: "Bauraum", cavity_fan: "Bauraum", driver: (axis) => `Treiber ${axis}`,
     },
     driverIdle: "nur bei eingeschalteten Motoren",
+    software: "Software",
+    processor: "Hardware",
+    cores: (k) => `${n(k)} Kerne`,
+    os: "Betriebssystem",
+    mcus: "Mikrocontroller",
+    mainBoard: "Hauptplatine",
+    awake: (p) => `wach ${p} %`,
+    totals: "Drucke insgesamt",
+    clients: "Verbindungen",
+    clientsHint: "Programme, die gerade mit Moonraker verbunden sind: OrcaOne, Weboberflächen, das Display, der Slicer",
+    moonrakerLoad: "Moonraker selbst",
+    disk: "Speicherplatz",
     errors: {
       camera_unreachable: "Drucker nicht erreichbar. Ist er an und im selben Netz?",
       printer_not_found: "Dieser Drucker hat keine IP-Adresse mehr. Lade die Seite neu.",
@@ -1092,6 +1166,7 @@ const T = {
     byFilament: "Filament",
     byType: "Linienart",
     follow: "Druck folgen",
+    followLocked: "Folgt dem Druck. Zum Selbstschieben „Druck folgen“ ausschalten.",
     noHost: (name) => `${name} hat keine IP-Adresse. Dateien vom Rechner lassen sich trotzdem ansehen.`,
     reading: "Lese die Datei …",
     dropHint: "G-Code hierher ziehen oder oben eine Datei wählen.",
@@ -2148,7 +2223,6 @@ const T = {
       },
     },
     safeRestore: { before: "Vorher legt OrcaOne eine Sicherung an. Unter ", after: " stellst du alles wieder her." },
-    credits: "Druckerbilder und Symbole aus OrcaSlicer",
     plan: {
       title: "Was passiert",
       switchedOff: "wird im Slicer abgeschaltet",

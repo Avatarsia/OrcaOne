@@ -12,18 +12,11 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from . import backup, camera, guard, instances, scanner, snapshot
+from . import backup, camera, covers, guard, instances, scanner, snapshot
 from .model import SLICERS, Instance
 from .resolver import CORE_VALUES, EDITABLE_FIELDS, STATUS_OF_PROBLEM, VALUE_KEYS, Resolver, first, strings
 from .scanner import LIBRARY, KINDS
 
-# Printer pictures copied unchanged from the Orca resources (<model>_cover.png) into
-# orcaone/static/assets/; every other model gets the outline. Paths are relative to orcaone/static.
-COVERS = {
-    "Snapmaker U1": "assets/printer-snapmaker-u1.png",
-    "Generic Klipper Printer": "assets/printer-generic-klipper.png",
-}
-PLACEHOLDER_COVER = "assets/printer-placeholder.png"
 HEX_COLOUR = re.compile(r"#[0-9A-Fa-f]{6}")
 # A printer that came in with a 3MF project is named "<name>(<file>.3mf)" (FINDINGS 4.9).
 PROJECT_NAME = re.compile(r"\(.*\.3mf\)$", re.IGNORECASE)
@@ -269,7 +262,7 @@ def profile_details(instance: Instance, kind: str, name: str) -> dict | None:
 
 # ---------------------------------------------------------------- page "Drucker"
 
-def _printers_page(res: Resolver, system_models: list, system_printers: list, selected: str) -> dict:
+def _printers_page(res: Resolver, system_models: list, system_printers: list, selected: str, cover) -> dict:
     scan = res.scan
     own_printers = sorted(res.own_profiles("machine"), key=lambda p: p.name.lower())
     loadable = {p.name for p in own_printers if res.loaded(p) and res.chain(p)[1]}
@@ -298,7 +291,7 @@ def _printers_page(res: Resolver, system_models: list, system_printers: list, se
             "name": p.name, "based_on": p.inherits or None, "based_on_found": complete and bool(p.inherits),
             "package": base.package if base else None,
             "model": model, "variant": first(res.value(p, "printer_variant")) if complete else None,
-            "cover": COVERS.get(model, PLACEHOLDER_COVER), "visible": p.name in loadable, "default": p.name == selected,
+            "cover": cover(base.package if base else None, model), "visible": p.name in loadable, "default": p.name == selected,
             "origin": "bundle" if p.bundle else "project" if PROJECT_NAME.search(p.name) else "own",
             "file": p.file, "info": _info(p), "only_here": _only_on(res, {p.name}),
             # "Hostname, IP or URL" of the dialog "Physical Printer": the slicer saves it into an
@@ -561,6 +554,8 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
     conf = scan.conf
 
     models = res.installed_printers()
+    # Each model's picture from the slicer's program folder (covers.py), else OrcaOne's own drawing.
+    cover = covers.finder(processes)
     system_printers = [p for m in models for _, p in m["printers"]]
     own_models = _own_printer_models(res)
     all_printers = system_printers + [o["printer"] for o in own_models]
@@ -659,12 +654,12 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
 
     system_models = [{"model": m["model"], "origin": m["package"],
                       "printers": [variant_entry(variant, printer) for variant, printer in m["printers"]],
-                      "cover": COVERS.get(m["model"], PLACEHOLDER_COVER)} for m in models]
+                      "cover": cover(m["package"], m["model"])} for m in models]
     # Own printers after the system models, so a model keeps its index (and its address).
     out_models = system_models + [
         {"model": o["printer"].name, "origin": o["package"], "own": True, "based_on": o["model"],
          "printers": [variant_entry(o["variant"], o["printer"])],
-         "cover": COVERS.get(o["model"], PLACEHOLDER_COVER),
+         "cover": cover(o["package"], o["model"]),
          **({"bundle": scan.bundles.get(o["printer"].bundle, "")} if o["printer"].bundle else {})}
         for o in own_models]
 
@@ -717,7 +712,7 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
                             for m in out_models for v in m["printers"]},
         },
         "slicer_page": slicer_page,
-        "printers_page": _printers_page(res, system_models, system_printers, selected),
+        "printers_page": _printers_page(res, system_models, system_printers, selected, cover),
         "backups_page": _backups_page(instance, measured),
     }
 

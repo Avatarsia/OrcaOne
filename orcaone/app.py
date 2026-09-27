@@ -1,11 +1,14 @@
 """FastAPI app: JSON API under /api, the static UI under /."""
 
+import asyncio
 import ipaddress
 import json
 import math
 import mimetypes
 import re
 import socket
+import time
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -13,13 +16,13 @@ from urllib.parse import quote, urlparse
 
 import anyio
 from fastapi import Body, FastAPI, Request, WebSocket
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
 
-from . import (__version__, backup, calibration, camera, console, control, guard, importer, instances, live, logs, monitor,
-               errors, network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
+from . import (__version__, backup, calibration, camera, console, control, covers, guard, history, importer, instances, live, logs,
+               monitor, errors, network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -34,6 +37,7 @@ _INSTANCE_ID = re.compile(r"[0-9a-f]{12}")
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/javascript", ".mjs")
 mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("image/svg+xml", ".svg")
 
 
 class Utf8Response(JSONResponse):
@@ -46,8 +50,18 @@ class Utf8Response(JSONResponse):
         return text.encode("utf-8", "replace")
 
 
+@asynccontextmanager
+async def _running(_app):
+    # The recording of every printer with an address for the page "Diagramme" (live.recording), as long
+    # as the server runs.
+    task = asyncio.create_task(live.recording()) if live.RECORD else None
+    yield
+    if task:
+        task.cancel()
+
+
 app = FastAPI(title="OrcaOne", version=__version__, docs_url=None, redoc_url=None, openapi_url=None,
-              default_response_class=Utf8Response)
+              default_response_class=Utf8Response, lifespan=_running)
 
 
 def _hostname(value: str) -> str | None:
@@ -111,8 +125,8 @@ async def check_request(request: Request, call_next):
     response.headers["Content-Security-Policy"] = ("sandbox; frame-ancestors 'none'" if request.url.path.startswith("/api/")
                                                    else "frame-ancestors 'none'")
     # Revalidate every file: browsers otherwise keep old ES modules after an
-    # update of OrcaOne and mix them with new ones.
-    response.headers["Cache-Control"] = "no-cache"
+    # update of OrcaOne and mix them with new ones. An answer may say otherwise (printer pictures).
+    response.headers.setdefault("Cache-Control", "no-cache")
     return response
 
 
@@ -240,6 +254,14 @@ def _print_files(value) -> dict:
             if isinstance(value, dict) else {})
 
 
+def _charts(value) -> dict:
+    """The curves shown per printer on "Diagramme" (the user's wish of 27.09.2026), {"<printer>": [series]}."""
+    if not isinstance(value, dict):
+        return {}
+    return {k: [n for n in v if isinstance(n, str) and 0 < len(n) <= 120][:60] for k, v in value.items()
+            if isinstance(k, str) and 0 < len(k) <= 200 and isinstance(v, list)}
+
+
 def _view3d(value) -> dict | None:
     """The camera of "3D Ansicht" as the user left it, in mm: {"position": [x, y, z], "target": [x, y, z]}."""
     point = lambda v: (isinstance(v, list) and len(v) == 3
@@ -272,6 +294,7 @@ def get_settings():
             "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d")),
             "chosen_instance": _chosen_instance(stored.get("chosen_instance")), "print_file": _print_files(stored.get("print_file")),
             "files_sort": _files_sort(stored.get("files_sort")),
+            "charts": _charts(stored.get("charts")), "record_idle": stored.get("record_idle") is True,
             "version": __version__, "risk_accepted": _risk(stored.get("risk_accepted"))}
 
 
@@ -290,18 +313,23 @@ def set_settings(payload: dict = Body(...)):
     which it takes again instead of the standard view; the user's wish of 25.09.2026), "accept_risk"
     (true: the user confirmed "use at your own risk", kept with the time and the version),
     "chosen_instance" (the installation chosen last) and "print_file" ({"<printer>": "<path>"}: the
-    print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026).
-    "files_sort" ({"key", "desc"}): how the page "Dateien" sorts, kept for the next visit."""
-    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area") if key in payload}
+    print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026);
+    "charts" ({"<printer>": [series]}: the curves shown on "Diagramme"); "record_idle" (true: the printers'
+    values are kept at rest too, not only while printing or heating; history.py); "files_sort"
+    ({"key", "desc"}): how the page "Dateien" sorts, kept for the next visit."""
+    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area", "record_idle") if key in payload}
     chosen, view, accept = payload.get("chosen_printer"), payload.get("view3d"), payload.get("accept_risk")
-    instance, files, sort = payload.get("chosen_instance"), payload.get("print_file"), payload.get("files_sort")
-    if ((not changed and chosen is None and view is None and accept is None and instance is None and files is None and sort is None)
+    instance, files, charts = payload.get("chosen_instance"), payload.get("print_file"), payload.get("charts")
+    sort = payload.get("files_sort")
+    if ((not changed and chosen is None and view is None and accept is None and instance is None and files is None and charts is None and sort is None)
+            or (charts is not None and (not isinstance(charts, dict) or not charts or _charts(charts) != charts))
             or (sort is not None and _files_sort(sort) != sort)
             or ("language" in changed and changed["language"] not in LANGUAGES)
             or ("chosen_instance" in payload and _chosen_instance(instance) is None)
             or (files is not None and (not isinstance(files, dict) or not files or _print_files(files) != files))
             or ("accept_risk" in payload and accept is not True)
             or not isinstance(changed.get("menu_collapsed", False), bool)
+            or not isinstance(changed.get("record_idle", False), bool)
             or ("theme" in changed and changed["theme"] not in THEMES)
             or ("area" in changed and changed["area"] not in AREAS)
             or (chosen is not None and (not isinstance(chosen, dict) or not chosen or _chosen(chosen) != chosen))
@@ -318,6 +346,8 @@ def set_settings(payload: dict = Body(...)):
             data["chosen_instance"] = instance
         if files:
             data["print_file"] = {**_print_files(data.get("print_file")), **files}
+        if charts:
+            data["charts"] = {**_charts(data.get("charts")), **charts}
         if sort is not None:
             data["files_sort"] = sort
         if accept:
@@ -668,6 +698,31 @@ def camera_status(camera_id: str):
     return camera.status(camera.find(camera_id)["host"])
 
 
+@app.get("/api/history")
+def printer_history(printer: str = "", seconds: float = 900, points: int = history.POINTS_MAX, until: float | None = None):
+    # What OrcaOne recorded of a printer (history.py): the `seconds` up to now or up to `until` (a window
+    # of the past on "Diagramme"), thinned to `points` time steps.
+    if not printer or len(printer) > 200:
+        return _error("printer_invalid")
+    if not math.isfinite(seconds) or seconds <= 0 or (until is not None and not math.isfinite(until)):
+        return _error("history_invalid")
+    now = time.time()
+    start = (now if until is None else until) - min(seconds, history.SECONDS_MAX)
+    return history.read(printer, start, now if until is None else min(until, now), points=points)
+
+
+@app.get("/api/covers/{key}")
+def printer_cover(key: str):
+    # A printer's picture, only one a scan named (covers.py): from the slicer's program folder or
+    # data/covers/, else fetched from GitHub now. Kept an hour: the U1's is 350 KB, and the page
+    # shows it on every page of the printer part. Without one OrcaOne's own drawing.
+    path = covers.file_of(key)
+    if path is not None:
+        return FileResponse(path, media_type="image/png", headers={"Cache-Control": "max-age=3600"})
+    fallback = covers.fallback_of(key)
+    return RedirectResponse("/" + fallback, status_code=302) if fallback else _error("cover_unknown", 404)
+
+
 @app.get("/api/cameras/{camera_id}/image")
 def camera_image(camera_id: str):
     data, age = camera.image(camera.find(camera_id)["host"])
@@ -693,9 +748,17 @@ def printer_folder(model: str = "", folder: str = "gcodes", path: str = ""):
 
 
 @app.get("/api/printers/folder/file")
-def printer_file(model: str = "", folder: str = "", path: str = "", download: bool = False):
+def printer_file(request: Request, model: str = "", folder: str = "", path: str = "", download: bool = False):
     # Pictures, videos and files pass through OrcaOne: the browser never talks to the printer itself.
-    return _passed_on(printer_files.open_file(camera.host_of(model), folder, path), path, download)
+    return _passed_on(printer_files.open_file(camera.host_of(model), folder, path, _range(request)), path, download)
+
+
+def _range(request: Request) -> str | None:
+    """The piece the browser asks for, if it is one plain range ("bytes=100-199", "bytes=100-"). A
+    video player needs it: the U1's time-lapses keep their index at the end (moov after mdat, checked
+    27.09.2026), without ranges the browser would first load the whole video."""
+    wanted = request.headers.get("range", "")
+    return wanted if re.fullmatch(r"bytes=\d+-\d*", wanted) else None
 
 
 @app.post("/api/printers/folder/delete")
@@ -753,7 +816,7 @@ def _passed_on(response, path: str, download: bool = False):
         # What the printer names HTML, SVG or script comes as bytes, never as a page of OrcaOne.
         kind = "application/octet-stream"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"} if download else {}
-    for name in ("Content-Length", "Content-Range"):
+    for name in ("Content-Length", "Content-Range", "Accept-Ranges"):
         if response.headers.get(name):
             headers[name] = response.headers[name]
 
@@ -776,9 +839,7 @@ def printer_print_files(model: str = ""):
 
 @app.get("/api/printers/file")
 def printer_print_file(request: Request, model: str = "", path: str = ""):
-    wanted = request.headers.get("range", "")
-    wanted = wanted if re.fullmatch(r"bytes=\d+-\d*", wanted) else None
-    return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, wanted), path)
+    return _passed_on(printer_files.open_file(camera.host_of(model), "gcodes", path, _range(request)), path)
 
 
 # ---------------------------------------------------------------- errors of any Klipper printer (orcaone/errors.py)
