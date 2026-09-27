@@ -57,7 +57,7 @@ def test_the_pictures_of_both_slicers(tmp_path, monkeypatch):
     monkeypatch.setattr(covers, "candidates", lambda slicer, processes: [tmp_path / slicer / "resources", tmp_path / "gone"])
     assert covers.program_dirs("OrcaSlicer", []) == [orca]
 
-    cover = covers.finder("OrcaSlicer", [])
+    cover = covers.finder([])
     file_of = lambda address: covers.file_of(address.removeprefix("api/covers/"))
     # From the other slicer when the own has none; regardless of case; without a known vendor in all.
     assert cover("Snapmaker", "Snapmaker U1").startswith("api/covers/") and file_of(cover("Snapmaker", "Snapmaker U1")) == u1
@@ -76,7 +76,7 @@ def test_the_api_serves_only_what_was_found(server, tmp_path, monkeypatch):
     res = tmp_path / "Snapmaker_Orca" / "resources"
     put(res / "profiles" / "Snapmaker" / "Snapmaker U1_cover.png")
     monkeypatch.setattr(covers, "candidates", lambda slicer, processes: [res] if slicer == "Snapmaker_Orca" else [])
-    address = covers.finder("Snapmaker_Orca", [])("Snapmaker", "Snapmaker U1")
+    address = covers.finder([])("Snapmaker", "Snapmaker U1")
     with urllib.request.urlopen(f"{server}/{address}", timeout=5) as response:
         assert response.status == 200 and response.read() == PNG
         assert response.headers["Content-Type"] == "image/png" and response.headers["X-Content-Type-Options"] == "nosniff"
@@ -116,16 +116,16 @@ def github(monkeypatch):
 
 
 def test_fetched_from_github_and_kept(github, data_dir):
-    """No slicer shows the picture: the first look fetches it, the installation's slicer's repository
-    first, and keeps it in data/covers/<slicer>/; after that it is never fetched again."""
-    cover = covers.finder("OrcaSlicer", [])
+    """No slicer shows the picture: the first look fetches it, OrcaSlicer's repository first, and keeps
+    it in data/covers/<slicer>/; after that it is never fetched again."""
+    cover = covers.finder([])
     key = cover("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")
     assert github == []   # the scan only names it
     path = covers.file_of(key)
     assert github == ["/orca/Snapmaker/Snapmaker%20U1_cover.png", "/snorca/Snapmaker/Snapmaker%20U1_cover.png"]
-    assert path == data_dir / "covers" / "OrcaSlicer" / "Snapmaker" / "Snapmaker U1_cover.png" and path.read_bytes() == PNG
+    assert path == data_dir / "covers" / "Snapmaker_Orca" / "Snapmaker" / "Snapmaker U1_cover.png" and path.read_bytes() == PNG
     assert covers.file_of(key) == path
-    assert covers.file_of(covers.finder("OrcaSlicer", [])("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")) == path
+    assert covers.file_of(covers.finder([])("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")) == path
     assert len(github) == 2
     # Not a PNG, or none at all: nothing kept, asked once only, then OrcaOne's own drawing.
     for vendor, model in (("Bad", "Text"), ("Voron", "Voron 2.4 300"), ("Custom", "Generic Klipper Printer")):
@@ -142,7 +142,7 @@ def test_fetched_from_github_and_kept(github, data_dir):
 
 
 def test_the_api_shows_the_drawing_without_a_picture(server, github):
-    key = covers.finder("Snapmaker_Orca", [])("Voron", "Voron 2.4 300").removeprefix("api/covers/")
+    key = covers.finder([])("Voron", "Voron 2.4 300").removeprefix("api/covers/")
     with urllib.request.urlopen(f"{server}/api/covers/{key}", timeout=10) as response:
         assert response.url.endswith("/assets/printer-placeholder.svg") and response.read().startswith(b"<svg")
 
@@ -154,7 +154,7 @@ def test_without_internet_no_waiting(data_dir, monkeypatch):
     port = closed.server_address[1]
     closed.server_close()
     monkeypatch.setattr(covers, "SOURCES", {"OrcaSlicer": f"http://127.0.0.1:{port}/orca", "Snapmaker_Orca": f"http://127.0.0.1:{port}/snorca"})
-    cover = covers.finder("OrcaSlicer", [])
+    cover = covers.finder([])
     key = cover("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")
     assert covers.file_of(key) is None and covers.fallback_of(key) == covers.FALLBACK["Snapmaker U1"]
     assert cover("Voron", "Voron 2.4 300") == covers.PLACEHOLDER and covers._missing == set()
@@ -168,6 +168,20 @@ def test_a_picture_gone_since_shows_the_drawing(tmp_path, monkeypatch):
     res = tmp_path / "mount" / "resources"
     u1 = put(res / "profiles" / "Snapmaker" / "Snapmaker U1_cover.png")
     monkeypatch.setattr(covers, "candidates", lambda slicer, processes: [res])
-    key = covers.finder("Snapmaker_Orca", [])("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")
+    key = covers.finder([])("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")
     u1.unlink()
     assert covers.file_of(key) is None and covers.fallback_of(key) == covers.FALLBACK["Snapmaker U1"]
+
+
+def test_orcaslicers_picture_first(github, data_dir, tmp_path, monkeypatch):
+    """OrcaSlicer's pictures go before Snapmaker Orca's (the user finds them nicer), also before an
+    installed Snapmaker Orca's; that one stands in when OrcaSlicer's repository has none."""
+    snorca = tmp_path / "Snapmaker_Orca" / "resources"
+    local = put(snorca / "profiles" / "Snapmaker" / "Snapmaker U1_cover.png")
+    monkeypatch.setattr(covers, "candidates", lambda slicer, processes: [snorca] if slicer == "Snapmaker_Orca" else [])
+    key = covers.finder([])("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")
+    assert covers.file_of(key) == local and github == ["/orca/Snapmaker/Snapmaker%20U1_cover.png"]
+    # One fetched from OrcaSlicer's repository before goes first, without asking again.
+    kept = put(data_dir / "covers" / "OrcaSlicer" / "Snapmaker" / "Snapmaker U1_cover.png")
+    key = covers.finder([])("Snapmaker", "Snapmaker U1").removeprefix("api/covers/")
+    assert covers.file_of(key) == kept and len(github) == 1

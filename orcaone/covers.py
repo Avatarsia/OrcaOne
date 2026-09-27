@@ -1,15 +1,15 @@
 """Printer pictures, read at run time: nothing of the slicers' sources (AGPL-3.0) ships with OrcaOne
 (the user's decisions of 27.09.2026). Both slicers load <resources>/profiles/<vendor>/<model>_cover.png
 (OrcaSlicer Plater.cpp update_printer_thumbnail, WebGuideDialog.cpp BuildProfileJson) and never copy
-it into the data folder. Per model, in this order:
-1. the installed slicer's program folder. <resources> lies next to the program (Windows: the folder
-   of the exe; AppImage and /opt: <exe>/../../resources) or at a fixed place for Flatpak and
+it into the data folder. Per model OrcaSlicer's picture first, then Snapmaker Orca's (ORDER), each:
+1. from the installed slicer's program folder. <resources> lies next to the program (Windows: the
+   folder of the exe; AppImage and /opt: <exe>/../../resources) or at a fixed place for Flatpak and
    packages (<prefix>/share/<APP_KEY>, SLIC3R_FHS);
-2. data/covers/, what OrcaOne fetched before;
-3. the same file from the slicer's repository on GitHub, fetched the first time the page shows it
-   and kept in data/covers/ (the user's wish: an AppImage that is not running, or a slicer only
-   unpacked somewhere, has pictures too);
-4. OrcaOne's own drawings.
+2. from data/covers/<slicer>/, what OrcaOne fetched before;
+3. from the slicer's repository on GitHub, fetched the first time the page shows it and kept in
+   data/covers/ (the user's wish: an AppImage that is not running, or a slicer only unpacked
+   somewhere, has pictures too).
+Else OrcaOne's own drawings.
 Details: docs/FINDINGS.md, "Druckerbilder der Slicer"."""
 
 import hashlib
@@ -22,13 +22,14 @@ import urllib.request
 from pathlib import Path
 
 from . import instances, settings
-from .model import SLICERS
 
 # OrcaOne's own drawings where no picture is found (paths relative to orcaone/static).
 FALLBACK = {"Snapmaker U1": "assets/printer-snapmaker-u1.svg", "Generic Klipper Printer": "assets/printer-klipper.svg"}
 PLACEHOLDER = "assets/printer-placeholder.svg"
-# The profiles folder of each slicer's repository (checked 27.09.2026: 200 with image/png, 404 for
-# none). The pictures differ: Snapmaker Orca's U1 is another photo than OrcaSlicer's.
+# OrcaSlicer's pictures first: they differ, and the user finds OrcaSlicer's nicer (27.09.2026: its U1
+# with spools and a print, Snapmaker Orca's a large plain one set off-centre).
+ORDER = ["OrcaSlicer", "Snapmaker_Orca"]
+# The profiles folder of each slicer's repository (checked 27.09.2026: 200 with image/png, 404 for none).
 SOURCES = {
     "Snapmaker_Orca": "https://raw.githubusercontent.com/Snapmaker/OrcaSlicer/main/resources/profiles",
     "OrcaSlicer": "https://raw.githubusercontent.com/OrcaSlicer/OrcaSlicer/main/resources/profiles",
@@ -38,7 +39,7 @@ FETCH_MAX = 2 * 1024 * 1024  # a cover is 5 KB to 350 KB
 OFFLINE_PAUSE = 600          # seconds without a try after GitHub could not be reached
 _PNG = b"\x89PNG\r\n\x1a\n"
 
-# key -> (Path, or (slicer, vendor, model) to fetch; the model, for its drawing): GET /api/covers/<key>
+# key -> (the steps: a Path, or (slicer, vendor, model) to fetch; the model, for its drawing): GET /api/covers/<key>
 _files: dict[str, tuple] = {}
 _missing: set = set()            # (slicer, vendor, model) not on GitHub: no second try this run
 _locks: dict = {}                # one lock per picture: the page asks for all at once, each its own
@@ -113,13 +114,11 @@ def _kept(slicer: str, vendor: str, model: str) -> Path:
     return settings.DATA_DIR / "covers" / slicer / vendor / f"{model}_cover.png"
 
 
-def finder(slicer: str, processes: list):
-    """(vendor, model) -> the picture's address for the page, for an installation of `slicer`: its own
-    slicer's pictures first, then the other's (the U1's is in both). vendor is the folder under
-    profiles (the package), None for a printer whose package is unknown."""
-    dirs = []
-    for s in [slicer] + [k for k in SLICERS if k != slicer]:
-        dirs += [d for d in program_dirs(s, processes) if d not in dirs]
+def finder(processes: list):
+    """(vendor, model) -> the picture's address for the page. vendor is the folder under profiles
+    (the package), None for a printer whose package is unknown: then only the program folders, all
+    vendors. The steps behind an address are tried when the page asks (file_of)."""
+    dirs = {s: program_dirs(s, processes) for s in ORDER}
     listed = {}
 
     def names_in(folder: Path) -> dict:
@@ -130,11 +129,8 @@ def finder(slicer: str, processes: list):
                 listed[folder] = {}
         return listed[folder]
 
-    def cover(vendor, model) -> str:
-        if not _safe(model):
-            return PLACEHOLDER
-        name = f"{model}_cover.png"
-        for d in dirs:
+    def installed(slicer: str, vendor, name: str) -> Path | None:
+        for d in dirs[slicer]:
             if _safe(vendor):
                 vendors = [d / "profiles" / vendor]
             else:
@@ -147,64 +143,74 @@ def finder(slicer: str, processes: list):
                 # in case from their model ("ginger G1_cover.png" for "Ginger G1").
                 path = folder / name if (folder / name).is_file() else names_in(folder).get(name.lower())
                 if path is not None:
-                    return f"api/covers/{_key(path, model)}"
-        kept = _kept(slicer, vendor, model) if _safe(vendor) else None
-        if kept is not None and kept.is_file():
-            return f"api/covers/{_key(kept, model)}"
-        if kept is None or not SOURCES or (slicer, vendor, model) in _missing or _offline():
-            return FALLBACK.get(model, PLACEHOLDER)
-        return f"api/covers/{_key((slicer, vendor, model), model)}"
+                    return path
+        return None
+
+    def cover(vendor, model) -> str:
+        if not _safe(model):
+            return PLACEHOLDER
+        steps = []
+        for slicer in ORDER:
+            path = installed(slicer, vendor, f"{model}_cover.png")
+            kept = _kept(slicer, vendor, model) if _safe(vendor) else None
+            if path is None and kept is not None and kept.is_file():
+                path = kept
+            if path is not None:
+                steps.append(path)
+                break   # a picture at hand: no fetching
+            if kept is not None and slicer in SOURCES and (slicer, vendor, model) not in _missing and not _offline():
+                steps.append((slicer, vendor, model))
+        return f"api/covers/{_key(tuple(steps), model)}" if steps else FALLBACK.get(model, PLACEHOLDER)
 
     return cover
 
 
 def _fetch(slicer: str, vendor: str, model: str) -> Path | None:
-    """The picture from the slicer's repository, else from the other's, kept in data/covers/; only a
-    PNG of at most FETCH_MAX bytes. None if there is none, or no internet: then no try for
-    OFFLINE_PAUSE, so a computer without internet does not wait for every picture (review 27.09.2026)."""
+    """The picture from the slicer's repository, kept in data/covers/<slicer>/; only a PNG of at most
+    FETCH_MAX bytes. None if there is none, or no internet: then no try for OFFLINE_PAUSE, so a
+    computer without internet does not wait for every picture (review 27.09.2026)."""
     global _offline_until
     what = (slicer, vendor, model)
     kept = _kept(slicer, vendor, model)
     if kept.is_file():
         return kept
-    if what in _missing or _offline():
+    if what in _missing or _offline() or slicer not in SOURCES:
         return None
     with _locks.setdefault(what, threading.Lock()):
         if kept.is_file():
             return kept
         if what in _missing or _offline():
             return None
-        for source in sorted(SOURCES, key=lambda s: s != slicer):   # the installation's slicer first
-            url = f"{SOURCES[source]}/{urllib.parse.quote(vendor)}/{urllib.parse.quote(model + '_cover.png')}"
-            try:
-                with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT) as response:
-                    data = response.read(FETCH_MAX + 1)
-            except urllib.error.HTTPError:
-                continue   # not there (404)
-            except (urllib.error.URLError, OSError, ValueError):
-                _offline_until = time.monotonic() + OFFLINE_PAUSE   # no internet, or GitHub not reachable
-                return None
-            if len(data) > FETCH_MAX or not data.startswith(_PNG):
-                continue
-            try:
-                kept.parent.mkdir(parents=True, exist_ok=True)
-                part = kept.with_name(kept.name + ".part")
-                part.write_bytes(data)
-                os.replace(part, kept)
-            except OSError:
-                break
-            return kept
-        _missing.add(what)
-        return None
+        url = f"{SOURCES[slicer]}/{urllib.parse.quote(vendor)}/{urllib.parse.quote(model + '_cover.png')}"
+        try:
+            with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT) as response:
+                data = response.read(FETCH_MAX + 1)
+        except urllib.error.HTTPError:
+            data = None   # not there (404)
+        except (urllib.error.URLError, OSError, ValueError):
+            _offline_until = time.monotonic() + OFFLINE_PAUSE   # no internet, or GitHub not reachable
+            return None
+        if data is None or len(data) > FETCH_MAX or not data.startswith(_PNG):
+            _missing.add(what)
+            return None
+        try:
+            kept.parent.mkdir(parents=True, exist_ok=True)
+            part = kept.with_name(kept.name + ".part")
+            part.write_bytes(data)
+            os.replace(part, kept)
+        except OSError:
+            return None
+        return kept
 
 
 def file_of(key: str) -> Path | None:
-    """The picture behind an address cover() gave out, fetched the first time; nothing else is served.
-    None also for one that is gone since, e.g. from an AppImage that no longer runs."""
-    thing = _files.get(key, (None, None))[0]
-    if isinstance(thing, tuple):
-        return _fetch(*thing)
-    return thing if isinstance(thing, Path) and thing.is_file() else None
+    """The picture behind an address cover() gave out: its steps in order, a fetch the first time;
+    nothing else is ever served. None if none gives one, e.g. an AppImage's that no longer runs."""
+    for step in _files.get(key, ((), None))[0]:
+        path = _fetch(*step) if isinstance(step, tuple) else step if step.is_file() else None
+        if path is not None:
+            return path
+    return None
 
 
 def fallback_of(key: str) -> str | None:

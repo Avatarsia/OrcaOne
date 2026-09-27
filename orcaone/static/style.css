@@ -415,7 +415,9 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .is-on .row-name, .is-some .row-name { font-weight: 700; }
 .is-off .row-name { color: var(--muted); }
-.is-off .spool, .dim { filter: grayscale(1); opacity: .45; }
+.is-off .spool, .spool.dim { filter: grayscale(1); opacity: .45; }
+/* A printer's picture keeps its colours, only paler: grey took the red parts of a photo (the user, 27.09.2026) */
+img.dim { opacity: .5; }
 .row-hint { color: var(--muted); font-size: 12px; }
 /* The state at the end of a row: a check when on at every nozzle in view, half when at some. */
 .row-state { display: grid; place-items: center; flex: none; width: 28px; color: var(--accent); }
@@ -877,7 +879,6 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .pcard.is-active { padding: 11px 13px 13px; border: 2px solid var(--accent-line); }
 /* A printer that does not answer: last and pale, full again under the mouse or the keyboard */
 .pcard.is-away { opacity: .55; transition: opacity .15s; }
-.pcard.is-away .card-img img { filter: grayscale(1); }
 .pcard.is-away:hover, .pcard.is-away:focus-within { opacity: 1; }
 /* Narrow: the printer's values below it again */
 @media (max-width: 900px) {

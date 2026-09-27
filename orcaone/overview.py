@@ -555,7 +555,7 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
 
     models = res.installed_printers()
     # Each model's picture from the slicer's program folder (covers.py), else OrcaOne's own drawing.
-    cover = covers.finder(instance.slicer, processes)
+    cover = covers.finder(processes)
     system_printers = [p for m in models for _, p in m["printers"]]
     own_models = _own_printer_models(res)
     all_printers = system_printers + [o["printer"] for o in own_models]
