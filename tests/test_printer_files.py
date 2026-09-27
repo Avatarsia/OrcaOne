@@ -6,6 +6,7 @@ import email.parser
 import email.policy
 import json
 import re
+import socket
 import threading
 import urllib.error
 import urllib.parse
@@ -15,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from conftest import call
+from orcaone import app as app_module
 from orcaone import camera, printer_files
 
 # Trimmed from the answers of the user's U1 on 24.09.2026.
@@ -477,3 +479,47 @@ def test_klipper_anew_after_the_emergency_stop(server, moonraker, service):
         assert (status, json.loads(body), service) == (200, {"restarted": True}, [(method, {})]), firmware
         assert seen["timeouts"][method] == printer_files.ORDER_TIMEOUT
     assert call(f"{server}/api/printers/restart", "POST", {"model": "Unbekannt", "firmware": True})[0] == 404
+
+
+def test_what_the_review_of_the_explorer_found(server, moonraker, service, monkeypatch):
+    """The review of 27.09.2026: a folder that is gone is not a printer away; the U1's own folders only
+    on the U1, and no new name like them at its top; 3MF and ZIP printable only on the U1; the top bar
+    reads a file in its own folder; a browser gone quiet ends its upload and frees its thread."""
+    host, seen = moonraker
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.listing(host, "gcodes", "Weg")
+    assert err.value.code == "folder_missing"
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.make_dir(host, "", "calibration_data")
+    assert err.value.code == "name_invalid"
+    # On another printer a folder of that name is the user's: shown, and taken like any other.
+    assert "calibration_data" in [d["name"] for d in printer_files.listing(host, "gcodes", "", u1=False)["dirs"]]
+    with pytest.raises(camera.CameraError) as err:
+        printer_files.make_dir(host, "", "calibration_data", u1=False)
+    assert err.value.code == "name_taken"
+    assert printer_files._print_file({"filename": "a.3mf"})["printable"] is True
+    assert printer_files._print_file({"filename": "a.3mf"}, "", u1=False)["printable"] is False
+    assert printer_files._print_file({"filename": "a.gco"}, "", u1=False)["printable"] is True
+
+    camera.set_host("Snapmaker U1", host)
+    status, body = call(f"{server}/api/printers/folder?model=Snapmaker%20U1&folder=gcodes&path=Weg")
+    assert (status, json.loads(body)["error"]) == (404, "folder_missing")
+    status, body = call(f"{server}/api/printers/files?model=Snapmaker%20U1&path=Projekte")
+    assert status == 200 and [f["path"] for f in json.loads(body)["files"]] == ["Projekte/Box.gcode"]
+
+    # 100 bytes announced, 3 sent, then nothing: after UPLOAD_WAIT the upload ends with upload_failed.
+    monkeypatch.setattr(app_module, "UPLOAD_WAIT", 0.5)
+    port = int(server.rsplit(":", 1)[1])
+    with socket.create_connection(("127.0.0.1", port), timeout=10) as conn:
+        conn.sendall(f"POST /api/printers/folder/upload?model=Snapmaker%20U1&name=still.gcode HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+                     "Content-Type: application/octet-stream\r\nContent-Length: 100\r\n\r\nG28".encode())
+        answer = b""
+        while b"upload_failed" not in answer:
+            try:
+                block = conn.recv(4096)
+            except OSError:
+                break    # the server closed the connection after answering
+            if not block:
+                break
+            answer += block
+    assert answer.split(b"\r\n", 1)[0].endswith(b"400 Bad Request") and b"upload_failed" in answer

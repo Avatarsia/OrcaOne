@@ -31,9 +31,11 @@ from .camera import TIMEOUT, CameraError, _direct, _get
 FOLDERS = ("gcodes", "camera", "logs", "config")  # in the order of the page
 # The service deletes videos although Moonraker shares "camera" for reading only.
 DELETABLE = ("gcodes", "camera")
-PRINTABLE = (".gcode", ".3mf", ".zip")  # snapmakercloud.py, process_local_file
-# Folders in "gcodes" the U1 keeps for itself, next to Moonraker's hidden ones (".thumbs"): not
-# shown, and nothing is written into them.
+PRINTABLE = (".gcode", ".3mf", ".zip")  # the U1: snapmakercloud.py, process_local_file
+KLIPPER_PRINTABLE = (".gcode", ".g", ".gco")   # any other Klipper printer: virtual_sdcard's own list
+# Folders in "gcodes" the U1 keeps for itself at the top, next to Moonraker's hidden ones (".thumbs"):
+# not shown, nothing is written into them, and no new file or folder gets their name. Only on the U1:
+# another printer's folder of that name is the user's (review 27.09.2026).
 OWN_DIRS = ("calibration_data", "shaper_calibrate")
 # Characters a new name may not have: the path would change, or the multipart header of the upload.
 _NAME_BAD = set('/\\"\r\n\0')
@@ -62,10 +64,10 @@ def _at(values, i: int):
     return values[i] if isinstance(values, list) and i < len(values) else None
 
 
-def _print_file(f: dict, folder: str = "") -> dict:
+def _print_file(f: dict, folder: str = "", u1: bool = True) -> dict:
     """One print file with what its list line and its details show; its metadata comes from the
     slicer. folder: the folder in "gcodes" it lies in, "" at the top; Moonraker names its pictures
-    relative to that folder."""
+    relative to that folder. Printable as the printer takes it: the U1 also 3MF and ZIP."""
     types = str(f.get("filament_type") or "").split(";")
     colours = str(f.get("filament_colour") or "").split(";")
     used = f.get("filament_weight") or f.get("filament_used_mm")
@@ -78,7 +80,7 @@ def _print_file(f: dict, folder: str = "") -> dict:
     small = next((t for t in thumbs if (t.get("width") or 0) >= 90), thumbs[-1] if thumbs else None)
     name, prefix = f["filename"], folder + "/" if folder else ""
     return {"name": name, "path": prefix + name, "size": f.get("size"), "modified": f.get("modified"), "time": f.get("estimated_time"),
-            "layers": f.get("layer_count"), "tools": tools, "printable": name.lower().endswith(PRINTABLE),
+            "layers": f.get("layer_count"), "tools": tools, "printable": name.lower().endswith(PRINTABLE if u1 else KLIPPER_PRINTABLE),
             "thumb": prefix + small["relative_path"] if small else None, "picture": prefix + thumbs[-1]["relative_path"] if thumbs else None,
             # For the details panel, as Moonraker read them from the file (metadata.py).
             **{key: f.get(source) for key, source in DETAILS.items()}}
@@ -97,9 +99,9 @@ def _entry(d: dict, folder: str) -> dict:
     return {"name": name, "path": (folder + "/" if folder else "") + name, "size": d.get("size"), "modified": d.get("modified")}
 
 
-def _shown(name: str, folder: str) -> bool:
+def _shown(name: str, folder: str, u1: bool = True) -> bool:
     """Not Moonraker's hidden folders, nor at the top the U1's own."""
-    return not name.startswith(".") and not (not folder and name in OWN_DIRS)
+    return not name.startswith(".") and not (u1 and not folder and name in OWN_DIRS)
 
 
 def _video(v: dict) -> dict | None:
@@ -120,10 +122,10 @@ def listing(host: str, folder: str, path: str = "", u1: bool = True) -> dict:
     shaper_calibrate). The videos only on the U1 (u1), through its camera service."""
     if folder == "gcodes":
         path = _check_path(folder, path) if path else ""
-        data = _get(host, "/server/files/directory?path=" + urllib.parse.quote("gcodes/" + path if path else "gcodes") + "&extended=true")
-        files = [_print_file(f, path) for f in data.get("files") or [] if isinstance(f, dict) and f.get("filename")]
+        data = _directory(host, path, extended=True)
+        files = [_print_file(f, path, u1) for f in data.get("files") or [] if isinstance(f, dict) and f.get("filename")]
         dirs = [_entry(d, path) for d in data.get("dirs") or []
-                if isinstance(d, dict) and isinstance(d.get("dirname"), str) and _shown(d["dirname"], path)]
+                if isinstance(d, dict) and isinstance(d.get("dirname"), str) and _shown(d["dirname"], path, u1)]
         return {"files": sorted(files, key=lambda f: -(f["modified"] or 0)), "dirs": sorted(dirs, key=lambda d: d["name"].lower()),
                 "disk": data.get("disk_usage")}
     if folder == "camera" and u1:
@@ -183,24 +185,32 @@ def _message(exc: urllib.error.HTTPError) -> str:
         return f"HTTP {exc.code}"
 
 
-def _writable(path) -> str:
+def _writable(path, u1: bool = True) -> str:
     """A file or folder in "gcodes" OrcaOne may change: not in the printer's own folders."""
     path = _check_path("gcodes", path)
     parts = path.split("/")
-    if any(not p or p.startswith(".") for p in parts) or parts[0] in OWN_DIRS:
+    if any(not p or p.startswith(".") for p in parts) or (u1 and parts[0] in OWN_DIRS):
         raise CameraError("file_invalid")
     return path
 
 
-def _folder(path) -> str:
+def _folder(path, u1: bool = True) -> str:
     """A folder in "gcodes" as a target, "" for the top."""
-    return "" if path in ("", None) else _writable(path)
+    return "" if path in ("", None) else _writable(path, u1)
 
 
 def _name(name) -> str:
     """A new name for a file or folder in "gcodes": one part of a path, nothing hidden."""
     if (not isinstance(name, str) or not name.strip() or name.startswith(".") or len(name.encode("utf-8")) > 255
             or any(c in _NAME_BAD or ord(c) < 32 for c in name)):
+        raise CameraError("name_invalid")
+    return name
+
+
+def _new_name(name, folder: str, u1: bool) -> str:
+    """A name for something new in a folder of "gcodes": at the top of the U1 none of its own folders."""
+    name = _name(name)
+    if u1 and not folder and name in OWN_DIRS:
         raise CameraError("name_invalid")
     return name
 
@@ -218,9 +228,24 @@ def _printing(host: str) -> str | None:
     return (stats.get("filename") or None) if stats.get("state") in ("printing", "paused") else None
 
 
+def _directory(host: str, folder: str, extended: bool = False) -> dict:
+    """Moonraker's list of a folder in "gcodes" ("" for the top). A folder that is gone (deleted on the
+    display or in Mainsail meanwhile) is folder_missing, not a printer that does not answer (review
+    27.09.2026): Moonraker says so with 400 or 404."""
+    url = camera.moonraker_url(host, "/server/files/directory?path=" + urllib.parse.quote("gcodes/" + folder if folder else "gcodes")
+                               + ("&extended=true" if extended else ""))
+    try:
+        with _direct.open(url, timeout=TIMEOUT) as response:
+            return json.loads(response.read())["result"]
+    except urllib.error.HTTPError as exc:
+        raise CameraError("folder_missing" if exc.code in (400, 404) else "camera_refused", _message(exc)) from None
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise CameraError("camera_unreachable", str(exc)) from None
+
+
 def _names_in(host: str, folder: str) -> set:
     """The names of the files and folders in a folder of "gcodes" ("" for the top)."""
-    data = _get(host, "/server/files/directory?path=" + urllib.parse.quote("gcodes/" + folder if folder else "gcodes"))
+    data = _directory(host, folder)
     return ({f.get("filename") for f in data.get("files") or [] if isinstance(f, dict)}
             | {d.get("dirname") for d in data.get("dirs") or [] if isinstance(d, dict)})
 
@@ -238,7 +263,7 @@ def _send(host: str, method: str, path: str, body: dict | None = None):
         raise CameraError("camera_unreachable", str(exc)) from None
 
 
-def delete(host: str, folder: str, names, dirs=None) -> dict:
+def delete(host: str, folder: str, names, dirs=None, u1: bool = True) -> dict:
     """Deletes print files (by path) or videos (by date_index) one by one, so one that fails, the
     file being printed for instance, leaves the others done: {"deleted": [...], "failed": [{"name", "detail"}]}.
     dirs: folders in "gcodes", each with all it holds (Moonraker's force), but none with the file
@@ -254,12 +279,12 @@ def delete(host: str, folder: str, names, dirs=None) -> dict:
     for name in dict.fromkeys(names + dirs):
         try:
             if name in dirs:
-                path = _writable(name)
+                path = _writable(name, u1)
                 if printing and _inside(printing, path):
                     raise CameraError("file_in_use")
                 _send(host, "DELETE", "/server/files/directory?path=" + urllib.parse.quote("gcodes/" + path) + "&force=true")
             elif folder == "gcodes":
-                url = camera.moonraker_url(host, f"/server/files/gcodes/{urllib.parse.quote(_writable(name))}")
+                url = camera.moonraker_url(host, f"/server/files/gcodes/{urllib.parse.quote(_writable(name, u1))}")
                 with _direct.open(urllib.request.Request(url, method="DELETE"), timeout=TIMEOUT) as response:
                     json.loads(response.read())["result"]
             else:
@@ -274,9 +299,10 @@ def delete(host: str, folder: str, names, dirs=None) -> dict:
     return {"deleted": deleted, "failed": failed}
 
 
-def make_dir(host: str, parent, name) -> dict:
+def make_dir(host: str, parent, name, u1: bool = True) -> dict:
     """A new folder in a folder of "gcodes" ("" for the top)."""
-    parent, name = _folder(parent), _name(name)
+    parent = _folder(parent, u1)
+    name = _new_name(name, parent, u1)
     if name in _names_in(host, parent):
         raise CameraError("name_taken", name)
     path = (parent + "/" if parent else "") + name
@@ -284,20 +310,21 @@ def make_dir(host: str, parent, name) -> dict:
     return {"created": path}
 
 
-def move(host: str, paths, target) -> dict:
+def move(host: str, paths, target, u1: bool = True) -> dict:
     """Files and folders of "gcodes" into another folder there ("" for the top), one by one: never
     over one of the same name, a folder never into itself, nothing being printed.
     {"moved": [...], "failed": [{"name", "detail"}]}, detail an error code or the printer's words."""
     if not isinstance(paths, list) or not paths or not all(isinstance(p, str) and p for p in paths):
         raise CameraError("file_invalid")
-    target = _folder(target)
+    target = _folder(target, u1)
     there = _names_in(host, target)
     printing = _printing(host)
     moved, failed = [], []
     for source in dict.fromkeys(paths):
         try:
-            _writable(source)
+            _writable(source, u1)
             parent, _, name = source.rpartition("/")
+            _new_name(name, target, u1)
             if parent == target:
                 continue    # already there
             if _inside(target, source):
@@ -314,11 +341,12 @@ def move(host: str, paths, target) -> dict:
     return {"moved": moved, "failed": failed}
 
 
-def upload(host: str, folder, name, size, chunks, replace: bool = False) -> dict:
+def upload(host: str, folder, name, size, chunks, replace: bool = False, u1: bool = True) -> dict:
     """A print file from the browser into a folder of "gcodes" ("" for the top), passed on block by
     block as it comes (chunks), in Moonraker's form (POST /server/files/upload), without a copy on
     this computer. Over a file of the same name only with replace: Moonraker overwrites silently."""
-    folder, name = _folder(folder), _name(name)
+    folder = _folder(folder, u1)
+    name = _new_name(name, folder, u1)
     if not isinstance(size, int) or isinstance(size, bool) or size < 0:
         raise CameraError("upload_failed", "size")
     if not replace and name in _names_in(host, folder):

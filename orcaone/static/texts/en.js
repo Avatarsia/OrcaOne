@@ -1300,6 +1300,7 @@ const T = {
     skip: "Skip",
     clearUploads: "Clear list",
     moveTo: "Move to …",
+    moveButton: "Move",
     moved: (things, where) => `${things} moved to ${q(where)}.`,
     notMoved: (things, why) => `${things} not moved: ${why}`,
     showDetails: "Details",
@@ -1344,7 +1345,8 @@ const T = {
     errors: {
       folder_read_only: "OrcaOne only shows this folder.",
       folder_unknown: "The printer has no such folder.",
-      name_invalid: "This name does not work: no slashes or quotes, not starting with a dot.",
+      name_invalid: "This name does not work: no slashes or quotes, not starting with a dot, at the top of a U1 not like its own folders.",
+      folder_missing: "This folder is not on the printer any more.",
       name_taken: "This name is there already:",
       file_refused: "The printer refuses:",
       file_in_use: "The printer is printing this file.",

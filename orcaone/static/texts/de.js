@@ -1313,6 +1313,7 @@ const T = {
     skip: "Überspringen",
     clearUploads: "Liste leeren",
     moveTo: "Verschieben nach …",
+    moveButton: "Verschieben",
     moved: (things, where) => `${things} nach ${q(where)} verschoben.`,
     notMoved: (things, why) => `${things} nicht verschoben: ${why}`,
     showDetails: "Details",
@@ -1358,7 +1359,8 @@ const T = {
     errors: {
       folder_read_only: "Diesen Ordner zeigt OrcaOne nur.",
       folder_unknown: "Diesen Ordner gibt es auf dem Drucker nicht.",
-      name_invalid: "Dieser Name geht nicht: ohne Schrägstriche und Anführungszeichen, nicht mit einem Punkt am Anfang.",
+      name_invalid: "Dieser Name geht nicht: ohne Schrägstriche und Anführungszeichen, nicht mit einem Punkt am Anfang, beim U1 ganz oben nicht wie seine eigenen Ordner.",
+      folder_missing: "Diesen Ordner gibt es auf dem Drucker nicht mehr.",
       name_taken: "Diesen Namen gibt es dort schon:",
       file_refused: "Der Drucker lehnt ab:",
       file_in_use: "Der Drucker druckt die Datei gerade.",

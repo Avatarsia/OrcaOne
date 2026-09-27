@@ -44,6 +44,7 @@ export default {
     const details = ref(null);    // the file in the details panel
     const askingOne = ref(false); // the question to delete the file of the details panel
     const newDir = ref(null);     // the name typed for a new folder, null while the field is closed
+    const moveTarget = ref(null); // the folder chosen in "Verschieben nach …", moved only on the button's click
     const sort = reactive(SETTINGS.files_sort ? { ...SETTINGS.files_sort } : { key: "modified", desc: true });
     const uploads = ref([]);      // [{ id, model, file, target, sent, state: wait|run|done|ask|fail|skip, error }]
     const dropOn = ref(null);     // the folder a drag hovers: its path, "" for the top, HERE for the list
@@ -223,6 +224,10 @@ export default {
       if (!paths.length) return;
       try {
         const { moved, failed } = await api.movePrinterFiles(model.value, paths, target);
+        // The print file moved along, itself or in its folder: the top bar, 2D and 3D follow it (review 27.09.2026).
+        const chosen = ui.printFile?.model === ui.printer ? ui.printFile.path : null;
+        const from = chosen && moved.find((p) => chosen === p || chosen.startsWith(p + "/"));
+        if (from) ui.printFile = { model: ui.printer, path: (target ? target + "/" : "") + from.split("/").pop() + chosen.slice(from.length) };
         const where = target ? target.split("/").pop() : D.folders.gcodes;
         flash([moved.length && D.moved(D.entries(moved.length), where),
                failed.length && D.notMoved(D.entries(failed.length), detailText(failed[0].detail))].filter(Boolean).join(" "));
@@ -230,6 +235,7 @@ export default {
       } catch (err) {
         flash(errorText(err));
       } finally {
+        moveTarget.value = null;
         readFolder();
       }
     }
@@ -399,7 +405,7 @@ export default {
       T, D, ICON, model, u1, cameraId, folder, path, folders, files, dirs, disk, listError, picked, asking, deleting, printing,
       details, askingOne, newDir, sort, uploads, dropOn, busy, job, printingPath, inUse, current, writable, videos, keyOf, dirKey,
       pathOf, crumbs, viewable, setFile, isSet, openView, fileUrl, sortedDirs, sortedFiles, sortKeys, sortBy, allPicked,
-      countText, pickedFiles, pickedDirs, openFolder, openDir, toggle, pickAll, remove, removeAsked, makeDir, move, moveTargets,
+      countText, pickedFiles, pickedDirs, openFolder, openDir, toggle, pickAll, remove, removeAsked, makeDir, move, moveTarget, moveTargets,
       pickedPaths, answer, clearUploads, uploadsOpen, percent, fileInput, chosenFiles, dragStart, dragEnd, dragOver, dragLeave,
       drop, dropNowhere, HERE, printReady, zoomed, hoverStart, hoverEnd, openPrint, closePrint, openDetails, facts, detailRows, fmtSize, whenText, go, hashOf, ui,
       watching, player, play, stopWatching,
@@ -469,10 +475,14 @@ export default {
                 <button class="btn" type="button" @click="asking = null">{{ T.cancel }}</button>
               </template>
               <template v-else>
-                <select v-if="writable && picked.size" class="input files-move" :aria-label="D.moveTo" @change="move(pickedPaths(), $event.target.value); $event.target.selectedIndex = 0">
-                  <option value="" disabled selected>{{ D.moveTo }}</option>
+                <!-- The list only chooses; the printer changes on the button's click (review 27.09.2026: arrow keys
+                     on a closed list moved at once) -->
+                <select v-if="writable && picked.size" v-model="moveTarget" class="input files-move" :aria-label="D.moveTo">
+                  <option :value="null" disabled>{{ D.moveTo }}</option>
                   <option v-for="t in moveTargets" :key="t.path" :value="t.path">{{ t.path ? t.path : D.folders.gcodes }}</option>
                 </select>
+                <button v-if="writable && picked.size" class="btn" type="button" :disabled="moveTarget === null"
+                        @click="move(pickedPaths(), moveTarget)">{{ D.moveButton }}</button>
                 <button class="btn" type="button" :disabled="!picked.size || deleting" @click="asking = 'picked'">
                   <ui-icon name="trash"/>{{ deleting ? D.deleting : D.deletePicked }}</button>
                 <button class="btn btn-danger" type="button" :disabled="deleting" @click="asking = 'all'">{{ D.deleteAll }}</button>

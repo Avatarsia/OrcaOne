@@ -180,7 +180,7 @@ async def live_values(websocket: WebSocket):
 @app.exception_handler(camera.CameraError)
 def _camera_error(request: Request, exc: camera.CameraError):
     status = {"camera_not_found": 404, "printer_not_found": 404, "camera_host_invalid": 400, "printer_invalid": 400, "printer_name_taken": 400, "search_failed": 500,
-              "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "file_not_found": 404, "file_invalid": 400,
+              "camera_every_invalid": 400, "object_invalid": 400, "pause_invalid": 400, "folder_unknown": 404, "folder_missing": 404, "file_not_found": 404, "file_invalid": 400,
               "folder_read_only": 400, "print_invalid": 400, "print_refused": 409, "gcode_invalid": 400,
               "name_invalid": 400, "name_taken": 409, "file_refused": 409, "upload_failed": 400,
               "wifi_printing": 409, "wifi_printing_unknown": 409, "ssh_login": 403, "ssh_user_invalid": 400, "ssh_key_invalid": 400, "ssh_login_invalid": 400, "log_query_invalid": 400, "range_unsatisfiable": 416, "ssh_key_missing": 400, "ssh_key_no_public": 400}.get(exc.code, 502)
@@ -768,18 +768,27 @@ def delete_printer_files(payload: dict = Body(...)):
     host, folder = camera.host_of(model), payload.get("folder")
     if folder == "camera" and not _u1(model):
         return _error("folder_read_only")
-    return printer_files.delete(host, folder, payload.get("names"), payload.get("dirs"))
+    return printer_files.delete(host, folder, payload.get("names"), payload.get("dirs"), _u1(model))
 
 
 @app.post("/api/printers/folder/move")
 def move_printer_files(payload: dict = Body(...)):
     # On the user's drag and drop: files and folders into another folder in "gcodes".
-    return printer_files.move(camera.host_of(str(payload.get("model", ""))), payload.get("paths"), payload.get("target"))
+    model = str(payload.get("model", ""))
+    return printer_files.move(camera.host_of(model), payload.get("paths"), payload.get("target"), _u1(model))
 
 
 @app.post("/api/printers/folder/make")
 def make_printer_folder(payload: dict = Body(...)):
-    return printer_files.make_dir(camera.host_of(str(payload.get("model", ""))), payload.get("parent"), payload.get("name"))
+    model = str(payload.get("model", ""))
+    return printer_files.make_dir(camera.host_of(model), payload.get("parent"), payload.get("name"), _u1(model))
+
+
+# Uploads run in threads of their own, two at a time: a browser gone quiet mid-upload (a phone leaving the
+# WLAN) must not hold the threads every other endpoint shares, the emergency stop among them (review
+# 27.09.2026); and each block has to come within UPLOAD_WAIT seconds.
+_UPLOADS = anyio.CapacityLimiter(2)
+UPLOAD_WAIT = 60
 
 
 @app.post("/api/printers/folder/upload")
@@ -794,16 +803,21 @@ async def upload_printer_file(request: Request, model: str = "", folder: str = "
 
     async def next_block() -> bytes:
         try:
-            return await blocks.__anext__()
+            with anyio.fail_after(UPLOAD_WAIT):
+                return await blocks.__anext__()
         except StopAsyncIteration:
             return b""
         except ClientDisconnect:
             raise ValueError("the browser went away") from None
+        except TimeoutError:
+            raise ValueError("the browser went quiet") from None
 
     def chunks():
         while block := anyio.from_thread.run(next_block):
             yield block
-    return await anyio.to_thread.run_sync(lambda: printer_files.upload(host, folder, name, int(size), chunks(), replace))
+    u1 = _u1(model)
+    return await anyio.to_thread.run_sync(lambda: printer_files.upload(host, folder, name, int(size), chunks(), replace, u1),
+                                          limiter=_UPLOADS)
 
 
 def _passed_on(response, path: str, download: bool = False):
@@ -833,8 +847,9 @@ def _passed_on(response, path: str, download: bool = False):
 # By model, for the pages "3D Ansicht" and "2D Ansicht": the files in "gcodes" and one of them to
 # read, whole or a piece of it (Range, for the G-code of one line).
 @app.get("/api/printers/files")
-def printer_print_files(model: str = ""):
-    return printer_files.listing(camera.host_of(model), "gcodes")
+def printer_print_files(model: str = "", path: str = ""):
+    # The top bar reads a file chosen in a folder of "gcodes" in that folder (path, "" for the top).
+    return printer_files.listing(camera.host_of(model), "gcodes", path, _u1(model))
 
 
 @app.get("/api/printers/file")

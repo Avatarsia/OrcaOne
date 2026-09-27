@@ -113,7 +113,7 @@ export const api = {
     request("GET", `/api/printers/log/search?${new URLSearchParams({ model, path, q, regex, context })}`),
   printerLogDownload: (model, path) => `/api/printers/log/download?${new URLSearchParams({ model, path })}`,
   // Page "3D Ansicht": the print files of a printer and the address of one (read in pages/gcode-worker.js).
-  printFiles: (model) => request("GET", `/api/printers/files?model=${encodeURIComponent(model)}`),
+  printFiles: (model, path = "") => request("GET", `/api/printers/files?${new URLSearchParams({ model, path })}`),
   printFileUrl: (model, path) => `/api/printers/file?model=${encodeURIComponent(model)}&path=${encodeURIComponent(path)}`,
   // Page "Höhenkarte" (orcaone/monitor.py, mesh), once; page "Steuerung": its two commands.
   printerMesh: (model) => request("GET", `/api/printers/mesh?model=${encodeURIComponent(model)}`),
