@@ -1026,6 +1026,8 @@ const T = {
               pause: "Print paused",
               stall: (k) => `Print stalled ${k === "1" ? "once" : `${k} times`}: the G-code did not come fast enough` },
     toLog: "Click: lines of this kind in the log",
+    recordIdle: "Record at rest too",
+    recordIdleHint: "Otherwise OrcaOne keeps only what happens while printing and heating. At rest the page shows the values only while it is open. Marks always. Applies to all printers.",
   },
 
   // ---------------------------------------------------------------- page "Steuerung"

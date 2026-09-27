@@ -1586,6 +1586,11 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .charts-item:not(.is-on) .charts-swatch { opacity: .35; }
 .charts-item-name { overflow-wrap: anywhere; }
 .charts-item-value { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The switch "Auch in Ruhe aufzeichnen" below the groups, its explanation under it */
+.charts-record { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 7px; margin-top: auto; padding: 10px 4px 2px;
+                 border-top: 1px solid var(--line-box); cursor: pointer; }
+.charts-record input { margin: 2px 0 0; accent-color: var(--accent); }
+.charts-record small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
 @media (max-width: 900px) {
   .charts-body.has-panel { grid-template-columns: minmax(0, 1fr); }
   .charts-panel { position: fixed; top: var(--head-h); right: 0; bottom: 0; z-index: 17; width: min(320px, 88vw); border-radius: 0; box-shadow: -8px 0 24px rgba(0, 0, 0, .2); }

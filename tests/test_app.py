@@ -15,7 +15,7 @@ import pytest
 
 from conftest import call, copy_fixture
 from orcaone import app as app_module
-from orcaone import __version__, settings
+from orcaone import __version__, live, settings
 
 
 def test_lists_instances_and_adds_a_manual_path(server, fake_home):
@@ -126,7 +126,7 @@ def test_serves_every_module_the_ui_imports(server):
 
 
 NO_RISK = {"version": __version__, "risk_accepted": None}
-NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}, "charts": {}}
+NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}, "charts": {}, "record_idle": False}
 
 
 def test_use_at_your_own_risk_is_kept_with_its_date(server, data_dir):
@@ -429,3 +429,11 @@ def test_the_curves_of_the_charts_are_a_setting(server, data_dir):
     assert got == {"Snapmaker U1": ["temp:extruder", "flow"], "Voron": ["temp:heater_bed"]}
     for wrong in ({"charts": {}}, {"charts": ["flow"]}, {"charts": {"U1": "flow"}}, {"charts": {"U1": [1]}}, {"charts": {"": ["flow"]}}):
         assert call(f"{server}/api/settings", "POST", wrong)[0] == 400, wrong
+
+
+def test_the_switch_to_record_at_rest_is_a_setting(server, data_dir):
+    """"Auch in Ruhe aufzeichnen" on "Diagramme" (the user's wish of 27.09.2026): off unless set, for all printers."""
+    assert json.loads(call(f"{server}/api/settings")[1])["record_idle"] is False and live.record_idle() is False
+    status, body = call(f"{server}/api/settings", "POST", {"record_idle": True})
+    assert status == 200 and json.loads(body)["record_idle"] is True and live.record_idle() is True
+    assert call(f"{server}/api/settings", "POST", {"record_idle": "ja"})[0] == 400

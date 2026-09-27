@@ -40,7 +40,9 @@ def test_one_moment_as_numbers():
         "progress": 25.0, "file_position": 12345, "head": 2, "cpu": 12.5, "cpu_temp": 41, "memory": 25.0}
 
 
-def test_rows_every_second_while_busy_every_ten_at_rest(data_dir):
+def test_rows_while_busy_and_at_rest_only_with_the_switch(data_dir):
+    """A row a second while printing or heating; at rest none on the disk, the pages still get one a second
+    to draw; with the switch record_idle one every ten seconds kept (the user's wish of 27.09.2026)."""
     today = date.today()
     t0 = at(today)
     assert history.sample("U1", MONITOR, t0)["v"]["temp:extruder"] == 219.6
@@ -51,12 +53,15 @@ def test_rows_every_second_while_busy_every_ten_at_rest(data_dir):
     assert (row["v"]["rx:wlan0"], row["v"]["tx:wlan0"]) == (2500.0, 500.0)
     # No new counters since: the same rate again, not 0.
     assert history.sample("U1", traffic, t0 + 2)["v"]["rx:wlan0"] == 2500.0
-    assert history.sample("U1", IDLE, t0 + 5) is None
-    assert history.sample("U1", IDLE, t0 + 12)["t"] == round(t0 + 12)
+    assert history.sample("U1", IDLE, t0 + 5)["t"] == round(t0 + 5)
+    assert history.sample("U1", IDLE, t0 + 5.5) is None
+    assert history.sample("U1", IDLE, t0 + 8, idle=True) is None
+    assert history.sample("U1", IDLE, t0 + 15, idle=True)["t"] == round(t0 + 15)
     lines = (history.folder("U1") / f"{today.isoformat()}.csv").read_text(encoding="utf-8").splitlines()
-    # A new segment when the set of series changes: the first row, the one with traffic, the idle one.
+    # A new segment when the set of series changes: the first row, the one with traffic, the idle one kept;
+    # the idle row without the switch is not there.
     assert [line.startswith("#t,") for line in lines] == [True, False, True, False, False, True, False]
-    assert lines[-1].startswith(f"{round(t0 + 12)},")
+    assert lines[-1].startswith(f"{round(t0 + 15)},") and not any(line.startswith(f"{round(t0 + 5)},") for line in lines)
 
 
 def test_read_back_thinned_packed_and_kept_seven_days(data_dir):
@@ -101,6 +106,9 @@ def test_the_gap_filled_from_moonraker(data_dir):
     assert found["series"]["temp:tmc2240 stepper_x"][2:] == [None, None, None, None, 41]
     # Nothing twice: the seconds on record now are left alone.
     assert history.backfill("U1", store, now) == 0
+    # At rest, without the switch record_idle, only the seconds something heated.
+    cold = {"extruder": {"temperatures": [25, 25, 26], "targets": [0, 0, 200]}}
+    assert history.backfill("U2", cold, now) == 1 and history.backfill("U3", cold, now, idle=True) == 3
     # The next live row opens a segment of its own again.
     history.sample("U1", MONITOR, now + 1)
     lines = (history.folder("U1") / f"{today.isoformat()}.csv").read_text(encoding="utf-8").splitlines()
@@ -129,7 +137,7 @@ def test_tidied_also_when_the_gap_is_filled_first(data_dir):
     history.sample("U1", MONITOR, at(today - timedelta(days=2)))
     history._tidied.clear()
     history._last.clear()
-    history.backfill("U1", {"extruder": {"temperatures": [20, 21]}}, at(today, second=10))
+    history.backfill("U1", {"extruder": {"temperatures": [20, 21]}}, at(today, second=10), idle=True)
     history.sample("U1", MONITOR, at(today, second=11))
     names = sorted(p.name for p in history.folder("U1").iterdir())
     assert names == [f"{(today - timedelta(days=2)).isoformat()}.csv.gz", f"{today.isoformat()}.csv"]
@@ -143,7 +151,7 @@ def test_no_second_filling_after_midnight(data_dir):
     history.sample("U1", MONITOR, midnight - 30)
     history._last.clear()
     store = {"extruder": {"temperatures": list(range(60))}}
-    assert history.backfill("U1", store, midnight + 29) == 59   # 23:59:31 to 00:00:29, not from 23:59:00
+    assert history.backfill("U1", store, midnight + 29, idle=True) == 59   # 23:59:31 to 00:00:29, not from 23:59:00
     found = history.read("U1", midnight - 120, midnight + 60)
     assert found["t"] == sorted(set(found["t"]))
 
@@ -255,7 +263,7 @@ def test_marks_of_what_happened(data_dir):
     assert "events" not in history.sample("U1", moment(), t0)
     shutdown = history.sample("U1", moment("shutdown", "MCU 'mcu' shutdown: Timer too close\nThis often means"), t0 + 1)
     assert shutdown["events"] == [[t0 + 1, "shutdown", "MCU 'mcu' shutdown: Timer too close"]]
-    assert history.sample("U1", moment("startup", ""), t0 + 2) is None   # nothing happened, no row due at rest
+    assert "events" not in history.sample("U1", moment("startup", ""), t0 + 2)   # nothing happened
     assert history.sample("U1", moment(), t0 + 3)["events"] == [[t0 + 3, "start", ""]]
     assert history.sample("U1", moment(codes=["0003-0522-0001-0008"]), t0 + 4)["events"] == [
         [t0 + 4, "code", "0003-0522-0001-0008 Filament runout"]]
@@ -279,8 +287,8 @@ def test_marks_that_were_not_there_and_one_not_written(data_dir, monkeypatch):
                 "exceptions": exceptions, "system": {**IDLE["system"], "uptime": uptime}}
     history.sample("U1", moment(), t0)
     # live.py's own state while Moonraker cannot reach Klipper: nothing of it counts.
-    assert history.sample("U1", moment("startup", [], listed=False, uptime=5001), t0 + 1) is None
-    assert history.sample("U1", moment(uptime=5002), t0 + 2) is None
+    assert "events" not in history.sample("U1", moment("startup", [], listed=False, uptime=5001), t0 + 1)
+    assert "events" not in history.sample("U1", moment(uptime=5002), t0 + 2)
     failing = {"on": True}
     real = history._write
     monkeypatch.setattr(history, "_write", lambda *a: False if failing["on"] else real(*a))

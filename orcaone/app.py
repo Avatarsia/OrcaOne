@@ -281,7 +281,7 @@ def get_settings():
             "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None,
             "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d")),
             "chosen_instance": _chosen_instance(stored.get("chosen_instance")), "print_file": _print_files(stored.get("print_file")),
-            "charts": _charts(stored.get("charts")),
+            "charts": _charts(stored.get("charts")), "record_idle": stored.get("record_idle") is True,
             "version": __version__, "risk_accepted": _risk(stored.get("risk_accepted"))}
 
 
@@ -301,8 +301,9 @@ def set_settings(payload: dict = Body(...)):
     (true: the user confirmed "use at your own risk", kept with the time and the version),
     "chosen_instance" (the installation chosen last) and "print_file" ({"<printer>": "<path>"}: the
     print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026);
-    "charts" ({"<printer>": [series]}: the curves shown on "Diagramme")."""
-    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area") if key in payload}
+    "charts" ({"<printer>": [series]}: the curves shown on "Diagramme"); "record_idle" (true: the printers'
+    values are kept at rest too, not only while printing or heating; history.py)."""
+    changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area", "record_idle") if key in payload}
     chosen, view, accept = payload.get("chosen_printer"), payload.get("view3d"), payload.get("accept_risk")
     instance, files, charts = payload.get("chosen_instance"), payload.get("print_file"), payload.get("charts")
     if ((not changed and chosen is None and view is None and accept is None and instance is None and files is None and charts is None)
@@ -312,6 +313,7 @@ def set_settings(payload: dict = Body(...)):
             or (files is not None and (not isinstance(files, dict) or not files or _print_files(files) != files))
             or ("accept_risk" in payload and accept is not True)
             or not isinstance(changed.get("menu_collapsed", False), bool)
+            or not isinstance(changed.get("record_idle", False), bool)
             or ("theme" in changed and changed["theme"] not in THEMES)
             or ("area" in changed and changed["area"] not in AREAS)
             or (chosen is not None and (not isinstance(chosen, dict) or not chosen or _chosen(chosen) != chosen))

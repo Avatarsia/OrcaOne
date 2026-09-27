@@ -24,7 +24,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from websockets.asyncio.client import connect
 from websockets.exceptions import WebSocketException
 
-from . import camera, control, history, monitor, overview
+from . import camera, control, history, monitor, overview, settings
 from .camera import TIMEOUT, CameraError
 
 log = logging.getLogger(__name__)
@@ -235,7 +235,7 @@ class _Hub:
                     # temperatures of the last 20 minutes, so the charts do not begin empty.
                     try:
                         store = await call("server.temperature_store", {"include_monitors": True}) or {}
-                        await asyncio.to_thread(history.backfill, self.printer, store)
+                        await asyncio.to_thread(history.backfill, self.printer, store, None, record_idle())
                     except (CameraError, OSError):
                         pass   # without it the recording begins now
                 # Only now: Moonraker's notes on the computer come before the answer to the subscription,
@@ -295,6 +295,11 @@ def _hub(printer: str) -> _Hub:
     return hub
 
 
+def record_idle() -> bool:
+    """The switch on "Diagramme": keep rows at rest too (the user's wish of 27.09.2026), off unless set."""
+    return settings.load().get("record_idle") is True
+
+
 async def recording() -> None:
     """Every printer with an address connected, and once a second a row of its values (history.sample):
     written to data/history/ and sent to the pages watching it as {"printer", "sample": {"t", "v"}}. Runs
@@ -324,13 +329,14 @@ async def recording() -> None:
                     hub.stopping = hub.loop.call_later(LINGER, hub._stop)
             for name in names:
                 _hub(name)
+        idle = await asyncio.to_thread(record_idle)
         for hub in list(_hubs.values()):
             monitor_values = (hub.data or {}).get("monitor")
             # Nothing heard for a while (a WLAN gone quiet before the socket notices): no frozen rows.
             if hub.printer not in _kept or not monitor_values or time.monotonic() - hub.heard > QUIET:
                 continue
             try:
-                row = await asyncio.to_thread(history.sample, hub.printer, monitor_values)
+                row = await asyncio.to_thread(history.sample, hub.printer, monitor_values, None, idle)
             except Exception:   # a value of an unknown kind must not end the recording
                 log.exception("Recording %s failed", hub.printer)
                 continue

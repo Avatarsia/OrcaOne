@@ -1038,6 +1038,8 @@ const T = {
               pause: "Druck pausiert",
               stall: (k) => `Druck stand ${k === "1" ? "einmal" : `${k}-mal`} still: der G-Code kam nicht schnell genug` },
     toLog: "Klick: diese Art Zeilen im Log",
+    recordIdle: "Auch in Ruhe aufzeichnen",
+    recordIdleHint: "Sonst hält OrcaOne nur fest, was beim Drucken und Heizen passiert. In Ruhe zeigt die Seite die Werte nur, solange sie offen ist. Marken immer. Gilt für alle Drucker.",
   },
 
   // ---------------------------------------------------------------- page "Steuerung"

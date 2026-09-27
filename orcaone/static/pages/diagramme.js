@@ -124,6 +124,7 @@ export default {
     let uPlot = null, lanePlots = [], overview = null, cols = { t: [], series: {}, files: [], events: [] }, wide = cols, detail = false;
     let asked = 0, builds = 0, builtKey = "", gone = false, saveTimer = 0, fetchTimer = 0, pendingLog = 0, activeLane = -1, look = null, zooming = false;
     let seenFile;   // the print file of the last live row: undefined after a load, null while not printing
+    let lastLive = null;   // the time of the last live row since the last load
     let backSeconds = 0, overviewNames = [];   // what the overview spans back from its newest row, and its lines
     let observer = null, themeWatch = null;
 
@@ -183,6 +184,17 @@ export default {
       unsent = () => api.setCharts(name, chosen).catch(() => {});
       saveTimer = setTimeout(send, 600);
     }
+    // Kept at rest too (data/settings.json "record_idle", the user's wish of 27.09.2026): else only printing
+    // and heating go to the disk, at rest the page draws what comes while it is open. For all printers.
+    const recordIdle = ref(SETTINGS.record_idle === true);
+    async function setRecordIdle(on) {
+      recordIdle.value = SETTINGS.record_idle = on;
+      try {
+        await api.setRecordIdle(on);
+      } catch {
+        recordIdle.value = SETTINGS.record_idle = !on;
+      }
+    }
     const toggle = (n) => choose(picked.value.includes(n) ? picked.value.filter((x) => x !== n) : [...picked.value, n]);
     // The views this printer has values for; the one the choice matches, "" for one of the user's own.
     const headIds = computed(() => {
@@ -240,6 +252,7 @@ export default {
         detail = Boolean(window_);
         if (back) wide = back;
         seenFile = undefined;
+        lastLive = null;
         failed.value = "";
         names.value = namesOf();
         if (!picked.value.length) restore();
@@ -274,9 +287,10 @@ export default {
     function add(sample) {
       if (!sample || busy.value || gone) return;
       // Back after a while without samples (the browser tab hidden, OrcaOne restarted): the recording went
-      // on meanwhile, so read it instead of drawing a gap (review 27.09.2026).
-      const end = wide.t[wide.t.length - 1];
-      if (!detail && end != null && sample.t - end > GAP) return load();
+      // on meanwhile, so read it instead of drawing a gap (review 27.09.2026). By the live rows, not by the
+      // last row read: at rest nothing is recorded (record_idle), that row may be hours old.
+      if (!detail && lastLive != null && sample.t - lastLive > GAP) return load();
+      lastLive = sample.t;
       // While the lanes show the overview's own rows (dragged back), nothing is dropped from them.
       append(wide, sample, cols === wide ? 0 : seconds() * BACK);
       if (!detail) append(cols, sample, follow.value ? seconds() : 0);
@@ -786,7 +800,7 @@ export default {
       darkQuery.removeEventListener("change", rebuild);
     });
 
-    return { D, presetIds, presetLabel, presetNow, presetChoice, printer, spans, span, follow, busy, failed, names, picked, panelOpen, opened, lanes, laneBoxes, lanesBox,
+    return { D, presetIds, presetLabel, presetNow, presetChoice, recordIdle, setRecordIdle, printer, spans, span, follow, busy, failed, names, picked, panelOpen, opened, lanes, laneBoxes, lanesBox,
              overviewBox, overviewFrom, catalogue, windowStyle, hoverBox, label, colour, partOf, shownValue, isOpen, toggle,
              pick, toggleFollow, spotlight, leaveLanes, overviewDown, overviewMove, overviewUp };
   },
@@ -871,6 +885,10 @@ export default {
               </ul>
             </section>
           </div>
+          <label class="charts-record">
+            <input type="checkbox" :checked="recordIdle" @change="setRecordIdle($event.target.checked)">
+            <span>{{ D.recordIdle }}<small>{{ D.recordIdleHint }}</small></span>
+          </label>
         </aside>
       </div>
     </div>

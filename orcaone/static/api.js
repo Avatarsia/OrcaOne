@@ -73,6 +73,8 @@ export const api = {
   setPrintFile: (printer, path) => request("POST", "/api/settings", { print_file: { [printer]: path } }),
   // The curves shown on "Diagramme" for a printer (the user's wish of 27.09.2026).
   setCharts: (printer, names) => request("POST", "/api/settings", { charts: { [printer]: names } }),
+  // Keep the printers' values at rest too, not only while printing or heating (orcaone/history.py).
+  setRecordIdle: (on) => request("POST", "/api/settings", { record_idle: on }),
   // Where the camera of "3D Ansicht" was left: the page opens with it again.
   setView3d: (view) => request("POST", "/api/settings", { view3d: view }),
   // "Use at your own risk" confirmed: the server keeps it with the time and the version

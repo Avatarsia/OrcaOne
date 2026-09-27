@@ -12,8 +12,10 @@ marks the print file from its start on, so a moment and its file_position lead t
 Ansicht" and "3D Ansicht"; a print over midnight marks it again in the new day's file, with its start.
 "#event,<unix seconds>,<kind>,<words>" marks what happened (_events: Klipper started or shut down, a code
 of the U1, a pause, a stall). A day that is over is packed with gzip. Kept KEEP_DAYS days; the two last prints of each print file come later with the view "Druck".
-While the printer prints or heats a row every STEP seconds, at rest every IDLE_STEP seconds (the user's
-decisions of 27.09.2026). Read only towards the printer: this only listens.
+While the printer prints or heats a row every STEP seconds (the user's decisions of 27.09.2026). At rest
+nothing but the marks goes to the disk: the values there are dull (the user, 27.09.2026); the pages watching
+still get a row every STEP seconds to draw. The switch "record_idle" (data/settings.json, on the page) keeps
+rest too, a row every IDLE_STEP seconds. Read only towards the printer: this only listens.
 """
 
 import gzip
@@ -28,15 +30,15 @@ from pathlib import Path
 
 from . import settings
 
-STEP = 1           # s between two rows while the printer prints or heats
-IDLE_STEP = 10     # s between two rows at rest
+STEP = 1           # s between two rows while the printer prints or heats, and for the pages at rest
+IDLE_STEP = 10     # s between two rows kept at rest (record_idle)
 KEEP_DAYS = 7      # days of rows kept (the user's decision of 27.09.2026)
 SECONDS_MAX = KEEP_DAYS * 86400
 POINTS_MAX = 5000  # time steps one answer holds at most; more are thinned to the least and most per step
 GAP = 3 * IDLE_STEP  # s without a row that the charts show as a gap: the printer did not answer
 TAIL = 65536       # bytes at the end of a day's file enough to find its newest row
 
-# printer: {"t": time of its last row, "names": its series, "counters": {name: bytes}, "clock": Moonraker's
+# printer: {"t": time of its last row, "written": of its last row on the disk, "names": its series, "counters": {name: bytes}, "clock": Moonraker's
 # time of those counters, "rates": the traffic last computed, "file": the print file marked last,
 # "mcus": {name: {"at", "counters", "rates"}} as _mcu_rates saw them, "seen": the state _events saw last}
 _last: dict[str, dict] = {}
@@ -103,15 +105,18 @@ def _busy(monitor: dict) -> bool:
     return _printing(monitor) or any((t.get("target") or 0) > 0 for t in monitor.get("temperatures") or [])
 
 
-def sample(printer: str, monitor: dict, now: float | None = None) -> dict | None:
-    """One row for the printer if one is due, written and returned as {"t", "v": {series: value}}, else None."""
+def sample(printer: str, monitor: dict, now: float | None = None, idle: bool = False) -> dict | None:
+    """One row for the printer if one is due, returned as {"t", "v": {series: value}}, else None; written
+    while it prints or heats, at rest only with idle (the switch record_idle), the marks always."""
     now = time.time() if now is None else now
-    last = _last.setdefault(printer, {"t": None, "names": None, "counters": {}, "clock": None, "rates": {}, "file": None,
-                                      "started": None, "day": None, "mcus": {}, "seen": None})
+    last = _last.setdefault(printer, {"t": None, "written": None, "names": None, "counters": {}, "clock": None, "rates": {},
+                                      "file": None, "started": None, "day": None, "mcus": {}, "seen": None})
+    busy = _busy(monitor)
+    keep = busy or idle
     # Looked at every second; something that happened brings a row at once, also at rest. What was seen
     # counts only once written: a mark that could not be written is found again next time (review 27.09.2026).
     events, seen = _events(last["seen"], monitor)
-    if not events and last["t"] is not None and now - last["t"] < (STEP if _busy(monitor) else IDLE_STEP) - 0.05:
+    if not events and last["t"] is not None and now - last["t"] < (IDLE_STEP if keep and not busy else STEP) - 0.05:
         last["seen"] = seen
         return None
     row = values(monitor)
@@ -121,19 +126,22 @@ def sample(printer: str, monitor: dict, now: float | None = None) -> dict | None
     day = date.fromtimestamp(t)
     names = sorted(row)
     lines = [f"#event,{t},{kind},{words}" for kind, words in events]
-    job = monitor.get("job") or {}
-    file = job.get("file") if _printing(monitor) and isinstance(job.get("file"), str) else None
-    # Each day's file readable on its own (review 27.09.2026): its header, and a print going on its mark
-    # with the time the print began, so the page draws no second start at midnight.
-    started = last["started"] if file and file == last["file"] else t
-    if file and (file != last["file"] or day != last["day"]):
-        lines.append(f"#file,{started},{file}")
-    if names != last["names"] or day != last["day"]:
-        lines.append("#t," + ",".join(names))
-    lines.append(f"{t}," + ",".join(_text(row[n]) for n in names))
-    if not _write(printer, day, lines):
+    if keep:
+        job = monitor.get("job") or {}
+        file = job.get("file") if _printing(monitor) and isinstance(job.get("file"), str) else None
+        # Each day's file readable on its own (review 27.09.2026): its header, and a print going on its mark
+        # with the time the print began, so the page draws no second start at midnight.
+        started = last["started"] if file and file == last["file"] else t
+        if file and (file != last["file"] or day != last["day"]):
+            lines.append(f"#file,{started},{file}")
+        if names != last["names"] or day != last["day"]:
+            lines.append("#t," + ",".join(names))
+        lines.append(f"{t}," + ",".join(_text(row[n]) for n in names))
+    if lines and not _write(printer, day, lines):
         return None   # a full disk or a locked file: the next second tries again, the marks too
-    last.update(t=now, names=names, file=file, started=started if file else None, day=day, seen=seen)
+    if keep:
+        last.update(written=now, names=names, file=file, started=started if file else None, day=day)
+    last.update(t=now, seen=seen)
     return {"t": t, "v": row, **({"events": [[t, kind, words] for kind, words in events]} if events else {})}
 
 
@@ -245,10 +253,11 @@ def _write(printer: str, day: date, lines: list[str]) -> bool:
         return False
 
 
-def backfill(printer: str, store: dict, now: float | None = None) -> int:
+def backfill(printer: str, store: dict, now: float | None = None, idle: bool = False) -> int:
     """Moonraker's temperatures of the last 20 minutes (server.temperature_store: per heater and sensor up
     to 1200 values a second apart, the last one now, without times) for the seconds after the last row
-    on record, say after OrcaOne or the printer was off. Returns the rows written."""
+    on record, say after OrcaOne or the printer was off; without idle (record_idle) only the seconds
+    something heated, as sample keeps them. Returns the rows written."""
     now = time.time() if now is None else now
     columns = {}
     for name, found in (store or {}).items():
@@ -272,7 +281,7 @@ def backfill(printer: str, store: dict, now: float | None = None) -> int:
             v = found[j] if j >= 0 else None
             if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
                 row[name] = round(v * scale, 2)
-        if row:
+        if row and (idle or any(v > 0 for n, v in row.items() if n.startswith("target:"))):
             days.setdefault(date.fromtimestamp(t), []).append((t, row))
     written = 0
     for day, rows in days.items():
@@ -291,7 +300,7 @@ def _last_on_record(printer: str, now: float) -> int | None:
     """The time of the newest row on record: from this run, else from the end of today's or yesterday's
     file (yesterday's only while not packed yet), so nothing is written twice around midnight."""
     found = []
-    known = (_last.get(printer) or {}).get("t")
+    known = (_last.get(printer) or {}).get("written")
     if known is not None:
         found.append(round(known))
     today = date.fromtimestamp(now)
