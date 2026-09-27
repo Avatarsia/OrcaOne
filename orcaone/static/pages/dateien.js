@@ -40,11 +40,18 @@ export default {
     // A print file becomes the one "2D Ansicht" and "3D Ansicht" show, the one in the top bar (the
     // user's wish of 24.09.2026): a click on its name, or on "3D" and "2D", which also go there.
     const viewable = (f) => folder.value === "gcodes" && /\.gcode$/i.test(pathOf(f));
-    const setFile = (f) => { ui.printFile = { model: ui.printer, path: pathOf(f) }; };
+    // Not while the printer prints another one (app.js fileLocked): its file stays.
+    function setFile(f) {
+      if (ui.fileLocked && ui.printFile?.path !== pathOf(f)) {
+        flash(T.fileMenu.locked);
+        return false;
+      }
+      ui.printFile = { model: ui.printer, path: pathOf(f) };
+      return true;
+    }
     const isSet = (f) => viewable(f) && ui.printFile?.model === ui.printer && ui.printFile.path === pathOf(f);
     function openView(f, page) {
-      setFile(f);
-      go(null, hashOf(page, props.instId));
+      if (setFile(f)) go(null, hashOf(page, props.instId));
     }
     const fileUrl = (path, download = false) => api.printerFileUrl(chosen.value, folder.value, path, download);
     const busy = computed(() => BUSY.includes(setup.value?.state));

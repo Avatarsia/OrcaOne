@@ -32,6 +32,7 @@ const T = {
     printing: "Druckt gerade",
     local: "Datei vom Rechner …",
     localNow: (name) => `Vom Rechner: ${name}`,
+    locked: "Der Drucker druckt: eine andere Datei erst nach dem Druck.",
   },
   // Next to it (app.js): print that file, cancel the print, emergency stop. Each only on a click.
   printBar: {

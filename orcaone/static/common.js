@@ -89,9 +89,12 @@ export function go(ev, hash) {
 // viewLayer: the layer both stand at, one slider for both (the user: "out of sync" through the menu);
 // null for a new file, then both start at the top, as the slicer's preview does.
 export const ui = reactive({ instId: null, printer: null, toast: "", detailsFor: null, filamentFocus: null, processFocus: null, calibrateFor: null,
-                             printFile: null, viewLayer: null, addressFor: null });
+                             printFile: null, viewLayer: null, addressFor: null,
+                             // While the printer of the printer part prints: its file stays the print file (app.js).
+                             fileLocked: false });
 let localFile = null;
 export function setLocalPrintFile(file) {
+  if (ui.fileLocked) return flash(T.fileMenu.locked);
   localFile = file;
   ui.printFile = { local: file.name, size: file.size, stamp: file.lastModified };
 }

@@ -27,6 +27,7 @@ const T = {
     printing: "Printing now",
     local: "File from this computer …",
     localNow: (name) => `From this computer: ${name}`,
+    locked: "The printer is printing: another file only after the print.",
   },
   printBar: {
     label: "Print and Klipper",

@@ -725,6 +725,10 @@ const app = createApp({
     const liveJob = computed(() => live[ui.printer]?.data?.monitor?.job || null);
     // Klipper's print_stats.state (printing, paused, standby, …); null while unknown or unreachable.
     const jobState = computed(() => (area.value === "printer" && !live[ui.printer]?.error && liveJob.value?.state) || null);
+    // While it prints, its file is the print file and no other can be chosen (the user's wish of
+    // 27.09.2026: another file makes no sense then); for "Dateien" and a file dropped on 3D or 2D too.
+    const fileLocked = computed(() => ["printing", "paused"].includes(jobState.value) && !!liveJob.value?.file);
+    watch(fileLocked, (on) => { ui.fileLocked = on; }, { immediate: true });
     const fileOpen = ref(false);
     const fileBtn = ref(null);
     const fileMenu = ref(null);
@@ -751,7 +755,7 @@ const app = createApp({
       if (first || (printing && printing !== jobFile.value)) await readFiles();
       if (model !== ui.printer) return;
       const kept = first && printFiles.value?.find((f) => pathOf(f) === SETTINGS.print_file?.[model]);
-      if (printing && printing !== jobFile.value && !kept) ui.printFile = { model, path: printing };
+      if (printing && (ui.printFile?.model !== model || ui.printFile.path !== printing)) ui.printFile = { model, path: printing };
       else if (first && !ui.printFile && (kept || printFiles.value?.[0])) ui.printFile = { model, path: pathOf(kept || printFiles.value[0]) };
       jobFile.value = printing;
     }
@@ -932,7 +936,7 @@ const app = createApp({
       narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       riskShown, riskBusy, riskBtn, acceptRisk, appVersion,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
-      thumbOf, fileThumb, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, restartOpen, api,
+      thumbOf, fileThumb, fileLocked, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, restartOpen, api,
       klipper, klipperDown, hosts, tabBox, tabRows, tabNow, pickTab, tabKey, moreOpen, moreBtn, moreMenu, toggleMore, moreKey, moreDot,
       toNetwork, away,
     };
@@ -1031,8 +1035,8 @@ const app = createApp({
           <template v-if="area === 'printer' && machine">
             <!-- The print file for "2D Ansicht" and "3D Ansicht" (the user's wish) -->
             <div class="inst file-pick" @keydown="fileKey">
-              <button ref="fileBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="fileOpen ? 'true' : 'false'"
-                      :title="ui.printFile ? T.fileMenu.title(fileName) : T.fileMenu.label" @click="toggleFile">
+              <button ref="fileBtn" class="inst-btn" type="button" aria-haspopup="menu" :aria-expanded="fileOpen ? 'true' : 'false'" :disabled="fileLocked"
+                      :title="fileLocked ? T.fileMenu.title(fileName) + ' · ' + T.fileMenu.locked : ui.printFile ? T.fileMenu.title(fileName) : T.fileMenu.label" @click="toggleFile">
                 <img v-if="fileThumb" class="file-thumb" :src="fileThumb" alt="" width="24" height="24">
                 <ui-icon v-else :name="ui.printFile?.local ? 'folderOpen' : 'file'"/>
                 <span class="inst-name file-name">{{ fileName || T.fileMenu.none }}</span>
