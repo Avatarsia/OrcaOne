@@ -1706,6 +1706,48 @@ span.cal-check { cursor: default; }
 .files-tool { display: inline-flex; align-items: center; gap: 4px; }
 .files-dot { flex: none; width: 10px; height: 10px; border: 1px solid var(--line-input); border-radius: 50%; }
 .files-actions { flex: none; display: flex; gap: 6px; }
+/* The file explorer: where in "Druckdateien", sorting, folders, drag and drop, uploads, details */
+.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0 0 10px; color: var(--muted); }
+.files-crumb { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px dashed transparent; border-radius: 6px;
+               background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
+.files-crumb:hover { background: var(--surface-2); }
+.files-crumb[aria-current="page"] { color: inherit; }
+.files-crumb.is-drop { border-color: var(--accent-line); background: var(--focus-bg); }
+.files-tools-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 14px; border-bottom: 1px solid var(--divider); }
+.files-sort { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.files-sort-label { color: var(--muted); font-size: 13px; }
+.files-sort-dir { margin-left: 2px; transition: transform .15s; }
+.files-sort-dir.is-asc { transform: rotate(180deg); }
+.files-newdir { display: flex; flex-wrap: wrap; gap: 6px; }
+.files-newdir .input { width: 200px; }
+.files-move { width: auto; max-width: 220px; }
+.files-box.is-drop { outline: 2px dashed var(--accent-line); outline-offset: -2px; }
+.files-drop-hint { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--divider);
+                   background: var(--focus-bg); color: var(--accent-text); font-weight: 700; }
+.files-row[draggable="true"] { cursor: grab; }
+.files-row.is-drop { background: var(--focus-bg); box-shadow: inset 0 0 0 2px var(--accent-line); }
+.files-row.is-shown { background: var(--selected); }
+.files-thumb.is-dir { color: var(--accent); }
+.files-set-badge.is-printing { background: var(--warn-bg); color: var(--warn); }
+.files-uploads { display: flex; flex-direction: column; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--divider); font-size: 13px; }
+.files-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.files-upload.is-done .icon { color: var(--accent); }
+.files-upload.is-fail, .files-upload.is-ask { color: var(--warn); }
+.files-upload-name { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.files-upload-to { color: var(--muted); font-weight: 400; }
+.files-upload-state { color: var(--muted); }
+.files-progress { width: 140px; height: 8px; accent-color: var(--accent); }
+.files-uploads-clear { align-self: flex-start; font-size: 12px; }
+.files-zoom { position: fixed; top: 50%; left: 50%; z-index: 30; transform: translate(-50%, -50%); display: flex; flex-direction: column;
+              align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--line-box); border-radius: 8px; background: var(--surface);
+              box-shadow: 0 12px 40px rgba(0, 0, 0, .3); pointer-events: none; animation: files-zoom-in .15s ease-out; }
+.files-zoom img { display: block; width: min(420px, 80vw); height: min(420px, 70vh); object-fit: contain; border-radius: 6px; background: var(--surface-2); }
+.files-zoom-name { max-width: min(420px, 80vw); overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes files-zoom-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.96); } }
+.files-details-picture { display: block; width: 100%; max-height: 260px; margin: 0 0 12px; border-radius: 6px; object-fit: contain; background: var(--surface-2); }
+.files-details-tool { padding: 2px 0; font-size: 13px; }
+.files-details-actions { flex-wrap: wrap; margin-top: 16px; }
+.files-details-delete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--divider); }
 /* The print panel, with the options of the U1's display */
 .print-file { display: flex; align-items: center; gap: 12px; }
 .print-file img { flex: none; width: 96px; height: 96px; border-radius: 6px; object-fit: contain; background: var(--surface-2); }

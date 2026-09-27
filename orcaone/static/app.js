@@ -98,7 +98,7 @@ const PAGES = [
   { id: "druck3d", area: "printer", icon: "cube", component: Druck3dPage, standalone: true, printer: true },
   { id: "druck2d", area: "printer", icon: "toolpath", component: Druck2dPage, standalone: true, printer: true },
   { id: "kamera", area: "printer", icon: "camera", component: KameraPage, standalone: true, u1: true, printer: true },
-  { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, u1: true, printer: true },
+  { id: "dateien", area: "printer", icon: "folderOpen", component: DateienPage, standalone: true, printer: true },
   { id: "hoehenkarte", area: "printer", icon: "mesh", component: HoehenkartePage, standalone: true, printer: true },
   { id: "konsole", area: "printer", icon: "code", component: KonsolePage, standalone: true, printer: true },
   // How the printer is in the network, where it gets stuck (the user's wish of 25.09.2026): for any
@@ -743,6 +743,17 @@ const app = createApp({
       }
       return printFiles.value || [];
     }
+    // A print file in its own folder of "gcodes": the list above holds only the top (review 27.09.2026,
+    // files in folders came with the page "Dateien" of PR #3). null if it is not there (any more).
+    async function findFile(model, path) {
+      const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+      try {
+        const files = folder ? (await api.printFiles(model, folder)).files || [] : await readFiles();
+        return files.find((f) => pathOf(f) === path) || null;
+      } catch {
+        return null;
+      }
+    }
     // With the first values and when a print starts: its file becomes the print file. At the first
     // look the one chosen last for this printer goes first, if it is still on it (the user's wish of
     // 26.09.2026), else the one printing, else the newest. The list anew then (for the pictures), the
@@ -754,7 +765,10 @@ const app = createApp({
       const first = jobFile.value === undefined;
       if (first || (printing && printing !== jobFile.value)) await readFiles();
       if (model !== ui.printer) return;
-      const kept = first && printFiles.value?.find((f) => pathOf(f) === SETTINGS.print_file?.[model]);
+      const remembered = first ? SETTINGS.print_file?.[model] : null;
+      const kept = remembered && (remembered.includes("/") ? await findFile(model, remembered)
+        : printFiles.value?.find((f) => pathOf(f) === remembered));
+      if (model !== ui.printer) return;
       if (printing && (ui.printFile?.model !== model || ui.printFile.path !== printing)) ui.printFile = { model, path: printing };
       else if (first && !ui.printFile && (kept || printFiles.value?.[0])) ui.printFile = { model, path: pathOf(kept || printFiles.value[0]) };
       jobFile.value = printing;
@@ -807,7 +821,16 @@ const app = createApp({
     const fileIsSet = (f) => ui.printFile?.model === ui.printer && ui.printFile.path === pathOf(f);
     // The slicer's picture of a print file (the user's wish), from the top of "gcodes" like the files.
     const thumbOf = (f) => (f?.thumb ? api.printFileUrl(ui.printer, f.thumb) : "");
-    const fileThumb = computed(() => thumbOf(ui.printFile?.path && printFiles.value?.find((f) => pathOf(f) === ui.printFile.path)));
+    // A file in a folder: read there, for its picture.
+    const folderFile = ref(null);
+    watch(() => (ui.printFile?.model === ui.printer ? ui.printFile.path : null), async (path) => {
+      folderFile.value = null;
+      if (!path?.includes("/")) return;
+      const found = await findFile(ui.printer, path);
+      if (ui.printFile?.path === path) folderFile.value = found;
+    });
+    const fileThumb = computed(() => thumbOf(ui.printFile?.path
+      && (printFiles.value?.find((f) => pathOf(f) === ui.printFile.path) || (pathOf(folderFile.value || {}) === ui.printFile.path ? folderFile.value : null))));
     const fileName = computed(() => {
       const f = ui.printFile;
       return f ? (f.local || f.path.split("/").pop()).replace(/\.(gcode|gco|g)$/i, "") : "";
@@ -841,7 +864,7 @@ const app = createApp({
       const model = ui.printer, path = ui.printFile.path;
       try {
         // The list anew: the slicer may just have sent the file, with the filaments for the heads.
-        const file = (await readFiles()).find((f) => pathOf(f) === path);
+        const file = await findFile(model, path);
         const camera = file && isU1.value ? (await api.cameras()).cameras.find((c) => c.printer === model)?.id || null : null;
         if (model !== ui.printer) return;
         if (!file) return flash(T.printBar.gone);

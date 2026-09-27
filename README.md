@@ -30,8 +30,9 @@ A local web app for your **OrcaSlicer** and **Snapmaker Orca** profiles and your
 - Charts over seven days, recorded by OrcaOne itself: temperatures with targets, heater power, speed, flow, fans, microcontrollers and their line, system, marks for Klipper starts, shutdowns and errors; live or back in time
 - Errors explained: the U1's codes and Klipper's messages, what they mean and what helps
 - 3D and 2D view of the print file, following the running print
+- File explorer: upload by drag and drop, folders, sort by size or date, delete in bulk, details
 - Bed mesh, G-code console, logs with search, SSH in the browser, network and Wi-Fi diagnostics
-- Snapmaker U1: camera, files, start prints like on its display, filament calibration
+- Snapmaker U1: camera, time-lapses, start prints like on its display, filament calibration
 
 English and German, light and dark, reachable from any device on your LAN.
 
@@ -91,8 +92,9 @@ Eine lokale Web-App für deine Profile in **OrcaSlicer** und **Snapmaker Orca** 
 - Diagramme über sieben Tage, von OrcaOne selbst aufgezeichnet: Temperaturen mit Soll, Heizleistung, Tempo, Fluss, Lüfter, Mikrocontroller und ihre Leitung, System, Marken für Klipper-Starts, Abschaltungen und Fehler; live oder zurück in der Zeit
 - Fehler erklärt: die Codes des U1 und Klippers Meldungen, was sie heißen und was hilft
 - 3D und 2D Ansicht der Druckdatei, folgt dem laufenden Druck
+- Datei-Explorer: Hochladen per Drag & Drop, Ordner, nach Größe oder Datum sortieren, im Bulk löschen, Details
 - Höhenkarte, G-Code-Konsole, Logs mit Suche, SSH im Browser, Netzwerk und WLAN
-- Snapmaker U1: Kamera, Dateien, Druckstart wie am Display, Filament kalibrieren
+- Snapmaker U1: Kamera, Zeitraffer, Druckstart wie am Display, Filament kalibrieren
 
 Deutsch und Englisch, hell und dunkel, erreichbar von jedem Gerät im LAN.
 
