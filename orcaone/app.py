@@ -1,11 +1,14 @@
 """FastAPI app: JSON API under /api, the static UI under /."""
 
+import asyncio
 import ipaddress
 import json
 import math
 import mimetypes
 import re
 import socket
+import time
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -16,8 +19,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import (__version__, backup, calibration, camera, console, control, covers, guard, importer, instances, live, logs, monitor,
-               errors, network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
+from . import (__version__, backup, calibration, camera, console, control, covers, guard, history, importer, instances, live, logs,
+               monitor, errors, network, operations, overview, printer_files, printer_logs, scanner, settings, snapshot, ssh)
 from .resolver import Resolver
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -45,8 +48,18 @@ class Utf8Response(JSONResponse):
         return text.encode("utf-8", "replace")
 
 
+@asynccontextmanager
+async def _running(_app):
+    # The recording of every printer with an address for the page "Diagramme" (live.recording), as long
+    # as the server runs.
+    task = asyncio.create_task(live.recording()) if live.RECORD else None
+    yield
+    if task:
+        task.cancel()
+
+
 app = FastAPI(title="OrcaOne", version=__version__, docs_url=None, redoc_url=None, openapi_url=None,
-              default_response_class=Utf8Response)
+              default_response_class=Utf8Response, lifespan=_running)
 
 
 def _hostname(value: str) -> str | None:
@@ -236,6 +249,14 @@ def _print_files(value) -> dict:
             if isinstance(value, dict) else {})
 
 
+def _charts(value) -> dict:
+    """The curves shown per printer on "Diagramme" (the user's wish of 27.09.2026), {"<printer>": [series]}."""
+    if not isinstance(value, dict):
+        return {}
+    return {k: [n for n in v if isinstance(n, str) and 0 < len(n) <= 120][:60] for k, v in value.items()
+            if isinstance(k, str) and 0 < len(k) <= 200 and isinstance(v, list)}
+
+
 def _view3d(value) -> dict | None:
     """The camera of "3D Ansicht" as the user left it, in mm: {"position": [x, y, z], "target": [x, y, z]}."""
     point = lambda v: (isinstance(v, list) and len(v) == 3
@@ -260,6 +281,7 @@ def get_settings():
             "theme": theme if theme in THEMES else None, "area": area if area in AREAS else None,
             "chosen_printer": _chosen(stored.get("chosen_printer")), "view3d": _view3d(stored.get("view3d")),
             "chosen_instance": _chosen_instance(stored.get("chosen_instance")), "print_file": _print_files(stored.get("print_file")),
+            "charts": _charts(stored.get("charts")),
             "version": __version__, "risk_accepted": _risk(stored.get("risk_accepted"))}
 
 
@@ -278,11 +300,13 @@ def set_settings(payload: dict = Body(...)):
     which it takes again instead of the standard view; the user's wish of 25.09.2026), "accept_risk"
     (true: the user confirmed "use at your own risk", kept with the time and the version),
     "chosen_instance" (the installation chosen last) and "print_file" ({"<printer>": "<path>"}: the
-    print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026)."""
+    print file chosen last for a printer); the next start takes them again (the user's wish of 26.09.2026);
+    "charts" ({"<printer>": [series]}: the curves shown on "Diagramme")."""
     changed = {key: payload[key] for key in ("language", "menu_collapsed", "theme", "area") if key in payload}
     chosen, view, accept = payload.get("chosen_printer"), payload.get("view3d"), payload.get("accept_risk")
-    instance, files = payload.get("chosen_instance"), payload.get("print_file")
-    if ((not changed and chosen is None and view is None and accept is None and instance is None and files is None)
+    instance, files, charts = payload.get("chosen_instance"), payload.get("print_file"), payload.get("charts")
+    if ((not changed and chosen is None and view is None and accept is None and instance is None and files is None and charts is None)
+            or (charts is not None and (not isinstance(charts, dict) or not charts or _charts(charts) != charts))
             or ("language" in changed and changed["language"] not in LANGUAGES)
             or ("chosen_instance" in payload and _chosen_instance(instance) is None)
             or (files is not None and (not isinstance(files, dict) or not files or _print_files(files) != files))
@@ -304,6 +328,8 @@ def set_settings(payload: dict = Body(...)):
             data["chosen_instance"] = instance
         if files:
             data["print_file"] = {**_print_files(data.get("print_file")), **files}
+        if charts:
+            data["charts"] = {**_charts(data.get("charts")), **charts}
         if accept:
             data["risk_accepted"] = {"at": datetime.now().astimezone().isoformat(timespec="seconds"), "version": __version__}
     try:
@@ -650,6 +676,19 @@ def camera_light(camera_id: str, payload: dict = Body(...)):
 def camera_status(camera_id: str):
     # Read only: spools, pressure advance and print state for the page "Kalibrieren".
     return camera.status(camera.find(camera_id)["host"])
+
+
+@app.get("/api/history")
+def printer_history(printer: str = "", seconds: float = 900, points: int = history.POINTS_MAX, until: float | None = None):
+    # What OrcaOne recorded of a printer (history.py): the `seconds` up to now or up to `until` (a window
+    # of the past on "Diagramme"), thinned to `points` time steps.
+    if not printer or len(printer) > 200:
+        return _error("printer_invalid")
+    if not math.isfinite(seconds) or seconds <= 0 or (until is not None and not math.isfinite(until)):
+        return _error("history_invalid")
+    now = time.time()
+    start = (now if until is None else until) - min(seconds, history.SECONDS_MAX)
+    return history.read(printer, start, now if until is None else min(until, now), points=points)
 
 
 @app.get("/api/covers/{key}")

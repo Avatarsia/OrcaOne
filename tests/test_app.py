@@ -126,7 +126,7 @@ def test_serves_every_module_the_ui_imports(server):
 
 
 NO_RISK = {"version": __version__, "risk_accepted": None}
-NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}}
+NOTHING_CHOSEN = {"chosen_instance": None, "print_file": {}, "charts": {}}
 
 
 def test_use_at_your_own_risk_is_kept_with_its_date(server, data_dir):
@@ -419,3 +419,13 @@ def test_a_backup_outside_an_installation_is_never_touched(server, monkeypatch):
 def test_a_huge_number_for_the_3d_camera(server, data_dir):
     view = {"position": [10 ** 400, 0, 0], "target": [0, 0, 0]}
     assert call(f"{server}/api/settings", "POST", {"view3d": view})[0] == 400
+
+
+def test_the_curves_of_the_charts_are_a_setting(server, data_dir):
+    """Per printer the curves "Diagramme" shows (the user's wish of 27.09.2026); one printer at a time."""
+    call(f"{server}/api/settings", "POST", {"charts": {"Snapmaker U1": ["temp:extruder", "flow"]}})
+    call(f"{server}/api/settings", "POST", {"charts": {"Voron": ["temp:heater_bed"]}})
+    got = json.loads(call(f"{server}/api/settings")[1])["charts"]
+    assert got == {"Snapmaker U1": ["temp:extruder", "flow"], "Voron": ["temp:heater_bed"]}
+    for wrong in ({"charts": {}}, {"charts": ["flow"]}, {"charts": {"U1": "flow"}}, {"charts": {"U1": [1]}}, {"charts": {"": ["flow"]}}):
+        assert call(f"{server}/api/settings", "POST", wrong)[0] == 400, wrong

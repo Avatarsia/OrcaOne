@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "fehler", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "druckerlogs", "ssh", "netzwerk", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
+export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "diagramme", "fehler", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "druckerlogs", "ssh", "netzwerk", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -229,6 +229,20 @@ export async function loadHosts() {
 // has a camera, files, its light. In the slicer part ui.printer is a model already.
 export const modelOf = (key) => hosts.value?.[key]?.model || key;
 export const isU1Printer = (key) => U1_MODELS.includes(modelOf(key));
+// Klipper's names as a person says them (pages "Status" and "Diagramme"); on the U1 its heads and their
+// fans by number (printer.cfg: [fan] and e1_fan … e3_fan cool the part, e0_nozzle_fan … the hotends).
+export function partLabel(name, u1) {
+  const S = T.monitor, U1 = T.u1;
+  const rest = name.includes(" ") ? name.slice(name.indexOf(" ") + 1) : "";
+  let m;
+  if (name === "heater_bed") return S.names.bed;
+  if ((m = /^tmc\w+ stepper_(\w+)$/.exec(name))) return S.names.driver(m[1].toUpperCase());
+  if ((m = /^extruder(\d*)$/.exec(name))) return u1 ? U1.head(+(m[1] || 0) + 1) : S.names.extruder(m[1]);
+  if (name === "fan") return u1 ? `${U1.head(1)} · ${S.names.partFan}` : S.names.partFan;
+  if (u1 && (m = /^e(\d+)_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.partFan}`;
+  if (u1 && (m = /^e(\d+)_nozzle_fan$/.exec(rest))) return `${U1.head(+m[1] + 1)} · ${S.names.hotendFan}`;
+  return S.names[rest] || (rest || name).replace(/_/g, " ");
+}
 // Those printers for the top bar and the page "Drucker": { key, model, host, name, cover }; key is
 // the name ui.printer and the API go by.
 export const machines = computed(() => Object.entries(hosts.value || {}).map(([key, h]) => {
@@ -555,6 +569,7 @@ export const ICONS = {
   key: '<circle cx="8" cy="15.5" r="4"/><path d="m11 12.5 8.5-8.5M16 7.5l2.5 2.5M13.5 10l2 2"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3.5V6M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"/>',
   power: '<path d="M12 3.5v8"/><path d="M7 6.5a7.5 7.5 0 1 0 10 0"/>',
+  chart: '<path d="M3.5 3.5v17h17"/><path d="m7 15 4-5 3.5 3L20 6.5"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M4.5 12a7.5 7.5 0 0 1 13-5.1"/><path d="M17.5 3.5v3.4h-3.4M6.5 20.5v-3.4h3.4"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
   warn: '<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.2"/>',

@@ -151,7 +151,8 @@ def test_without_the_computer_inside(moonraker, monkeypatch):
     real = monitor._get
     monkeypatch.setattr(monitor, "_get", lambda h, path: real(h, "/nothing") if path == "/machine/proc_stats" else real(h, path))
     got = monitor.read(host)
-    assert got["system"] == {"cpu": None, "cpu_temp": None, "memory": {"total": None, "used": None}, "uptime": None, "network": []}
+    assert got["system"] == {"cpu": None, "cpu_temp": None, "memory": {"total": None, "used": None}, "uptime": None, "time": None,
+                             "network": []}
 
 
 def test_api(server, moonraker):

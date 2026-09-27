@@ -71,6 +71,8 @@ export const api = {
   // The installation, and a printer's print file, chosen last: the next start takes them (26.09.2026).
   setChosenInstance: (id) => request("POST", "/api/settings", { chosen_instance: id }),
   setPrintFile: (printer, path) => request("POST", "/api/settings", { print_file: { [printer]: path } }),
+  // The curves shown on "Diagramme" for a printer (the user's wish of 27.09.2026).
+  setCharts: (printer, names) => request("POST", "/api/settings", { charts: { [printer]: names } }),
   // Where the camera of "3D Ansicht" was left: the page opens with it again.
   setView3d: (view) => request("POST", "/api/settings", { view3d: view }),
   // "Use at your own risk" confirmed: the server keeps it with the time and the version
@@ -99,6 +101,9 @@ export const api = {
   // The logs of a printer (page "Logs" of the printer part): list, a view, the last start, a search.
   printerErrors: (model) => request("GET", `/api/printers/errors?model=${encodeURIComponent(model)}`),
   printerLogs: (model) => request("GET", `/api/printers/logs?model=${encodeURIComponent(model)}`),
+  // Page "Diagramme": what OrcaOne recorded of a printer (orcaone/history.py), the `seconds` up to now or up to `until`.
+  history: (printer, seconds, points, until = null) =>
+    request("GET", `/api/history?${new URLSearchParams({ printer, seconds, points, ...(until ? { until } : {}) })}`),
   printerLog: (model, path, where = {}) => request("GET", `/api/printers/log?${new URLSearchParams({ model, path, ...where })}`),
   printerLogStart: (model, path) => request("GET", `/api/printers/log/start?${new URLSearchParams({ model, path })}`),
   printerLogSearch: (model, path, q, regex, context) =>

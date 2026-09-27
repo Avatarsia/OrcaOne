@@ -135,7 +135,7 @@ const T = {
     contact: "Kontakt für eine kommerzielle Lizenz:",
     thirdTitle: "Dateien von Dritten",
     thirdLead: "Diese Teile stehen nicht unter der Lizenz von OrcaOne, sondern unter ihrer eigenen.",
-    uses: { vue: "Oberfläche", three: "3D Ansicht", xterm: "SSH", inter: "Schrift", mono: "Schrift für G-Code und Werte" },
+    uses: { vue: "Oberfläche", three: "3D Ansicht", xterm: "SSH", uplot: "Diagramme", inter: "Schrift", mono: "Schrift für G-Code und Werte" },
     termsTitle: "Lizenztext",
     termsLead: "Deutsche Übersetzung, nicht verbindlich. Rechtlich maßgeblich ist das englische Original darunter.",
     originalTitle: "Englischer Originaltext, rechtlich maßgeblich",
@@ -234,7 +234,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Steuerung", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { diagramme: "Diagramme", fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Steuerung", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -248,9 +248,7 @@ const T = {
     toLight: "Helles Design einschalten",
     languageBlocked: "Erst die vorgemerkten Änderungen übernehmen oder verwerfen.",
   },
-  instMenu: "Installation",
   printerMenu: "Drucker in OrcaOne",
-  machineMenu: "Drucker im Netz",
   status: {
     closed: "Geschlossen",
     running: "Läuft – nur ansehen",
@@ -301,6 +299,7 @@ const T = {
   },
   // Error codes of the API (orcaone/app.py) and of api.js.
   errors: {
+    history_invalid: "Diese Zeitspanne gibt es nicht.",
     log_query_invalid: "Diese Suche geht nicht: leer, länger als 200 Zeichen oder kein gültiger regulärer Ausdruck.",
     range_unsatisfiable: "Diese Stelle gibt es in der Datei nicht mehr.",
     path_not_found: "Diesen Ordner gibt es nicht. Prüfe den Pfad.",
@@ -487,7 +486,6 @@ const T = {
   // ---------------------------------------------------------------- page "Übersicht"
   home: {
     title: "Übersicht",
-    chosen: "Gewählt",
     slicerFacts: (version, printers, own) => `Version ${version} · ${printers === 1 ? "1 Drucker" : `${n(printers)} Drucker`} · ${own === 1 ? "1 eigenes Filament" : `${n(own)} eigene Filamente`}`,
     printersIn: (slicer) => `Drucker in ${slicer}`,
     printerCount: (k) => (k === 1 ? "1 Drucker" : `${n(k)} Drucker`),
@@ -978,6 +976,60 @@ const T = {
     alt: (range) => `Höhenkarte des Betts, Spanne ${range} mm`,
     none: "Klipper hat gerade keine Höhenkarte geladen. Beim U1 entsteht sie beim Druckstart, wenn „Bett vermessen“ an ist.",
     missing: "Dieser Drucker vermisst sein Bett nicht: In Klipper fehlt [bed_mesh].",
+  },
+
+  // The printer tabs above every page of the printer part (app.js)
+  printerTabs: {
+    label: "Drucker",
+    printing: (pct) => `druckt · ${pct} %`,
+    paused: "pausiert",
+    ready: "bereit",
+    fault: "Klipper im Fehler",
+    starting: "Klipper startet",
+    away: "nicht erreichbar",
+    unknown: "wird abgefragt",
+    more: (n) => `${n} weitere`,
+    moreTitle: "Weitere",
+    awayTitle: "Nicht erreichbar",
+    all: "Alle Drucker",
+    toNetwork: "Netzwerk prüfen",
+    noAnswer: (name) => `${name} antwortet nicht.`,
+  },
+  // The installations as tabs in the top bar of the slicer part (app.js)
+  slicerTabs: {
+    label: "Installationen",
+  },
+
+  // ---------------------------------------------------------------- page "Diagramme" (pages/diagramme.js)
+  charts: {
+    title: "Diagramme",
+    stage: "Verlauf",
+    span: "Zeitspanne",
+    spans: { 900: "15 min", 3600: "1 h", 21600: "6 h", 86400: "24 h", 604800: "7 Tage", print: "Dieser Druck" },
+    follow: "Mitlaufen",
+    followHint: "Mitlaufen: Die Kurven folgen den neuesten Werten. Aufziehen zoomt und hält sie an.",
+    zoomHint: "Aufziehen vergrößert, Doppelklick zeigt wieder alles",
+    overviewHint: "Die vierfache Zeitspanne bis jetzt: die Köpfe als Linien, grün hinterlegt, wo gedruckt wurde. Ziehen verschiebt den Ausschnitt oder zieht einen neuen auf, ein Klick läuft wieder mit.",
+    loading: "Lese die Aufzeichnung …",
+    noPrinters: "Noch kein Drucker hat eine IP-Adresse. Trag sie auf der Seite „Drucker“ ein.",
+    nothingYet: "Für diesen Drucker gibt es in der Zeitspanne noch keine Werte. Sie kommen, sobald er antwortet.",
+    nothingPicked: "Nichts gewählt. Unter „Was zeigen“ eine Schnellwahl nehmen oder ankreuzen, was du sehen willst.",
+    choose: "Was zeigen",
+    chooseHint: "Was zeigen: Kurven wählen",
+    closePanel: "Auswahl schließen",
+    presetsLabel: "Schnellwahl",
+    presets: { none: "Alles aus", print: "Drucken", temps: "Temperaturen", heads: "Köpfe", chamber: "Bett und Bauraum",
+               progress: "Fortschritt", motion: "Geschwindigkeit und Fluss", fans: "Lüfter", electronics: "Elektronik", network: "Netz" },
+    presetOwn: "Eigene Auswahl",
+    withTarget: " mit Soll",
+    layer: (k) => `Schicht ${n(k)}`,
+    working: (head) => `${head} druckt`,
+    units: { layer: "Schicht" },
+    groups: { heads: "Köpfe", heat: "Bett, Bauraum und Sensoren", power: "Heizleistung", motion: "Bewegung", fans: "Lüfter",
+              print: "Druck", computer: "Rechner und Treiber", network: "Netz" },
+    series: { cpu: "CPU", memory: "Arbeitsspeicher", cpu_temp: "CPU-Temperatur", speed: "Geschwindigkeit", flow: "Volumenstrom",
+              z: "Z-Höhe", progress: "Fortschritt", layer: "Schicht", speed_factor: "Geschwindigkeitsfaktor", flow_factor: "Flussfaktor",
+              target: "Soll", power: "Heizleistung", rpm: "Drehzahl", rx: "empfangen", tx: "gesendet" },
   },
 
   // ---------------------------------------------------------------- page "Steuerung"

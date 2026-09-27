@@ -14,6 +14,7 @@ const THIRD = [
   { name: "Vue", use: "vue", license: "MIT" },
   { name: "three.js", use: "three", license: "MIT" },
   { name: "xterm.js", use: "xterm", license: "MIT" },
+  { name: "uPlot", use: "uplot", license: "MIT" },
   { name: "Inter", use: "inter", license: "SIL Open Font License 1.1" },
   { name: "JetBrains Mono", use: "mono", license: "SIL Open Font License 1.1" },
 ];

@@ -23,6 +23,7 @@
   --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
   --panel-w: 380px;
   --nav-w: 212px;           /* layout only, like --panel-w; "Import/Export" with its count fits */
+  --head-h: 92px;           /* the top bar with the tabs (48 px) and the bar with their tools below (44 px) */
 
   --accent: light-dark(#009688, #00675B);        /* fills: primary button, switch */
   --accent-hover: light-dark(#26A69A, #008172);
@@ -33,6 +34,7 @@
   --surface: light-dark(#FFFFFF, #2D2D31);
   --surface-2: light-dark(#F4F4F4, #36363B);
   --header: light-dark(#3B4446, #2D2D30);
+  --tab-on: light-dark(#FFFFFF, #3A3A40);        /* the chosen tab and the bar of its tools; --surface is the header's colour in dark */
   --line-input: light-dark(#DBDBDB, #4A4A51);
   --line-box: light-dark(#CECECE, #54545B);
   --divider: light-dark(#EEEEEE, #4C4C55);
@@ -167,6 +169,106 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .bar-ask-q { margin-bottom: 10px; font-weight: 700; }
 .bar-ask-actions { display: flex; gap: 8px; }
 
+/* The tabs in the top bar (app.js, the user's wishes of 27.09.2026): what OrcaOne works with comes first.
+   The left part as wide as the menu, so the tabs start where the page does; the chosen tab in the colour
+   of the bar below, into which it runs. On a phone the others are their picture with a mark (below). */
+.topbar-home { display: flex; flex: none; align-items: center; gap: 12px; min-width: 0; }
+.topbar-home.is-wide { flex-basis: calc(var(--nav-w) - 28px); }
+.top-tabs { display: flex; flex: 1; align-self: flex-end; align-items: flex-end; gap: 2px; min-width: 0; height: 42px; }
+.top-tab { position: relative; display: flex; flex: 0 1 220px; align-items: center; gap: 8px; min-width: 150px; height: 40px; padding: 0 12px 0 8px;
+           border: 0; border-top: 3px solid transparent; border-radius: 8px 8px 0 0; background: none; color: rgba(255, 255, 255, .72);
+           font: inherit; text-align: left; cursor: pointer; }
+.top-tab:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.top-tab.is-on { height: 41px; margin-bottom: -1px; border-top-color: var(--accent-line); background: var(--tab-on); color: var(--text); cursor: default; }
+.top-tab:focus-visible { outline-offset: -3px; }
+.top-tab.is-on:focus-visible { outline-color: var(--accent-line); }
+.top-tab-img { flex: none; width: 24px; height: 24px; padding: 1px; border-radius: 4px; background: #fff; object-fit: contain; }
+.top-tab:not(.is-on) .top-tab-img { opacity: .75; }
+.top-tab.is-faded .top-tab-img { opacity: .4; }
+.top-tab-logo { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border: 1px solid rgba(255, 255, 255, .25); border-radius: 5px;
+                background: rgba(255, 255, 255, .14); color: #fff; font-size: 11px; font-weight: 800; }
+.top-tab-logo.is-orca, .inst-item .top-tab-logo.is-orca, .top-tab.is-on .top-tab-logo.is-orca { border-color: #009688; background: #009688; }
+.inst-item .top-tab-logo, .top-tab.is-on .top-tab-logo { border-color: var(--header); background: var(--header); }
+.top-tab-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.top-tab-name { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.top-tab-state { display: flex; align-items: center; gap: 5px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.top-tab.is-on .top-tab-state { color: var(--muted); }
+/* margin: room for the 3px ring of "is-ok", which the state's overflow would cut */
+.top-tab-dot { flex: none; width: 7px; height: 7px; margin-left: 3px; border-radius: 50%; background: currentColor; opacity: .55; }
+.top-tab.is-none .top-tab-dot { display: none; }
+.top-tab.is-ok .top-tab-dot { background: var(--accent-line); opacity: 1; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-line) 30%, transparent); }
+.top-tab.is-warn .top-tab-dot { background: var(--warn); opacity: 1; }
+.top-tab.is-err .top-tab-dot { background: var(--error); opacity: 1; }
+.top-tab.is-away .top-tab-dot { border: 1.5px solid currentColor; background: none; opacity: 1; }
+.top-tab-mark { display: none; }
+/* "+N": what does not fit and the printers that do not answer; a dot for the most urgent state behind it */
+.top-more { position: relative; display: inline-flex; align-items: center; gap: 2px; height: 30px; margin: 0 0 5px 6px; padding: 0 8px;
+            border: 1px solid rgba(255, 255, 255, .25); border-radius: 6px; background: none; color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+.top-more:hover { background: rgba(255, 255, 255, .12); }
+.top-more.is-ok::after, .top-more.is-warn::after, .top-more.is-err::after {
+  content: ""; position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; border: 2px solid var(--header); border-radius: 50%; background: var(--accent-line); }
+.top-more.is-warn::after { background: var(--warn); }
+.top-more.is-err::after { background: var(--error); }
+.more-menu { right: 0; left: auto; width: 320px; max-width: calc(100vw - 24px); max-height: min(70vh, 520px); overflow-y: auto; }
+.more-state { color: var(--muted); font-size: 12px; font-weight: 400; }
+.more-state.is-err { color: var(--error); }
+.more-away { display: flex; align-items: center; padding-right: 8px; }
+.more-away .inst-item { flex: 1; min-width: 0; }
+.more-away .printer-pick-img { opacity: .5; }
+.more-all { border-top: 1px solid var(--divider); color: var(--accent-text); font-weight: 600; text-decoration: none; }
+/* The bar below the tabs with the tools of the chosen one, in its colour, at the top of the page; it stays
+   while the page scrolls, under the top bar and over the side panel */
+.tab-tools { position: sticky; top: 48px; z-index: 18; display: flex; flex: none; align-items: center; gap: 8px; min-height: 44px;
+           margin: -24px -16px 20px; padding: 6px 16px 5px; border-bottom: 1px solid var(--line-box); background: var(--tab-on); }
+/* 6 + 32 (the buttons) + 5 + 1 (the line) = 44 px, as the top of the menu beside it and --head-h */
+.tab-tools :focus-visible { outline-color: var(--accent-line); }
+.tab-tools .bar-btn, .tab-tools .inst-btn { border-color: var(--line-input); color: var(--text); }
+.tab-tools .bar-btn:hover, .tab-tools .inst-btn:hover { background: var(--row-hover); }
+.tab-tools .inst-btn .file-thumb, .tab-tools .printer-pick-img { border: 1px solid var(--line-input); }
+.tab-tools .file-pick .inst-menu, .tab-tools .printer-pick .inst-menu { right: auto; left: 0; }
+.tab-tools .print-ctl { flex: 1; align-items: center; min-width: 0; }
+.tab-tools-sep { flex: none; width: 1px; height: 20px; margin: 0 2px; background: var(--line-box); }
+/* How far the print is, in the bar: ring, percent, time left; paused in orange */
+.job-now { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--text); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.job-now:hover strong { text-decoration: underline; }
+.job-now .job-ring { background: conic-gradient(var(--accent-line) calc(var(--pct) * 1%), var(--divider) 0); }
+.job-now .job-left { overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
+.job-now.is-paused .job-ring { background: conic-gradient(var(--warn) calc(var(--pct) * 1%), var(--divider) 0); }
+.job-now.is-paused .job-left { color: var(--heat-text); }
+/* The emergency stop: always at the right edge and the same size; armed filled, the hint below it */
+.estop-wrap { position: relative; display: flex; }
+.tab-tools .bar-btn.estop { justify-content: center; width: 40px; padding: 0; border-color: var(--error); color: var(--error); }
+.tab-tools .bar-btn.estop:hover { background: var(--error-bg); }
+.tab-tools .bar-btn.estop.is-armed { border-color: var(--danger); background: var(--danger); color: #fff; }
+.estop-tip { position: absolute; top: calc(100% + 8px); right: 0; z-index: 31; width: max-content; max-width: 220px; padding: 6px 10px; border-radius: 6px;
+             background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 4px 14px rgba(0, 0, 0, .2); }
+/* The printer of the printer part does not answer: a quiet strip with the way to "Netzwerk" */
+.klipper-strip.is-away { border-left-color: var(--muted); background: var(--surface-2); }
+.klipper-strip.is-away .mono { margin: 0 8px; color: var(--muted); }
+@media (max-width: 700px) {
+  .tab-tools { gap: 6px; margin: -16px -16px 16px; padding: 6px 12px 5px; }
+  /* Their questions under the bar, not cut off on the left: from the right edge of the bar */
+  .tab-tools .cancel-pick, .tab-tools .restart-pick { position: static; }
+  .tab-tools .bar-ask, .tab-tools .bar-restart { right: 12px; }
+  .job-now .job-left { display: none; }
+}
+@media (max-width: 600px) {
+  .topbar-home { gap: 6px; }
+  .top-tab.is-on { flex: 0 1 190px; }
+  .top-tab:not(.is-on) { flex: none; justify-content: center; width: 44px; min-width: 0; padding: 0; }
+  .top-tab:not(.is-on) .top-tab-text { display: none; }
+  .top-tab:not(.is-on) .top-tab-mark { position: absolute; right: 6px; bottom: 5px; display: block; width: 10px; height: 10px;
+                                        border: 2px solid var(--header); border-radius: 50%; background: #9A9A9A; }
+  .top-tab.is-ok .top-tab-mark { background: var(--accent-line); }
+  .top-tab.is-warn .top-tab-mark { background: var(--warn); }
+  .top-tab.is-err .top-tab-mark { background: var(--error); }
+  .top-tab.is-away .top-tab-mark { background: var(--header); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .7); }
+  .top-tab.is-none .top-tab-mark { display: none; }
+  /* The menu of "+N" across the width, under the top bar */
+  .more-pick { position: static; }
+  .more-menu { right: 8px; left: 8px; width: auto; }
+}
+
 /* Nav left, content right (ionpy .selector-frame--with-side: 180px 1fr) */
 .shell { display: grid; grid-template-columns: var(--nav-w) minmax(0, 1fr); }
 /* Folded away with the button in the top bar (app.js): the page takes the full width */
@@ -187,6 +289,13 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .area-btn:hover { background: var(--row-hover); color: var(--text); }
 .area-btn.is-on { background: var(--accent); color: var(--on-accent); }
 .area-btn.is-on .icon { color: var(--on-accent); }
+/* The top of the menu continues the bar of the tools below the tabs, same height and colour, without its
+   line (the user: the switch next to it looked like a break); the switch as tall as the buttons in that bar */
+@media (min-width: 901px) {
+  .nav { padding-top: 6px; background: linear-gradient(to bottom, var(--tab-on) 0 44px, var(--surface) 44px); background-attachment: local; }
+  .area-switch { height: 32px; margin-bottom: 18px; padding: 3px; }
+  .area-btn { height: 24px; }
+}
 /* The switches at the bottom of the menu: language and light or dark; the knob slides to the side
    that is on */
 .nav-switches { display: flex; gap: 8px; margin: auto 4px 0; padding-top: 12px; }
@@ -291,7 +400,7 @@ code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); overf
 .bar-title span { color: var(--muted); font-size: 13px; }
 .banner { margin-bottom: 16px; padding: 10px 14px; border-left: 3px solid var(--warn); border-radius: 4px; background: var(--warn-bg); }
 /* Klipper not ready, above every page of the printer part (app.js); after a shutdown with the way out */
-.klipper-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 16px; padding: 10px 14px;
+.klipper-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; width: 100%; margin-bottom: 16px; padding: 10px 14px;
                  border-left: 3px solid var(--warn); border-radius: 4px; background: var(--warn-bg); font-size: 14px; }
 .klipper-strip.is-down { border-left-color: var(--error); background: var(--error-bg); }
 .klipper-strip-text { flex: 1 1 260px; min-width: 0; }
@@ -460,7 +569,7 @@ img.dim { opacity: .5; }
 
 /* Side panel */
 .panel {
-  position: fixed; top: 48px; right: 0; bottom: 0; z-index: 15; width: var(--panel-w);
+  position: fixed; top: var(--head-h); right: 0; bottom: 0; z-index: 15; width: var(--panel-w);
   display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line-box);
 }
 .panel-head { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--divider); }
@@ -965,23 +1074,23 @@ body:has(.panel) .changebar { right: var(--panel-w); }
 .file-list { display: flex; flex-direction: column; gap: 3px; margin: 6px 0 0; padding: 0; list-style: none; }
 
 @media (max-width: 900px) {
-  /* The menu is a drawer over the page, from the left under the top bar; the button in the top
-     bar opens it (app.js). The change bar keeps the bottom. */
+  /* The menu is a drawer over the page, from the left under the bar of the tools (the emergency stop
+     stays free); the button in the top bar opens it (app.js). The change bar keeps the bottom. */
   .shell { grid-template-columns: minmax(0, 1fr); }
   .changebar { left: 0; }
   .nav {
     /* stretch: "start" from the column would size it to its content (align-self acts on fixed boxes) */
-    position: fixed; top: 48px; bottom: 0; left: 0; z-index: 30; align-self: stretch; width: min(280px, 85vw); height: auto;
+    position: fixed; top: var(--head-h); bottom: 0; left: 0; z-index: 30; align-self: stretch; width: min(280px, 85vw); height: auto;
     box-shadow: 6px 0 20px rgba(0, 0, 0, .2); transform: translateX(-100%); visibility: hidden;
     transition: transform .2s ease, visibility 0s linear .2s;
   }
   .shell.nav-open .nav { transform: none; visibility: visible; transition: transform .2s ease; }
-  .nav-backdrop { position: fixed; inset: 48px 0 0; z-index: 29; background: rgba(0, 0, 0, .3); }
+  .nav-backdrop { position: fixed; inset: var(--head-h) 0 0; z-index: 29; background: rgba(0, 0, 0, .3); }
   .page-host.with-panel { padding-right: 0; }
   body:has(.panel) .changebar { right: 0; }
   .main:has(> .changes-panel, > .print-panel) .page-host { padding-right: 0; }
   /* Over the page, under the drawer */
-  .panel { z-index: 19; width: min(var(--panel-w), 100%); box-shadow: -6px 0 20px rgba(0, 0, 0, .2); }
+  .panel { z-index: 17; width: min(var(--panel-w), 100%); box-shadow: -6px 0 20px rgba(0, 0, 0, .2); }
   .scope-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 700px) {
@@ -1422,6 +1531,62 @@ body:has(.panel) .changebar { right: var(--panel-w); }
   .fault-row { grid-template-columns: minmax(0, 1fr) auto; }
   .fault-row-title { grid-column: 1 / -1; }
 }
+/* Page "Diagramme" (pages/diagramme.js): a cockpit without page scroll like "2D Ansicht": the lanes on the
+   stage, below them the overview (it starts where the plots start: axis 44 px and its title 18 px, 10 px right), beside
+   them the panel "Was zeigen", a drawer on small screens */
+.page.fill-page.charts-page { max-width: none; }
+/* "Was zeigen" open, as a pressed switch looks */
+.charts-page .chip.chip-icon[aria-expanded="true"] { border-color: var(--accent-line); background: var(--selected); }
+.charts-page .chip.chip-icon[aria-expanded="true"] .icon { color: var(--accent-text); }
+.charts-body { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr); gap: 12px; min-height: 0; }
+.charts-body.has-panel { grid-template-columns: minmax(0, 1fr) 300px; }
+.charts-stage { display: flex; flex-direction: column; min-height: 320px; padding: 6px 4px 8px 6px; }
+.charts-empty { position: absolute; inset: 0; z-index: 1; pointer-events: none; display: grid; place-items: center; margin: 0; padding: 24px; color: var(--muted); text-align: center; }
+.charts-lanes { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.charts-lane { position: relative; display: flex; flex: 1 1 0; flex-direction: column; min-height: 64px; }
+.charts-lane + .charts-lane { margin-top: 3px; padding-top: 3px; border-top: 1px dashed var(--divider); }
+.charts-plot { position: relative; flex: 1; min-height: 0; }
+.charts-plot > .uplot, .charts-overview-plot > .uplot { position: absolute; inset: 0; }
+.charts-plot .u-select { background: color-mix(in srgb, var(--accent-line) 18%, transparent); }
+.charts-hover { position: absolute; z-index: 2; display: grid; gap: 2px; min-width: 190px; max-width: 320px; padding: 7px 10px; border: 1px solid var(--line-box);
+                border-radius: 6px; background: var(--surface); box-shadow: 0 4px 14px rgba(0, 0, 0, .15); font-size: 12px; pointer-events: none; }
+.charts-hover p { margin: 0; }
+.charts-hover-title { font-weight: 700; font-variant-numeric: tabular-nums; }
+.charts-hover-file { color: var(--muted); overflow-wrap: anywhere; }
+.charts-hover-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.charts-hover-row b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.charts-hover-row small, .charts-item-name small { color: var(--muted); font-weight: 400; }
+.charts-swatch { width: 12px; height: 4px; border-radius: 2px; background: var(--c); }
+/* In front of the overview the time it starts at, in the column of the axes (62 px) */
+.charts-overview-row { display: flex; flex: none; align-items: center; margin: 6px 10px 0 0; }
+.charts-overview-from { flex: 0 0 62px; padding-right: 6px; color: var(--muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.charts-overview { position: relative; flex: 1; height: 44px; overflow: hidden; border-radius: 4px; background: var(--surface);
+                   cursor: crosshair; touch-action: none; user-select: none; }
+.charts-overview-plot { position: absolute; inset: 0; }
+/* The window clear, the rest of the overview washed out (its shadow, clipped by the overview) */
+.charts-window { position: absolute; top: 0; bottom: 0; border: 2px solid var(--text); border-radius: 4px; pointer-events: none;
+                 box-shadow: 0 0 0 2000px color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.charts-panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line-box);
+                border-radius: 8px; background: var(--surface); font-size: 13px; }
+.charts-panel-head { display: flex; align-items: center; justify-content: space-between; }
+.charts-panel-head h2 { margin: 0; font-size: 14px; font-weight: 700; }
+.charts-preset { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; color: var(--label); }
+.charts-preset .input { min-width: 0; }
+.charts-groups { display: grid; gap: 2px; }
+.charts-group-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 2px; border: 0; border-radius: 4px; background: none;
+                     color: var(--text); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.charts-group-head:hover { background: var(--focus-bg); }
+.charts-items { display: grid; gap: 1px; margin: 0 0 6px; padding: 0 0 0 4px; list-style: none; }
+.charts-item { display: grid; grid-template-columns: auto 12px minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
+.charts-item:hover { background: var(--focus-bg); }
+.charts-item input { margin: 0; accent-color: var(--accent); }
+.charts-item:not(.is-on) .charts-swatch { opacity: .35; }
+.charts-item-name { overflow-wrap: anywhere; }
+.charts-item-value { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 900px) {
+  .charts-body.has-panel { grid-template-columns: minmax(0, 1fr); }
+  .charts-panel { position: fixed; top: var(--head-h); right: 0; bottom: 0; z-index: 17; width: min(320px, 88vw); border-radius: 0; box-shadow: -8px 0 24px rgba(0, 0, 0, .2); }
+}
 /* Regex cheat sheet on both log pages (pages/regex-help.js): a line of its own below the search */
 .regex-help-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
 .regex-help { flex-basis: 100%; max-height: 28vh; overflow: auto; padding: 10px 14px; border-left: 3px solid var(--accent-line); border-radius: 4px; background: var(--focus-bg);
@@ -1595,30 +1760,20 @@ span.cal-check { cursor: default; }
 /* The printer of the top bar on the pages "Konsole" and "SSH", as text where a choice was */
 .ssh-static { display: flex; align-items: baseline; gap: 8px; height: 32px; padding-top: 6px; color: var(--text); font-size: 14px; }
 .ssh-static small { color: var(--muted); font-family: var(--mono); font-size: 12px; font-weight: 400; }
-.inst-btn .name-short { display: none; }
-@media (max-width: 480px) {
-  .inst-btn .name-long { display: none; }
-  .inst-btn .name-short { display: inline; }
-}
-/* On a phone the printer keeps its name first: the installation gives way */
 @media (max-width: 480px) {
   .topbar { padding: 0 10px; }
   .inst-btn { gap: 4px; padding: 0 6px; }
-  .inst-pick { flex-shrink: 4; }
-  .inst-pick .status { display: none; }
 }
 
 /* Page "Übersicht", the start page of the slicer part (pages/uebersicht.js) */
-/* The installations on top: the chosen one edged (the user: see at once which slicer is chosen) */
-.home-slicers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 20px; }
-.home-slicer { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line-box); border-radius: 8px;
-               background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.home-slicer:hover { border-color: var(--accent-line); }
-.home-slicer.is-current { padding: 11px 13px; border: 2px solid var(--accent-line); background: color-mix(in srgb, var(--selected) 45%, var(--surface)); }
+/* The installation of the tab in short, on top (the tabs choose it; the user's wish of 27.09.2026) */
+.home-slicer { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 20px; padding: 10px 14px; border: 1px solid var(--line-box);
+               border-radius: 8px; background: var(--surface); }
+.home-slicer .slicer-logo { width: 40px; height: 40px; border-radius: 8px; font-size: 15px; }
 .home-slicer-text { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .home-slicer-text strong { font-size: 16px; }
 .home-slicer-text small { color: var(--muted); font-size: 12px; }
-.home-slicer-state { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.home-slicer-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* All printers of that slicer, one row each (the user: "nicht überladen"): name and ways on, below
    one line with what is set in the slicer, every nozzle only on demand. The lines below the top
    start where the name starts. */
@@ -1771,7 +1926,6 @@ span.cal-check { cursor: default; }
 .home-tile-more { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: auto; padding-top: 10px; font-size: 13px; }
 .home-tile-more:empty { display: none; }
 @media (max-width: 480px) {
-  .home-slicers { grid-template-columns: minmax(0, 1fr); }
   /* The ways on below the name, the lines below the top across the whole width */
   .home-pcard { --indent: 0px; }
   .home-pcard-links { justify-content: flex-start; width: 100%; margin-left: 0; }

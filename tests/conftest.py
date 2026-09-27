@@ -10,7 +10,7 @@ import paramiko
 import pytest
 import uvicorn
 
-from orcaone import camera, covers, guard, instances, settings
+from orcaone import camera, covers, guard, history, instances, live, settings
 from orcaone.__main__ import free_port
 from orcaone.app import app
 
@@ -45,6 +45,11 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(covers, "_missing", set())
     monkeypatch.setattr(covers, "_locks", {})
     monkeypatch.setattr(covers, "_offline_until", 0.0)
+    # No recording of every printer in the background: a test of it runs live.recording itself.
+    monkeypatch.setattr(live, "RECORD", False)
+    monkeypatch.setattr(live, "_kept", set())
+    monkeypatch.setattr(history, "_last", {})
+    monkeypatch.setattr(history, "_tidied", {})
     return folder
 
 

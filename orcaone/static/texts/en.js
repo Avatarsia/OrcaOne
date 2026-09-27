@@ -125,7 +125,7 @@ const T = {
     contact: "Contact for a commercial license:",
     thirdTitle: "Third-party files",
     thirdLead: "These parts are not under OrcaOne's license but under their own.",
-    uses: { vue: "User interface", three: "3D View", xterm: "SSH", inter: "Font", mono: "Font for G-code and values" },
+    uses: { vue: "User interface", three: "3D View", xterm: "SSH", uplot: "Charts", inter: "Font", mono: "Font for G-code and values" },
     termsTitle: "License text",
     termsLead: "Legally binding",
     originalTitle: "English original, legally binding",
@@ -223,7 +223,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Area", slicer: "Slicer", printer: "Printers",
       hint: { slicer: "The slicers' profiles: filaments, processes, printers", printer: "The printers themselves: status, files, views, camera, console" } },
-    pages: { fehler: "Errors", uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
+    pages: { diagramme: "Charts", fehler: "Errors", uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
     byHint: "Who made OrcaOne, and the license",
     news: "changes since last time",
     faults: "errors reported",
@@ -236,9 +236,7 @@ const T = {
     toLight: "Switch to the light design",
     languageBlocked: "Apply or discard the queued changes first.",
   },
-  instMenu: "Installation",
   printerMenu: "Printer in OrcaOne",
-  machineMenu: "Printer on the network",
   status: {
     closed: "Closed",
     running: "Running – view only",
@@ -289,6 +287,7 @@ const T = {
   },
   // Error codes of the API (orcaone/app.py) and of api.js.
   errors: {
+    history_invalid: "There is no such time span.",
     log_query_invalid: "This search does not work: empty, longer than 200 characters or not a valid regular expression.",
     range_unsatisfiable: "This place is no longer in the file.",
     path_not_found: "This folder does not exist. Check the path.",
@@ -475,7 +474,6 @@ const T = {
   // ---------------------------------------------------------------- page "Übersicht"
   home: {
     title: "Overview",
-    chosen: "Chosen",
     slicerFacts: (version, printers, own) => `Version ${version} · ${printers === 1 ? "1 printer" : `${n(printers)} printers`} · ${own === 1 ? "1 own filament" : `${n(own)} own filaments`}`,
     printersIn: (slicer) => `Printers in ${slicer}`,
     printerCount: (k) => (k === 1 ? "1 printer" : `${n(k)} printers`),
@@ -966,6 +964,60 @@ const T = {
     alt: (range) => `Bed mesh, range ${range} mm`,
     none: "Klipper has no bed mesh loaded right now. On the U1 it comes with a print start when \"Bed leveling\" is on.",
     missing: "This printer does not probe its bed: Klipper lacks [bed_mesh].",
+  },
+
+  // The printer tabs above every page of the printer part (app.js)
+  printerTabs: {
+    label: "Printers",
+    printing: (pct) => `printing · ${pct} %`,
+    paused: "paused",
+    ready: "ready",
+    fault: "Klipper in error",
+    starting: "Klipper starting",
+    away: "not reachable",
+    unknown: "asking",
+    more: (n) => `${n} more`,
+    moreTitle: "More",
+    awayTitle: "Not reachable",
+    all: "All printers",
+    toNetwork: "Check the network",
+    noAnswer: (name) => `${name} does not answer.`,
+  },
+  // The installations as tabs in the top bar of the slicer part (app.js)
+  slicerTabs: {
+    label: "Installations",
+  },
+
+  // ---------------------------------------------------------------- page "Diagramme" (pages/diagramme.js)
+  charts: {
+    title: "Charts",
+    stage: "History",
+    span: "Time span",
+    spans: { 900: "15 min", 3600: "1 h", 21600: "6 h", 86400: "24 h", 604800: "7 days", print: "This print" },
+    follow: "Follow",
+    followHint: "Follow: the curves move with the newest values. Dragging zooms and stops them.",
+    zoomHint: "Drag to zoom, double click shows everything again",
+    overviewHint: "Four times the time span up to now: the heads as lines, green where the printer printed. Drag to move the range or draw a new one, a click follows again.",
+    loading: "Reading the recording …",
+    noPrinters: "No printer has an IP address yet. Add it on the page “Printers”.",
+    nothingYet: "There are no values for this printer in this time span yet. They come as soon as it answers.",
+    nothingPicked: "Nothing chosen. Under “Show”, take a quick choice or tick what you want to see.",
+    choose: "Show",
+    chooseHint: "Show: choose the curves",
+    closePanel: "Close the choice",
+    presetsLabel: "Quick choice",
+    presets: { none: "All off", print: "Printing", temps: "Temperatures", heads: "Heads", chamber: "Bed and chamber",
+               progress: "Progress", motion: "Speed and flow", fans: "Fans", electronics: "Electronics", network: "Network" },
+    presetOwn: "Own choice",
+    withTarget: " with target",
+    layer: (k) => `layer ${n(k)}`,
+    working: (head) => `${head} printing`,
+    units: { layer: "Layer" },
+    groups: { heads: "Heads", heat: "Bed, chamber and sensors", power: "Heater power", motion: "Motion", fans: "Fans",
+              print: "Print", computer: "Computer and drivers", network: "Network" },
+    series: { cpu: "CPU", memory: "Memory", cpu_temp: "CPU temperature", speed: "Speed", flow: "Volumetric flow",
+              z: "Z height", progress: "Progress", layer: "Layer", speed_factor: "Speed factor", flow_factor: "Flow factor",
+              target: "target", power: "heater power", rpm: "rpm", rx: "received", tx: "sent" },
   },
 
   // ---------------------------------------------------------------- page "Steuerung"

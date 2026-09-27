@@ -110,6 +110,10 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
     position = motion.get("live_position") or toolhead.get("position") or []
     webhooks = part("webhooks")
     memory = system.get("system_memory") if isinstance(system.get("system_memory"), dict) else {}
+    # Moonraker's own time of its counters: a list of the last 30 from machine.proc_stats, one from
+    # notify_proc_stat_update. The charts divide the traffic by it (history._traffic).
+    moonraker = system.get("moonraker_stats")
+    moonraker = moonraker[-1] if isinstance(moonraker, list) and moonraker else moonraker if isinstance(moonraker, dict) else {}
     network = system.get("network") if isinstance(system.get("network"), dict) else {}
     return {
         # The U1's shutdown message begins with {"coded": ...}: its code and words apart.
@@ -117,6 +121,8 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
         "exceptions": [{k: e[k] for k in ("code", "level", "message")} for e in
                        map(errors._exception, part("exception_manager").get("exceptions") or []) if e],
         "job": {**job, "filament": _number(stats.get("filament_used")), "message": stats.get("message") or None,
+                # Seconds since the print started, pauses included: the span "Dieser Druck" of "Diagramme".
+                "elapsed": _number(stats.get("total_duration")),
                 "speed_factor": _number(gcode.get("speed_factor")), "flow_factor": _number(gcode.get("extrude_factor")),
                 "options": options},
         "heads": heads,
@@ -135,7 +141,7 @@ def shape(host: str, listed: list, found: dict, system: dict) -> dict:
                    "max_velocity": _number(toolhead.get("max_velocity")), "max_accel": _number(toolhead.get("max_accel"))},
         "system": {"cpu": _number((system.get("system_cpu_usage") or {}).get("cpu")), "cpu_temp": _number(system.get("cpu_temp")),
                    "memory": {"total": _number(memory.get("total")), "used": _number(memory.get("used"))},
-                   "uptime": _number(system.get("system_uptime")),
+                   "uptime": _number(system.get("system_uptime")), "time": _number(moonraker.get("time")),
                    # Only interfaces that carried something: the U1 lists an unused second WLAN.
                    # rx and tx count up; the page "Netzwerk" draws the traffic from them.
                    "network": [{"name": name, "bandwidth": _number(i.get("bandwidth")), "rx": _number(i.get("rx_bytes")),

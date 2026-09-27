@@ -138,6 +138,27 @@ def test_a_page_watches_a_printer(server, moonraker, monkeypatch):
     _until(lambda: "Snapmaker U1" not in live._hubs)
 
 
+def test_the_glance_of_a_printer_tab(server, moonraker, monkeypatch):
+    """The printer tabs want only the state: {"glance": {...}}, sent when it changes, and nothing else."""
+    monkeypatch.setattr(live, "LINGER", 0.2)
+    with _open(server) as ws:
+        ws.send(json.dumps({"watch": [], "glance": ["Snapmaker U1", "Unbekannt"]}))
+        seen = {}
+        while len(seen) < 2:
+            message = json.loads(ws.recv(timeout=5))
+            assert "glance" in message   # nothing but glances
+            seen[message["printer"]] = message["glance"]
+        assert seen == {"Snapmaker U1": {"state": "printing", "klipper": "ready", "percent": 25},
+                        "Unbekannt": {"error": "printer_not_found"}}
+        moonraker.notify("notify_status_update", {"print_stats": {"state": "paused"}}, 2.0)
+        assert _next(ws, lambda m: "glance" in m)["glance"]["state"] == "paused"
+        # Watched as well: the full values come too; no longer glanced: its hub stays for the watch only.
+        ws.send(json.dumps({"watch": ["Snapmaker U1"], "glance": []}))
+        assert _next(ws, lambda m: "data" in m)["data"]["monitor"]["job"]["state"] == "paused"
+        assert not live._hubs["Snapmaker U1"].glancers
+    _until(lambda: "Snapmaker U1" not in live._hubs)
+
+
 def test_a_printer_that_does_not_answer(server):
     camera.set_host("Snapmaker U1", "127.0.0.1:9")   # nothing listens there
     with _open(server) as ws:
